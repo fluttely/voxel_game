@@ -1,0 +1,8 @@
+# The kit ignores its own build output, so the folder stays clean once it is a repository.
+build/
+.dart_tool/
+.flutter-plugins-dependencies
+**/doc/api/
+.idea/
+*.iml
+.DS_Store

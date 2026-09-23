@@ -1,0 +1,21 @@
+# voxel_game is also the workspace root: without these lines every release would ship the
+# other three packages, the example's native build and the local caches inside its tarball.
+packages/
+build/
+.dart_tool/
+example/macos/
+example/build/
+# The kit's own working files — its rules for whoever develops it, its plans, its ledger and
+# the release checklist and script — belong to the repository, not to the package someone installs.
+/CLAUDE.md
+/AGENTS.md
+/PUBLISHING.md
+/docs/
+/tool/
+# A .pubignore replaces .gitignore for this folder, so the lines pub would have taken from
+# there are repeated here.
+.flutter-plugins-dependencies
+**/doc/api/
+.idea/
+*.iml
+.DS_Store
