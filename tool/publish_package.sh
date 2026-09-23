@@ -25,4 +25,4 @@ case "$package" in
 esac
 
 flutter pub get >/dev/null
-cd "packages/$package" && flutter pub publish "${mode[@]}"
+cd "packages/$package" && flutter pub publish ${mode[@]+"${mode[@]}"}
