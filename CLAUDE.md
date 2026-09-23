@@ -1,7 +1,7 @@
 # voxel_game — the voxel kit — Developer & AI Instructions
 
-> **This file governs everything under this folder**: the `voxel_game` package at the
-> root, and the three packages under `packages/`. Every path below is written from this
+> **This file governs everything under this folder**: the pub workspace at the root and
+> the four packages under `packages/`. Every path below is written from this
 > folder, so the file reads the same whether the folder is still
 > `poc_cubeworld/packages/voxel_game/` inside the Dawnforge repository or the root of a
 > repository of its own.
@@ -30,14 +30,14 @@ voxel_game      Flutter          VoxelGameSpec, loop, input, player, cameras, mo
                                  spawns, drops, HUD, save, host / join
 ```
 
-`voxel_game` is this folder's root: it is the published package **and** the pub workspace
-root. `pubspec.yaml`'s `workspace:` lists `packages/voxel_engine`, `packages/voxel_scene`,
-`packages/sound_recipes` and the two example apps (`example/`,
-`packages/voxel_scene/example/`), which stay `publish_to: none` for good. `.pubignore` keeps
-`packages/`, the build output and this folder's own working files (`CLAUDE.md`, `AGENTS.md`,
-`PUBLISHING.md`, `docs/`, `tool/`) out of `voxel_game`'s tarball — it is not optional, and it
-is why the three nested packages publish from a git-less copy through
-`tool/publish_package.sh`, never in place (`PUBLISHING.md`).
+The root is **only the pub workspace**, never a package: its `pubspec.yaml`
+(`voxel_game_workspace`, `publish_to: none`) lists the four packages under `packages/` and
+their two example apps (`packages/voxel_game/example/`, `packages/voxel_scene/example/`),
+which stay `publish_to: none` for good. Beside it live only the repository's own files —
+`CLAUDE.md`, `AGENTS.md`, `PUBLISHING.md`, `README.md`, `docs/`, `tool/` — which no tarball
+ever sees, because no package sits above them. So every package publishes in place, with no
+`.pubignore`, through `tool/publish_package.sh` (`PUBLISHING.md`). Do not put a package back
+at the root: that is what forced the `.pubignore` and the git-less copy this layout removed.
 
 Target: every platform Flutter supports. **macOS is the development platform** (Flutter GPU
 is enabled in each example's `macos/Runner/Info.plist`).
@@ -46,13 +46,14 @@ is enabled in each example's `macos/Runner/Info.plist`).
 
 | What | Where |
 |:---|:---|
-| The kit, what a game imports | `lib/voxel_game.dart` · `lib/src/{camera,core,entities,input,loop,mobs,net,player,spec,ui,world}/` |
+| The kit, what a game imports | `packages/voxel_game/lib/voxel_game.dart` · `packages/voxel_game/lib/src/{camera,core,entities,input,loop,mobs,net,player,spec,ui,world}/` |
 | The three packages under it | `packages/{voxel_engine,voxel_scene,sound_recipes}/` |
-| The smallest game built on it | `example/lib/main.dart` |
+| The smallest game built on it | `packages/voxel_game/example/lib/main.dart` |
+| The workspace (not a package) | `pubspec.yaml` · `pubspec.lock` |
 | Pre-publish checklist, release order, the version graph | `PUBLISHING.md` |
 | Publishing (or dry-running) one of the four | `tool/publish_package.sh <package> [--dry-run]` |
 | How the packages were extracted (VP, VK) and consolidated (VC) | `docs/VOXEL_PACKAGES_PLAN_2026-09-14.md` · `docs/VOXEL_KIT_PLAN_2026-09-18.md` · `docs/VOXEL_CONSOLIDATION_PLAN_2026-09-19.md` |
-| How this folder got its shape (VR) | `docs/VOXEL_RELAYOUT_PLAN_2026-09-21.md` |
+| How this folder got its shape (VR; the move of `voxel_game` under `packages/` came after it, 2026-09-23) | `docs/VOXEL_RELAYOUT_PLAN_2026-09-21.md` |
 | Architecture ledger (rule 17) | `docs/LEDGER.md` |
 | The terrain shader, source and compiled | `packages/voxel_scene/shaders/` · `packages/voxel_scene/assets/shaders/terrain.shaderbundle` |
 
@@ -103,7 +104,7 @@ is enabled in each example's `macos/Runner/Info.plist`).
     `shaders/*.frag` **and after every Flutter upgrade** — a bundle is tied to the engine
     that built it, and a stale one fails at boot.
 16. **Every automation is a script, named for the job** (app 20), runnable standalone from
-    its package's root, `--dry-run`/`--check` when it writes something committed. Today
+    its package's root (the repository's own, from the root), `--dry-run`/`--check` when it writes something committed. Today
     there are two: `packages/voxel_scene/tool/build_shaders.dart` and
     `tool/publish_package.sh` (from this folder's root).
 17. **Record an architectural observation, do not fix it mid-task** (app 21). A structural
@@ -125,7 +126,7 @@ is enabled in each example's `macos/Runner/Info.plist`).
    ```bash
    flutter pub get                                         # once, resolves the workspace
    flutter analyze                                         # zero issues, all four packages
-   flutter test                                            # voxel_game
+   cd packages/voxel_game    && flutter test
    cd packages/voxel_engine  && dart test                  # pure Dart
    cd packages/voxel_scene   && flutter test
    cd packages/sound_recipes && flutter test
@@ -133,7 +134,7 @@ is enabled in each example's `macos/Runner/Info.plist`).
 
    Green as of VR3 (2026-09-22): analyze clean · 32 + 168 + 10 + 4 = **214 tests**. A
    count that drops without a deletion in the diff is a suite that stopped finding files.
-4. **See it running** for anything visual: `cd example && flutter run -d macos` is the
+4. **See it running** for anything visual: `cd packages/voxel_game/example && flutter run -d macos` is the
    kit's own witness. A green test is not a visual result.
 5. **Validate against the rules above.**
 6. **Document it** (below), then **commit** (below).

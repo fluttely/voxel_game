@@ -154,7 +154,7 @@ packages:
     source: hosted
     version: "25.9.23"
   flutter:
-    dependency: "direct main"
+    dependency: transitive
     description: flutter
     source: sdk
     version: "0.0.0"
@@ -172,7 +172,7 @@ packages:
     source: hosted
     version: "0.5.2"
   flutter_lints:
-    dependency: "direct dev"
+    dependency: transitive
     description:
       name: flutter_lints
       sha256: "3105dc8492f6183fb076ccf1f351ac3d60564bff92e20bfc4af9cc1651f4e7e1"
@@ -180,7 +180,7 @@ packages:
     source: hosted
     version: "6.0.0"
   flutter_scene:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: flutter_scene
       sha256: "1cc32b5ed0d05296c1f7958e63168a750c05c2373d6769ad9b9eaa973b2f97fe"
@@ -196,7 +196,7 @@ packages:
     source: hosted
     version: "4.1.7"
   flutter_test:
-    dependency: "direct dev"
+    dependency: transitive
     description: flutter
     source: sdk
     version: "0.0.0"
@@ -214,7 +214,7 @@ packages:
     source: hosted
     version: "4.0.0"
   gamepads:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: gamepads
       sha256: "212cafc5d240b5067eee2a0650b903ddbc18eafbc71a0d1064f8c06587db8ea6"
@@ -454,7 +454,7 @@ packages:
     source: hosted
     version: "1.9.1"
   path_provider:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: path_provider
       sha256: a7f4874f987173da295a61c181b8ee71dab59b332a486b391babf26a1b884825
@@ -518,7 +518,7 @@ packages:
     source: hosted
     version: "2.1.8"
   pointer_lock:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: pointer_lock
       sha256: aa7e4ab44ab2946170b50175c1e94f871bc7b9e5a88429f39e6a7c31e1c38717
@@ -691,7 +691,7 @@ packages:
     source: hosted
     version: "1.4.0"
   vector_math:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: vector_math
       sha256: f36f9f3be64c6198714492bb455c11056e33e2f85d9a0b676a48301e44fdcf47

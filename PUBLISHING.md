@@ -3,9 +3,8 @@
 Nothing here is published yet, but all four packages are ready to be: each is at
 `0.1.0-dev` under the MIT license, with its metadata and real version ranges, and the
 four dry runs pass (`docs/VOXEL_RELAYOUT_PLAN_2026-09-21.md`, VR4). They resolve
-each other through the pub workspace declared in this folder's `pubspec.yaml`:
-`voxel_game` is both the workspace root and a published package, and the other
-three live under `packages/`. The reasoning behind the four-package split is in
+each other through the pub workspace declared in the root `pubspec.yaml`, which is
+not a package: all four live under `packages/`. The reasoning behind the four-package split is in
 [`docs/VOXEL_CONSOLIDATION_PLAN_2026-09-19.md`](docs/VOXEL_CONSOLIDATION_PLAN_2026-09-19.md),
 and how the folder got this shape in
 [`docs/VOXEL_RELAYOUT_PLAN_2026-09-21.md`](docs/VOXEL_RELAYOUT_PLAN_2026-09-21.md).
@@ -22,40 +21,32 @@ and how the folder got this shape in
 `example/` and `packages/voxel_scene/example/` are apps, not packages. They stay
 `publish_to: none` for good.
 
-**`.pubignore` is a requirement, not a tidy-up.** `voxel_game` sits at the root of
-the folder that holds the other three packages, and `pub publish` bundles every
-file under the package it is not told to ignore. Without the `.pubignore` beside
-`pubspec.yaml` (`packages/`, `build/`, `.dart_tool/`, `example/macos/`,
-`example/build/`), every release of `voxel_game` would ship `voxel_engine`,
-`voxel_scene` and `sound_recipes` inside its own tarball. It also keeps out what
-belongs to the repository and not to the package: `CLAUDE.md`, `AGENTS.md`, this
-file, `docs/` and `tool/`. And since a `.pubignore` replaces `.gitignore` for its
-folder, it repeats the `.gitignore` lines. Read the file list the dry run prints
-for `voxel_game` every time.
+**Every package publishes in place, and none has a `.pubignore`.** Inside a git
+repository pub bundles a package's own folder, filtered by the `.gitignore` files
+from the git root down to it. The root holds no package, so nothing above a
+package has to be hidden from it, and the repository's own files (`CLAUDE.md`,
+`AGENTS.md`, this file, `README.md`, `docs/`, `tool/`) sit where no tarball looks.
+Each package ships its `example/` whole, the macOS runner included — its
+`Info.plist` is where a reader sees Flutter GPU turned on.
 
-**That same `packages/` line is why the other three cannot publish in place.**
-Inside a git repository, pub applies the ignore files of every folder from the git
-root down to the package, so a nested package's own files match the root's
-`packages/` and its archive comes out empty ("the pubspec is hidden"). A nested
-`.pubignore` cannot re-include them. Outside git, pub reads only the package's
-folders — so `tool/publish_package.sh` publishes a nested package from a copy of
-this folder with no `.git` in it. Running `pub publish` inside `packages/<p>` by
-mistake fails safe: pub refuses to publish an empty package.
+Until 2026-09-23 `voxel_game` sat at the root. It needed a `.pubignore` with
+`packages/` to keep the other three out of its tarball, and that same line hid the
+nested three from themselves (pub applies every parent folder's ignore file up to
+the git root), so they could only publish from a copy of the folder with no `.git`.
+Moving `voxel_game` under `packages/` removed both. Do not put a package back at
+the root.
 
 ## Before the first release
 
 Still to do:
 
-1. **A repository of its own — the next thing that happens.** This folder is
-   laid out to be that repository as it stands: moved out whole, its root is the
-   package you install, and nothing in it reaches outside it. Every pubspec
-   already points at it: `https://github.com/fluttely/voxel_game`, the nested
-   three at their `tree/main/packages/<p>` path. Until the move, those links lead
-   nowhere.
-2. **A CI that runs the whole workspace** — `dart analyze`, `dart test`,
+1. **A CI that runs the whole workspace** — `dart analyze`, `dart test`,
    `flutter test` — on one push. That is the reason the monorepo exists.
 
-Done in VR4 (2026-09-23):
+Done in VR4 (2026-09-23), and after it:
+
+- **A repository of its own**: `https://github.com/fluttely/voxel_game`. Every
+  pubspec points at it, each package at its `tree/main/packages/<p>` path.
 
 - **A license**: MIT, the same `LICENSE` in each of the four.
 - **Metadata in each pubspec**: `homepage`, `repository`, `issue_tracker`,
@@ -77,11 +68,11 @@ Always in dependency order, because a package cannot be published against
 versions that do not exist yet:
 
 ```sh
-# from this folder
-tool/publish_package.sh voxel_engine  --dry-run   # from a git-less copy
-tool/publish_package.sh sound_recipes --dry-run   # from a git-less copy
-tool/publish_package.sh voxel_scene   --dry-run   # from a git-less copy
-tool/publish_package.sh voxel_game    --dry-run   # in place
+# from the root
+tool/publish_package.sh voxel_engine  --dry-run
+tool/publish_package.sh sound_recipes --dry-run
+tool/publish_package.sh voxel_scene   --dry-run
+tool/publish_package.sh voxel_game    --dry-run
 ```
 
 Then the same four without `--dry-run`, in that order, bumping the constraint in
@@ -119,7 +110,7 @@ dependencies:
   voxel_engine:
     git:
       url: https://github.com/fluttely/voxel_game.git
-      path: packages/voxel_engine   # voxel_game itself has no path: it is the root
+      path: packages/voxel_engine   # or packages/voxel_game, packages/voxel_scene, ...
       ref: <a tag or a commit>
 ```
 
