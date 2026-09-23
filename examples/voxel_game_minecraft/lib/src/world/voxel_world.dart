@@ -20,7 +20,7 @@ typedef StructureAt = ({int x, int y, int z, int type});
 /// class keeps what is the game's: the terrain generator, liquid flow,
 /// circuits, dimension rules and the save format.
 class VoxelWorld implements VoxelEditor {
-  VoxelWorld({required this.seedValue, int loadRadius = 8, this.playground = false}) {
+  VoxelWorld({required this.seedValue, int loadRadius = 8, bool playground = false}) {
     _streamer = ChunkStreamer(table: Blocks.table, sink: _view, loadRadius: loadRadius);
     _generator = TerrainGenerator(ids: Blocks.generatorIds(), seed: seedValue, playground: playground);
     circuits = Circuits(this);
@@ -42,7 +42,7 @@ class VoxelWorld implements VoxelEditor {
   int seedValue;
 
   /// Stage 33: the generator flattens the playground's plaza.
-  final bool playground;
+  bool get playground => _generator.playground;
   BlockChanged? onBlockChanged;
 
   int get loadRadius => _streamer.loadRadius;
@@ -116,6 +116,14 @@ class VoxelWorld implements VoxelEditor {
   Future<void> setWorldSeed(int value) async {
     seedValue = value;
     _generator.setSeed(value);
+    await start();
+  }
+
+  /// Everything the generator reads, the seed and the plaza: a client whose
+  /// world was built before the host's hello takes the host's whole.
+  Future<void> setWorldShape(int seed, {required bool playground}) async {
+    seedValue = seed;
+    _generator = TerrainGenerator(ids: Blocks.generatorIds(), seed: seed, playground: playground)..setDimension(dimension);
     await start();
   }
 

@@ -223,7 +223,10 @@ class Net {
     if (m == null) return;
     m.saveGame();
     final bytes = m.world.editsToBytes();
-    peer.send({'t': 'hello', 'seed': m.world.seedValue, 'time': m.timeOfDay, 'edits': base64Encode(bytes)});
+    // The seed alone is not the terrain: a playground flattens its plaza, and
+    // a client generating without it stands on different ground.
+    peer.send({'t': 'hello', 'seed': m.world.seedValue, 'playground': m.world.playground, 'time': m.timeOfDay,
+      'edits': base64Encode(bytes)});
     for (final e in _drops.entries) {
       final d = e.value;
       peer.send({'t': 'drop', 'id': e.key, 'item': d.itemId, 'n': d.count, 'pos': _v(d.position), 'vel': _v(d.velocity)});
@@ -319,17 +322,20 @@ class Net {
   void _onClientMessage(Map<String, dynamic> msg) {
     switch (msg['t']) {
       case 'hello':
-        GameState.instance.seedValue = msg['seed'] as int;
+        final seed = msg['seed'] as int;
+        final playground = msg['playground'] as bool;
+        GameState.instance.seedValue = seed;
+        GameState.instance.playground = playground;
         pendingEdits = base64Decode(msg['edits'] as String);
         connected = true;
-        debugPrint('[net] hello from host: seed ${msg['seed']}, ${pendingEdits.length} edit bytes');
+        debugPrint('[net] hello from host: seed $seed, playground $playground, ${pendingEdits.length} edit bytes');
         final m = main;
         if (m == null) {
           onHelloBeforeWorld?.call();
         } else {
           m.timeOfDay = (msg['time'] as num).toDouble();
-          if (m.world.seedValue != msg['seed']) {
-            m.world.setWorldSeed(msg['seed'] as int).then((_) {
+          if (m.world.seedValue != seed || m.world.playground != playground) {
+            m.world.setWorldShape(seed, playground: playground).then((_) {
               m.world.reset();
               m.world.updateAround(m.player.position);
               applyPendingEdits();

@@ -9,6 +9,7 @@ import 'package:voxel_game_minecraft/src/game/rails.dart';
 import 'package:voxel_game_minecraft/src/game/worlds.dart';
 import 'package:voxel_game_minecraft/src/player/player.dart';
 import 'package:voxel_game_minecraft/src/world/terrain_generator.dart';
+import 'package:voxel_game_minecraft/src/world/voxel_world.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:voxel_engine/core.dart';
 
@@ -52,6 +53,19 @@ void main() {
           }
         }
       }
+    });
+
+    test('the seed alone is not the plaza: a world built before the host\'s hello takes both, in its dimension', () async {
+      // A client that joined a playground with the seed only stood in the sea
+      // where the host stood on the plaza (the client's HUD read Ocean there).
+      final w = VoxelWorld(seedValue: Worlds.playgroundSeed, loadRadius: 1);
+      addTearDown(w.dispose);
+      expect([w.playground, w.biomeAt(-29, -33)], [false, TerrainGenerator.biomeOcean]);
+      w.switchDimension(VoxelWorld.dimUnderworld);
+      await w.setWorldShape(Worlds.playgroundSeed, playground: true);
+      expect([w.seedValue, w.playground, w.generator.dimension], [Worlds.playgroundSeed, true, VoxelWorld.dimUnderworld]);
+      w.switchDimension(VoxelWorld.dimOverworld);
+      expect([w.surfaceHeight(-29, -33), w.biomeAt(-29, -33)], [TerrainGenerator.plazaFloor, TerrainGenerator.biomePlains]);
     });
   });
 
