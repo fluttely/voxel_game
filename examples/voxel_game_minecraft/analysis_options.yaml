@@ -1,0 +1,17 @@
+# The POC keeps the stock Flutter lints. It is a self-contained study project
+# (see README.md): architecture rules of the parent repo do not apply here.
+analyzer:
+  exclude:
+    - build/**
+    - android/**
+    - ios/**
+    - web/**
+    - windows/**
+    - macos/**
+    - linux/**
+include: package:flutter_lints/flutter.yaml
+
+linter:
+  rules:
+    prefer_const_constructors: false
+    prefer_const_literals_to_create_immutables: false

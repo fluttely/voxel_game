@@ -1,0 +1,39 @@
+name: voxel_game_minecraft
+description: "A new Flutter project."
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.13.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_scene: ^0.23.0
+  flutter_soloud: ^4.1.7
+  gamepads: ^0.1.12
+  hooks: ^2.2.0
+  path_provider: ^2.1.6
+  pointer_lock: ^0.4.1
+  sound_recipes: ^0.1.0-dev
+  vector_math: ^2.4.2
+  voxel_engine: ^0.1.0-dev
+  voxel_game: ^0.1.0-dev
+  voxel_scene: ^0.1.0-dev
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  assets:
+    - flutter_scene_generated/
+    - assets/audio/footstep/forest/
+    - assets/audio/footstep/desert/
+    - assets/audio/footstep/snow/
+    - assets/audio/footstep/swamp/
+    - assets/audio/footstep/lava/
+    - assets/audio/music/
+    - ROADMAP.md # stage 30: the credits read the stage table at runtime
+  uses-material-design: true

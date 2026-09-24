@@ -46,4 +46,18 @@
 - **Cost of leaving it:** every session reads a third of its orientation about a repository it is not in, and the commit convention it is handed is conditional on a state that no longer holds, so two sessions can pick two formats. It is also the first thing to settle before standardising releases across the four packages, which is where the instructions are meant to go next.
 - **Found while:** 2026-09-23 — moving `voxel_game` under `packages/`.
 
+### KL-002 · A peer that hangs up surfaces as an unhandled write error on the host
+
+- **Lens:** error handling / transport
+- **Evidence:** `packages/voxel_engine/lib/src/net/connection.dart:71-73`: `send` checks `isClosed` and calls `socket.writeln`. A write to a socket whose peer is gone fails asynchronously (a `Socket` reports write errors through its `done` future), and nothing in `NetConnection` handles it; `:27` handles errors on the read side only. Two `--host --wait-peer` runs of `examples/voxel_game_minecraft` logged `Unhandled Exception: SocketException: Write failed (OS Error: Broken pipe, errno = 32)` and `Connection reset by peer (errno = 54)`, each when the client process exited.
+- **Cost of leaving it:** a Flutter host only logs it and plays on. The engine is meant to run under plain Dart too (`CLAUDE.md` rule 3), and there an unhandled async error in the root zone ends the process, so a dedicated host would crash every time a client quit mid-broadcast. The loss is also invisible to the protocol: `send` returns normally for a message that never left.
+- **Found while:** 2026-09-23 — probing the minecraft example's multiplayer fix (a client joining a hosted playground).
+
+### KL-003 · The kit's host keeps a far client's edit but never passes it on
+
+- **Lens:** replication / correctness
+- **Evidence:** `packages/voxel_game/lib/src/net/sessions.dart:83-84`: a client's `set` goes through `GameWorld.storeEdit` (`packages/voxel_game/lib/src/world/game_world.dart:186-192`). When the host has not loaded the chunk, that call records the edit through the streamer and does not run the listeners, and `_edited` (`sessions.dart:101`, registered at `:51`) is the only thing that broadcasts. The other clients are never told, and a client that joins later gets the edit only because the hello carries the whole delta.
+- **Cost of leaving it:** with two clients far from the host, one of them breaks or places a block and the other never sees it until it rejoins; its world disagrees with the host's, collision included. The example app had the same gap and closes it by broadcasting explicitly when the host stores an edit it could not write (`examples/voxel_game_minecraft/lib/src/game/net.dart`, `_onBlockRequest`).
+- **Found while:** 2026-09-23 — fixing the example's lost edits in unloaded chunks.
+
 ## Closed
