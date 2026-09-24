@@ -8,7 +8,7 @@ import 'mirrored_camera.dart';
 /// A day and night over a voxel world: a gradient sky with a sun (a moon at
 /// night) casting cascaded shadows, a constant ambient that follows the day,
 /// ACES tone mapping, and a linear distance fog in the horizon colour that
-/// dissolves the last loaded chunks into the sky.
+/// dissolves the edge of the loaded chunks into the sky.
 ///
 /// Call [update] once a frame with the time of day; it returns how much of
 /// the baked sky light shows, for `VoxelChunkView.setSkyIntensity`.
@@ -66,11 +66,19 @@ class DayNightSky {
   double _sinceAmbient = 1.0;
   double _lastTime = -1.0;
 
+  /// How wide the fog band before [edge] metres is: a tenth of it, from 4 to
+  /// 64 metres, as Minecraft's is.
+  static double fogBand(double edge) => (edge / 10.0).clamp(4.0, 64.0);
+
   static Vector3 _mix(Vector3 a, Vector3 b, double t) => a + (b - a) * t;
 
   /// Lights the scene for [timeOfDay] (0 midnight, 0.25 sunrise, 0.5 noon)
-  /// with the fog ending just short of [fogDistance] metres; returns the sky
-  /// light's share (1 at noon, 0.35 at night).
+  /// with the fog full at [fogDistance] metres; returns the sky light's share
+  /// (1 at noon, 0.35 at night).
+  ///
+  /// The fog is Minecraft's: a linear band [fogBand] metres wide that ends on
+  /// [fogDistance], so it hides only where the world stops and everything
+  /// nearer stays clear, whatever the render distance.
   double update(double timeOfDay, {double fogDistance = 128.0}) {
     final dt = _lastTime < 0 ? 1.0 : (timeOfDay - _lastTime).abs();
     _lastTime = timeOfDay;
@@ -111,8 +119,8 @@ class DayNightSky {
     }
     scene.fog
       ..color = hor
-      ..start = fogDistance * 0.45
-      ..end = fogDistance * 0.92;
+      ..start = fogDistance - fogBand(fogDistance)
+      ..end = fogDistance;
     return 0.35 + 0.65 * day;
   }
 }

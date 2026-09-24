@@ -505,7 +505,7 @@ class Game extends ChangeNotifier {
     scene.exposure = 1.0;
     scene.fog
       ..enabled = true
-      ..mode = FogMode.exponentialSquared
+      ..mode = FogMode.linear
       // The flat colour, not the sky sample: `skyColorInfluence` reads the
       // prefiltered radiance cube, and this scene's environment is a
       // constant-diffuse one that has no such cube, so the sample comes back
@@ -603,34 +603,27 @@ class Game extends ChangeNotifier {
   /// A `--fogd=` probe has taken the fog over; [_setDistanceFog] keeps off it.
   bool fogFixed = false;
 
-  /// Minecraft's distance fog: the horizon is hidden a little short of the last
-  /// loaded chunk, so the world dissolves into the sky instead of stopping on a
+  /// Minecraft's distance fog: the horizon is hidden where the last loaded
+  /// chunk ends, so the world dissolves into the sky instead of stopping on a
   /// row of chunk edges over empty air. The band is tied to the render distance
   /// because that is what it exists to hide — raising the slider pushes the fog
   /// out with it — and rain or a storm pulls it in, as Minecraft's does.
   ///
-  /// Not weather: a clear day must look clear. The fog is an
-  /// exponential-squared curve that only begins at 72% of the edge, so
-  /// everything nearer stays untouched, then climbs steeply — about a third at
-  /// 80%, 87% at 90%, 98% at 97% — and the band sits on the last chunks, where
-  /// the world ends. The linear ramp this replaced started at 45% and hazed half
-  /// the view; the exponential haze before it hazed all of it.
+  /// Not weather: a clear day must look clear. The fog is Minecraft's own
+  /// linear band, a tenth of the edge distance wide (4 to 64 m, 12.8 m at
+  /// radius 8) and full on the edge itself, so it covers less than the last
+  /// chunk. The bands it replaced were fractions of the edge — 72% to 97%,
+  /// and 45% to 92% before that — and hazed the last two or three chunks
+  /// at radius 8, a good part of what was loaded.
   void _setDistanceFog(double dark) {
     if (fogFixed) return;
     // The nearest chunk edge is loadRadius chunks away, 16 blocks each.
     final edge = world.loadRadius * 16.0 * (1.0 - dark * 0.35);
-    final start = edge * _fogStartAt;
     scene.fog
-      ..mode = FogMode.exponentialSquared
-      ..start = start
-      // 1 - exp(-x²) reaches 98% where x² = ln 50.
-      ..density = math.sqrt(math.log(50.0)) / (edge * _fogFullAt - start);
+      ..mode = FogMode.linear
+      ..start = edge - (edge / 10.0).clamp(4.0, 64.0)
+      ..end = edge;
   }
-
-  /// Where the horizon fog begins and where it is full, as fractions of the
-  /// distance to the nearest unloaded chunk.
-  static const double _fogStartAt = 0.72;
-  static const double _fogFullAt = 0.97;
 
   /// The liquid the camera's eye is in: 'water', 'lava' or ''. The HUD washes
   /// the screen with it.
