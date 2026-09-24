@@ -60,4 +60,11 @@
 - **Cost of leaving it:** with two clients far from the host, one of them breaks or places a block and the other never sees it until it rejoins; its world disagrees with the host's, collision included. The example app had the same gap and closes it by broadcasting explicitly when the host stores an edit it could not write (`examples/voxel_game_minecraft/lib/src/game/net.dart`, `_onBlockRequest`).
 - **Found while:** 2026-09-23 — fixing the example's lost edits in unloaded chunks.
 
+### KL-004 · Windows and Linux get a drag to look, not a locked mouse
+
+- **Lens:** platform parity / input
+- **Evidence:** `packages/voxel_game/lib/src/input/input_map.dart:180-191`: the look is `pointer_lock`'s when `PointerLock.instance.isSupported`, and a drag otherwise. `pointer_lock` 0.4.1 registers only `macos` (and web), and its method channel answers `isSupported` false on every other target (`pointer_lock_method_channel.dart:28`). So a desktop with a mouse on Windows or Linux falls into the phone's branch: the cursor stays free and visible, and the view turns only while a button is held down. Both examples gained `windows/` and `linux/` runners on 2026-09-24, and neither has been built or run on those systems.
+- **Cost of leaving it:** the kit says it targets every platform Flutter supports, but a first-person game on two of the three desktops plays like a touch screen with a mouse. Nothing tells a game author about it: `pointerLockSupported` is public, but the README never mentions it.
+- **Found while:** 2026-09-24 — adding Windows and Linux runners to the examples, for the launch post.
+
 ## Closed

@@ -6,3 +6,5 @@ build/
 .idea/
 *.iml
 .DS_Store
+
+posts
