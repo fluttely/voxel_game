@@ -71,6 +71,13 @@ the Godot POC's, so the two roadmaps line up.
 
 ## Session log
 
+- **2026-09-24 s32** — turning off Settings → Show FPS left the frame rate on screen. The
+  F1 developer overlay (`debugText`, which opens with `FPS …`) started visible:
+  `Game.debugVisible` defaulted to `true`, carried over from the POC port. The HUD draws
+  that overlay first and reads `Settings.showFps` only when the overlay is hidden, so the
+  setting could never hide the number. `debugVisible` now starts `false`. F1 still toggles
+  the overlay, and `showFps` alone decides what a player sees by default.
+
 - **2026-09-23 s31** — a client that joined a hosted playground stood in the sea. Its
   exhibits hung in the air, and walking into them showed that their collision was missing
   too. The `hello` carried the seed and the edit delta but not

@@ -259,7 +259,10 @@ class Game extends ChangeNotifier {
   String station = '';
   Inventory? chest;
   IVec3 chestPos = IVec3.zero;
-  bool debugVisible = true;
+
+  /// The developer overlay (F1): off until asked for, so [Settings.showFps] alone
+  /// decides whether a player sees a frame rate.
+  bool debugVisible = false;
 
   /// Whether the on-screen controls are on the screen: always on a phone or a
   /// tablet, where there is no keyboard to play with, and on `--touch` so the
