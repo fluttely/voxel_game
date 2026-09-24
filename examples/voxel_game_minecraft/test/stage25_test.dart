@@ -55,6 +55,26 @@ void main() {
     expect(p.owns(a), isFalse);
   });
 
+  test('another peer\'s edit is never dropped: a loaded cell is written and heard, an unloaded one waits for its chunk', () {
+    final w = VoxelWorld(seedValue: 42, loadRadius: 1);
+    w.chunks[(x: 0, z: 0)] = Uint8List(VoxelWorld.volume);
+    final heard = <IVec3>[];
+    w.onBlockChanged = (b, old, id) => heard.add(b);
+    final glass = Blocks.indexOf('glass');
+    const near = IVec3(3, 20, 3);
+    w.storeEdit(VoxelWorld.dimOverworld, near, glass);
+    expect([w.getBlock(near), heard], [glass, [near]]);
+    // Chunk (6, 6) is not loaded: a host's placement there, and a break (air
+    // over whatever the generator will put there), both wait in the delta.
+    const placed = IVec3(100, 20, 100), broken = IVec3(101, 10, 100);
+    w.storeEdit(VoxelWorld.dimOverworld, placed, glass);
+    w.storeEdit(VoxelWorld.dimOverworld, broken, Blocks.air);
+    expect([w.isLoaded(placed), heard.length, w.editCountIn(VoxelWorld.dimOverworld)], [false, 1, 3]);
+    // The delta is what lands on the chunk when it generates.
+    final far = VoxelWorld.saveCodec.decode(w.editsToBytes()).edits[VoxelWorld.dimOverworld]![(x: 6, z: 6)]!;
+    expect(far, {ChunkSize.index(4, 20, 4): glass, ChunkSize.index(5, 10, 4): Blocks.air});
+  });
+
   group('chest edits are paid for from the declared bag or the escrow', () {
     Inventory bagWith(String id, int n) => Inventory()..add(id, n);
 

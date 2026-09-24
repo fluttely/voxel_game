@@ -349,14 +349,13 @@ class Net {
         if (m == null) return;
         final b = IVec3(msg['x'] as int, msg['y'] as int, msg['z'] as int);
         final dim = (msg['dim'] as int?) ?? 0;
-        if (dim != m.world.dimension) {
-          m.world.storeEdit(dim, b, msg['id'] as int); // stage 29: waits in the other dimension's delta
-          return;
-        }
-        if (m.world.getBlock(b) == msg['id']) return;
-        if (prediction.owns(b)) return; // a prediction owns this cell until its ack lands
+        // A prediction owns this cell until its ack lands.
+        if (dim == m.world.dimension && prediction.owns(b)) return;
+        // A cell this client has not loaded (or another dimension's) waits in
+        // the delta for its chunk: dropping it left the generated block there,
+        // seen and solid, when the chunk arrived.
         _applying = true;
-        m.world.setBlock(b, msg['id'] as int);
+        m.world.storeEdit(dim, b, msg['id'] as int);
         _applying = false;
       case 'blocks':
         _onBlocks(msg['cells'] as List<dynamic>, (msg['dim'] as int?) ?? 0);
@@ -444,15 +443,16 @@ class Net {
     final seq = msg['seq'] as int;
     final b = IVec3(msg['x'] as int, msg['y'] as int, msg['z'] as int);
     final id = msg['id'] as int;
+    final dim = (msg['dim'] as int?) ?? 0;
     if (rejectOne) {
       rejectOne = false;
       stats['rejected_seq'] = seq;
       debugPrint('[net] refused edit seq $seq from peer $sender at $b (probe)');
-    } else if (((msg['dim'] as int?) ?? 0) != m.world.dimension) {
-      // Stage 29: an edit in a dimension the host does not hold is kept in that
-      // dimension's delta (it lands when the host travels there) and passed on
-      // to the peers, unchecked.
-      final dim = msg['dim'] as int;
+    } else if (dim != m.world.dimension || !m.world.isLoaded(b)) {
+      // Stage 29: an edit in a dimension the host does not hold, or in a chunk
+      // it has not loaded (a peer far from the host), is kept in the delta (it
+      // lands when the host gets there) and passed on to the peers, unchecked.
+      // Written through setBlock it was dropped, and the ack's air undid it.
       m.world.storeEdit(dim, b, id);
       _broadcast({'t': 'block', 'x': b.x, 'y': b.y, 'z': b.z, 'id': id, 'dim': dim});
       _toPeer(sender, {'t': 'block_ack', 'seq': seq, 'x': b.x, 'y': b.y, 'z': b.z, 'id': id});
@@ -476,7 +476,7 @@ class Net {
     _bump('rollbacks');
     debugPrint('[net] rollback seq $seq at $b -> $finalId');
     _applying = true;
-    m.world.setBlock(b, finalId);
+    m.world.storeEdit(m.world.dimension, b, finalId);
     _applying = false;
   }
 
@@ -507,11 +507,7 @@ class Net {
     _applying = true;
     for (var i = 0; i + 3 < cells.length; i += 4) {
       final b = IVec3(cells[i] as int, cells[i + 1] as int, cells[i + 2] as int);
-      if (dim != m.world.dimension) {
-        m.world.storeEdit(dim, b, cells[i + 3] as int);
-      } else if (!prediction.owns(b)) {
-        m.world.setBlock(b, cells[i + 3] as int);
-      }
+      if (dim != m.world.dimension || !prediction.owns(b)) m.world.storeEdit(dim, b, cells[i + 3] as int);
     }
     _applying = false;
   }

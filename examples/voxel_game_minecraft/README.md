@@ -286,3 +286,12 @@ the world as before; `--title-probe` forces the title even then.
   its own shaders with its own hook, and the game has no asset pipeline to run.
 - **Screenshots come from a `RepaintBoundary`** around the `SceneView` + HUD + overlays,
   captured after `endOfFrame` (capturing inside the tick trips `debugNeedsPaint`).
+
+# Multiplayer
+
+```bash
+cd examples/voxel_game_minecraft
+flutter build macos --debug
+B=build/macos/Build/Products/Debug/voxel_game_minecraft.app/Contents/MacOS/voxel_game_minecraft
+$B --host & sleep 4; $B --join=127.0.0.1
+```

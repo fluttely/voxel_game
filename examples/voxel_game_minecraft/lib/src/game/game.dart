@@ -2214,7 +2214,7 @@ class Game extends ChangeNotifier {
       for (final m in mobs) {
         if (m.huntsPuppet()) hunting++;
       }
-      debugPrint('[probe] net mode ${net.mode} puppets ${net.puppetPositions()}, mobs hunting a puppet: $hunting');
+      debugPrint('[probe] net mode ${net.mode} puppets ${net.puppetPositions()}, mobs hunting a puppet: $hunting, edits ${world.editCount}');
     }
     // --stage21b (with --wait-peer): drops, chests, weather and mounts across the
     // wire. The host pre-fills a chest, forces a storm, mounts a horse and drops

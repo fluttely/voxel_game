@@ -264,15 +264,18 @@ class VoxelWorld implements VoxelEditor {
   /// Edited cells of dimension [d] (the live one reads the live map).
   int editCountIn(int d) => _streamer.editCountIn(d);
 
-  /// An edit for a dimension that is not loaded (a host broadcast while this
-  /// peer is elsewhere): it waits in that dimension's delta and lands when its
-  /// chunk generates.
+  /// An edit from another peer, which must not be lost: written now through
+  /// [setBlock] when its chunk is loaded; otherwise it waits in its
+  /// dimension's delta and lands when the chunk generates (a cell this peer
+  /// has not loaded, or a dimension it is not in).
   void storeEdit(int d, IVec3 b, int id) {
-    if (d == dimension) {
+    if (d != dimension) {
+      _streamer.storeEditElsewhere(d, b, id);
+    } else if (isLoaded(b)) {
       setBlock(b, id);
-      return;
+    } else {
+      _streamer.storeEdit(b, id);
     }
-    _streamer.storeEditElsewhere(d, b, id);
   }
 
   // --- persistence (edit delta) ---------------------------------------------------
