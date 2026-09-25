@@ -6,14 +6,21 @@
 //   build/macos/Build/Products/Release/voxel_game_example.app/Contents/MacOS/voxel_game_example \
 //     --scenario=orbit --radius=6 --seconds=12 --window=1600x900
 //
-// A platform that cannot pass arguments (iOS, Android) takes the same flags in
-// one define: `--dart-define=BENCH="--scenario=orbit --radius=6"`.
+// Android takes them in the launch intent, which is how `--android` runs it:
+//
+//   adb shell am start -S -n com.remottely.voxel_game_example/.MainActivity \
+//     --esal dart_entrypoint_args --scenario=orbit,--radius=6
+//
+// iOS, which cannot pass arguments, takes the same flags in one define:
+// `--dart-define=BENCH="--scenario=orbit --radius=6"`. A phone runs in
+// landscape and full screen, the way the game is played.
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' show PlatformDispatcher;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show DeviceOrientation, SystemChrome, SystemUiMode;
 import 'package:vector_math/vector_math.dart' show Vector3;
 import 'package:voxel_game/voxel_game.dart';
 
@@ -38,6 +45,8 @@ Future<void> main(List<String> args) async {
   const define = String.fromEnvironment('BENCH');
   final bench = Bench.parse([...args, ...define.split(' ').where((a) => a.isNotEmpty)]);
   WidgetsFlutterBinding.ensureInitialized();
+  await SystemChrome.setPreferredOrientations([DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
+  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   await VoxelGameWidget.loadResources();
   runApp(MaterialApp(
     debugShowCheckedModeBanner: false,
@@ -142,7 +151,7 @@ class Bench {
           if (scenario == Scenario.mobs) _spawnMobs(game, origin);
           _enter(_Phase.settling);
         } else if (_now > fillTimeout) {
-          stderr.writeln('[bench] the window did not fill in ${fillTimeout}s (${game.world.meshCount}/$window)');
+          _report('[bench] the window did not fill in ${fillTimeout}s (${game.world.meshCount}/$window)');
           exit(1);
         }
       case _Phase.settling:
@@ -222,9 +231,15 @@ class Bench {
       ...report.toJson(1000.0 / display.refreshRate),
       'maxRssMb': (ProcessInfo.maxRss / (1 << 20)).round(),
     };
-    stdout.writeln('[bench] ${jsonEncode(line)}');
+    _report('[bench] ${jsonEncode(line)}');
     exit(0);
   }
 }
 
 enum _Phase { filling, settling, measuring }
+
+/// Prints [line] where the runner reads it: a desktop runner reads the process's
+/// stdout, which a release build's `print` does not reach; adb reads logcat, which
+/// only `print` reaches.
+void _report(String line) =>
+    Platform.isMacOS || Platform.isLinux || Platform.isWindows ? stdout.writeln(line) : debugPrint(line);

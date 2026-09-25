@@ -99,9 +99,16 @@ dart tool/run_benchmark.dart --compare /tmp/pf17_before.jsonl /tmp/pf17_after.js
 git worktree remove /tmp/voxel_bench_pf0
 ```
 
-**Phones.** Not measured yet: no device was attached on 2026-09-25. `benchmark.dart` takes
-its flags from `--dart-define=BENCH="--scenario=orbit --radius=6"` on a platform that
-cannot pass arguments; the line it prints is the same.
+**Phones.** `dart tool/run_benchmark.dart --android <adb serial> --cooldown 20` builds the
+APK, installs it and runs each scenario on the device: the flags travel in the launch
+intent (`am start --esal dart_entrypoint_args`, which `FlutterActivity` hands to `main`), the
+line comes back from logcat (a release build's `stdout` reaches neither logcat nor, on
+macOS, anything but the process's own stdout, hence `_report` in `benchmark.dart`). The
+phone runs in landscape and full screen. Each line records `deviceTempC`, the battery's
+temperature before the run: a phone throttles when hot, so its runs drift more than the
+Mac's, and a longer cooldown is part of the method there. The keyguard counts as a locked
+screen. iOS, which cannot pass arguments, takes `--dart-define=BENCH="--scenario=orbit
+--radius=6"`; it has no runner support in the script yet.
 
 ## Baseline
 

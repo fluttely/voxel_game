@@ -20,5 +20,5 @@ person, Q drop, Escape frees the mouse. A gamepad works too.
 
 `lib/benchmark.dart` runs this game as a benchmark: a fixed world, a scripted camera, the
 frames measured, one JSON line printed. `dart tool/run_benchmark.dart` from the
-repository's root builds it in release and runs it; the method is in
-`docs/VOXEL_PERF_PLAN_2026-09-25.md`.
+repository's root builds it in release and runs it on this Mac, or with
+`--android <adb serial>` on a phone; the method is in `docs/VOXEL_PERF_PLAN_2026-09-25.md`.

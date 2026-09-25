@@ -8,16 +8,21 @@
 //   dart tool/run_benchmark.dart --summarize docs/perf/x.jsonl
 //   dart tool/run_benchmark.dart --compare docs/perf/a.jsonl docs/perf/b.jsonl
 //   dart tool/run_benchmark.dart --dry-run               # print what it would run
-//   dart tool/run_benchmark.dart -- --graphics=low       # after `--`: passed to every run
+//   dart tool/run_benchmark.dart -- --graphics=phone     # after `--`: passed to every run
+//   dart tool/run_benchmark.dart --android R5CX... --cooldown 20   # on a phone (adb serial)
 //
 // Runs go round-robin (every scenario once, then again) with a cooldown between
 // them, so thermal drift spreads over all of them instead of landing on the last.
-// macOS only for now: a phone runs `lib/benchmark.dart` by hand (see its header).
+// On this Mac by default; `--android SERIAL` builds the APK, installs it and runs
+// each scenario on that device through its launch intent, reading the line back
+// from logcat. A phone heats: give it a longer cooldown, and read `deviceTempC`.
 import 'dart:convert';
 import 'dart:io';
 
 const example = 'packages/voxel_game/example';
 const app = '$example/build/macos/Build/Products/Release/voxel_game_example.app/Contents/MacOS/voxel_game_example';
+const androidPackage = 'com.remottely.voxel_game_example';
+const apk = '$example/build/app/outputs/flutter-apk/app-release.apk';
 const defaultRuns = ['orbit:6', 'orbit:12', 'fly:6', 'fly:12', 'mobs:6'];
 
 Future<void> main(List<String> argv) async {
@@ -49,13 +54,16 @@ Future<void> main(List<String> argv) async {
   final out = value('--out');
   final dryRun = args.contains('--dry-run');
   final build = !args.contains('--no-build');
+  final android = value('--android');
 
   final commit = (await Process.run('git', ['rev-parse', '--short', 'HEAD'])).stdout.toString().trim();
   final dirty = (await Process.run('git', ['status', '--porcelain', '--', 'packages'])).stdout.toString().trim().isNotEmpty;
-  final machine = (await Process.run('sysctl', ['-n', 'machdep.cpu.brand_string'])).stdout.toString().trim();
+  final machine = android == null
+      ? (await Process.run('sysctl', ['-n', 'machdep.cpu.brand_string'])).stdout.toString().trim()
+      : '${await adb(android, ['shell', 'getprop', 'ro.product.model'])} (${await adb(android, ['shell', 'getprop', 'ro.soc.model'])})';
 
   if (build) {
-    final cmd = ['flutter', 'build', 'macos', '--release', '-t', 'lib/benchmark.dart'];
+    final cmd = ['flutter', 'build', android == null ? 'macos' : 'apk', '--release', '-t', 'lib/benchmark.dart'];
     stderr.writeln('\$ (cd $example && ${cmd.join(' ')})');
     if (!dryRun) {
       final r = await Process.run(cmd.first, cmd.sublist(1), workingDirectory: example);
@@ -64,6 +72,7 @@ Future<void> main(List<String> argv) async {
         stderr.write(r.stderr);
         exit(r.exitCode);
       }
+      if (android != null) await adb(android, ['install', '-r', apk]);
     }
   }
 
@@ -73,22 +82,24 @@ Future<void> main(List<String> argv) async {
   for (var round = 0; round < repeat; round++) {
     for (final run in runs) {
       final [scenario, radius] = run.split(':');
-      final cmd = [app, '--scenario=$scenario', '--radius=$radius', '--seconds=$seconds', '--window=$window', ...extra];
-      stderr.writeln('\$ ${cmd.join(' ')}');
+      final flags = ['--scenario=$scenario', '--radius=$radius', '--seconds=$seconds', if (android == null) '--window=$window', ...extra];
+      stderr.writeln(android == null ? '\$ $app ${flags.join(' ')}' : '\$ adb -s $android shell am start ... ${flags.join(',')}');
       if (dryRun) continue;
       if (!first && cooldown > 0) await Future<void>.delayed(Duration(seconds: cooldown));
       first = false;
-      final locked = await screenLocked();
+      final locked = android == null ? await screenLocked() : await deviceLocked(android);
       if (locked) stderr.writeln('  the screen is locked: the GPU time and fps of this run are not what a player sees');
-      final r = await Process.run(cmd.first, cmd.sublist(1)).timeout(const Duration(minutes: 3));
-      final found = const LineSplitter().convert('${r.stdout}').where((l) => l.startsWith('[bench] '));
-      if (r.exitCode != 0 || found.isEmpty) {
-        stderr.writeln('run failed (exit ${r.exitCode}):\n${r.stdout}${r.stderr}');
+      final tempC = android == null ? null : await deviceTempC(android);
+      final output = android == null ? await runMac(flags) : await runAndroid(android, flags);
+      final found = const LineSplitter().convert(output).where((l) => l.startsWith('[bench] {'));
+      if (found.isEmpty) {
+        stderr.writeln('run failed, no result line:\n$output');
         exit(1);
       }
       final line = <String, Object?>{
         ...jsonDecode(found.last.substring(8)) as Map<String, Object?>,
         'screenLocked': locked,
+        if (tempC != null) 'deviceTempC': tempC,
         'commit': dirty ? '$commit+dirty' : commit,
         'machine': machine,
         'extra': extra.join(' '),
@@ -101,6 +112,52 @@ Future<void> main(List<String> argv) async {
   }
   await sink?.close();
   if (!dryRun) stdout.write(table(lines));
+}
+
+/// One run on this Mac: the app's stdout, where it prints its line.
+Future<String> runMac(List<String> flags) async {
+  final r = await Process.run(app, flags).timeout(const Duration(minutes: 3));
+  if (r.exitCode != 0) {
+    stderr.writeln('run failed (exit ${r.exitCode}):\n${r.stdout}${r.stderr}');
+    exit(1);
+  }
+  return '${r.stdout}';
+}
+
+/// One run on an Android device: the app started afresh with [flags] in its
+/// launch intent (`FlutterActivity` hands them to `main`), waited for until its
+/// process exits, and logcat's `flutter` lines, where its line lands.
+Future<String> runAndroid(String serial, List<String> flags) async {
+  await adb(serial, ['logcat', '-c']);
+  await adb(serial, ['shell', 'am', 'start', '-S', '-W', '-n', '$androidPackage/.MainActivity', '--esal', 'dart_entrypoint_args', flags.join(',')]);
+  final deadline = DateTime.now().add(const Duration(minutes: 3));
+  while ((await Process.run('adb', ['-s', serial, 'shell', 'pidof', androidPackage])).exitCode == 0) {
+    if (DateTime.now().isAfter(deadline)) throw StateError('the run on $serial did not end in 3 minutes');
+    await Future<void>.delayed(const Duration(seconds: 1));
+  }
+  return adb(serial, ['logcat', '-d', '-v', 'raw', '-s', 'flutter:I']);
+}
+
+/// `adb -s [serial] [args]`'s stdout, trimmed; a failure ends the script.
+Future<String> adb(String serial, List<String> args) async {
+  final r = await Process.run('adb', ['-s', serial, ...args]);
+  if (r.exitCode != 0) throw StateError('adb ${args.join(' ')} failed: ${r.stdout}${r.stderr}');
+  return '${r.stdout}'.trim();
+}
+
+/// Wakes the device and says whether its keyguard still shows: a run behind the
+/// lock screen draws nothing a player sees, as on a locked Mac.
+Future<bool> deviceLocked(String serial) async {
+  await adb(serial, ['shell', 'input', 'keyevent', 'KEYCODE_WAKEUP']);
+  return (await adb(serial, ['shell', 'dumpsys', 'window'])).contains('isKeyguardShowing=true');
+}
+
+/// The battery's temperature in °C, the closest a phone reports to how hot it
+/// runs: a hot phone throttles, and its later runs are slower for it.
+Future<double> deviceTempC(String serial) async {
+  final m = RegExp(r'temperature: (\d+)').firstMatch(await adb(serial, ['shell', 'dumpsys', 'battery']));
+  if (m == null) throw StateError('dumpsys battery reported no temperature');
+  return int.parse(m.group(1)!) / 10.0;
 }
 
 /// Whether the session's screen is locked. A locked Mac still renders the game's
