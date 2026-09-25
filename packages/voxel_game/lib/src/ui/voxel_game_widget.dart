@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart' show SchedulerBinding;
 import 'package:flutter_scene/scene.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sound_recipes/sound_recipes.dart';
@@ -140,6 +141,7 @@ class _VoxelGameWidgetState extends State<VoxelGameWidget> {
       game.dispose();
       return;
     }
+    SchedulerBinding.instance.addTimingsCallback(game.stats.addTimings);
     game.input.attachDevices();
     game.openScreen.addListener(_screenChanged);
     setState(() => _game = game);
@@ -187,6 +189,8 @@ class _VoxelGameWidgetState extends State<VoxelGameWidget> {
     _bank?.dispose();
     _save();
     _disposed = true;
+    final game = _game;
+    if (game != null) SchedulerBinding.instance.removeTimingsCallback(game.stats.addTimings);
     _game?.openScreen.removeListener(_screenChanged);
     _game?.dispose();
     _focus.dispose();

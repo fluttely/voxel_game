@@ -24,6 +24,12 @@ First version.
 - Day and night sky, sounds, circuits (`SignalSpec`), liquids.
 - Save slots, and hosting or joining a multiplayer world.
 - Hooks: `onBlockBroken`, `onBlockPlaced`, `onMobKilled`, `onTick`, `GameSystem`.
+- `FrameStats` (`VoxelGame.stats`): what the frames cost. An `fps` readout, and between
+  `startRecording` and `stopRecording` every sample: Flutter's presented frames (interval,
+  UI build, raster), the simulation (`VoxelGame.frame`), the scene's encoding and the GPU's
+  time to finish each scene frame. `FrameReport` summarises them (percentiles, hitches).
+  The scene is a `MeasuredScene`, which times its own encoding and the GPU's completion.
+- `VoxelGameSpec.copyWith`; `GameWorld.chunksBuilt` and `GameWorld.facesEmitted`.
 - The package description and the dartdoc say what the kit does, not which game it was
   measured against: "a voxel sandbox in a few lines". The library's header names the
   three packages it sits on as they are called today.

@@ -19,6 +19,8 @@ import '../entities/target.dart';
 import '../input/input_map.dart';
 import '../input/voxel_action.dart';
 import '../loop/fixed_step_loop.dart';
+import '../loop/frame_stats.dart';
+import '../loop/measured_scene.dart';
 import '../mobs/mob.dart';
 import '../mobs/mob_spec.dart';
 import '../mobs/spawner.dart';
@@ -108,7 +110,7 @@ class VoxelGame {
     final blocks = spec.buildBlocks();
     final world = GameWorld(blocks, spec.world, save?.seed ?? spec.seed, loadRadius: spec.renderDistance, liquids: spec.liquids);
     final game = VoxelGame._(spec, blocks, spec.buildItems(blocks), world, headless: false, authority: authority);
-    game.scene = Scene();
+    game.scene = MeasuredScene(game.stats);
     game.sky = DayNightSky(game.scene!);
     game.scene!.add(world.root!);
     game._begin(save);
@@ -306,7 +308,10 @@ class VoxelGame {
   /// spent the bank runs no step — it threw away roughly half of every
   /// player's presses before anything could see them.
   void frame(double dt) {
-    _loop.advance(dt, step);
+    _frameWatch
+      ..reset()
+      ..start();
+    final steps = _loop.advance(dt, step);
     world.update(player.position);
     firstPerson?.update(dt);
     final s = sky;
@@ -314,7 +319,15 @@ class VoxelGame {
       final intensity = s.update(timeOfDay, fogDistance: world.loadRadius * 16.0);
       world.setSkyIntensity(intensity);
     }
+    _frameWatch.stop();
+    stats.addFrame(simMs: _frameWatch.elapsedMicroseconds / 1000.0, steps: steps);
   }
+
+  final Stopwatch _frameWatch = Stopwatch();
+
+  /// What the frames cost: an FPS readout, and every sample while a benchmark
+  /// records.
+  final FrameStats stats = FrameStats();
 
   /// One fixed step of [dt]: the player, the creatures, the items, the
   /// liquids, spawning, then the spec's systems and hook.
