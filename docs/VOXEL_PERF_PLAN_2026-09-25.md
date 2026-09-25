@@ -49,7 +49,7 @@ their shadow re-renders are part of every run.
 | `fps` | presented frames (`FrameTiming`s) ÷ seconds | what the player sees; capped by the display's refresh |
 | `hitches` | frame intervals over 1.5 refresh periods | frames the display showed twice |
 | frame p99 | interval between the vsyncs that started two presented frames | pacing |
-| **GPU p50 / p99** | an empty command buffer submitted after the scene's; its completion callback minus the end of the encoding | the GPU's time per scene frame (an upper bound: it includes the callback's delivery and any wait behind the previous frame) |
+| GPU latency p50 / p99 | an empty command buffer submitted after the scene's; its completion callback minus the end of the encoding | how long a frame waited and ran on the GPU, the queue included: **not the GPU's cost** (§Validity); a GPU-bound frame reads about three refresh periods |
 | UI p50 / p99 | `FrameTiming.buildDuration` | the whole UI thread: simulation, chunk uploads, HUD, scene encoding |
 | encode p50 | `Scene.renderViews` wall time (`MeasuredScene`) | flutter_scene recording GPU commands |
 | sim p99 | `VoxelGame.frame` wall time | steps, streaming uploads, sky |
@@ -58,9 +58,12 @@ their shadow re-renders are part of every run.
 | faces | faces meshed by fill time | the terrain load |
 | RSS MB | `ProcessInfo.maxRss` at the end | peak memory |
 
-**Why GPU time and not only fps.** At the display's cap fps only says "under budget"; the
-GPU time is the headroom, and it is what a 120 Hz display or a phone spends. A frame is
-GPU-bound when GPU p50 is near the refresh period while UI p50 is far below it.
+**Why a GPU number and not only fps.** At the display's cap fps only says "under budget";
+the GPU's cost per frame is the headroom, and it is what a 120 Hz display or a phone spends.
+That cost is not in the app's line: flutter_scene gives no GPU timestamps, and the latency
+column counts the queue. It comes from a Metal System Trace of the profile build (§Validity).
+A frame is GPU-bound when the trace shows the GPU busy nearly all the time while UI p50 is
+far below the refresh period.
 
 **Rules for a comparable number.** Release build, never debug (JIT adds 13–72%,
 `examples/voxel_game_minecraft/docs/PERFORMANCE_VS_GODOT_2026-09-11.md`). Same window,
@@ -70,7 +73,7 @@ every line (`refreshHz`): compare only lines taken at the same rate.
 
 **Validity: the screen must be unlocked.** A locked Mac keeps rendering the game's frames
 behind the lock screen, but the display never shows them: presentation runs at 60 Hz
-whatever the display can do, and `gpuMs` is paced by the lock screen (it stayed at 12–13 ms
+whatever the display can do, and the GPU latency is paced by the lock screen (it stayed at 12–13 ms
 at radius 6 whether the frame drew 100% or 56% of the pixels, with or without shadows). A
 Metal System Trace of that state (`xcrun xctrace record --template 'Metal System Trace'`,
 which needs the **profile** build: release lacks `get-task-allow`) recorded GPU work from
@@ -81,9 +84,18 @@ and comparison. **The baseline and the PF1 runs of 2026-09-25 (≈00:40–01:40)
 locked** (verified during the PF1 runs; the display ran at 60 Hz from the first run, and
 it reached 120 Hz on 2026-09-11), before the script could record it.
 
-**`gpuMs` still needs a check with the screen unlocked**: its values against a Metal
-System Trace of the profile build (the `metal-gpu-intervals` table, summed per frame). If
-it tracks, it stays; if it does not, the trace becomes the GPU column's source.
+**The app's GPU number is a latency, not the GPU's cost** (checked 2026-09-25, unlocked,
+120 Hz). A Metal System Trace of the profile build running `orbit:6` recorded the GPU 98.6%
+busy and **9.98 ms of GPU work per composited frame** (the union of the app's
+`metal-gpu-intervals` over the recorded 10 s, 988 frames, the run at 99.7 fps), while the
+app read 29.5 ms at p50: the frame's work plus about two more frames of queue. It also moved
+the wrong way in an experiment: with the HUD's blurred text shadows removed, fps rose
+100.7 → 103.5 (outside the ±0.1 spread) and the latency went 29.7 → 64.2 ms. So the column
+was named `gpuMs` until this was known and is `gpuLatencyMs` since (the committed lines were
+migrated, values untouched); it still says whether the queue is full, and nothing about
+the GPU's cost, which only the trace gives. The trace's own column: Instruments labels
+overlapping passes together (`RenderPass & Gaussian Blur Filter`), so a label's time is not
+that pass's cost; only the union of all of them is.
 
 **The final comparison (PF17) is an A/B in one sitting**, unlocked, which makes the locked
 baseline above a preview rather than the reference: the harness is committed at `67da3ac`,
@@ -115,7 +127,7 @@ screen. iOS, which cannot pass arguments, takes `--dart-define=BENCH="--scenario
 Taken at `PF0` (see Progress), before any optimisation. The raw lines are
 `docs/perf/pf0_baseline.jsonl`.
 
-| run | n | fps | hitches | frame p99 ms | GPU p50 ms | GPU p99 ms | UI p50 ms | UI p99 ms | encode p50 ms | sim p99 ms | raster p99 ms | fill ms | faces | RSS MB |
+| run | n | fps | hitches | frame p99 ms | GPU latency p50 ms | GPU latency p99 ms | UI p50 ms | UI p99 ms | encode p50 ms | sim p99 ms | raster p99 ms | fill ms | faces | RSS MB |
 |:--|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
 | orbit:6 | 3 | 61.0 ±0.30 | 0 | 16.7 | 14.1 ±0.62 | 15.6 | 0.89 | 3.83 | 0.76 | 0.14 | 1.01 | 484 | 185130 | 296 |
 | orbit:12 | 3 | 59.0 ±2.62 | 22 | 33.3 | 16.4 ±1.17 | 75.6 | 2.39 | 5.36 | 2.19 | 0.06 | 22.5 | 1328 | 663953 | 519 |

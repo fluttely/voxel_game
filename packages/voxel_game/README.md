@@ -43,7 +43,7 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
 - `GraphicsSpec`: render scale, a pixel-ratio cap, anti-aliasing and the sun's shadows, with
   a `desktop` and a `phone` preset (the phone's is picked on iOS and Android).
 - `VoxelGame.stats`: an FPS readout, and per-frame samples (UI, raster, simulation, scene
-  encoding, GPU) for a benchmark.
+  encoding, GPU latency) for a benchmark.
 
 ## Install
 

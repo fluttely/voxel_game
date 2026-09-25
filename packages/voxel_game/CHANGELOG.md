@@ -4,9 +4,10 @@
 
 - `FrameStats` (`VoxelGame.stats`): what the frames cost. An `fps` readout, and between
   `startRecording` and `stopRecording` every sample: Flutter's presented frames (interval,
-  UI build, raster), the simulation (`VoxelGame.frame`), the scene's encoding and the GPU's
-  time to finish each scene frame. `FrameReport` summarises them (percentiles, hitches).
-  The scene is a `MeasuredScene`, which times its own encoding and the GPU's completion.
+  UI build, raster), the simulation (`VoxelGame.frame`), the scene's encoding and how long
+  after it the GPU finished each scene frame (`gpuLatencyMs`: a latency, queue included, not
+  the GPU's cost). `FrameReport` summarises them (percentiles, hitches). The scene is a
+  `MeasuredScene`, which times its own encoding and the GPU's completion.
 - `VoxelGameSpec.copyWith`; `GameWorld.chunksBuilt` and `GameWorld.facesEmitted`.
 - `GraphicsSpec` (`VoxelGameSpec.graphics`): `renderScale`, `maxPixelRatio`,
   `antiAliasing` and a `ShadowSpec` (cascades, resolution, distance, the sun's step).

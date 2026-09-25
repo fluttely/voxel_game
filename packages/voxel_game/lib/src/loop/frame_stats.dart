@@ -9,7 +9,8 @@ import 'dart:ui' show FramePhase, FrameTiming;
 /// holds all of the kit's work, because flutter_scene records its GPU commands
 /// on the UI thread, inside paint; the kit adds the two halves of it it owns,
 /// the simulation ([addFrame]'s `simMs`) and the scene's encoding (`encodeMs`),
-/// and how long the GPU took to finish a scene frame (`gpuMs`, `gpuLagFrames`).
+/// and how long a scene frame waited and ran on the GPU (`gpuLatencyMs`,
+/// `gpuLagFrames`).
 ///
 /// Always on and cheap: [fps] is a readout for a HUD. Between [startRecording]
 /// and [stopRecording] every sample is kept, for a benchmark.
@@ -67,7 +68,7 @@ class FrameStats {
   void addEncode(double encodeMs) => _recording?.encodeMs.add(encodeMs);
 
   /// A scene frame the GPU finished [ms] after its encoding ended.
-  void addGpu(double ms) => _recording?.gpuMs.add(ms);
+  void addGpuLatency(double ms) => _recording?.gpuLatencyMs.add(ms);
 
   /// A scene frame the GPU finished [frames] ticks after it was submitted.
   void addGpuLag(int frames) => _recording?.gpuLagFrames.add(frames.toDouble());
@@ -78,7 +79,7 @@ class _Samples {
   final int startUs;
   int? lastVsyncUs;
   int steps = 0;
-  final List<double> intervalMs = [], buildMs = [], rasterMs = [], simMs = [], encodeMs = [], gpuMs = [], gpuLagFrames = [];
+  final List<double> intervalMs = [], buildMs = [], rasterMs = [], simMs = [], encodeMs = [], gpuLatencyMs = [], gpuLagFrames = [];
 
   FrameReport report(double seconds) => FrameReport(
         seconds: seconds,
@@ -88,7 +89,7 @@ class _Samples {
         rasterMs: rasterMs,
         simMs: simMs,
         encodeMs: encodeMs,
-        gpuMs: gpuMs,
+        gpuLatencyMs: gpuLatencyMs,
         gpuLagFrames: gpuLagFrames,
       );
 }
@@ -104,7 +105,7 @@ class FrameReport {
     required this.rasterMs,
     required this.simMs,
     required this.encodeMs,
-    required this.gpuMs,
+    required this.gpuLatencyMs,
     required this.gpuLagFrames,
   });
 
@@ -129,9 +130,11 @@ class FrameReport {
   /// The scene's encoding per scene frame.
   final List<double> encodeMs;
 
-  /// The GPU's time to finish each scene frame, from the end of its encoding
-  /// (an upper bound: see `MeasuredScene`).
-  final List<double> gpuMs;
+  /// How long after the end of its encoding the GPU finished each scene frame:
+  /// the frame's own work plus its wait behind the frames queued before it.
+  /// Not the GPU's cost: when the GPU is the bottleneck the queue fills and this
+  /// grows to several frames (see `MeasuredScene`).
+  final List<double> gpuLatencyMs;
 
   /// Ticks between a scene frame's submission and the GPU finishing it.
   final List<double> gpuLagFrames;
@@ -173,7 +176,7 @@ class FrameReport {
         'rasterMs': spread(rasterMs),
         'simMs': spread(simMs),
         'encodeMs': spread(encodeMs),
-        'gpuMs': spread(gpuMs),
+        'gpuLatencyMs': spread(gpuLatencyMs),
         'gpuLagFrames': spread(gpuLagFrames),
       };
 }

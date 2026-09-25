@@ -14,14 +14,16 @@ import 'package:flutter_scene/src/gpu/gpu.dart' as gpu;
 import 'frame_stats.dart';
 
 /// A [Scene] that reports to [stats] how long each frame took to encode (on
-/// the UI thread, where flutter_scene records its GPU commands), how long the
-/// GPU took to finish it, and how many ticks later that was seen.
+/// the UI thread, where flutter_scene records its GPU commands), how long after
+/// that the GPU finished it, and how many ticks later that was seen.
 ///
-/// The GPU time is an empty command buffer submitted after the frame's own:
-/// one queue runs its buffers in order, so its completion callback marks the
-/// end of the frame's work. It is measured from the end of the encoding to the
-/// callback reaching the UI isolate, so it is an upper bound, and it includes
-/// any wait behind the previous frame when the GPU is behind.
+/// The latency is an empty command buffer submitted after the frame's own: one
+/// queue runs its buffers in order, so its completion callback marks the end of
+/// the frame's work. It runs from the end of the encoding to the callback
+/// reaching the UI isolate, so it holds the frame's wait behind every frame
+/// queued before it: a latency, not the GPU's cost. A GPU-bound frame keeps
+/// about three frames queued (a Metal System Trace of `orbit:6` at 120 Hz: 9.8
+/// ms of GPU work a frame, 29 ms of this latency).
 final class MeasuredScene extends Scene {
   /// A scene reporting to [stats].
   MeasuredScene(this.stats);
@@ -50,7 +52,7 @@ final class MeasuredScene extends Scene {
     _inFlight.add((rendererSubmissions.latestSubmission, _frame));
     final submitted = _clock.elapsedMicroseconds;
     gpu.gpuContext.createCommandBuffer().submit(
-      completionCallback: (_) => stats.addGpu((_clock.elapsedMicroseconds - submitted) / 1000.0),
+      completionCallback: (_) => stats.addGpuLatency((_clock.elapsedMicroseconds - submitted) / 1000.0),
     );
   }
 }

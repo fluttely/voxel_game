@@ -107,7 +107,7 @@ Future<void> main(List<String> argv) async {
       };
       lines.add(line);
       sink?.writeln(jsonEncode(line));
-      stderr.writeln('  fps ${line['fps']}  gpu p50 ${(line['gpuMs'] as Map)['p50']} ms  build p50 ${(line['buildMs'] as Map)['p50']} ms');
+      stderr.writeln('  fps ${line['fps']}  gpu latency p50 ${(line['gpuLatencyMs'] as Map)['p50']} ms  build p50 ${(line['buildMs'] as Map)['p50']} ms');
     }
   }
   await sink?.close();
@@ -184,8 +184,8 @@ final columns = <(String, num Function(Map<String, Object?>))>[
   ('fps', (l) => l['fps'] as num),
   ('hitches', (l) => l['hitches'] as num),
   ('frame p99 ms', (l) => (l['intervalMs'] as Map)['p99'] as num),
-  ('GPU p50 ms', (l) => (l['gpuMs'] as Map)['p50'] as num),
-  ('GPU p99 ms', (l) => (l['gpuMs'] as Map)['p99'] as num),
+  ('GPU latency p50 ms', (l) => (l['gpuLatencyMs'] as Map)['p50'] as num),
+  ('GPU latency p99 ms', (l) => (l['gpuLatencyMs'] as Map)['p99'] as num),
   ('UI p50 ms', (l) => (l['buildMs'] as Map)['p50'] as num),
   ('UI p99 ms', (l) => (l['buildMs'] as Map)['p99'] as num),
   ('encode p50 ms', (l) => (l['encodeMs'] as Map)['p50'] as num),
@@ -212,7 +212,7 @@ Map<String, List<Map<String, Object?>>> byKey(List<Map<String, Object?>> lines) 
   return m;
 }
 
-/// Medians per scenario, with the spread (max - min) of fps and GPU p50.
+/// Medians per scenario, with the spread (max - min) of fps and GPU latency p50.
 String table(List<Map<String, Object?>> lines) {
   final b = StringBuffer()
     ..writeln('| run | n | ${columns.map((c) => c.$1).join(' | ')} |')
@@ -222,7 +222,7 @@ String table(List<Map<String, Object?>> lines) {
       for (final (name, get) in columns)
         () {
           final xs = [for (final l in e.value) get(l)];
-          final spread = xs.length > 1 && (name == 'fps' || name == 'GPU p50 ms')
+          final spread = xs.length > 1 && (name == 'fps' || name == 'GPU latency p50 ms')
               ? ' ±${fmt((xs.reduce((a, b) => a > b ? a : b) - xs.reduce((a, b) => a < b ? a : b)) / 2)}'
               : '';
           return '${fmt(median(xs))}$spread';

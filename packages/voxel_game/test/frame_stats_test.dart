@@ -32,7 +32,7 @@ void main() {
     stats.addFrame(simMs: 0.5, steps: 1);
     stats.addFrame(simMs: 1.5, steps: 2);
     stats.addEncode(1.0);
-    stats.addGpu(12.0);
+    stats.addGpuLatency(12.0);
     stats.addGpuLag(1);
     final report = stats.stopRecording();
     expect(report.buildMs, [2.0, 2.0, 2.0, 2.0, 9.0]);
@@ -40,7 +40,7 @@ void main() {
     expect(report.intervalMs.length, 4);
     expect(report.hitches(1000 / 60), 1);
     expect(report.steps, 3);
-    expect(report.gpuMs, [12.0]);
+    expect(report.gpuLatencyMs, [12.0]);
     expect(stats.recording, isFalse);
     final json = report.toJson(1000 / 60);
     expect(json['frames'], 5);
