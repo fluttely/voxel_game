@@ -1,14 +1,15 @@
 # voxel_scene
 
 Draws `voxel_engine` worlds with [flutter_scene](https://pub.dev/packages/flutter_scene):
-one scene node per chunk, a terrain material with its own shaders, a day
+chunks drawn a region at a time, a terrain material with its own shaders, a day
 and night sky, block models and the selection outline.
 
 > **Status: 0.1.2-dev**, beta. The API can still change.
 
 ## Features
 
-- `VoxelChunkView`: a `ChunkMeshSink` that turns each mesh into a scene node.
+- `VoxelChunkView`: a `ChunkMeshSink` that draws chunks in regions (2 × 2 by
+  default), one geometry per surface a region, so the terrain costs few draws.
 - `TerrainMaterial`: the terrain shader (lit, fogged, shadowed).
 - `MirroredCamera`: the camera that shows `voxel_engine`'s winding the right way round.
 - `DayNightSky`, `SelectionOutline`, `VoxelModelMesh`, `RigPart`, `NodeBody`.

@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- `VoxelChunkView` draws chunks in regions of `regionChunks` × `regionChunks` (2 by
+  default): one node per region, one geometry per surface in it, the chunks' offsets
+  baked into its positions and its bounds taken while they are copied. flutter_scene
+  batches only draws of the identical geometry, so every chunk surface was a draw of
+  its own in every pass; at radius 6 the colour pass draws ~40 items where it drew ~95.
+  A chunk's mesh or removal rebuilds its region from the surfaces the view now keeps.
+  **Breaking:** `nodeCount` is gone; `chunkCount` and `regionCount` replace it, and a
+  node is named `region_x_z` where it was `chunk_x_z`.
+
 ## 0.1.2-dev
 
 - Formatted by `dart format` at the 120 columns the code is written at
