@@ -181,6 +181,29 @@ void main() {
     expect(game.mobs, isEmpty, reason: 'a dead mob leaves the world');
   });
 
+  test('a hunter that cannot reach its target plans on a timer, not every step', () async {
+    const zombie = MobSpec('zombie', hp: 6, speed: 3.0, brain: [Hunt(range: 20)]);
+    final game = await _start(_flat(mobs: const [zombie]));
+    final p = game.player;
+    final at = p.position + Vector3(0, 0, -6);
+    final cell = IVec3.floor(at);
+    // Walled in three high: every path toward the player ends inside the box.
+    for (var dx = -1; dx <= 1; dx++) {
+      for (var dz = -1; dz <= 1; dz++) {
+        if (dx == 0 && dz == 0) continue;
+        for (var dy = 0; dy < 3; dy++) {
+          game.world.setBlockNamed(cell + IVec3(dx, dy, dz), 'stone');
+        }
+      }
+    }
+    final m = game.spawnMob('zombie', Vector3(cell.x + 0.5, at.y, cell.z + 0.5));
+    await _run(game, 3.0);
+    expect(m.running.whereType<Hunt>(), isNotEmpty);
+    expect(m.pathBlocked, isTrue);
+    expect(m.pathsPlanned, inInclusiveRange(3, (3.0 / Mob.replanEvery).ceil() + 1),
+        reason: 'a partial path walked to its end waits for the timer (180 steps ran)');
+  });
+
   test('a frightened animal runs from what hurt it', () async {
     const sheep = MobSpec('sheep', hp: 8, speed: 2.0, rig: Rig.quadruped(), brain: [FleeWhenHurt(), Wander()]);
     final game = await _start(_flat(mobs: const [sheep]));

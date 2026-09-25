@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- A walking mob replans its path every `Mob.replanEvery` (0.6 s), sooner (never before
+  `Mob.replanSoonest`, 0.2 s) only when its goal moved 1.5 m, from a random phase per mob;
+  it used to replan every step once its path ran out, which an unreachable goal makes
+  happen every step. `Mob.pathsPlanned` counts its searches. With 40 creatures (`mobs:6`,
+  M2 Pro) a step costs 0.27 ms instead of 7.8 at the median, and the frame rate goes from
+  84 to 93 fps.
 - `FrameReport.stepMs`: a fixed step's own cost (each tick's simulation time over the
   steps it ran), in the JSON as `stepMs`. `simMs` grows with the steps a slow frame banks,
   so on a device that is behind it reads `FixedStepLoop`'s cap, not the simulation.

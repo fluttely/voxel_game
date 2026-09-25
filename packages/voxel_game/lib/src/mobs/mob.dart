@@ -72,7 +72,7 @@ class Mob extends GameEntity implements Target {
   Vector3? _look;
   List<Vector3> _path = const [];
   int _pathIndex = 0;
-  double _repath = 0.0;
+  double _sincePlan = 0.0;
   Vector3? _pathGoal;
   double _hopCooldown = 0.0;
   double _flap = 0.0;
@@ -163,6 +163,8 @@ class Mob extends GameEntity implements Target {
   @override
   void attached(VoxelGame game) {
     _game = game;
+    // Staggered: creatures spawned in one step do not plan in the same steps.
+    _sincePlan = game.random.nextDouble() * replanEvery;
     setup(game.world, spec.halfWidth, spec.height);
     if (!game.headless) {
       final r = spec.rig.build(spec.halfWidth, spec.height);
@@ -256,13 +258,26 @@ class Mob extends GameEntity implements Target {
     return to.length2 > 0.25 ? to.normalized() : Vector3.zero();
   }
 
-  /// A* toward [goal], re-planned every 0.6 s or when the goal moves; the
-  /// next waypoint is consumed within 0.35 m.
+  /// Seconds between two plans of a walker on its way.
+  static const double replanEvery = 0.6;
+
+  /// The least seconds between two plans, however far the goal moved.
+  static const double replanSoonest = 0.2;
+
+  /// A* searches this mob has run.
+  int pathsPlanned = 0;
+
+  /// A* toward [goal], re-planned every [replanEvery] s, or sooner (never
+  /// before [replanSoonest]) when the goal moved 1.5 m; the next waypoint is
+  /// consumed within 0.35 m. A path walked to its end is not re-planned at
+  /// once: an unreachable goal gives a partial or empty one, and planning it
+  /// again every step was most of a step's cost with 40 creatures.
   Vector3 _steer(VoxelGame game, Vector3 goal, double dt) {
-    _repath -= dt;
+    _sincePlan += dt;
     final moved = _pathGoal == null || _pathGoal!.distanceTo(goal) > 1.5;
-    if (_repath <= 0.0 || moved || _pathIndex >= _path.length) {
-      _repath = 0.6;
+    if (_sincePlan >= replanEvery || (moved && _sincePlan >= replanSoonest)) {
+      _sincePlan = 0.0;
+      pathsPlanned++;
       _pathGoal = goal.clone();
       final from = IVec3.floor(position + Vector3(0, 0.1, 0)), to = IVec3.floor(goal + Vector3(0, 0.1, 0));
       _path = Pathfinder.find(game.world, from, to, costs: game.pathCosts, maxNodes: 400);
