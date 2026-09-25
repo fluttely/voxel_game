@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- The creatures of a species share their meshes: `RigModel.of(rig, halfWidth, height)`
+  builds a look at a size once (its parts' voxels as `RigShape`s, their rest poses, the
+  fit), and each `RigInstance` hangs only its own posable nodes on it. flutter_scene then
+  draws a part once a pass, instanced over every creature that has it, instead of once a
+  creature. `Rig` is equal by its values, so two species declared with the same look
+  share one model; a humanoid's two legs and two arms, and a quadruped's four legs, share
+  one shape. With 40 creatures (`mobs:6`) their meshes go from 260 to 8, and on the M2 Pro
+  the shadow pass, which draws every creature again in every cascade each frame, from
+  2.4 ms to 0.45 a frame.
 - `gamepads: ^0.1.10`, the first version with `NormalizedGamepadState`. The constraint
   allowed `0.1.1-dev2`, which lacks it, so the lowest resolution did not compile and
   pana took 20 pub points.
