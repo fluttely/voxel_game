@@ -66,14 +66,26 @@ dependency_overrides:
 
 Dart SDK `^3.13.0`.
 
-- **macOS for now.** Turn Flutter GPU on in `macos/Runner/Info.plist`:
+- **Flutter 3.47.1 or later**, with Flutter GPU turned on in each runner: `flutter_scene`
+  draws through it, and it is off by default.
 
-  ```xml
-  <key>FLTEnableFlutterGPU</key>
-  <true/>
-  ```
+  | Platform | File | Add |
+  |:---|:---|:---|
+  | macOS, iOS | `macos/Runner/Info.plist`, `ios/Runner/Info.plist` | `<key>FLTEnableFlutterGPU</key><true/>` |
+  | Android | `android/app/src/main/AndroidManifest.xml`, in `<application>` | `<meta-data android:name="io.flutter.embedding.android.EnableFlutterGPU" android:value="true" />` |
+  | Windows | `windows/runner/main.cpp`, after `flutter::DartProject project(L"data");` | `project.set_enable_flutter_gpu(true);` |
+  | Linux | `linux/runner/my_application.cc`, after `fl_dart_project_new()` | `fl_dart_project_set_enable_flutter_gpu(project, TRUE);` |
 
-- For multiplayer, add the `com.apple.security.network.server` and
+  The Windows and Linux settings first shipped in Flutter 3.47.1; before it only the
+  `--enable-flutter-gpu` flag turns Flutter GPU on, and release builds ignore it.
+  macOS and Android are measured (`example/`); the example's iOS, Windows and Linux
+  runners are set up but have not been run yet. On Windows and Linux the mouse look is a
+  drag, not a locked cursor: `pointer_lock` locks it only on macOS.
+- **Not the web.** Chunks are generated on worker isolates, multiplayer is TCP sockets and
+  saves are files, through `dart:isolate` and `dart:io`, which a browser does not have.
+  (`flutter_scene` itself runs on the web; the kit does not.)
+
+- For multiplayer on macOS, add the `com.apple.security.network.server` and
   `com.apple.security.network.client` entitlements.
 
 ## Usage

@@ -11,6 +11,10 @@ with [`flutter_scene`](https://pub.dev/packages/flutter_scene) (Flutter GPU / Im
 | [`voxel_engine`](packages/voxel_engine) | pure Dart | core · worldgen · content · signals · net | — |
 | [`sound_recipes`](packages/sound_recipes) | flutter_soloud | sounds synthesised from recipes, no audio files | — |
 
+It targets macOS, iOS, Android, Windows and Linux (macOS and Android are the measured ones),
+from Flutter 3.47.1 with Flutter GPU turned on in each runner ([the table](packages/voxel_game/README.md#install)), and not on
+the web: worlds are streamed on isolates, multiplayer is TCP sockets and saves are files.
+
 A game needs only `voxel_game`: start at [its README](packages/voxel_game/README.md) and
 [its example](packages/voxel_game/example/lib/main.dart).
 

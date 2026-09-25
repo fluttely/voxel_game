@@ -8,9 +8,11 @@ pickaxe, sheep by day and zombies by night.
 flutter run -d macos          # or a phone: flutter run -d <device id>
 ```
 
-The macOS, Android and iOS runners turn on Flutter GPU, which `flutter_scene` draws
-through (`macos/Runner/Info.plist`, `android/app/src/main/AndroidManifest.xml`,
-`ios/Runner/Info.plist`); the Windows and Linux ones cannot yet (`docs/LEDGER.md`, KL-005).
+Every runner turns on Flutter GPU, which `flutter_scene` draws through
+(`macos/Runner/Info.plist`, `ios/Runner/Info.plist`,
+`android/app/src/main/AndroidManifest.xml`, `windows/runner/main.cpp`,
+`linux/runner/my_application.cc`); the Windows and Linux settings need Flutter 3.47.1 or
+later. There is no web runner: the kit does not run in a browser (see its README).
 
 Click to play. WASD move, Space jump, Shift run, Ctrl sneak, mouse look, left button
 mine or hit, right button place, 1-9 or the wheel pick a hotbar slot, V first or third

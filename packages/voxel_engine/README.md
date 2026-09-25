@@ -29,7 +29,8 @@ dependencies:
 ```
 
 Dart SDK `^3.13.0`. No Flutter dependency: it runs in `dart test`, on a server
-and on worker isolates.
+and on worker isolates. Not on the web: streaming spawns isolates and `net.dart` is TCP
+sockets, through `dart:isolate` and `dart:io`, which a browser does not have.
 
 ## Usage
 

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Requires Flutter 3.47.1, the first with a runner setting that turns Flutter GPU on for
+  Windows and Linux. The README has the setting for every platform, and why the web is
+  not one (worker isolates, TCP sockets and save files need `dart:isolate` and `dart:io`).
+  The example's Windows and Linux runners turn it on.
 - `FrameStats` (`VoxelGame.stats`): what the frames cost. An `fps` readout, and between
   `startRecording` and `stopRecording` every sample: Flutter's presented frames (interval,
   UI build, raster), the simulation (`VoxelGame.frame`), the scene's encoding and how long

@@ -26,8 +26,8 @@ repository pub bundles a package's own folder, filtered by the `.gitignore` file
 from the git root down to it. The root holds no package, so nothing above a
 package has to be hidden from it, and the repository's own files (`CLAUDE.md`,
 `AGENTS.md`, this file, `README.md`, `docs/`, `tool/`) sit where no tarball looks.
-Each package ships its `example/` whole, the macOS runner included — its
-`Info.plist` is where a reader sees Flutter GPU turned on.
+Each package ships its `example/` whole, its runners included — they are where a
+reader sees Flutter GPU turned on, one platform at a time.
 
 Until 2026-09-23 `voxel_game` sat at the root. It needed a `.pubignore` with
 `packages/` to keep the other three out of its tarball, and that same line hid the

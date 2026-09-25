@@ -39,8 +39,10 @@ ever sees, because no package sits above them. So every package publishes in pla
 `.pubignore`, through `tool/publish_package.sh` (`PUBLISHING.md`). Do not put a package back
 at the root: that is what forced the `.pubignore` and the git-less copy this layout removed.
 
-Target: every platform Flutter supports. **macOS is the development platform** (Flutter GPU
-is enabled in each example's `macos/Runner/Info.plist`).
+Target: every platform Flutter GPU runs on — macOS, iOS, Android, Windows, Linux — from
+Flutter 3.47.1, **but not the web** (worker isolates, TCP sockets and save files need
+`dart:isolate` and `dart:io`). **macOS is the development platform**; each runner of
+`packages/voxel_game/example/` turns Flutter GPU on.
 
 ## The map
 

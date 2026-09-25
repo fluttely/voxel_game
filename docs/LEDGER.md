@@ -67,13 +67,6 @@
 - **Cost of leaving it:** the kit says it targets every platform Flutter supports, but a first-person game on two of the three desktops plays like a touch screen with a mouse. Nothing tells a game author about it: `pointerLockSupported` is public, but the README never mentions it.
 - **Found while:** 2026-09-24 — adding Windows and Linux runners to the examples, for the launch post.
 
-### KL-005 · Windows and Linux builds of the examples cannot render in release
-
-- **Lens:** platform parity / build
-- **Evidence:** `packages/voxel_game/example/windows/runner/main.cpp` and `packages/voxel_game/example/linux/runner/my_application.cc` (and the minecraft example's) never switch Flutter GPU on. flutter_scene 0.23.0's README (`~/.pub-cache/hosted/pub.dev/flutter_scene-0.23.0/README.md:128-146`) says a Windows or Linux runner does it with `DartProject.set_enable_flutter_gpu` / `fl_dart_project_set_enable_flutter_gpu`, which exist only from Flutter 3.47.1; on 3.47.0 (this machine) only a command-line flag does, and release builds compile it out.
-- **Cost of leaving it:** the runners added on 2026-09-24 build, launch and draw nothing in release; `KL-004`'s look-by-drag is moot until they draw. The fix is two lines per runner, but only after the Flutter upgrade, and the bundle must be rebuilt then too (`CLAUDE.md` rule 15).
-- **Found while:** 2026-09-25 — `PF0`, deciding which platforms the benchmark can measure.
-
 ### KL-006 · The minecraft example measures the published kit, not this tree
 
 - **Lens:** testing / witness
@@ -82,3 +75,11 @@
 - **Found while:** 2026-09-25 — `PF0`, choosing the game to benchmark.
 
 ## Closed
+
+### KL-005 · Windows and Linux builds of the examples cannot render in release
+
+- **Lens:** platform parity / build
+- **Evidence:** `packages/voxel_game/example/windows/runner/main.cpp` and `packages/voxel_game/example/linux/runner/my_application.cc` (and the minecraft example's) never switch Flutter GPU on. flutter_scene 0.23.0's README (`~/.pub-cache/hosted/pub.dev/flutter_scene-0.23.0/README.md:128-146`) says a Windows or Linux runner does it with `DartProject.set_enable_flutter_gpu` / `fl_dart_project_set_enable_flutter_gpu`, which exist only from Flutter 3.47.1; on 3.47.0 (this machine) only a command-line flag does, and release builds compile it out.
+- **Cost of leaving it:** the runners added on 2026-09-24 build, launch and draw nothing in release; `KL-004`'s look-by-drag is moot until they draw. The fix is two lines per runner, but only after the Flutter upgrade, and the bundle must be rebuilt then too (`CLAUDE.md` rule 15).
+- **Found while:** 2026-09-25 — `PF0`, deciding which platforms the benchmark can measure.
+- **Closed by:** 2026-09-25 — Flutter 3.47.5 on this machine (the shader bundle rebuilt byte for byte the same), and `voxel_game example: the Windows and Linux runners turn Flutter GPU on`, which adds the call to both runners and has the kit require Flutter 3.47.1. The minecraft example lives in its own repository and still needs the same two lines.
