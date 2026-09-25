@@ -50,6 +50,8 @@ their shadow re-renders are part of every run.
 | `hitches` | frame intervals over 1.5 refresh periods | frames the display showed twice |
 | frame p99 | interval between the vsyncs that started two presented frames | pacing |
 | GPU latency p50 / p99 | an empty command buffer submitted after the scene's; its completion callback minus the end of the encoding | how long a frame waited and ran on the GPU, the queue included: **not the GPU's cost** (§Validity); a GPU-bound frame reads about three refresh periods |
+| **GPU ms/frame** (`--trace`) | a Metal System Trace of the profile build: the union of the app's `metal-gpu-intervals` over the recorded seconds, ÷ Flutter's composites in them | **the GPU's cost per frame**; the budget is 8.3 ms at 120 Hz |
+| GPU busy % (`--trace`) | the same union ÷ the recorded seconds | near 100: the GPU is what caps the frame rate |
 | UI p50 / p99 | `FrameTiming.buildDuration` | the whole UI thread: simulation, chunk uploads, HUD, scene encoding |
 | encode p50 | `Scene.renderViews` wall time (`MeasuredScene`) | flutter_scene recording GPU commands |
 | sim p99 | `VoxelGame.frame` wall time | steps, streaming uploads, sky |
@@ -61,7 +63,14 @@ their shadow re-renders are part of every run.
 **Why a GPU number and not only fps.** At the display's cap fps only says "under budget";
 the GPU's cost per frame is the headroom, and it is what a 120 Hz display or a phone spends.
 That cost is not in the app's line: flutter_scene gives no GPU timestamps, and the latency
-column counts the queue. It comes from a Metal System Trace of the profile build (§Validity).
+column counts the queue. It comes from a Metal System Trace of the profile build:
+`--trace` (macOS) runs every scenario under `xcrun xctrace` and adds `gpuTrace` to its line
+(§Validity). Instruments cannot attach to a release build, so a traced run is a profile
+build's (its fps is within 1% of release's at `orbit:6`): its lines go in their own file,
+compared only with other traced lines. Each traced run leaves nothing behind (the trace
+and the ~1 GB raw recording are deleted), and every line says which build it was (`mode`),
+checked against the one the script built: xctrace launches an app by bundle id, and once
+started a stale debug build of it that never exited and filled the disk.
 A frame is GPU-bound when the trace shows the GPU busy nearly all the time while UI p50 is
 far below the refresh period.
 

@@ -19,6 +19,7 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' show PlatformDispatcher;
 
+import 'package:flutter/foundation.dart' show kProfileMode, kReleaseMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show DeviceOrientation, SystemChrome, SystemUiMode;
 import 'package:vector_math/vector_math.dart' show Vector3;
@@ -214,6 +215,7 @@ class Bench {
       'scenario': scenario.name,
       'radius': radius,
       'platform': Platform.operatingSystem,
+      'mode': kReleaseMode ? 'release' : (kProfileMode ? 'profile' : 'debug'),
       'refreshHz': display.refreshRate,
       'window': '${size.width.round()}x${size.height.round()}',
       'dpr': view.devicePixelRatio,
