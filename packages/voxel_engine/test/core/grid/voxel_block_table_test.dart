@@ -6,9 +6,26 @@ import 'package:voxel_engine/core.dart';
 const _air = VoxelBlockDef(shape: BlockShape.cube, solid: false, opaque: false, r: 0, g: 0, b: 0, a: 0);
 const _stone = VoxelBlockDef(shape: BlockShape.cube, solid: true, opaque: true, r: 0.5, g: 0.5, b: 0.52);
 const _water = VoxelBlockDef(
-    shape: BlockShape.liquid, solid: false, opaque: false, r: 0.2, g: 0.42, b: 0.78, a: 0.62, liquidKind: 0, liquidSource: true);
+  shape: BlockShape.liquid,
+  solid: false,
+  opaque: false,
+  r: 0.2,
+  g: 0.42,
+  b: 0.78,
+  a: 0.62,
+  liquidKind: 0,
+  liquidSource: true,
+);
 const _waterFlow = VoxelBlockDef(
-    shape: BlockShape.liquid, solid: false, opaque: false, r: 0.2, g: 0.42, b: 0.78, a: 0.62, liquidKind: 0);
+  shape: BlockShape.liquid,
+  solid: false,
+  opaque: false,
+  r: 0.2,
+  g: 0.42,
+  b: 0.78,
+  a: 0.62,
+  liquidKind: 0,
+);
 const _lamp = VoxelBlockDef(shape: BlockShape.cube, solid: true, opaque: true, r: 0.98, g: 0.88, b: 0.5, emission: 15);
 const _slab = VoxelBlockDef(shape: BlockShape.slab, solid: true, opaque: false, r: 0.7, g: 0.5, b: 0.3);
 
@@ -48,16 +65,18 @@ void main() {
     expect(() => VoxelBlockTable(List.filled(257, _air)), throwsArgumentError);
     expect(() => VoxelBlockTable(const [_stone]), throwsArgumentError);
     expect(
-        () => VoxelBlockTable(const [
-              _air,
-              VoxelBlockDef(shape: BlockShape.cube, solid: true, opaque: true, r: 1, g: 1, b: 1, emission: 16),
-            ]),
-        throwsArgumentError);
+      () => VoxelBlockTable(const [
+        _air,
+        VoxelBlockDef(shape: BlockShape.cube, solid: true, opaque: true, r: 1, g: 1, b: 1, emission: 16),
+      ]),
+      throwsArgumentError,
+    );
     expect(
-        () => VoxelBlockTable(const [
-              _air,
-              VoxelBlockDef(shape: BlockShape.liquid, solid: false, opaque: false, r: 1, g: 1, b: 1, liquidSource: true),
-            ]),
-        throwsArgumentError);
+      () => VoxelBlockTable(const [
+        _air,
+        VoxelBlockDef(shape: BlockShape.liquid, solid: false, opaque: false, r: 1, g: 1, b: 1, liquidSource: true),
+      ]),
+      throwsArgumentError,
+    );
   });
 }

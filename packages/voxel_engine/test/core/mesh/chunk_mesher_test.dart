@@ -5,11 +5,11 @@ import 'package:voxel_engine/core.dart';
 
 /// Air (0) and one opaque grey cube (1): the smallest table the mesher accepts.
 ChunkMesher _mesher() => ChunkMesher(
-      palette: Float32List.fromList([0, 0, 0, 0, 0.5, 0.5, 0.5, 1]),
-      shape: Uint8List.fromList([BlockShape.cube.index, BlockShape.cube.index]),
-      opaque: Uint8List.fromList([0, 1]),
-      emission: Uint8List.fromList([0, 0]),
-    );
+  palette: Float32List.fromList([0, 0, 0, 0, 0.5, 0.5, 0.5, 1]),
+  shape: Uint8List.fromList([BlockShape.cube.index, BlockShape.cube.index]),
+  opaque: Uint8List.fromList([0, 1]),
+  emission: Uint8List.fromList([0, 0]),
+);
 
 ChunkMeshResult _build(Uint8List c) => _mesher().build(0, 0, [c, ...ChunkMesher.noNeighbours]);
 

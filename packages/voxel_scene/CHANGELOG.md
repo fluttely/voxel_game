@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Formatted by `dart format` at the 120 columns the code is written at
+  (`formatter: page_width: 120` in `analysis_options.yaml`); pana took 10 pub points
+  for formatting.
+
 ## 0.1.1-dev
 
 - Requires Flutter 3.47.1, the first with a runner setting that turns Flutter GPU on for

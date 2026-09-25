@@ -8,7 +8,13 @@ import 'package:sound_recipes/sound_recipes.dart';
 /// glass, a plant or flower of plant, anything else of stone.
 class SoundSpec {
   /// Sound on, the stock set.
-  const SoundSpec({this.enabled = true, this.recipes = const {}, this.assets = const {}, this.music = const {}, this.musicVolume = 0.45});
+  const SoundSpec({
+    this.enabled = true,
+    this.recipes = const {},
+    this.assets = const {},
+    this.music = const {},
+    this.musicVolume = 0.45,
+  });
 
   /// No sound at all.
   static const SoundSpec off = SoundSpec(enabled: false);

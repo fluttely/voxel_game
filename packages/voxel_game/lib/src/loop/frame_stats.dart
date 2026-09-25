@@ -80,20 +80,27 @@ class _Samples {
   final int startUs;
   int? lastVsyncUs;
   int steps = 0;
-  final List<double> intervalMs = [], buildMs = [], rasterMs = [], simMs = [], stepMs = [], encodeMs = [], gpuLatencyMs = [], gpuLagFrames = [];
+  final List<double> intervalMs = [],
+      buildMs = [],
+      rasterMs = [],
+      simMs = [],
+      stepMs = [],
+      encodeMs = [],
+      gpuLatencyMs = [],
+      gpuLagFrames = [];
 
   FrameReport report(double seconds) => FrameReport(
-        seconds: seconds,
-        steps: steps,
-        intervalMs: intervalMs,
-        buildMs: buildMs,
-        rasterMs: rasterMs,
-        simMs: simMs,
-        stepMs: stepMs,
-        encodeMs: encodeMs,
-        gpuLatencyMs: gpuLatencyMs,
-        gpuLagFrames: gpuLagFrames,
-      );
+    seconds: seconds,
+    steps: steps,
+    intervalMs: intervalMs,
+    buildMs: buildMs,
+    rasterMs: rasterMs,
+    simMs: simMs,
+    stepMs: stepMs,
+    encodeMs: encodeMs,
+    gpuLatencyMs: gpuLatencyMs,
+    gpuLagFrames: gpuLagFrames,
+  );
 }
 
 /// The samples of one [FrameStats] recording.
@@ -165,28 +172,28 @@ class FrameReport {
 
   /// p50, p90, p99 and max of [xs], rounded to 0.01.
   static Map<String, double> spread(List<double> xs) => {
-        'p50': _round(percentile(xs, 50)),
-        'p90': _round(percentile(xs, 90)),
-        'p99': _round(percentile(xs, 99)),
-        'max': _round(xs.isEmpty ? 0.0 : xs.reduce(math.max)),
-      };
+    'p50': _round(percentile(xs, 50)),
+    'p90': _round(percentile(xs, 90)),
+    'p99': _round(percentile(xs, 99)),
+    'max': _round(xs.isEmpty ? 0.0 : xs.reduce(math.max)),
+  };
 
   static double _round(double v) => (v * 100).roundToDouble() / 100;
 
   /// The report as JSON, [periodMs] being the display's refresh period.
   Map<String, Object> toJson(double periodMs) => {
-        'seconds': _round(seconds),
-        'frames': buildMs.length,
-        'fps': _round(fps),
-        'stepsPerSecond': _round(steps / seconds),
-        'hitches': hitches(periodMs),
-        'intervalMs': spread(intervalMs),
-        'buildMs': spread(buildMs),
-        'rasterMs': spread(rasterMs),
-        'simMs': spread(simMs),
-        'stepMs': spread(stepMs),
-        'encodeMs': spread(encodeMs),
-        'gpuLatencyMs': spread(gpuLatencyMs),
-        'gpuLagFrames': spread(gpuLagFrames),
-      };
+    'seconds': _round(seconds),
+    'frames': buildMs.length,
+    'fps': _round(fps),
+    'stepsPerSecond': _round(steps / seconds),
+    'hitches': hitches(periodMs),
+    'intervalMs': spread(intervalMs),
+    'buildMs': spread(buildMs),
+    'rasterMs': spread(rasterMs),
+    'simMs': spread(simMs),
+    'stepMs': spread(stepMs),
+    'encodeMs': spread(encodeMs),
+    'gpuLatencyMs': spread(gpuLatencyMs),
+    'gpuLagFrames': spread(gpuLagFrames),
+  };
 }

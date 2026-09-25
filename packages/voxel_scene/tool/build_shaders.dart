@@ -53,5 +53,7 @@ Future<void> main() async {
   stdout.write(r.stdout);
   stderr.write(r.stderr);
   if (r.exitCode != 0) exit(r.exitCode);
-  stdout.writeln('wrote assets/shaders/terrain.shaderbundle (${File('assets/shaders/terrain.shaderbundle').lengthSync()} bytes)');
+  stdout.writeln(
+    'wrote assets/shaders/terrain.shaderbundle (${File('assets/shaders/terrain.shaderbundle').lengthSync()} bytes)',
+  );
 }

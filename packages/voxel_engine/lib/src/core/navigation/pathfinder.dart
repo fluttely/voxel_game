@@ -59,8 +59,14 @@ class Pathfinder {
 
   /// Cell centres (x + 0.5, y, z + 0.5) from the first step after [from] to the
   /// goal, or the partial path; empty when [from] has nowhere to go.
-  static List<Vector3> find(VoxelQuery world, IVec3 from, IVec3 to,
-      {PathCosts costs = PathCosts.plain, int maxNodes = defaultMaxNodes, bool canJump = true}) {
+  static List<Vector3> find(
+    VoxelQuery world,
+    IVec3 from,
+    IVec3 to, {
+    PathCosts costs = PathCosts.plain,
+    int maxNodes = defaultMaxNodes,
+    bool canJump = true,
+  }) {
     // A path is no longer than the expansions it took, so every cell's offset fits.
     assert(maxNodes < _half - maxDrop, 'maxNodes $maxNodes does not fit a key of $_bits bits an axis');
     return _search.run(world, from, to, costs, maxNodes, canJump);
@@ -69,7 +75,8 @@ class Pathfinder {
   /// Whether a walker can stand in [c]: two free cells, neither avoided, over
   /// a solid floor that is not a fence (a fence is a barrier, never a floor)
   /// or in a liquid.
-  static bool walkable(VoxelQuery w, IVec3 c, [PathCosts costs = PathCosts.plain]) => _walkable(w, costs, c.x, c.y, c.z);
+  static bool walkable(VoxelQuery w, IVec3 c, [PathCosts costs = PathCosts.plain]) =>
+      _walkable(w, costs, c.x, c.y, c.z);
 
   static bool _walkable(VoxelQuery w, PathCosts costs, int x, int y, int z) {
     final t = w.table;
@@ -199,8 +206,12 @@ class _Search {
   /// there can be stood on.
   static int? _stepTo(VoxelQuery w, PathCosts costs, int cx, int cy, int cz, int nx, int nz, bool canJump) {
     if (Pathfinder._walkable(w, costs, nx, cy, nz)) return cy;
-    if (canJump && !Pathfinder._solid(w, cx, cy + 2, cz) && Pathfinder._walkable(w, costs, nx, cy + 1, nz)) return cy + 1;
-    if (Pathfinder._solid(w, nx, cy, nz) || Pathfinder._solid(w, nx, cy + 1, nz) || costs.avoid(w.getBlockXYZ(nx, cy, nz))) {
+    if (canJump && !Pathfinder._solid(w, cx, cy + 2, cz) && Pathfinder._walkable(w, costs, nx, cy + 1, nz)) {
+      return cy + 1;
+    }
+    if (Pathfinder._solid(w, nx, cy, nz) ||
+        Pathfinder._solid(w, nx, cy + 1, nz) ||
+        costs.avoid(w.getBlockXYZ(nx, cy, nz))) {
       return null;
     }
     for (var k = 1; k <= Pathfinder.maxDrop; k++) {

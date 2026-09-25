@@ -6,7 +6,12 @@ void main() {
   test('value equality and hashing', () {
     expect(const IVec3(1, -2, 3), const IVec3(1, -2, 3));
     expect(const IVec3(1, -2, 3).hashCode, const IVec3(1, -2, 3).hashCode);
-    expect((<IVec3>{}..add(const IVec3(0, 0, 0))..add(IVec3.zero)), hasLength(1));
+    expect(
+      (<IVec3>{}
+        ..add(const IVec3(0, 0, 0))
+        ..add(IVec3.zero)),
+      hasLength(1),
+    );
     expect(const IVec3(1, 2, 3) == const IVec3(3, 2, 1), isFalse);
   });
 

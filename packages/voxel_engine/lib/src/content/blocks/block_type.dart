@@ -23,12 +23,12 @@ class BlockType {
     this.light = 0,
     this.speed = 1.0,
     this.tags = const {},
-  })  : r = ((color >> 16) & 0xFF) / 255.0,
-        g = ((color >> 8) & 0xFF) / 255.0,
-        b = (color & 0xFF) / 255.0,
-        opaque = opaque ?? (solid && alpha >= 1.0 && shape == BlockShape.cube),
-        liquid = null,
-        liquidSource = false;
+  }) : r = ((color >> 16) & 0xFF) / 255.0,
+       g = ((color >> 8) & 0xFF) / 255.0,
+       b = (color & 0xFF) / 255.0,
+       opaque = opaque ?? (solid && alpha >= 1.0 && shape == BlockShape.cube),
+       liquid = null,
+       liquidSource = false;
 
   /// A block of linear rgb [r], [g], [b] (0..1), for a game that keeps its
   /// palette as floats.
@@ -51,7 +51,7 @@ class BlockType {
     this.tags = const {},
     this.liquid,
     this.liquidSource = true,
-  })  : opaque = opaque ?? (solid && alpha >= 1.0 && shape == BlockShape.cube);
+  }) : opaque = opaque ?? (solid && alpha >= 1.0 && shape == BlockShape.cube);
 
   /// A liquid of [kind] (default: its own id). A source ([source] true) feeds
   /// the flow; its flowing form is another block of the same kind with
@@ -66,18 +66,18 @@ class BlockType {
     this.light = 0,
     this.speed = 1.0,
     this.tags = const {},
-  })  : r = ((color >> 16) & 0xFF) / 255.0,
-        g = ((color >> 8) & 0xFF) / 255.0,
-        b = (color & 0xFF) / 255.0,
-        shape = BlockShape.liquid,
-        solid = false,
-        opaque = false,
-        hardness = -1,
-        tool = null,
-        tier = 0,
-        drop = '',
-        liquid = kind ?? id,
-        liquidSource = source;
+  }) : r = ((color >> 16) & 0xFF) / 255.0,
+       g = ((color >> 8) & 0xFF) / 255.0,
+       b = (color & 0xFF) / 255.0,
+       shape = BlockShape.liquid,
+       solid = false,
+       opaque = false,
+       hardness = -1,
+       tool = null,
+       tier = 0,
+       drop = '',
+       liquid = kind ?? id,
+       liquidSource = source;
 
   /// The id: what saves, recipes and world specs name it by.
   final String id;

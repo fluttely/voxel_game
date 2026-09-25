@@ -52,11 +52,11 @@ class RigMotion {
 
   /// The body plan's own walk cycles per metre.
   static double gaitRateOf(RigKind kind) => switch (kind) {
-        RigKind.bird => 4.2,
-        RigKind.spider => 3.0,
-        RigKind.quadruped => 2.6,
-        _ => 2.2,
-      };
+    RigKind.bird => 4.2,
+    RigKind.spider => 3.0,
+    RigKind.quadruped => 2.6,
+    _ => 2.2,
+  };
 }
 
 /// Poses a body plan's named parts every frame (`body`, `head`, `leg0`..,
@@ -68,8 +68,8 @@ class RigAnimator {
   /// An animator of [parts] as a [kind]; [armRest] holds a humanoid's arms
   /// (1.4 out in front, 0 at the sides), [legFan] a spider's resting splay.
   RigAnimator(this.kind, this.parts, {this.motion = const RigMotion(), this.armRest = 0.0, List<double>? legFan})
-      : legFan = legFan ?? [],
-        _gaitRate = motion.gaitRate ?? RigMotion.gaitRateOf(kind);
+    : legFan = legFan ?? [],
+      _gaitRate = motion.gaitRate ?? RigMotion.gaitRateOf(kind);
 
   /// The body plan.
   final RigKind kind;
@@ -116,7 +116,15 @@ class RigAnimator {
   /// clock): moving at [speed], standing [onFloor] or [flying], rising at
   /// [verticalSpeed]; [lookYaw] turns the head (relative to the body), null
   /// for straight ahead. Parts are applied by the caller.
-  void pose(double dt, {required double age, required double speed, bool onFloor = true, bool flying = false, double? lookYaw, double verticalSpeed = 0.0}) {
+  void pose(
+    double dt, {
+    required double age,
+    required double speed,
+    bool onFloor = true,
+    bool flying = false,
+    double? lookYaw,
+    double verticalSpeed = 0.0,
+  }) {
     moveWeight = lerpd(moveWeight, speed > 0.3 ? 1.0 : 0.0, math.min(1.0, dt * 8.0));
     phase += dt * speed * _gaitRate;
     final a = math.sin(phase) * 0.7 * moveWeight;

@@ -8,9 +8,7 @@ import 'package:voxel_engine/core.dart';
 /// part, so the pieces meet at the borders without any chunk seeing another.
 class ChunkWriter {
   /// A writer over [blocks], the volume of chunk ([chunkX], [chunkZ]).
-  ChunkWriter(this.blocks, this.chunkX, this.chunkZ)
-      : ox = chunkX * ChunkSize.sizeX,
-        oz = chunkZ * ChunkSize.sizeZ;
+  ChunkWriter(this.blocks, this.chunkX, this.chunkZ) : ox = chunkX * ChunkSize.sizeX, oz = chunkZ * ChunkSize.sizeZ;
 
   /// Row 0 is the bedrock floor: [put] never writes below this.
   static const int minY = 1;
@@ -36,7 +34,9 @@ class ChunkWriter {
   /// below [minY]).
   int? get(int wx, int wy, int wz) {
     final x = wx - ox, z = wz - oz;
-    if (x < 0 || x >= ChunkSize.sizeX || z < 0 || z >= ChunkSize.sizeZ || wy < minY || wy >= ChunkSize.sizeY) return null;
+    if (x < 0 || x >= ChunkSize.sizeX || z < 0 || z >= ChunkSize.sizeZ || wy < minY || wy >= ChunkSize.sizeY) {
+      return null;
+    }
     return blocks[ChunkSize.index(x, wy, z)];
   }
 

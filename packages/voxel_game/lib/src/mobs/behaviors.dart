@@ -99,7 +99,13 @@ class Wander extends Behavior {
 /// neutral animal). It sets [Mob.target], which the attacks read.
 class Hunt extends Behavior {
   /// A hunter.
-  const Hunt({super.priority = 20, this.range = 16.0, this.giveUpRange = 32.0, this.whenProvoked = false, this.prey = const []});
+  const Hunt({
+    super.priority = 20,
+    this.range = 16.0,
+    this.giveUpRange = 32.0,
+    this.whenProvoked = false,
+    this.prey = const [],
+  });
 
   /// How far it notices a target.
   final double range;
@@ -162,7 +168,13 @@ class Hunt extends Behavior {
 /// sight, once per [cooldown].
 class MeleeAttack extends Behavior {
   /// A bite, a punch, a kick.
-  const MeleeAttack({super.priority = 10, required this.damage, this.reach = 1.6, this.cooldown = 1.2, this.knockback = 5.0});
+  const MeleeAttack({
+    super.priority = 10,
+    required this.damage,
+    this.reach = 1.6,
+    this.cooldown = 1.2,
+    this.knockback = 5.0,
+  });
 
   /// Health a strike takes.
   final double damage;
@@ -182,7 +194,10 @@ class MeleeAttack extends Behavior {
   @override
   bool canStart(Mob mob, VoxelGame game) {
     final t = mob.target;
-    return t != null && !t.isDead && mob.centre().distanceTo(t.centre()) <= reach + mob.halfWidth + 0.5 && mob.canSee(t);
+    return t != null &&
+        !t.isDead &&
+        mob.centre().distanceTo(t.centre()) <= reach + mob.halfWidth + 0.5 &&
+        mob.canSee(t);
   }
 
   @override
@@ -200,7 +215,14 @@ class MeleeAttack extends Behavior {
 /// [projectile] every [cooldown] seconds within [range].
 class RangedAttack extends Behavior {
   /// An archer, a mage.
-  const RangedAttack({super.priority = 15, required this.projectile, this.range = 16.0, this.keepAway = 6.0, this.holdRange = 12.0, this.cooldown = 2.0});
+  const RangedAttack({
+    super.priority = 15,
+    required this.projectile,
+    this.range = 16.0,
+    this.keepAway = 6.0,
+    this.holdRange = 12.0,
+    this.cooldown = 2.0,
+  });
 
   /// What it shoots.
   final ProjectileSpec projectile;
@@ -301,7 +323,14 @@ class _FuseState {
 /// [breaksBlocks]. Out of reach, the fuse goes out.
 class Explode extends Behavior {
   /// A creeper.
-  const Explode({super.priority = 8, this.trigger = 2.5, this.fuse = 1.5, this.radius = 3.0, this.damage = 12.0, this.breaksBlocks = true});
+  const Explode({
+    super.priority = 8,
+    this.trigger = 2.5,
+    this.fuse = 1.5,
+    this.radius = 3.0,
+    this.damage = 12.0,
+    this.breaksBlocks = true,
+  });
 
   /// How near the target lights the fuse.
   final double trigger;
@@ -364,7 +393,8 @@ class LookAtPlayer extends Behavior {
   Set<BehaviorSlot> get slots => const {BehaviorSlot.look};
 
   @override
-  bool canStart(Mob mob, VoxelGame game) => !game.player.isDead && mob.position.distanceTo(game.player.position) < range;
+  bool canStart(Mob mob, VoxelGame game) =>
+      !game.player.isDead && mob.position.distanceTo(game.player.position) < range;
 
   @override
   void tick(Mob mob, VoxelGame game, double dt) => mob.lookAt(game.player.centre());

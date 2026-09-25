@@ -48,11 +48,11 @@ class SpawnRule {
 
   /// The creatures of the night: only in the dark (light 7 or less).
   const SpawnRule.dark({int weight = 10, List<String>? biomes, (int, int) group = (1, 1), int maxAlive = 12})
-      : this(weight: weight, biomes: biomes, maxLight: 7, group: group, maxAlive: maxAlive);
+    : this(weight: weight, biomes: biomes, maxLight: 7, group: group, maxAlive: maxAlive);
 
   /// The animals of the day: only in daylight (light 9 or more).
   const SpawnRule.daylight({int weight = 10, List<String>? biomes, (int, int) group = (2, 4), int maxAlive = 10})
-      : this(weight: weight, biomes: biomes, minLight: 9, group: group, maxAlive: maxAlive);
+    : this(weight: weight, biomes: biomes, minLight: 9, group: group, maxAlive: maxAlive);
 
   /// How likely against the other candidates of a spot.
   final int weight;

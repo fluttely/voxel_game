@@ -7,9 +7,26 @@ final _table = VoxelBlockTable(const [
   VoxelBlockDef(shape: BlockShape.cube, solid: false, opaque: false, r: 0, g: 0, b: 0, a: 0),
   VoxelBlockDef(shape: BlockShape.cube, solid: true, opaque: true, r: 0.5, g: 0.5, b: 0.5),
   VoxelBlockDef(
-      shape: BlockShape.liquid, solid: false, opaque: false, r: 0.2, g: 0.4, b: 0.8, a: 0.6, liquidKind: 0, liquidSource: true),
+    shape: BlockShape.liquid,
+    solid: false,
+    opaque: false,
+    r: 0.2,
+    g: 0.4,
+    b: 0.8,
+    a: 0.6,
+    liquidKind: 0,
+    liquidSource: true,
+  ),
   VoxelBlockDef(
-      shape: BlockShape.liquid, solid: false, opaque: false, r: 0.9, g: 0.3, b: 0.1, liquidKind: 1, liquidSource: true),
+    shape: BlockShape.liquid,
+    solid: false,
+    opaque: false,
+    r: 0.9,
+    g: 0.3,
+    b: 0.1,
+    liquidKind: 1,
+    liquidSource: true,
+  ),
   VoxelBlockDef(shape: BlockShape.fence, solid: true, opaque: false, r: 0.4, g: 0.3, b: 0.2),
   VoxelBlockDef(shape: BlockShape.cube, solid: true, opaque: true, r: 0.3, g: 0.2, b: 0.1),
 ]);
@@ -67,7 +84,11 @@ void main() {
       mud.cells[IVec3(x, 9, 0)] = _mud;
     }
     final detour = Pathfinder.find(mud, const IVec3(0, 10, 0), const IVec3(6, 10, 0), costs: _noLava);
-    expect(detour.where((p) => p.z == 0.5 && p.x > 0.5 && p.x < 5.5), isEmpty, reason: 'two cells around are cheaper than five in mud');
+    expect(
+      detour.where((p) => p.z == 0.5 && p.x > 0.5 && p.x < 5.5),
+      isEmpty,
+      reason: 'two cells around are cheaper than five in mud',
+    );
   });
 
   test('a fence top is no floor, and water costs more than land', () {
@@ -98,12 +119,18 @@ void main() {
   test('a policy that searches again from its callback is a mistake', () {
     final w = _World();
     late PathCosts nested;
-    nested = PathCosts(avoid: (b) {
-      Pathfinder.find(w, const IVec3(0, 10, 0), const IVec3(1, 10, 0), costs: nested);
-      return false;
-    });
+    nested = PathCosts(
+      avoid: (b) {
+        Pathfinder.find(w, const IVec3(0, 10, 0), const IVec3(1, 10, 0), costs: nested);
+        return false;
+      },
+    );
     expect(() => Pathfinder.find(w, const IVec3(0, 10, 0), const IVec3(3, 10, 0), costs: nested), throwsStateError);
-    expect(Pathfinder.find(w, const IVec3(0, 10, 0), const IVec3(3, 10, 0)), hasLength(3), reason: 'the next search runs');
+    expect(
+      Pathfinder.find(w, const IVec3(0, 10, 0), const IVec3(3, 10, 0)),
+      hasLength(3),
+      reason: 'the next search runs',
+    );
   });
 
   test('an unreachable goal returns the best partial path toward it', () {

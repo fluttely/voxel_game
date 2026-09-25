@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Formatted by `dart format` at the 120 columns the code is written at
+  (`formatter: page_width: 120` in `analysis_options.yaml`); pana took 10 pub points
+  for formatting.
 - `Pathfinder.find` keys its cells by an int (the offset from the start, packed) and
   keeps its nodes in lists reused from one search to the next, allocating nothing per
   cell it opens; the paths are the same, the search about 1.6 times faster. A `PathCosts`

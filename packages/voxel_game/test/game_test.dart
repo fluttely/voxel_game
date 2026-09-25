@@ -16,20 +16,25 @@ const _blocks = [
 ];
 
 /// Level grass at y 20 (the first air cell), no caves, no trees.
-VoxelGameSpec _flat({List<MobSpec> mobs = const [], PlayerSpec player = const PlayerSpec(), SkySpec sky = SkySpec.alwaysDay}) =>
-    VoxelGameSpec(
-      blocks: _blocks,
-      world: const WorldGenSpec(
-        terrain: TerrainRecipe.flat(20),
-        seaLevel: 5,
-        caves: CaveSpec.none,
-        biomes: [Biome('plains', top: 'grass', under: 'dirt')],
-      ),
-      items: const [ItemType('wooden_pickaxe', color: 0xB08850, tool: 'pickaxe', tier: 1, stack: 1, durability: 60, damage: 3)],
-      player: player,
-      mobs: mobs,
-      sky: sky,
-    );
+VoxelGameSpec _flat({
+  List<MobSpec> mobs = const [],
+  PlayerSpec player = const PlayerSpec(),
+  SkySpec sky = SkySpec.alwaysDay,
+}) => VoxelGameSpec(
+  blocks: _blocks,
+  world: const WorldGenSpec(
+    terrain: TerrainRecipe.flat(20),
+    seaLevel: 5,
+    caves: CaveSpec.none,
+    biomes: [Biome('plains', top: 'grass', under: 'dirt')],
+  ),
+  items: const [
+    ItemType('wooden_pickaxe', color: 0xB08850, tool: 'pickaxe', tier: 1, stack: 1, durability: 60, damage: 3),
+  ],
+  player: player,
+  mobs: mobs,
+  sky: sky,
+);
 
 Future<VoxelGame> _start(VoxelGameSpec spec) async {
   final game = await VoxelGame.startHeadless(spec);
@@ -137,7 +142,11 @@ void main() {
     await _run(game, 2.0);
     game.input.hold(VoxelAction.attack, false);
     await _run(game, 1.5);
-    expect(p.inventory.countOf('dirt'), greaterThanOrEqualTo(1), reason: 'grass drops dirt, and the drop flies to the player');
+    expect(
+      p.inventory.countOf('dirt'),
+      greaterThanOrEqualTo(1),
+      reason: 'grass drops dirt, and the drop flies to the player',
+    );
   });
 
   test('a held block is placed against the aimed face and used up', () async {
@@ -160,9 +169,19 @@ void main() {
   });
 
   test('a hunter chases the player and strikes; the player hits back and it drops its loot', () async {
-    const zombie = MobSpec('zombie',
-        hp: 6, speed: 3.0, brain: [MeleeAttack(damage: 2), Hunt(range: 20), Wander()], drops: [Drop('dirt', 2, 2)]);
-    final game = await _start(_flat(mobs: const [zombie], player: const PlayerSpec(startingItems: {'wooden_pickaxe': 1})));
+    const zombie = MobSpec(
+      'zombie',
+      hp: 6,
+      speed: 3.0,
+      brain: [MeleeAttack(damage: 2), Hunt(range: 20), Wander()],
+      drops: [Drop('dirt', 2, 2)],
+    );
+    final game = await _start(
+      _flat(
+        mobs: const [zombie],
+        player: const PlayerSpec(startingItems: {'wooden_pickaxe': 1}),
+      ),
+    );
     final p = game.player;
     final m = game.spawnMob('zombie', p.position + Vector3(0, 0, -8));
     await _run(game, 4.0);
@@ -201,8 +220,11 @@ void main() {
     await _run(game, 3.0);
     expect(m.running.whereType<Hunt>(), isNotEmpty);
     expect(m.pathBlocked, isTrue);
-    expect(m.pathsPlanned, inInclusiveRange(3, (3.0 / Mob.replanEvery).ceil() + 1),
-        reason: 'a partial path walked to its end waits for the timer (180 steps ran)');
+    expect(
+      m.pathsPlanned,
+      inInclusiveRange(3, (3.0 / Mob.replanEvery).ceil() + 1),
+      reason: 'a partial path walked to its end waits for the timer (180 steps ran)',
+    );
   });
 
   test('hunters that all want a path at once share a budget of searches a step', () async {
@@ -211,7 +233,10 @@ void main() {
     final p = game.player;
     final pack = [
       for (var i = 0; i < 24; i++)
-        game.spawnMob('zombie', p.position + Vector3(math.cos(i * math.pi / 12) * 10, 0, math.sin(i * math.pi / 12) * 10)),
+        game.spawnMob(
+          'zombie',
+          p.position + Vector3(math.cos(i * math.pi / 12) * 10, 0, math.sin(i * math.pi / 12) * 10),
+        ),
     ];
     var before = 0, most = 0;
     for (var i = 0; i < 90; i++) {
@@ -324,7 +349,10 @@ void main() {
     saves.save(game, 'slot1');
     expect(saves.list(), ['slot1']);
 
-    final back = await VoxelGame.startHeadless(_flat(player: const PlayerSpec(startingItems: {'planks': 5})), save: saves.read('slot1'));
+    final back = await VoxelGame.startHeadless(
+      _flat(player: const PlayerSpec(startingItems: {'planks': 5})),
+      save: saves.read('slot1'),
+    );
     back.spawner.enabled = false;
     for (var i = 0; i < 600 && !back.ready; i++) {
       back.frame(1 / 60);
@@ -346,7 +374,11 @@ void main() {
     game.input.hold(VoxelAction.moveForward, true);
     await _run(game, 1.0);
     game.input.hold(VoxelAction.moveForward, false);
-    expect(heard.played.where((s) => s == 'step_earth').length, greaterThanOrEqualTo(2), reason: 'grass is dug with a shovel: earth');
+    expect(
+      heard.played.where((s) => s == 'step_earth').length,
+      greaterThanOrEqualTo(2),
+      reason: 'grass is dug with a shovel: earth',
+    );
     p.pitch = -1.5;
     game.input.hold(VoxelAction.attack, true);
     await _run(game, 2.0);
@@ -375,18 +407,20 @@ void main() {
       BlockType('tnt', color: 0xD03020, hardness: 0),
     ];
     final spec = _flat();
-    final game = await _start(VoxelGameSpec(
-      blocks: blocks,
-      world: spec.world,
-      sky: spec.sky,
-      signals: const SignalSpec(
-        wire: ('wire', 'wire_lit'),
-        levers: {'lever': 'lever_on'},
-        plates: {'plate'},
-        lamps: {'lamp': 'lamp_lit'},
-        explosives: {'tnt': 2.0},
+    final game = await _start(
+      VoxelGameSpec(
+        blocks: blocks,
+        world: spec.world,
+        sky: spec.sky,
+        signals: const SignalSpec(
+          wire: ('wire', 'wire_lit'),
+          levers: {'lever': 'lever_on'},
+          plates: {'plate'},
+          lamps: {'lamp': 'lamp_lit'},
+          explosives: {'tnt': 2.0},
+        ),
       ),
-    ));
+    );
     final w = game.world;
     final base = IVec3.floor(game.player.position) + const IVec3(3, 0, 0);
     w.setBlockNamed(base, 'lever');
@@ -428,7 +462,11 @@ void main() {
     orbit.settle(1 / 60, pivot: pivot, right: right, up: up, back: back, jitter: Vector3.zero(), cellIsClear: open);
     expect(orbit.current, greaterThan(pinned));
     expect(orbit.current, lessThan(orbit.distance));
-    expect(orbit.offset(right, up, back, 0.0).length, lessThan(1e-9), reason: 'an eye pulled all the way in sits on the head');
+    expect(
+      orbit.offset(right, up, back, 0.0).length,
+      lessThan(1e-9),
+      reason: 'an eye pulled all the way in sits on the head',
+    );
   });
 
   test('the view bob sways a walker and settles a stander', () {
@@ -450,7 +488,11 @@ void main() {
     const motion = RigMotion(wingSweep: 0.95, wingFold: -0.95);
     expect(motion.wingAngle(1.3, 0.0), -0.95);
     expect(motion.wingAngle(1.5707963267948966, 1.0), closeTo(0.95, 1e-9));
-    expect(RigMotion.gaitRateOf(RigKind.bird), greaterThan(RigMotion.gaitRateOf(RigKind.quadruped)), reason: 'short legs take more steps');
+    expect(
+      RigMotion.gaitRateOf(RigKind.bird),
+      greaterThan(RigMotion.gaitRateOf(RigKind.quadruped)),
+      reason: 'short legs take more steps',
+    );
   });
 
   test('a press waits for the step that reads it, however fast the frames come', () async {

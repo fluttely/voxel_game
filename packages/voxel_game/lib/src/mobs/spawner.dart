@@ -59,13 +59,18 @@ class MobSpawner implements GameSystem {
     if (!game.world.isLoaded(IVec3(x, 0, z))) return;
     final y = game.world.groundHeight(x, z);
     final feet = IVec3(x, y, z);
-    if (game.blocks.table.isLiquid(game.world.getBlock(feet)) || game.blocks.table.isLiquid(game.world.getBlock(feet + IVec3.down))) return;
+    if (game.blocks.table.isLiquid(game.world.getBlock(feet)) ||
+        game.blocks.table.isLiquid(game.world.getBlock(feet + IVec3.down))) {
+      return;
+    }
     final light = game.world.lightAt(feet);
     final level = math.max(light.block, (light.sky * game.daylight).round());
     final biome = game.world.generator.biomeAt(x, z).name;
     final candidates = [
       for (final s in game.spec.mobs)
-        if (_accepts(s, biome, level) && game.mobs.where((m) => m.spec.id == s.id && !m.isDead).length < s.spawn!.maxAlive) s,
+        if (_accepts(s, biome, level) &&
+            game.mobs.where((m) => m.spec.id == s.id && !m.isDead).length < s.spawn!.maxAlive)
+          s,
     ];
     if (candidates.isEmpty) return;
     final total = candidates.fold<int>(0, (n, s) => n + s.spawn!.weight);

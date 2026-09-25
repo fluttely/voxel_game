@@ -300,14 +300,14 @@ class SignalNetwork {
 abstract final class SignalReactions {
   /// A lamp: [off] when unpowered, [on] when powered. Register it for both ids.
   static SignalReaction swap(int off, int on) => (net, cell, id) {
-        final want = net.isPowered(cell) ? on : off;
-        if (id != want) net.world.setBlock(cell, want);
-      };
+    final want = net.isPowered(cell) ? on : off;
+    if (id != want) net.world.setBlock(cell, want);
+  };
 
   /// Calls [then] while powered (TNT lit by a wire).
   static SignalReaction trigger(void Function(IVec3 cell) then) => (net, cell, id) {
-        if (net.isPowered(cell)) then(cell);
-      };
+    if (net.isPowered(cell)) then(cell);
+  };
 
   /// A two-high door: [closedToOpen] pairs its states; both halves open
   /// together when either is powered. [onSwing] after the lower half turns.

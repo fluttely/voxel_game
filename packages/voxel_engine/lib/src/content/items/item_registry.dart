@@ -30,7 +30,7 @@ class ItemRegistry<T extends ItemType> {
   /// One item per block of [blocks] that a player can hold (not air, not a
   /// liquid), placing that block, for a game whose blocks are all items.
   static List<ItemType> forBlocks(BlockRegistry<BlockType> blocks, {bool Function(BlockType block)? where}) => [
-        for (final b in blocks.types.skip(1))
-          if (!b.isLiquid && (where == null || where(b))) ItemType.rgb(b.id, b.r, b.g, b.b, name: b.name, block: b.id),
-      ];
+    for (final b in blocks.types.skip(1))
+      if (!b.isLiquid && (where == null || where(b))) ItemType.rgb(b.id, b.r, b.g, b.b, name: b.name, block: b.id),
+  ];
 }

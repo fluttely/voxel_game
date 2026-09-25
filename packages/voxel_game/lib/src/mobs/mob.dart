@@ -25,7 +25,10 @@ class Mob extends GameEntity implements Target {
     height = spec.height;
     position = at.clone();
     noclip = false;
-    motor = CharacterMotor(this, MotorTuning(groundAccel: 8.0, airAccel: 4.0, jumpVelocity: spec.gait == Gait.hop ? 7.0 : 8.0));
+    motor = CharacterMotor(
+      this,
+      MotorTuning(groundAccel: 8.0, airAccel: 4.0, jumpVelocity: spec.gait == Gait.hop ? 7.0 : 8.0),
+    );
   }
 
   /// What it is.
@@ -148,10 +151,10 @@ class Mob extends GameEntity implements Target {
   String get _defaultHurt => spec.gait == Gait.fly
       ? 'hurt_flying'
       : spec.height < 0.9
-          ? 'hurt_small'
-          : spec.hp >= 30
-              ? 'hurt_large'
-              : 'hit';
+      ? 'hurt_small'
+      : spec.hp >= 30
+      ? 'hurt_large'
+      : 'hit';
 
   /// Its eye, where it looks and shoots from.
   Vector3 eye() => position + Vector3(0, height * 0.85, 0);
@@ -237,7 +240,8 @@ class Mob extends GameEntity implements Target {
           // Idle fliers flutter on a fresh heading every few tenths.
           final r = game.random;
           _flap = 0.2 + r.nextDouble() * 0.4;
-          _direction = Vector3(r.nextDouble() * 2 - 1, r.nextDouble() * 1.2 - 0.6, r.nextDouble() * 2 - 1).normalized() * 0.4;
+          _direction =
+              Vector3(r.nextDouble() * 2 - 1, r.nextDouble() * 1.2 - 0.6, r.nextDouble() * 2 - 1).normalized() * 0.4;
           wish = _direction.clone();
         }
         final bob = math.sin(sinceHurt.isFinite ? sinceHurt * 9.0 : _flap * 9.0) * 0.4;
@@ -327,14 +331,20 @@ class Mob extends GameEntity implements Target {
       want = (want + math.pi) % (math.pi * 2) - math.pi;
       lookYaw = want;
     }
-    r.animate(dt,
-        speed: math.sqrt(velocity.x * velocity.x + velocity.z * velocity.z),
-        targetYaw: _facing,
-        onFloor: onFloor,
-        flying: spec.gait == Gait.fly,
-        lookYaw: lookYaw,
-        verticalSpeed: velocity.y);
-    r.place(Vector3.zero(), scale: 1.0 + swell * 0.25, shake: _hurtFlash > 0.0 ? math.sin(_hurtFlash * 80.0) * 0.05 : 0.0);
+    r.animate(
+      dt,
+      speed: math.sqrt(velocity.x * velocity.x + velocity.z * velocity.z),
+      targetYaw: _facing,
+      onFloor: onFloor,
+      flying: spec.gait == Gait.fly,
+      lookYaw: lookYaw,
+      verticalSpeed: velocity.y,
+    );
+    r.place(
+      Vector3.zero(),
+      scale: 1.0 + swell * 0.25,
+      shake: _hurtFlash > 0.0 ? math.sin(_hurtFlash * 80.0) * 0.05 : 0.0,
+    );
   }
 
   @override

@@ -105,15 +105,7 @@ enum CellularDistanceFunction { euclidean, euclideanSq, manhattan, hybrid }
 
 /// What value [NoiseType.cellular] computes for a query point.
 /// {@category Noise}
-enum CellularReturnType {
-  cellValue,
-  distance,
-  distance2,
-  distance2Add,
-  distance2Sub,
-  distance2Mul,
-  distance2Div,
-}
+enum CellularReturnType { cellValue, distance, distance2, distance2Add, distance2Sub, distance2Mul, distance2Div }
 
 /// The warp algorithm applied by [FastNoiseLite.domainWarp2] and
 /// [FastNoiseLite.domainWarp3].
@@ -180,8 +172,7 @@ class FastNoiseLite {
 
   /// Distance function for [NoiseType.cellular]. Default
   /// [CellularDistanceFunction.euclideanSq].
-  CellularDistanceFunction cellularDistanceFunction =
-      CellularDistanceFunction.euclideanSq;
+  CellularDistanceFunction cellularDistanceFunction = CellularDistanceFunction.euclideanSq;
 
   /// Return value computed by [NoiseType.cellular]. Default
   /// [CellularReturnType.distance].
@@ -420,9 +411,7 @@ class FastNoiseLite {
     double sum = 0;
     double amp = _fractalBounding;
     for (int i = 0; i < _octaves; i++) {
-      final double noise = _pingPong(
-        (_genNoiseSingle2(seed++, x, y) + 1) * pingPongStrength,
-      );
+      final double noise = _pingPong((_genNoiseSingle2(seed++, x, y) + 1) * pingPongStrength);
       sum += (noise - 0.5) * 2 * amp;
       amp *= _lerp(1.0, noise, weightedStrength);
       x *= lacunarity;
@@ -437,9 +426,7 @@ class FastNoiseLite {
     double sum = 0;
     double amp = _fractalBounding;
     for (int i = 0; i < _octaves; i++) {
-      final double noise = _pingPong(
-        (_genNoiseSingle3(seed++, x, y, z) + 1) * pingPongStrength,
-      );
+      final double noise = _pingPong((_genNoiseSingle3(seed++, x, y, z) + 1) * pingPongStrength);
       sum += (noise - 0.5) * 2 * amp;
       amp *= _lerp(1.0, noise, weightedStrength);
       x *= lacunarity;
@@ -477,18 +464,13 @@ class FastNoiseLite {
       n0 = (a * a) * (a * a) * _gradCoord2(seed, i, j, x0, y0);
     }
 
-    final double c =
-        (2 * (1 - 2 * g2) * (1 / g2 - 2)) * t +
-        ((-2 * (1 - 2 * g2) * (1 - 2 * g2)) + a);
+    final double c = (2 * (1 - 2 * g2) * (1 / g2 - 2)) * t + ((-2 * (1 - 2 * g2) * (1 - 2 * g2)) + a);
     if (c <= 0) {
       n2 = 0;
     } else {
       final double x2 = x0 + (2 * g2 - 1);
       final double y2 = y0 + (2 * g2 - 1);
-      n2 =
-          (c * c) *
-          (c * c) *
-          _gradCoord2(seed, _i32(i + _primeX), _i32(j + _primeY), x2, y2);
+      n2 = (c * c) * (c * c) * _gradCoord2(seed, _i32(i + _primeX), _i32(j + _primeY), x2, y2);
     }
 
     if (y0 > x0) {
@@ -498,8 +480,7 @@ class FastNoiseLite {
       if (b <= 0) {
         n1 = 0;
       } else {
-        n1 =
-            (b * b) * (b * b) * _gradCoord2(seed, i, _i32(j + _primeY), x1, y1);
+        n1 = (b * b) * (b * b) * _gradCoord2(seed, i, _i32(j + _primeY), x1, y1);
       }
     } else {
       final double x1 = x0 + (g2 - 1);
@@ -508,8 +489,7 @@ class FastNoiseLite {
       if (b <= 0) {
         n1 = 0;
       } else {
-        n1 =
-            (b * b) * (b * b) * _gradCoord2(seed, _i32(i + _primeX), j, x1, y1);
+        n1 = (b * b) * (b * b) * _gradCoord2(seed, _i32(i + _primeX), j, x1, y1);
       }
     }
 
@@ -550,52 +530,19 @@ class FastNoiseLite {
         double b = a + ax0 + ax0;
         if (b > 1) {
           b -= 1;
-          value +=
-              (b * b) *
-              (b * b) *
-              _gradCoord3(
-                seed,
-                _i32(i - xNSign * _primeX),
-                j,
-                k,
-                x0 + xNSign,
-                y0,
-                z0,
-              );
+          value += (b * b) * (b * b) * _gradCoord3(seed, _i32(i - xNSign * _primeX), j, k, x0 + xNSign, y0, z0);
         }
       } else if (ay0 > ax0 && ay0 >= az0) {
         double b = a + ay0 + ay0;
         if (b > 1) {
           b -= 1;
-          value +=
-              (b * b) *
-              (b * b) *
-              _gradCoord3(
-                seed,
-                i,
-                _i32(j - yNSign * _primeY),
-                k,
-                x0,
-                y0 + yNSign,
-                z0,
-              );
+          value += (b * b) * (b * b) * _gradCoord3(seed, i, _i32(j - yNSign * _primeY), k, x0, y0 + yNSign, z0);
         }
       } else {
         double b = a + az0 + az0;
         if (b > 1) {
           b -= 1;
-          value +=
-              (b * b) *
-              (b * b) *
-              _gradCoord3(
-                seed,
-                i,
-                j,
-                _i32(k - zNSign * _primeZ),
-                x0,
-                y0,
-                z0 + zNSign,
-              );
+          value += (b * b) * (b * b) * _gradCoord3(seed, i, j, _i32(k - zNSign * _primeZ), x0, y0, z0 + zNSign);
         }
       }
 
@@ -648,9 +595,7 @@ class FastNoiseLite {
     final double a0 = (2.0 / 3.0) - x0 * x0 - y0 * y0;
     double value = (a0 * a0) * (a0 * a0) * _gradCoord2(seed, i, j, x0, y0);
 
-    final double a1 =
-        (2 * (1 - 2 * g2) * (1 / g2 - 2)) * t +
-        ((-2 * (1 - 2 * g2) * (1 - 2 * g2)) + a0);
+    final double a1 = (2 * (1 - 2 * g2) * (1 / g2 - 2)) * t + ((-2 * (1 - 2 * g2) * (1 - 2 * g2)) + a0);
     final double x1 = x0 - (1 - 2 * g2);
     final double y1 = y0 - (1 - 2 * g2);
     value += (a1 * a1) * (a1 * a1) * _gradCoord2(seed, i1, j1, x1, y1);
@@ -662,26 +607,14 @@ class FastNoiseLite {
         final double y2 = y0 + (3 * g2 - 1);
         final double a2 = (2.0 / 3.0) - x2 * x2 - y2 * y2;
         if (a2 > 0) {
-          value +=
-              (a2 * a2) *
-              (a2 * a2) *
-              _gradCoord2(
-                seed,
-                _i32(i + (_primeX << 1)),
-                _i32(j + _primeY),
-                x2,
-                y2,
-              );
+          value += (a2 * a2) * (a2 * a2) * _gradCoord2(seed, _i32(i + (_primeX << 1)), _i32(j + _primeY), x2, y2);
         }
       } else {
         final double x2 = x0 + g2;
         final double y2 = y0 + (g2 - 1);
         final double a2 = (2.0 / 3.0) - x2 * x2 - y2 * y2;
         if (a2 > 0) {
-          value +=
-              (a2 * a2) *
-              (a2 * a2) *
-              _gradCoord2(seed, i, _i32(j + _primeY), x2, y2);
+          value += (a2 * a2) * (a2 * a2) * _gradCoord2(seed, i, _i32(j + _primeY), x2, y2);
         }
       }
 
@@ -690,26 +623,14 @@ class FastNoiseLite {
         final double y3 = y0 + (3 * g2 - 2);
         final double a3 = (2.0 / 3.0) - x3 * x3 - y3 * y3;
         if (a3 > 0) {
-          value +=
-              (a3 * a3) *
-              (a3 * a3) *
-              _gradCoord2(
-                seed,
-                _i32(i + _primeX),
-                _i32(j + (_primeY << 1)),
-                x3,
-                y3,
-              );
+          value += (a3 * a3) * (a3 * a3) * _gradCoord2(seed, _i32(i + _primeX), _i32(j + (_primeY << 1)), x3, y3);
         }
       } else {
         final double x3 = x0 + (g2 - 1);
         final double y3 = y0 + g2;
         final double a3 = (2.0 / 3.0) - x3 * x3 - y3 * y3;
         if (a3 > 0) {
-          value +=
-              (a3 * a3) *
-              (a3 * a3) *
-              _gradCoord2(seed, _i32(i + _primeX), j, x3, y3);
+          value += (a3 * a3) * (a3 * a3) * _gradCoord2(seed, _i32(i + _primeX), j, x3, y3);
         }
       }
     } else {
@@ -718,20 +639,14 @@ class FastNoiseLite {
         final double y2 = y0 - g2;
         final double a2 = (2.0 / 3.0) - x2 * x2 - y2 * y2;
         if (a2 > 0) {
-          value +=
-              (a2 * a2) *
-              (a2 * a2) *
-              _gradCoord2(seed, _i32(i - _primeX), j, x2, y2);
+          value += (a2 * a2) * (a2 * a2) * _gradCoord2(seed, _i32(i - _primeX), j, x2, y2);
         }
       } else {
         final double x2 = x0 + (g2 - 1);
         final double y2 = y0 + g2;
         final double a2 = (2.0 / 3.0) - x2 * x2 - y2 * y2;
         if (a2 > 0) {
-          value +=
-              (a2 * a2) *
-              (a2 * a2) *
-              _gradCoord2(seed, _i32(i + _primeX), j, x2, y2);
+          value += (a2 * a2) * (a2 * a2) * _gradCoord2(seed, _i32(i + _primeX), j, x2, y2);
         }
       }
 
@@ -740,20 +655,14 @@ class FastNoiseLite {
         final double y2 = y0 - (g2 - 1);
         final double a2 = (2.0 / 3.0) - x2 * x2 - y2 * y2;
         if (a2 > 0) {
-          value +=
-              (a2 * a2) *
-              (a2 * a2) *
-              _gradCoord2(seed, i, _i32(j - _primeY), x2, y2);
+          value += (a2 * a2) * (a2 * a2) * _gradCoord2(seed, i, _i32(j - _primeY), x2, y2);
         }
       } else {
         final double x2 = x0 + g2;
         final double y2 = y0 + (g2 - 1);
         final double a2 = (2.0 / 3.0) - x2 * x2 - y2 * y2;
         if (a2 > 0) {
-          value +=
-              (a2 * a2) *
-              (a2 * a2) *
-              _gradCoord2(seed, i, _i32(j + _primeY), x2, y2);
+          value += (a2 * a2) * (a2 * a2) * _gradCoord2(seed, i, _i32(j + _primeY), x2, y2);
         }
       }
     }
@@ -802,17 +711,7 @@ class FastNoiseLite {
     final double z1 = zi - 0.5;
     final double a1 = 0.75 - x1 * x1 - y1 * y1 - z1 * z1;
     value +=
-        (a1 * a1) *
-        (a1 * a1) *
-        _gradCoord3(
-          seed2,
-          _i32(i + _primeX),
-          _i32(j + _primeY),
-          _i32(k + _primeZ),
-          x1,
-          y1,
-          z1,
-        );
+        (a1 * a1) * (a1 * a1) * _gradCoord3(seed2, _i32(i + _primeX), _i32(j + _primeY), _i32(k + _primeZ), x1, y1, z1);
 
     final double xAFlipMask0 = ((xNMask | 1) << 1) * x1;
     final double yAFlipMask0 = ((yNMask | 1) << 1) * y1;
@@ -867,15 +766,7 @@ class FastNoiseLite {
         value +=
             (a4 * a4) *
             (a4 * a4) *
-            _gradCoord3(
-              seed2,
-              _i32(i + (xNMask & (_primeX * 2))),
-              _i32(j + _primeY),
-              _i32(k + _primeZ),
-              x4,
-              y4,
-              z4,
-            );
+            _gradCoord3(seed2, _i32(i + (xNMask & (_primeX * 2))), _i32(j + _primeY), _i32(k + _primeZ), x4, y4, z4);
         skip5 = true;
       }
     }
@@ -926,15 +817,7 @@ class FastNoiseLite {
         value +=
             (a8 * a8) *
             (a8 * a8) *
-            _gradCoord3(
-              seed2,
-              _i32(i + _primeX),
-              _i32(j + (yNMask & (_primeY << 1))),
-              _i32(k + _primeZ),
-              x8,
-              y8,
-              z8,
-            );
+            _gradCoord3(seed2, _i32(i + _primeX), _i32(j + (yNMask & (_primeY << 1))), _i32(k + _primeZ), x8, y8, z8);
         skip9 = true;
       }
     }
@@ -985,15 +868,7 @@ class FastNoiseLite {
         value +=
             (aC * aC) *
             (aC * aC) *
-            _gradCoord3(
-              seed2,
-              _i32(i + _primeX),
-              _i32(j + _primeY),
-              _i32(k + (zNMask & (_primeZ << 1))),
-              xC,
-              yC,
-              zC,
-            );
+            _gradCoord3(seed2, _i32(i + _primeX), _i32(j + _primeY), _i32(k + (zNMask & (_primeZ << 1))), xC, yC, zC);
         skipD = true;
       }
     }
@@ -1090,8 +965,7 @@ class FastNoiseLite {
             final int idx = hash & (255 << 1);
 
             final double vecX = (xi - x) + _randVecs2D[idx] * cellularJitter;
-            final double vecY =
-                (yi - y) + _randVecs2D[idx | 1] * cellularJitter;
+            final double vecY = (yi - y) + _randVecs2D[idx | 1] * cellularJitter;
 
             final double newDistance = vecX * vecX + vecY * vecY;
 
@@ -1114,8 +988,7 @@ class FastNoiseLite {
             final int idx = hash & (255 << 1);
 
             final double vecX = (xi - x) + _randVecs2D[idx] * cellularJitter;
-            final double vecY =
-                (yi - y) + _randVecs2D[idx | 1] * cellularJitter;
+            final double vecY = (yi - y) + _randVecs2D[idx | 1] * cellularJitter;
 
             final double newDistance = vecX.abs() + vecY.abs();
 
@@ -1138,11 +1011,9 @@ class FastNoiseLite {
             final int idx = hash & (255 << 1);
 
             final double vecX = (xi - x) + _randVecs2D[idx] * cellularJitter;
-            final double vecY =
-                (yi - y) + _randVecs2D[idx | 1] * cellularJitter;
+            final double vecY = (yi - y) + _randVecs2D[idx | 1] * cellularJitter;
 
-            final double newDistance =
-                (vecX.abs() + vecY.abs()) + (vecX * vecX + vecY * vecY);
+            final double newDistance = (vecX.abs() + vecY.abs()) + (vecX * vecX + vecY * vecY);
 
             distance1 = _fastMax(_fastMin(distance1, newDistance), distance0);
             if (newDistance < distance0) {
@@ -1212,13 +1083,10 @@ class FastNoiseLite {
               final int idx = hash & (255 << 2);
 
               final double vecX = (xi - x) + _randVecs3D[idx] * cellularJitter;
-              final double vecY =
-                  (yi - y) + _randVecs3D[idx | 1] * cellularJitter;
-              final double vecZ =
-                  (zi - z) + _randVecs3D[idx | 2] * cellularJitter;
+              final double vecY = (yi - y) + _randVecs3D[idx | 1] * cellularJitter;
+              final double vecZ = (zi - z) + _randVecs3D[idx | 2] * cellularJitter;
 
-              final double newDistance =
-                  vecX * vecX + vecY * vecY + vecZ * vecZ;
+              final double newDistance = vecX * vecX + vecY * vecY + vecZ * vecZ;
 
               distance1 = _fastMax(_fastMin(distance1, newDistance), distance0);
               if (newDistance < distance0) {
@@ -1244,10 +1112,8 @@ class FastNoiseLite {
               final int idx = hash & (255 << 2);
 
               final double vecX = (xi - x) + _randVecs3D[idx] * cellularJitter;
-              final double vecY =
-                  (yi - y) + _randVecs3D[idx | 1] * cellularJitter;
-              final double vecZ =
-                  (zi - z) + _randVecs3D[idx | 2] * cellularJitter;
+              final double vecY = (yi - y) + _randVecs3D[idx | 1] * cellularJitter;
+              final double vecZ = (zi - z) + _randVecs3D[idx | 2] * cellularJitter;
 
               final double newDistance = vecX.abs() + vecY.abs() + vecZ.abs();
 
@@ -1275,14 +1141,11 @@ class FastNoiseLite {
               final int idx = hash & (255 << 2);
 
               final double vecX = (xi - x) + _randVecs3D[idx] * cellularJitter;
-              final double vecY =
-                  (yi - y) + _randVecs3D[idx | 1] * cellularJitter;
-              final double vecZ =
-                  (zi - z) + _randVecs3D[idx | 2] * cellularJitter;
+              final double vecY = (yi - y) + _randVecs3D[idx | 1] * cellularJitter;
+              final double vecZ = (zi - z) + _randVecs3D[idx | 2] * cellularJitter;
 
               final double newDistance =
-                  (vecX.abs() + vecY.abs() + vecZ.abs()) +
-                  (vecX * vecX + vecY * vecY + vecZ * vecZ);
+                  (vecX.abs() + vecY.abs() + vecZ.abs()) + (vecX * vecX + vecY * vecY + vecZ * vecZ);
 
               distance1 = _fastMax(_fastMin(distance1, newDistance), distance0);
               if (newDistance < distance0) {
@@ -1344,16 +1207,8 @@ class FastNoiseLite {
     final int x1 = _i32(x0 + _primeX);
     final int y1 = _i32(y0 + _primeY);
 
-    final double xf0 = _lerp(
-      _gradCoord2(seed, x0, y0, xd0, yd0),
-      _gradCoord2(seed, x1, y0, xd1, yd0),
-      xs,
-    );
-    final double xf1 = _lerp(
-      _gradCoord2(seed, x0, y1, xd0, yd1),
-      _gradCoord2(seed, x1, y1, xd1, yd1),
-      xs,
-    );
+    final double xf0 = _lerp(_gradCoord2(seed, x0, y0, xd0, yd0), _gradCoord2(seed, x1, y0, xd1, yd0), xs);
+    final double xf1 = _lerp(_gradCoord2(seed, x0, y1, xd0, yd1), _gradCoord2(seed, x1, y1, xd1, yd1), xs);
 
     return _lerp(xf0, xf1, ys) * 1.4247691104677813;
   }
@@ -1422,16 +1277,8 @@ class FastNoiseLite {
     final int x1 = _i32(x0 + _primeX);
     final int y1 = _i32(y0 + _primeY);
 
-    final double xf0 = _lerp(
-      _valCoord2(seed, x0, y0),
-      _valCoord2(seed, x1, y0),
-      xs,
-    );
-    final double xf1 = _lerp(
-      _valCoord2(seed, x0, y1),
-      _valCoord2(seed, x1, y1),
-      xs,
-    );
+    final double xf0 = _lerp(_valCoord2(seed, x0, y0), _valCoord2(seed, x1, y0), xs);
+    final double xf1 = _lerp(_valCoord2(seed, x0, y1), _valCoord2(seed, x1, y1), xs);
 
     return _lerp(xf0, xf1, ys);
   }
@@ -1452,26 +1299,10 @@ class FastNoiseLite {
     final int y1 = _i32(y0 + _primeY);
     final int z1 = _i32(z0 + _primeZ);
 
-    final double xf00 = _lerp(
-      _valCoord3(seed, x0, y0, z0),
-      _valCoord3(seed, x1, y0, z0),
-      xs,
-    );
-    final double xf10 = _lerp(
-      _valCoord3(seed, x0, y1, z0),
-      _valCoord3(seed, x1, y1, z0),
-      xs,
-    );
-    final double xf01 = _lerp(
-      _valCoord3(seed, x0, y0, z1),
-      _valCoord3(seed, x1, y0, z1),
-      xs,
-    );
-    final double xf11 = _lerp(
-      _valCoord3(seed, x0, y1, z1),
-      _valCoord3(seed, x1, y1, z1),
-      xs,
-    );
+    final double xf00 = _lerp(_valCoord3(seed, x0, y0, z0), _valCoord3(seed, x1, y0, z0), xs);
+    final double xf10 = _lerp(_valCoord3(seed, x0, y1, z0), _valCoord3(seed, x1, y1, z0), xs);
+    final double xf01 = _lerp(_valCoord3(seed, x0, y0, z1), _valCoord3(seed, x1, y0, z1), xs);
+    final double xf11 = _lerp(_valCoord3(seed, x0, y1, z1), _valCoord3(seed, x1, y1, z1), xs);
 
     final double yf0 = _lerp(xf00, xf10, ys);
     final double yf1 = _lerp(xf01, xf11, ys);
@@ -1492,27 +1323,9 @@ class FastNoiseLite {
   ) {
     switch (domainWarpType) {
       case DomainWarpType.openSimplex2:
-        return _singleDomainWarpSimplexGradient(
-          seed,
-          amp * 38.283687591552734375,
-          freq,
-          x,
-          y,
-          xr,
-          yr,
-          false,
-        );
+        return _singleDomainWarpSimplexGradient(seed, amp * 38.283687591552734375, freq, x, y, xr, yr, false);
       case DomainWarpType.openSimplex2Reduced:
-        return _singleDomainWarpSimplexGradient(
-          seed,
-          amp * 16.0,
-          freq,
-          x,
-          y,
-          xr,
-          yr,
-          true,
-        );
+        return _singleDomainWarpSimplexGradient(seed, amp * 16.0, freq, x, y, xr, yr, true);
       case DomainWarpType.basicGrid:
         return _singleDomainWarpBasicGrid2(seed, amp, freq, x, y, xr, yr);
     }
@@ -1544,30 +1357,9 @@ class FastNoiseLite {
           false,
         );
       case DomainWarpType.openSimplex2Reduced:
-        return _singleDomainWarpOpenSimplex2Gradient(
-          seed,
-          amp * 7.71604938271605,
-          freq,
-          x,
-          y,
-          z,
-          xr,
-          yr,
-          zr,
-          true,
-        );
+        return _singleDomainWarpOpenSimplex2Gradient(seed, amp * 7.71604938271605, freq, x, y, z, xr, yr, zr, true);
       case DomainWarpType.basicGrid:
-        return _singleDomainWarpBasicGrid3(
-          seed,
-          amp,
-          freq,
-          x,
-          y,
-          z,
-          xr,
-          yr,
-          zr,
-        );
+        return _singleDomainWarpBasicGrid3(seed, amp, freq, x, y, z, xr, yr, zr);
     }
   }
 
@@ -1587,11 +1379,7 @@ class FastNoiseLite {
     return (x: x, y: y);
   }
 
-  ({double x, double y, double z}) _transformDomainWarpCoordinate3(
-    double x,
-    double y,
-    double z,
-  ) {
+  ({double x, double y, double z}) _transformDomainWarpCoordinate3(double x, double y, double z) {
     switch (domainWarpType) {
       case DomainWarpType.openSimplex2:
       case DomainWarpType.openSimplex2Reduced:
@@ -1618,20 +1406,12 @@ class FastNoiseLite {
     return _doSingleDomainWarp2(seed, amp, freq, s.x, s.y, x, y);
   }
 
-  ({double x, double y, double z}) _domainWarpSingle3(
-    double x,
-    double y,
-    double z,
-  ) {
+  ({double x, double y, double z}) _domainWarpSingle3(double x, double y, double z) {
     final int seed = this.seed;
     final double amp = domainWarpAmp * _fractalBounding;
     final double freq = frequency;
 
-    final ({double x, double y, double z}) s = _transformDomainWarpCoordinate3(
-      x,
-      y,
-      z,
-    );
+    final ({double x, double y, double z}) s = _transformDomainWarpCoordinate3(x, y, z);
 
     return _doSingleDomainWarp3(seed, amp, freq, s.x, s.y, s.z, x, y, z);
   }
@@ -1644,15 +1424,7 @@ class FastNoiseLite {
     for (int i = 0; i < _octaves; i++) {
       final ({double x, double y}) s = _transformDomainWarpCoordinate2(x, y);
 
-      final ({double x, double y}) warped = _doSingleDomainWarp2(
-        seed,
-        amp,
-        freq,
-        s.x,
-        s.y,
-        x,
-        y,
-      );
+      final ({double x, double y}) warped = _doSingleDomainWarp2(seed, amp, freq, s.x, s.y, x, y);
       x = warped.x;
       y = warped.y;
 
@@ -1663,30 +1435,15 @@ class FastNoiseLite {
     return (x: x, y: y);
   }
 
-  ({double x, double y, double z}) _domainWarpFractalProgressive3(
-    double x,
-    double y,
-    double z,
-  ) {
+  ({double x, double y, double z}) _domainWarpFractalProgressive3(double x, double y, double z) {
     int seed = this.seed;
     double amp = domainWarpAmp * _fractalBounding;
     double freq = frequency;
 
     for (int i = 0; i < _octaves; i++) {
-      final ({double x, double y, double z}) s =
-          _transformDomainWarpCoordinate3(x, y, z);
+      final ({double x, double y, double z}) s = _transformDomainWarpCoordinate3(x, y, z);
 
-      final ({double x, double y, double z}) warped = _doSingleDomainWarp3(
-        seed,
-        amp,
-        freq,
-        s.x,
-        s.y,
-        s.z,
-        x,
-        y,
-        z,
-      );
+      final ({double x, double y, double z}) warped = _doSingleDomainWarp3(seed, amp, freq, s.x, s.y, s.z, x, y, z);
       x = warped.x;
       y = warped.y;
       z = warped.z;
@@ -1706,15 +1463,7 @@ class FastNoiseLite {
     double freq = frequency;
 
     for (int i = 0; i < _octaves; i++) {
-      final ({double x, double y}) warped = _doSingleDomainWarp2(
-        seed,
-        amp,
-        freq,
-        s.x,
-        s.y,
-        x,
-        y,
-      );
+      final ({double x, double y}) warped = _doSingleDomainWarp2(seed, amp, freq, s.x, s.y, x, y);
       x = warped.x;
       y = warped.y;
 
@@ -1725,33 +1474,15 @@ class FastNoiseLite {
     return (x: x, y: y);
   }
 
-  ({double x, double y, double z}) _domainWarpFractalIndependent3(
-    double x,
-    double y,
-    double z,
-  ) {
-    final ({double x, double y, double z}) s = _transformDomainWarpCoordinate3(
-      x,
-      y,
-      z,
-    );
+  ({double x, double y, double z}) _domainWarpFractalIndependent3(double x, double y, double z) {
+    final ({double x, double y, double z}) s = _transformDomainWarpCoordinate3(x, y, z);
 
     int seed = this.seed;
     double amp = domainWarpAmp * _fractalBounding;
     double freq = frequency;
 
     for (int i = 0; i < _octaves; i++) {
-      final ({double x, double y, double z}) warped = _doSingleDomainWarp3(
-        seed,
-        amp,
-        freq,
-        s.x,
-        s.y,
-        s.z,
-        x,
-        y,
-        z,
-      );
+      final ({double x, double y, double z}) warped = _doSingleDomainWarp3(seed, amp, freq, s.x, s.y, s.z, x, y, z);
       x = warped.x;
       y = warped.y;
       z = warped.z;
@@ -1790,21 +1521,13 @@ class FastNoiseLite {
     int hash1 = _hash2(seed, x1, y0) & (255 << 1);
 
     final double lx0x = _lerp(_randVecs2D[hash0], _randVecs2D[hash1], xs);
-    final double ly0x = _lerp(
-      _randVecs2D[hash0 | 1],
-      _randVecs2D[hash1 | 1],
-      xs,
-    );
+    final double ly0x = _lerp(_randVecs2D[hash0 | 1], _randVecs2D[hash1 | 1], xs);
 
     hash0 = _hash2(seed, x0, y1) & (255 << 1);
     hash1 = _hash2(seed, x1, y1) & (255 << 1);
 
     final double lx1x = _lerp(_randVecs2D[hash0], _randVecs2D[hash1], xs);
-    final double ly1x = _lerp(
-      _randVecs2D[hash0 | 1],
-      _randVecs2D[hash1 | 1],
-      xs,
-    );
+    final double ly1x = _lerp(_randVecs2D[hash0 | 1], _randVecs2D[hash1 | 1], xs);
 
     xr += _lerp(lx0x, lx1x, ys) * warpAmp;
     yr += _lerp(ly0x, ly1x, ys) * warpAmp;
@@ -1916,16 +1639,12 @@ class FastNoiseLite {
     final double a = 0.5 - x0 * x0 - y0 * y0;
     if (a > 0) {
       final double aaaa = (a * a) * (a * a);
-      final ({double x, double y}) o = outGradOnly
-          ? _gradCoordOut2(seed, i, j)
-          : _gradCoordDual2(seed, i, j, x0, y0);
+      final ({double x, double y}) o = outGradOnly ? _gradCoordOut2(seed, i, j) : _gradCoordDual2(seed, i, j, x0, y0);
       vx += aaaa * o.x;
       vy += aaaa * o.y;
     }
 
-    final double c =
-        (2 * (1 - 2 * g2) * (1 / g2 - 2)) * t +
-        ((-2 * (1 - 2 * g2) * (1 - 2 * g2)) + a);
+    final double c = (2 * (1 - 2 * g2) * (1 / g2 - 2)) * t + ((-2 * (1 - 2 * g2) * (1 - 2 * g2)) + a);
     if (c > 0) {
       final double x2 = x0 + (2 * g2 - 1);
       final double y2 = y0 + (2 * g2 - 1);
@@ -2156,20 +1875,15 @@ double _valCoord3(int seed, int xPrimed, int yPrimed, int zPrimed) {
 /// between native and web Dart). Use it for decisions that must never
 /// disagree between the CPU and a shader.
 /// {@category Noise}
-int noiseHash2(int seed, int x, int y) =>
-    _hash2(_i32(seed), _i32(_i32(x) * _primeX), _i32(_i32(y) * _primeY));
+int noiseHash2(int seed, int x, int y) => _hash2(_i32(seed), _i32(_i32(x) * _primeX), _i32(_i32(y) * _primeY));
 
 /// Bit-exact hashed value for the integer lattice cell ([x], [y], [z]).
 ///
 /// The 3D counterpart of [noiseHash2], matching the GLSL
 /// `NoiseHash3(ivec3(x, y, z), seed)` exactly.
 /// {@category Noise}
-int noiseHash3(int seed, int x, int y, int z) => _hash3(
-  _i32(seed),
-  _i32(_i32(x) * _primeX),
-  _i32(_i32(y) * _primeY),
-  _i32(_i32(z) * _primeZ),
-);
+int noiseHash3(int seed, int x, int y, int z) =>
+    _hash3(_i32(seed), _i32(_i32(x) * _primeX), _i32(_i32(y) * _primeY), _i32(_i32(z) * _primeZ));
 
 double _gradCoord2(int seed, int xPrimed, int yPrimed, double xd, double yd) {
   int hash = _hash2(seed, xPrimed, yPrimed);
@@ -2182,15 +1896,7 @@ double _gradCoord2(int seed, int xPrimed, int yPrimed, double xd, double yd) {
   return xd * xg + yd * yg;
 }
 
-double _gradCoord3(
-  int seed,
-  int xPrimed,
-  int yPrimed,
-  int zPrimed,
-  double xd,
-  double yd,
-  double zd,
-) {
+double _gradCoord3(int seed, int xPrimed, int yPrimed, int zPrimed, double xd, double yd, double zd) {
   int hash = _hash3(seed, xPrimed, yPrimed, zPrimed);
   hash ^= hash >> 15;
   hash &= 63 << 2;
@@ -2208,28 +1914,13 @@ double _gradCoord3(
   return (x: _randVecs2D[hash], y: _randVecs2D[hash | 1]);
 }
 
-({double x, double y, double z}) _gradCoordOut3(
-  int seed,
-  int xPrimed,
-  int yPrimed,
-  int zPrimed,
-) {
+({double x, double y, double z}) _gradCoordOut3(int seed, int xPrimed, int yPrimed, int zPrimed) {
   final int hash = _hash3(seed, xPrimed, yPrimed, zPrimed) & (255 << 2);
 
-  return (
-    x: _randVecs3D[hash],
-    y: _randVecs3D[hash | 1],
-    z: _randVecs3D[hash | 2],
-  );
+  return (x: _randVecs3D[hash], y: _randVecs3D[hash | 1], z: _randVecs3D[hash | 2]);
 }
 
-({double x, double y}) _gradCoordDual2(
-  int seed,
-  int xPrimed,
-  int yPrimed,
-  double xd,
-  double yd,
-) {
+({double x, double y}) _gradCoordDual2(int seed, int xPrimed, int yPrimed, double xd, double yd) {
   final int hash = _hash2(seed, xPrimed, yPrimed);
   final int index1 = hash & (127 << 1);
   final int index2 = (hash >> 7) & (255 << 1);
@@ -4345,7 +4036,4 @@ final Float64List _randVecs3D = Float64List.fromList(<double>[
 
 /// Lengths of the two RandVecs tables, pinned by tests to guard the verbatim
 /// transcription of the Cellular/domain-warp gradient tables.
-final List<int> randVecsTableLengths = <int>[
-  _randVecs2D.length,
-  _randVecs3D.length,
-];
+final List<int> randVecsTableLengths = <int>[_randVecs2D.length, _randVecs3D.length];

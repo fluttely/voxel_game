@@ -33,49 +33,54 @@ class Rig {
   /// A humanoid in [skin], [shirt] and [pants]; [armsForward] holds the arms
   /// out in front (the walk everyone reads as a zombie); [redEyes] for the
   /// hostile.
-  const Rig.humanoid({this._skin = 0xE8B890, this._shirt = 0x3A6EA5, this._pants = 0x3C4F80, this.armsForward = false, this.redEyes = false})
-      : kind = RigKind.humanoid,
-        colors = const [];
+  const Rig.humanoid({
+    this._skin = 0xE8B890,
+    this._shirt = 0x3A6EA5,
+    this._pants = 0x3C4F80,
+    this.armsForward = false,
+    this.redEyes = false,
+  }) : kind = RigKind.humanoid,
+       colors = const [];
 
   /// A four-legged animal: a [body] colour and a [head] (and legs) colour.
   const Rig.quadruped({int body = 0x8A6A4A, int? head})
-      : kind = RigKind.quadruped,
-        colors = const [],
-        armsForward = false,
-        redEyes = false,
-        _skin = body,
-        _shirt = head ?? body,
-        _pants = 0;
+    : kind = RigKind.quadruped,
+      colors = const [],
+      armsForward = false,
+      redEyes = false,
+      _skin = body,
+      _shirt = head ?? body,
+      _pants = 0;
 
   /// A slime.
   const Rig.blob({int color = 0x6CC24A})
-      : kind = RigKind.blob,
-        colors = const [],
-        armsForward = false,
-        redEyes = false,
-        _skin = color,
-        _shirt = color,
-        _pants = 0;
+    : kind = RigKind.blob,
+      colors = const [],
+      armsForward = false,
+      redEyes = false,
+      _skin = color,
+      _shirt = color,
+      _pants = 0;
 
   /// A spider: a [body] and its [eyes].
   const Rig.spider({int body = 0x3A3030, int eyes = 0xD02020})
-      : kind = RigKind.spider,
-        colors = const [],
-        armsForward = false,
-        redEyes = false,
-        _skin = body,
-        _shirt = eyes,
-        _pants = 0;
+    : kind = RigKind.spider,
+      colors = const [],
+      armsForward = false,
+      redEyes = false,
+      _skin = body,
+      _shirt = eyes,
+      _pants = 0;
 
   /// A bird: a [body] and its [feathers] (wing tips, tail, comb).
   const Rig.bird({int body = 0xF0F0F0, int feathers = 0xD03030})
-      : kind = RigKind.bird,
-        colors = const [],
-        armsForward = false,
-        redEyes = false,
-        _skin = body,
-        _shirt = feathers,
-        _pants = 0;
+    : kind = RigKind.bird,
+      colors = const [],
+      armsForward = false,
+      redEyes = false,
+      _skin = body,
+      _shirt = feathers,
+      _pants = 0;
 
   /// The body plan.
   final RigKind kind;
@@ -119,6 +124,7 @@ class RigInstance {
   final Map<String, RigPart> parts = {};
 
   final List<double> _legFan = [];
+
   /// What poses [parts] every frame.
   late final RigAnimator animator = RigAnimator(rig.kind, parts, armRest: _armRest, legFan: _legFan);
   double _fit = 1.0;
@@ -286,10 +292,26 @@ class RigInstance {
   /// Poses the rig for one frame of [dt]: moving at [speed] metres a second,
   /// facing [targetYaw], standing [onFloor] or [flying]; [lookYaw] turns the
   /// head toward something (relative to the body), null for straight ahead.
-  void animate(double dt, {required double speed, required double targetYaw, bool onFloor = true, bool flying = false, double? lookYaw, double verticalSpeed = 0.0}) {
+  void animate(
+    double dt, {
+    required double speed,
+    required double targetYaw,
+    bool onFloor = true,
+    bool flying = false,
+    double? lookYaw,
+    double verticalSpeed = 0.0,
+  }) {
     _age += dt;
     _yaw = lerpAngle(_yaw, targetYaw, math.min(1.0, dt * 12.0));
-    animator.pose(dt, age: _age, speed: speed, onFloor: onFloor, flying: flying, lookYaw: lookYaw, verticalSpeed: verticalSpeed);
+    animator.pose(
+      dt,
+      age: _age,
+      speed: speed,
+      onFloor: onFloor,
+      flying: flying,
+      lookYaw: lookYaw,
+      verticalSpeed: verticalSpeed,
+    );
     for (final p in parts.values) {
       p.apply();
     }

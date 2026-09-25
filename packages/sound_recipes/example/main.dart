@@ -47,15 +47,15 @@ class SoundBoard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(title: Text(audio ? 'sound_recipes' : 'sound_recipes (no audio device)')),
-        body: Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            for (final name in _names)
-              // volumeDb: 0 is full, -6 is about half; pitch 1 is as made.
-              FilledButton(onPressed: () => bank.play(name, volumeDb: -3), child: Text(name)),
-          ],
-        ),
-      );
+    appBar: AppBar(title: Text(audio ? 'sound_recipes' : 'sound_recipes (no audio device)')),
+    body: Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final name in _names)
+          // volumeDb: 0 is full, -6 is about half; pitch 1 is as made.
+          FilledButton(onPressed: () => bank.play(name, volumeDb: -3), child: Text(name)),
+      ],
+    ),
+  );
 }

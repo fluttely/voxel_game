@@ -44,8 +44,8 @@ abstract final class VoxelModel {
   /// left wing is made from a right one: scaling a node by -1 would mirror it
   /// too, but it also reverses the winding the renderer relies on.
   static Map<IVec3, Vector3> mirrorX(Map<IVec3, Vector3> voxels) => {
-        for (final e in voxels.entries) IVec3(-e.key.x - 1, e.key.y, e.key.z): e.value,
-      };
+    for (final e in voxels.entries) IVec3(-e.key.x - 1, e.key.y, e.key.z): e.value,
+  };
 
   /// The visible faces of [voxels] as mesh arrays, or null for a model with
   /// none. [scale] is metres per voxel; [origin] is the voxel-space point that

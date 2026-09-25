@@ -19,13 +19,14 @@ CollisionBox selectionBoxAt(VoxelQuery q, int x, int y, int z) {
     BlockShape.cross => _plant(lx, y, lz, 0.28, 0.55 + ((lx + lz) % 3) * 0.1),
     BlockShape.flower => _plant(lx, y, lz, 0.14, 0.62),
     BlockShape.torch => const CollisionBox(0.4, 0, 0.4, 0.6, 0.62, 0.6),
-    BlockShape.wallTorch => opaqueAt(-1, 0)
-        ? const CollisionBox(0.0, 0.3, 0.4, 0.2, 0.85, 0.6)
-        : opaqueAt(1, 0)
-            ? const CollisionBox(0.8, 0.3, 0.4, 1.0, 0.85, 0.6)
-            : opaqueAt(0, -1)
-                ? const CollisionBox(0.4, 0.3, 0.0, 0.6, 0.85, 0.2)
-                : const CollisionBox(0.4, 0.3, 0.8, 0.6, 0.85, 1.0),
+    BlockShape.wallTorch =>
+      opaqueAt(-1, 0)
+          ? const CollisionBox(0.0, 0.3, 0.4, 0.2, 0.85, 0.6)
+          : opaqueAt(1, 0)
+          ? const CollisionBox(0.8, 0.3, 0.4, 1.0, 0.85, 0.6)
+          : opaqueAt(0, -1)
+          ? const CollisionBox(0.4, 0.3, 0.0, 0.6, 0.85, 0.2)
+          : const CollisionBox(0.4, 0.3, 0.8, 0.6, 0.85, 1.0),
     BlockShape.panelZ => const CollisionBox(0, 0, 0, 1, 1, _panel),
     BlockShape.panelX => const CollisionBox(0, 0, 0, _panel, 1, 1),
     BlockShape.slab => const CollisionBox(0, 0, 0, 1, 0.5, 1),
@@ -35,10 +36,11 @@ CollisionBox selectionBoxAt(VoxelQuery q, int x, int y, int z) {
     BlockShape.railNe ||
     BlockShape.railNw ||
     BlockShape.railSe ||
-    BlockShape.railSw =>
-      const CollisionBox(0, 0, 0, 1, 0.125, 1),
-    BlockShape.railSlopeN || BlockShape.railSlopeE || BlockShape.railSlopeS || BlockShape.railSlopeW =>
-      const CollisionBox(0, 0, 0, 1, 0.875, 1),
+    BlockShape.railSw => const CollisionBox(0, 0, 0, 1, 0.125, 1),
+    BlockShape.railSlopeN ||
+    BlockShape.railSlopeE ||
+    BlockShape.railSlopeS ||
+    BlockShape.railSlopeW => const CollisionBox(0, 0, 0, 1, 0.875, 1),
     BlockShape.fence => _fence(q, x, y, z),
     BlockShape.ladder => ladderBoxAt(q, x, y, z),
     BlockShape.cube ||
@@ -46,8 +48,7 @@ CollisionBox selectionBoxAt(VoxelQuery q, int x, int y, int z) {
     BlockShape.stairsN ||
     BlockShape.stairsE ||
     BlockShape.stairsS ||
-    BlockShape.stairsW =>
-      CollisionBox.full,
+    BlockShape.stairsW => CollisionBox.full,
   };
   return local.shifted(x, y, z);
 }

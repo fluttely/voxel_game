@@ -108,7 +108,12 @@ void main() {
       }
     }
     expect(carved, greaterThan(0));
-    final low = CaveCarver(cave: simplexNoise(1, 0.05, 2), cavern: simplexNoise(2, 0.02, 2), seaLevel: 46, mouthThreshold: 2);
+    final low = CaveCarver(
+      cave: simplexNoise(1, 0.05, 2),
+      cavern: simplexNoise(2, 0.02, 2),
+      seaLevel: 46,
+      mouthThreshold: 2,
+    );
     for (var x = 0; x < 64; x++) {
       expect(low.carved(x, 62, 7, 64), isFalse, reason: 'two below the surface is too shallow without a mouth');
     }
@@ -116,11 +121,11 @@ void main() {
 
   group('TreeCanvas', () {
     TreeCanvas canvas({int ground = 10}) => TreeCanvas(
-          isSoft: (id) => id == _leaves,
-          groundAt: (x, z) => ground,
-          floorY: 5,
-          hash: (x, y, z) => worldHash(3, x, y, z),
-        );
+      isSoft: (id) => id == _leaves,
+      groundAt: (x, z) => ground,
+      floorY: 5,
+      hash: (x, y, z) => worldHash(3, x, y, z),
+    );
 
     test('keeps what joins the stump by faces, drops what floats', () {
       final c = canvas();
@@ -161,7 +166,11 @@ void main() {
           }
         }
       }
-      expect(whole.where((p) => p.$1 == 15 && p.$3 == 8 && p.$2 >= 10 && p.$2 <= 19), hasLength(10), reason: 'the whole trunk');
+      expect(
+        whole.where((p) => p.$1 == 15 && p.$3 == 8 && p.$2 >= 10 && p.$2 <= 19),
+        hasLength(10),
+        reason: 'the whole trunk',
+      );
       expect(whole.where((p) => p.$1 >= 16), isNotEmpty, reason: 'the crown reaches the right chunk');
       expect(whole.every((p) => p.$2 >= 10), isTrue, reason: 'nothing in the ground');
     });

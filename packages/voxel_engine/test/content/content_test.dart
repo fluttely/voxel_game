@@ -60,8 +60,13 @@ void main() {
     test('refuses a registry that does not start with air, or repeats an id', () {
       expect(() => BlockRegistry(const [BlockType('stone', color: 0)]), throwsArgumentError);
       expect(
-          () => BlockRegistry(const [BlockType('air', color: 0, solid: false), BlockType('a', color: 0), BlockType('a', color: 0)]),
-          throwsArgumentError);
+        () => BlockRegistry(const [
+          BlockType('air', color: 0, solid: false),
+          BlockType('a', color: 0),
+          BlockType('a', color: 0),
+        ]),
+        throwsArgumentError,
+      );
     });
   });
 

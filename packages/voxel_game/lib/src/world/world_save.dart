@@ -46,7 +46,8 @@ class WorldSaves {
       ? const []
       : [
           for (final e in directory.listSync())
-            if (e is Directory && File('${e.path}/game.json').existsSync()) e.uri.pathSegments.where((s) => s.isNotEmpty).last,
+            if (e is Directory && File('${e.path}/game.json').existsSync())
+              e.uri.pathSegments.where((s) => s.isNotEmpty).last,
         ];
 
   /// Deletes [slot].

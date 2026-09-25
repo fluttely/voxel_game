@@ -35,16 +35,18 @@ class ViewBob {
   /// weight grows to 1.7 at a sprint), [enabled] fading the sway in or out
   /// while the cycle keeps step. [cadence] scales cycles per metre, [gait]
   /// the width, [rollScale] the lean (a mount's trot throws harder).
-  void update(double dt,
-      {required bool walking,
-      required double speed,
-      required double walkSpeed,
-      required Vector3 right,
-      required Vector3 up,
-      bool enabled = true,
-      double cadence = 1.0,
-      double gait = 1.0,
-      double rollScale = 1.0}) {
+  void update(
+    double dt, {
+    required bool walking,
+    required double speed,
+    required double walkSpeed,
+    required Vector3 right,
+    required Vector3 up,
+    bool enabled = true,
+    double cadence = 1.0,
+    double gait = 1.0,
+    double rollScale = 1.0,
+  }) {
     final want = walking && enabled ? (speed / walkSpeed).clamp(0.0, 1.7) : 0.0;
     weight = lerpd(weight, want, math.min(1.0, dt * 9.0));
     // One cycle, two footfalls, every 3.3 m walked.

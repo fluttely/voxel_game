@@ -5,13 +5,9 @@ import 'item_stack.dart';
 /// [stackSize] and [maxDurability].
 class Inventory {
   /// [capacity] empty slots.
-  Inventory({
-    required this.stackSize,
-    int Function(String id)? maxDurability,
-    this.capacity = 36,
-    this.hotbarSize = 9,
-  })  : maxDurability = maxDurability ?? _never,
-        slots = List<ItemStack?>.filled(capacity, null);
+  Inventory({required this.stackSize, int Function(String id)? maxDurability, this.capacity = 36, this.hotbarSize = 9})
+    : maxDurability = maxDurability ?? _never,
+      slots = List<ItemStack?>.filled(capacity, null);
 
   static int _never(String id) => 0;
 

@@ -31,8 +31,8 @@ class _Jobs implements ChunkJobs {
   }
 
   @override
-  Future<ChunkMeshResult> mesh(int cx, int cz, List<Uint8List?> ring) => Future.value(
-      _table.mesher().build(cx, cz, ring));
+  Future<ChunkMeshResult> mesh(int cx, int cz, List<Uint8List?> ring) =>
+      Future.value(_table.mesher().build(cx, cz, ring));
 }
 
 class _Sink implements ChunkMeshSink {
@@ -71,7 +71,10 @@ void main() {
     s.updateAround((x: 0, z: 0));
     await _settle(s);
     expect(s.meshCount, 9);
-    expect(sink.applied.toSet(), {for (var z = -1; z <= 1; z++) for (var x = -1; x <= 1; x++) (x: x, z: z)});
+    expect(sink.applied.toSet(), {
+      for (var z = -1; z <= 1; z++)
+        for (var x = -1; x <= 1; x++) (x: x, z: z),
+    });
     expect(s.loadedChunkCount, 25);
     expect(s.chunksBuilt, 9);
     expect(s.facesEmitted, greaterThan(0));
@@ -113,7 +116,10 @@ void main() {
     s.updateAround((x: 0, z: 0));
     await _settle(s);
     s.updateAround((x: 10, z: 0));
-    expect(sink.removed.toSet(), {for (var z = -1; z <= 1; z++) for (var x = -1; x <= 1; x++) (x: x, z: z)});
+    expect(sink.removed.toSet(), {
+      for (var z = -1; z <= 1; z++)
+        for (var x = -1; x <= 1; x++) (x: x, z: z),
+    });
     await _settle(s);
     expect(s.meshCount, 9);
   });
@@ -172,7 +178,9 @@ void main() {
 
   test('replaceEdits swaps every delta, the live one included', () async {
     s.replaceEdits({
-      0: {(x: 0, z: 0): {ChunkSize.index(1, 60, 1): _stone}},
+      0: {
+        (x: 0, z: 0): {ChunkSize.index(1, 60, 1): _stone},
+      },
     });
     expect(s.editCount, 1);
     s.updateAround((x: 0, z: 0));
@@ -184,7 +192,10 @@ void main() {
     expect(ChunkStreamer.chunkOfXZ(0, 15), (x: 0, z: 0));
     expect(ChunkStreamer.chunkOfXZ(-1, 16), (x: -1, z: 1));
     expect(ChunkStreamer.chunkOfXZ(-16, -17), (x: -1, z: -2));
-    final keys = {for (final c in [-2, -1, 0, 1, 2]) for (final d in [-2, -1, 0, 1, 2]) ChunkStreamer.keyOf(c, d)};
+    final keys = {
+      for (final c in [-2, -1, 0, 1, 2])
+        for (final d in [-2, -1, 0, 1, 2]) ChunkStreamer.keyOf(c, d),
+    };
     expect(keys, hasLength(25));
   });
 

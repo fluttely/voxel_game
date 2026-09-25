@@ -28,7 +28,10 @@ class RecipeBook {
   final List<Recipe> recipes;
 
   /// What can be made at [station]: its recipes and the hand's.
-  List<Recipe> available(String station) => [for (final r in recipes) if (r.station == '' || r.station == station) r];
+  List<Recipe> available(String station) => [
+    for (final r in recipes)
+      if (r.station == '' || r.station == station) r,
+  ];
 
   /// Whether [inventory] holds every ingredient of [recipe].
   bool canCraft(Recipe recipe, Inventory inventory) {

@@ -132,41 +132,39 @@ class VoxelGameSpec {
     void Function(VoxelGame game, String block, IVec3 cell)? onBlockPlaced,
     void Function(VoxelGame game, Mob mob)? onMobKilled,
     void Function(VoxelGame game, double dt)? onTick,
-  }) =>
-      VoxelGameSpec(
-        blocks: blocks ?? this.blocks,
-        world: world ?? this.world,
-        items: items ?? this.items,
-        recipes: recipes ?? this.recipes,
-        player: player ?? this.player,
-        mobs: mobs ?? this.mobs,
-        sky: sky ?? this.sky,
-        sounds: sounds ?? this.sounds,
-        signals: signals ?? this.signals,
-        seed: seed ?? this.seed,
-        renderDistance: renderDistance ?? this.renderDistance,
-        graphics: graphics ?? this.graphics,
-        mining: mining ?? this.mining,
-        liquids: liquids ?? this.liquids,
-        systems: systems ?? this.systems,
-        onBlockBroken: onBlockBroken ?? this.onBlockBroken,
-        onBlockPlaced: onBlockPlaced ?? this.onBlockPlaced,
-        onMobKilled: onMobKilled ?? this.onMobKilled,
-        onTick: onTick ?? this.onTick,
-      );
+  }) => VoxelGameSpec(
+    blocks: blocks ?? this.blocks,
+    world: world ?? this.world,
+    items: items ?? this.items,
+    recipes: recipes ?? this.recipes,
+    player: player ?? this.player,
+    mobs: mobs ?? this.mobs,
+    sky: sky ?? this.sky,
+    sounds: sounds ?? this.sounds,
+    signals: signals ?? this.signals,
+    seed: seed ?? this.seed,
+    renderDistance: renderDistance ?? this.renderDistance,
+    graphics: graphics ?? this.graphics,
+    mining: mining ?? this.mining,
+    liquids: liquids ?? this.liquids,
+    systems: systems ?? this.systems,
+    onBlockBroken: onBlockBroken ?? this.onBlockBroken,
+    onBlockPlaced: onBlockPlaced ?? this.onBlockPlaced,
+    onMobKilled: onMobKilled ?? this.onMobKilled,
+    onTick: onTick ?? this.onTick,
+  );
 
   /// The block registry: [blocks] with air first.
   BlockRegistry<BlockType> buildBlocks() => BlockRegistry([
-        if (blocks.isEmpty || blocks.first.id != 'air') const BlockType('air', color: 0, solid: false, hardness: -1, drop: ''),
-        ...blocks,
-      ]);
+    if (blocks.isEmpty || blocks.first.id != 'air')
+      const BlockType('air', color: 0, solid: false, hardness: -1, drop: ''),
+    ...blocks,
+  ]);
 
   /// The item registry: an item per holdable block, then [items] (replacing a
   /// block's item of the same id).
   ItemRegistry<ItemType> buildItems(BlockRegistry<BlockType> registry) {
-    final byId = <String, ItemType>{
-      for (final i in ItemRegistry.forBlocks(registry)) i.id: i,
-    };
+    final byId = <String, ItemType>{for (final i in ItemRegistry.forBlocks(registry)) i.id: i};
     for (final i in items) {
       byId[i.id] = i;
     }

@@ -25,10 +25,6 @@ class ScatterGrid {
     final span = patch - 2 * inset;
     final px = floorDiv(wx, patch), pz = floorDiv(wz, patch);
     final h = worldHash(seed, px, salt, pz);
-    return (
-      x: px * patch + inset + (h >> 8) % span,
-      z: pz * patch + inset + (h >> 16) % span,
-      hash: h,
-    );
+    return (x: px * patch + inset + (h >> 8) % span, z: pz * patch + inset + (h >> 16) % span, hash: h);
   }
 }

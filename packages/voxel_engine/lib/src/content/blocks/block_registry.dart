@@ -89,7 +89,10 @@ class BlockRegistry<T extends BlockType> {
   bool hasTag(int index, String tag) => types[index].tags.contains(tag);
 
   /// The numbers of every block carrying [tag].
-  List<int> withTag(String tag) => [for (var i = 0; i < types.length; i++) if (types[i].tags.contains(tag)) i];
+  List<int> withTag(String tag) => [
+    for (var i = 0; i < types.length; i++)
+      if (types[i].tags.contains(tag)) i,
+  ];
 
   /// The liquid kind name of block [index], or null.
   String? liquidOf(int index) => types[index].liquid;
@@ -105,8 +108,6 @@ class BlockRegistry<T extends BlockType> {
 
   /// A path policy: never into the liquids of [avoidLiquids], a floor costing
   /// its inverse walking speed.
-  PathCosts pathCosts({Set<String> avoidLiquids = const {}}) => PathCosts(
-        avoid: (b) => avoidLiquids.contains(types[b].liquid),
-        floorCost: (b) => 1.0 / types[b].speed,
-      );
+  PathCosts pathCosts({Set<String> avoidLiquids = const {}}) =>
+      PathCosts(avoid: (b) => avoidLiquids.contains(types[b].liquid), floorCost: (b) => 1.0 / types[b].speed);
 }

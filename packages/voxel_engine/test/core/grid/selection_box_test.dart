@@ -44,10 +44,25 @@ class _World implements VoxelQuery {
   /// The world-space bounds of every vertex the mesher lays down for chunk
   /// ([cx], [cz]); its neighbours are read, never meshed.
   CollisionBox meshBounds(int cx, int cz) {
-    final mesher = ChunkMesher(palette: _table.palette, shape: _table.shapes, opaque: _table.opaque, emission: _table.emission);
+    final mesher = ChunkMesher(
+      palette: _table.palette,
+      shape: _table.shapes,
+      opaque: _table.opaque,
+      emission: _table.emission,
+    );
     Uint8List? at(int dx, int dz) => chunks[(cx + dx, cz + dz)];
     // ChunkStreamer.ring order: c, nx, px, nz, pz, nxnz, pxnz, nxpz, pxpz.
-    final ring = [chunks[(cx, cz)]!, at(-1, 0), at(1, 0), at(0, -1), at(0, 1), at(-1, -1), at(1, -1), at(-1, 1), at(1, 1)];
+    final ring = [
+      chunks[(cx, cz)]!,
+      at(-1, 0),
+      at(1, 0),
+      at(0, -1),
+      at(0, 1),
+      at(-1, -1),
+      at(1, -1),
+      at(-1, 1),
+      at(1, 1),
+    ];
     final r = mesher.build(cx, cz, ring);
     final lo = [double.infinity, double.infinity, double.infinity];
     final hi = [double.negativeInfinity, double.negativeInfinity, double.negativeInfinity];
@@ -65,8 +80,16 @@ class _World implements VoxelQuery {
 
 void _expectBox(CollisionBox actual, CollisionBox expected, String reason) {
   for (var axis = 0; axis < 3; axis++) {
-    expect(actual.min(axis), closeTo(expected.min(axis), 1e-5), reason: '$reason: min ${'xyz'[axis]} of $actual vs $expected');
-    expect(actual.max(axis), closeTo(expected.max(axis), 1e-5), reason: '$reason: max ${'xyz'[axis]} of $actual vs $expected');
+    expect(
+      actual.min(axis),
+      closeTo(expected.min(axis), 1e-5),
+      reason: '$reason: min ${'xyz'[axis]} of $actual vs $expected',
+    );
+    expect(
+      actual.max(axis),
+      closeTo(expected.max(axis), 1e-5),
+      reason: '$reason: max ${'xyz'[axis]} of $actual vs $expected',
+    );
   }
 }
 
@@ -78,8 +101,13 @@ void main() {
       // A liquid is never aimed; a door's knob pokes past its panel and is
       // left out on purpose (checked below); the leaning shapes are checked
       // against each wall below.
-      if (const [BlockShape.liquid, BlockShape.panelX, BlockShape.panelZ, BlockShape.wallTorch, BlockShape.ladder]
-          .contains(shape)) {
+      if (const [
+        BlockShape.liquid,
+        BlockShape.panelX,
+        BlockShape.panelZ,
+        BlockShape.wallTorch,
+        BlockShape.ladder,
+      ].contains(shape)) {
         continue;
       }
       test(shape.name, () {

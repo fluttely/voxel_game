@@ -87,16 +87,27 @@ class _InventoryScreenState extends State<InventoryScreen> {
   }
 
   Widget _stack(ItemStack? s, {double size = 44}) => SizedBox(
-        width: size,
-        height: size,
-        child: s == null
-            ? null
-            : Stack(children: [
-                Center(child: Container(width: size * 0.55, height: size * 0.55, color: _color(s.id))),
-                if (s.count > 1)
-                  Positioned(right: 3, bottom: 1, child: Text('${s.count}', style: const TextStyle(fontSize: 12, shadows: [Shadow(offset: Offset(1, 1))]))),
-              ]),
-      );
+    width: size,
+    height: size,
+    child: s == null
+        ? null
+        : Stack(
+            children: [
+              Center(
+                child: Container(width: size * 0.55, height: size * 0.55, color: _color(s.id)),
+              ),
+              if (s.count > 1)
+                Positioned(
+                  right: 3,
+                  bottom: 1,
+                  child: Text(
+                    '${s.count}',
+                    style: const TextStyle(fontSize: 12, shadows: [Shadow(offset: Offset(1, 1))]),
+                  ),
+                ),
+            ],
+          ),
+  );
 
   Widget _slot(int i) {
     final selected = i == widget.game.player.selectedSlot;
@@ -107,7 +118,10 @@ class _InventoryScreenState extends State<InventoryScreen> {
         onSecondaryTap: () => _click(i, one: true),
         child: Container(
           margin: const EdgeInsets.all(2),
-          decoration: BoxDecoration(color: Colors.black38, border: Border.all(color: selected ? Colors.white : Colors.white24)),
+          decoration: BoxDecoration(
+            color: Colors.black38,
+            border: Border.all(color: selected ? Colors.white : Colors.white24),
+          ),
           child: _stack(_inv.slots[i]),
         ),
       ),
@@ -134,20 +148,22 @@ class _InventoryScreenState extends State<InventoryScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(children: [
-                    Text(title, style: const TextStyle(fontSize: 18)),
-                    const SizedBox(width: 12),
-                    IconButton(onPressed: widget.onClose, icon: const Icon(Icons.close), tooltip: 'Close (E)'),
-                  ]),
+                  Row(
+                    children: [
+                      Text(title, style: const TextStyle(fontSize: 18)),
+                      const SizedBox(width: 12),
+                      IconButton(onPressed: widget.onClose, icon: const Icon(Icons.close), tooltip: 'Close (E)'),
+                    ],
+                  ),
                   for (var row = hotbar; row < cap; row += hotbar)
-                    Row(mainAxisSize: MainAxisSize.min, children: [for (var i = row; i < row + hotbar && i < cap; i++) _slot(i)]),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [for (var i = row; i < row + hotbar && i < cap; i++) _slot(i)],
+                    ),
                   const SizedBox(height: 10),
                   Row(mainAxisSize: MainAxisSize.min, children: [for (var i = 0; i < hotbar; i++) _slot(i)]),
                   const SizedBox(height: 8),
-                  Row(children: [
-                    const Text('Cursor: '),
-                    _stack(_cursor, size: 32),
-                  ]),
+                  Row(children: [const Text('Cursor: '), _stack(_cursor, size: 32)]),
                 ],
               ),
               const SizedBox(width: 16),
@@ -162,10 +178,17 @@ class _InventoryScreenState extends State<InventoryScreen> {
                             ListTile(
                               dense: true,
                               leading: _stack(ItemStack(r.result, r.count), size: 32),
-                              title: Text('${game.items.has(r.result) ? game.items[r.result].name : r.result} x${r.count}'),
-                              subtitle: Text(r.ingredients.entries
-                                  .map((e) => '${game.items.has(e.key) ? game.items[e.key].name : e.key} ${_inv.countOf(e.key)}/${e.value}')
-                                  .join(', ')),
+                              title: Text(
+                                '${game.items.has(r.result) ? game.items[r.result].name : r.result} x${r.count}',
+                              ),
+                              subtitle: Text(
+                                r.ingredients.entries
+                                    .map(
+                                      (e) =>
+                                          '${game.items.has(e.key) ? game.items[e.key].name : e.key} ${_inv.countOf(e.key)}/${e.value}',
+                                    )
+                                    .join(', '),
+                              ),
                               enabled: game.recipes.canCraft(r, _inv),
                               onTap: () => game.recipes.craft(r, _inv),
                             ),

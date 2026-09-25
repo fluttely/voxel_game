@@ -34,7 +34,15 @@ class ViewCamera {
     final right = Vector3(math.cos(yaw), 0, -math.sin(yaw));
     final up = Vector3(math.sin(pitch) * math.sin(yaw), math.cos(pitch), math.sin(pitch) * math.cos(yaw));
     final speed = math.sqrt(p.velocity.x * p.velocity.x + p.velocity.z * p.velocity.z);
-    viewBob.update(dt, walking: p.onFloor && speed > 0.6, speed: speed, walkSpeed: p.spec.walkSpeed, right: right, up: up, enabled: bob);
+    viewBob.update(
+      dt,
+      walking: p.onFloor && speed > 0.6,
+      speed: speed,
+      walkSpeed: p.spec.walkSpeed,
+      right: right,
+      up: up,
+      enabled: bob,
+    );
     var sway = viewBob.offset;
     // A hit jolts the eye (never the aim) and dies out.
     if (p.hurtFlash > 0.0) {

@@ -79,8 +79,12 @@ class ChunkWorkerPool implements ChunkJobs {
     _exits.listen(_onExit);
     for (var i = 0; i < workers; i++) {
       final ready = ReceivePort();
-      final isolate = await Isolate.spawn(_workerMain, [ready.sendPort, _inbox.sendPort, config],
-          paused: true, debugName: 'chunk-worker-$i');
+      final isolate = await Isolate.spawn(
+        _workerMain,
+        [ready.sendPort, _inbox.sendPort, config],
+        paused: true,
+        debugName: 'chunk-worker-$i',
+      );
       // Listeners go on before the worker runs a line, so a start-up failure
       // reaches [ready] as [error, stack] instead of leaving it waiting forever.
       isolate.addErrorListener(ready.sendPort);
@@ -161,11 +165,24 @@ class ChunkWorkerPool implements ChunkJobs {
   Future<ChunkMeshResult> mesh(int cx, int cz, List<Uint8List?> ring) async {
     final reply = await _request<List<Object?>>(['mesh', cx, cz, ring]);
     ByteBuffer bytes(int at) => (reply[at] as TransferableTypedData).materialize();
-    MeshSurface surface(int at) => MeshSurface(bytes(at).asFloat32List(), bytes(at + 1).asFloat32List(),
-        bytes(at + 2).asFloat32List(), bytes(at + 3).asFloat32List(), bytes(at + 4).asInt32List());
+    MeshSurface surface(int at) => MeshSurface(
+      bytes(at).asFloat32List(),
+      bytes(at + 1).asFloat32List(),
+      bytes(at + 2).asFloat32List(),
+      bytes(at + 3).asFloat32List(),
+      bytes(at + 4).asInt32List(),
+    );
 
-    return ChunkMeshResult(surface(0), surface(5), surface(10), surface(15),
-        sky: bytes(20).asUint8List(), block: bytes(21).asUint8List(), aoVerts: reply[22] as int, ms: reply[23] as double);
+    return ChunkMeshResult(
+      surface(0),
+      surface(5),
+      surface(10),
+      surface(15),
+      sky: bytes(20).asUint8List(),
+      block: bytes(21).asUint8List(),
+      aoVerts: reply[22] as int,
+      ms: reply[23] as double,
+    );
   }
 
   /// Jobs sent and not yet answered.
@@ -218,14 +235,17 @@ Object? _run(ChunkGenerator generator, ChunkMesher mesher, List<Object?> list) {
   final ring = (list[4] as List<Object?>).cast<Uint8List?>();
   final r = mesher.build(list[2] as int, list[3] as int, ring);
   List<Object?> pack(MeshSurface s) => [
-        TransferableTypedData.fromList([s.positions]),
-        TransferableTypedData.fromList([s.normals]),
-        TransferableTypedData.fromList([s.colors]),
-        TransferableTypedData.fromList([s.light]),
-        TransferableTypedData.fromList([s.indices]),
-      ];
+    TransferableTypedData.fromList([s.positions]),
+    TransferableTypedData.fromList([s.normals]),
+    TransferableTypedData.fromList([s.colors]),
+    TransferableTypedData.fromList([s.light]),
+    TransferableTypedData.fromList([s.indices]),
+  ];
   return [
-    ...pack(r.solid), ...pack(r.liquid), ...pack(r.cutout), ...pack(r.glow),
+    ...pack(r.solid),
+    ...pack(r.liquid),
+    ...pack(r.cutout),
+    ...pack(r.glow),
     TransferableTypedData.fromList([r.sky]),
     TransferableTypedData.fromList([r.block]),
     r.aoVerts,

@@ -44,7 +44,9 @@ class FirstPersonView {
             at[axis] = side == 0.0 ? -0.004 : 1.004;
             at[a1] = alongU ? u + len / 2 : u;
             at[a2] = alongU ? v : v + len / 2;
-            group.add(MirroredCamera.primitiveNode(Mesh(CuboidGeometry(size), mat), castsShadows: false)..position = at);
+            group.add(
+              MirroredCamera.primitiveNode(Mesh(CuboidGeometry(size), mat), castsShadows: false)..position = at,
+            );
           }
         }
       }
@@ -78,25 +80,25 @@ class FirstPersonView {
   void swing() => _swing = 1.0;
 
   Node _model(String id) => _models.putIfAbsent(id, () {
-        final t = game.items[id];
-        final c = Vector3(t.r, t.g, t.b);
-        final v = <IVec3, Vector3>{};
-        final Vector3 origin;
-        if (t.block != null) {
-          VoxelModel.box(v, IVec3.zero, const IVec3(7, 7, 7), c, 0.05);
-          origin = Vector3(4, 0, 4);
-        } else {
-          // A handle and a head: reads as a tool, a weapon or a stick.
-          VoxelModel.box(v, IVec3.zero, const IVec3(0, 9, 0), Vector3(0.45, 0.32, 0.18), 0.03);
-          if (t.tool != null) {
-            VoxelModel.box(v, const IVec3(-2, 9, 0), const IVec3(2, 11, 0), c);
-          } else {
-            VoxelModel.box(v, const IVec3(-1, 0, -1), const IVec3(1, 3, 1), c);
-          }
-          origin = Vector3(0.5, 0, 0.5);
-        }
-        return VoxelModelMesh.node(v, t.block != null ? 0.03 : 0.035, origin)..castsShadows = false;
-      });
+    final t = game.items[id];
+    final c = Vector3(t.r, t.g, t.b);
+    final v = <IVec3, Vector3>{};
+    final Vector3 origin;
+    if (t.block != null) {
+      VoxelModel.box(v, IVec3.zero, const IVec3(7, 7, 7), c, 0.05);
+      origin = Vector3(4, 0, 4);
+    } else {
+      // A handle and a head: reads as a tool, a weapon or a stick.
+      VoxelModel.box(v, IVec3.zero, const IVec3(0, 9, 0), Vector3(0.45, 0.32, 0.18), 0.03);
+      if (t.tool != null) {
+        VoxelModel.box(v, const IVec3(-2, 9, 0), const IVec3(2, 11, 0), c);
+      } else {
+        VoxelModel.box(v, const IVec3(-1, 0, -1), const IVec3(1, 3, 1), c);
+      }
+      origin = Vector3(0.5, 0, 0.5);
+    }
+    return VoxelModelMesh.node(v, t.block != null ? 0.03 : 0.035, origin)..castsShadows = false;
+  });
 
   /// Places the hand and the crack for this frame.
   void update(double dt) {
@@ -134,7 +136,9 @@ class FirstPersonView {
     final stage = p.mineProgress <= 0.0 || hit == null ? -1 : (p.mineProgress * 4.0).toInt().clamp(0, 3);
     for (var i = 0; i < _cracks.length; i++) {
       _cracks[i].visible = i <= stage;
-      if (hit != null && i <= stage) _cracks[i].position = Vector3(hit.block.x.toDouble(), hit.block.y.toDouble(), hit.block.z.toDouble());
+      if (hit != null && i <= stage) {
+        _cracks[i].position = Vector3(hit.block.x.toDouble(), hit.block.y.toDouble(), hit.block.z.toDouble());
+      }
     }
   }
 }

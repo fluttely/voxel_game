@@ -5,13 +5,13 @@ import 'package:voxel_game/voxel_game.dart';
 
 /// A frame that started at [vsyncUs], built for [buildUs] and rastered for [rasterUs].
 FrameTiming frame(int vsyncUs, {int buildUs = 2000, int rasterUs = 1000}) => FrameTiming(
-      vsyncStart: vsyncUs,
-      buildStart: vsyncUs,
-      buildFinish: vsyncUs + buildUs,
-      rasterStart: vsyncUs + buildUs,
-      rasterFinish: vsyncUs + buildUs + rasterUs,
-      rasterFinishWallTime: vsyncUs + buildUs + rasterUs,
-    );
+  vsyncStart: vsyncUs,
+  buildStart: vsyncUs,
+  buildFinish: vsyncUs + buildUs,
+  rasterStart: vsyncUs + buildUs,
+  rasterFinish: vsyncUs + buildUs + rasterUs,
+  rasterFinishWallTime: vsyncUs + buildUs + rasterUs,
+);
 
 void main() {
   test('percentile is the nearest rank, 0 for no samples', () {
@@ -54,7 +54,11 @@ void main() {
   });
 
   test('copyWith replaces only what it is given', () {
-    const spec = VoxelGameSpec(blocks: [BlockType('stone', color: 0x808080)], world: WorldGenSpec(biomes: [Biome('plain', top: 'stone')]), seed: 7);
+    const spec = VoxelGameSpec(
+      blocks: [BlockType('stone', color: 0x808080)],
+      world: WorldGenSpec(biomes: [Biome('plain', top: 'stone')]),
+      seed: 7,
+    );
     final far = spec.copyWith(renderDistance: 12);
     expect(far.renderDistance, 12);
     expect(far.seed, 7);

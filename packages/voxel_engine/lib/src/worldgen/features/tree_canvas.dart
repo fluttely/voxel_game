@@ -27,8 +27,8 @@ class TreeCanvas {
     required this.groundAt,
     required this.floorY,
     required this.hash,
-  })  : _width = radius * 2 + 1,
-        _layer = (radius * 2 + 1) * (radius * 2 + 1) {
+  }) : _width = radius * 2 + 1,
+       _layer = (radius * 2 + 1) * (radius * 2 + 1) {
     _canvas = Uint8List(_layer * height);
     _kept = Uint8List(_layer * height);
     _colHeight = Int32List(_layer);

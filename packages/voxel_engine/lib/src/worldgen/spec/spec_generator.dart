@@ -49,7 +49,12 @@ class SpecGenerator implements ChunkGenerator {
     _canvas = TreeCanvas(isSoft: _soft.contains, groundAt: surfaceHeight, floorY: spec.seaLevel, hash: hash);
     for (var i = 0; i < spec.structures.length; i++) {
       final s = spec.structures[i];
-      final grid = StructureGrid(regionChunks: s.regionChunks, primeX: 7919 + i * 104, salt: 200 + i, primeZ: 104729 + i * 97);
+      final grid = StructureGrid(
+        regionChunks: s.regionChunks,
+        primeX: 7919 + i * 104,
+        salt: 200 + i,
+        primeZ: 104729 + i * 97,
+      );
       assert(s.radius < grid.span ~/ 2, 'structure ${s.name} reaches past its region');
       _structures.add((spec: s, grid: grid));
       _byName[s.name] = s;
@@ -162,9 +167,9 @@ class SpecGenerator implements ChunkGenerator {
 
   /// The structures whose regions touch chunk ([chunkX], [chunkZ]).
   List<PlacedStructure> structuresNear(int chunkX, int chunkZ) => [
-        for (final s in _structures)
-          for (final (rx, rz) in s.grid.around(chunkX, chunkZ)) ?_site(s.spec, s.grid, rx, rz),
-      ];
+    for (final s in _structures)
+      for (final (rx, rz) in s.grid.around(chunkX, chunkZ)) ?_site(s.spec, s.grid, rx, rz),
+  ];
 
   PlacedStructure? _site(StructureSpec s, StructureGrid grid, int rx, int rz) {
     final h = grid.hashOf(seed, rx, rz);
@@ -204,7 +209,13 @@ class SpecGenerator implements ChunkGenerator {
           } else if (y <= sea) {
             id = y == sea && biome.ice != 0 ? biome.ice : _water;
           }
-          if (id != 0 && id != _bedrock && id != _water && id != biome.ice && y > 1 && spec.caves.enabled && _caves.carved(wx, y, wz, h)) {
+          if (id != 0 &&
+              id != _bedrock &&
+              id != _water &&
+              id != biome.ice &&
+              y > 1 &&
+              spec.caves.enabled &&
+              _caves.carved(wx, y, wz, h)) {
             id = y <= spec.caves.lavaBelowY ? _lava : 0;
           }
           if (id != 0) blocks[ChunkSize.index(x, y, z)] = id;
@@ -217,16 +228,18 @@ class SpecGenerator implements ChunkGenerator {
       for (final (rx, rz) in s.grid.around(chunkX, chunkZ)) {
         final site = _site(s.spec, s.grid, rx, rz);
         if (site == null) continue;
-        s.spec.build(StructureSite(
-          name: site.name,
-          x: site.x,
-          y: site.y,
-          z: site.z,
-          seed: seed,
-          writer: w,
-          block: _id,
-          surfaceAt: surfaceHeight,
-        ));
+        s.spec.build(
+          StructureSite(
+            name: site.name,
+            x: site.x,
+            y: site.y,
+            z: site.z,
+            seed: seed,
+            writer: w,
+            block: _id,
+            surfaceAt: surfaceHeight,
+          ),
+        );
       }
     }
     return blocks;
@@ -298,7 +311,14 @@ class SpecGenerator implements ChunkGenerator {
 }
 
 class _Biome {
-  _Biome(this.spec, {required this.top, required this.under, required this.ice, required this.trees, required this.plants});
+  _Biome(
+    this.spec, {
+    required this.top,
+    required this.under,
+    required this.ice,
+    required this.trees,
+    required this.plants,
+  });
 
   final Biome spec;
   final int top, under, ice;

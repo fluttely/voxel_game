@@ -16,7 +16,10 @@ void main() {
     final client = await connectToHost('127.0.0.1', port: host.port);
     final peer = await joined.future;
     expect(peer.id, 2);
-    client.send({'t': 'pose', 'p': [1.5, 2, -3]});
+    client.send({
+      't': 'pose',
+      'p': [1.5, 2, -3],
+    });
     final m = await heard.stream.first;
     expect(m['t'], 'pose');
     expect(m['p'], [1.5, 2, -3]);

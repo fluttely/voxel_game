@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- `gamepads: ^0.1.10`, the first version with `NormalizedGamepadState`. The constraint
+  allowed `0.1.1-dev2`, which lacks it, so the lowest resolution did not compile and
+  pana took 20 pub points.
+- Formatted by `dart format` at the 120 columns the code is written at
+  (`formatter: page_width: 120` in `analysis_options.yaml`); pana took 10 pub points
+  for formatting.
 - A step runs at most `Mob.searchesPerStep` (3) A* searches; a mob whose plan is due
   when they are spent plans on a later step (`VoxelGame.searchesLeft`). The random phase
   each mob starts with was lost at its first plan, so hunters that saw the player in one

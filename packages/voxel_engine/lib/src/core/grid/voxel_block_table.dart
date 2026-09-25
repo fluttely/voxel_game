@@ -55,12 +55,12 @@ class VoxelBlockTable {
   /// [ArgumentError] for more than 256 blocks, a block 0 that is not air, an
   /// emission outside 0..15, or a liquid source with no liquid kind.
   VoxelBlockTable(List<VoxelBlockDef> defs)
-      : _defs = List.unmodifiable(defs),
-        _boxes = List.unmodifiable([for (final d in defs) collisionBoxesOf(d.shape, solid: d.solid)]),
-        palette = Float32List(defs.length * 4),
-        shapes = Uint8List.fromList([for (final d in defs) d.shape.index]),
-        opaque = Uint8List.fromList([for (final d in defs) d.opaque ? 1 : 0]),
-        emission = Uint8List.fromList([for (final d in defs) d.emission]) {
+    : _defs = List.unmodifiable(defs),
+      _boxes = List.unmodifiable([for (final d in defs) collisionBoxesOf(d.shape, solid: d.solid)]),
+      palette = Float32List(defs.length * 4),
+      shapes = Uint8List.fromList([for (final d in defs) d.shape.index]),
+      opaque = Uint8List.fromList([for (final d in defs) d.opaque ? 1 : 0]),
+      emission = Uint8List.fromList([for (final d in defs) d.emission]) {
     if (defs.isEmpty || defs.length > 256) {
       throw ArgumentError.value(defs.length, 'defs', 'a chunk stores one byte per cell: 1..256 blocks');
     }

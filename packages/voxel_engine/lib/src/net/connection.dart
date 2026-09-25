@@ -12,22 +12,26 @@ class NetConnection {
   /// A connection over [socket].
   NetConnection(this.socket) {
     socket.setOption(SocketOption.tcpNoDelay, true);
-    _sub = socket.cast<List<int>>().transform(utf8.decoder).transform(const LineSplitter()).listen(
-      (line) {
-        if (line.isEmpty) return;
-        final decoded = jsonDecode(line);
-        if (decoded is! Map<String, Object?>) throw FormatException('a message is a JSON object', line);
-        final h = _handler;
-        if (h == null) {
-          _buffer.add(decoded);
-        } else {
-          h(decoded);
-        }
-      },
-      onError: (Object e) => _close(),
-      onDone: _close,
-      cancelOnError: true,
-    );
+    _sub = socket
+        .cast<List<int>>()
+        .transform(utf8.decoder)
+        .transform(const LineSplitter())
+        .listen(
+          (line) {
+            if (line.isEmpty) return;
+            final decoded = jsonDecode(line);
+            if (decoded is! Map<String, Object?>) throw FormatException('a message is a JSON object', line);
+            final h = _handler;
+            if (h == null) {
+              _buffer.add(decoded);
+            } else {
+              h(decoded);
+            }
+          },
+          onError: (Object e) => _close(),
+          onDone: _close,
+          cancelOnError: true,
+        );
   }
 
   /// The socket.

@@ -61,7 +61,8 @@ class HostSession extends GameSession {
 
   void _join(NetPeer peer) {
     final puppet = RemotePlayer(peer.id, game.player.spawnPoint)
-      ..onHurt = (d) => peer.send({'t': 'hurt', 'dmg': d.amount, if (d.from != null) 'from': _v(d.from!), 'kb': d.knockback});
+      ..onHurt = (d) =>
+          peer.send({'t': 'hurt', 'dmg': d.amount, if (d.from != null) 'from': _v(d.from!), 'kb': d.knockback});
     players[peer.id] = puppet;
     game.add(puppet);
     peer.send({
@@ -86,8 +87,14 @@ class HostSession extends GameSession {
         final n = (m['n']! as num).toInt();
         for (final mob in game.mobs) {
           if (mob.netId == n) {
-            mob.takeDamage(Damage((m['dmg']! as num).toDouble(),
-                from: m['from'] == null ? null : _vec(m['from']), knockback: (m['kb'] as num?)?.toDouble() ?? 6.0, attacker: puppet));
+            mob.takeDamage(
+              Damage(
+                (m['dmg']! as num).toDouble(),
+                from: m['from'] == null ? null : _vec(m['from']),
+                knockback: (m['kb'] as num?)?.toDouble() ?? 6.0,
+                attacker: puppet,
+              ),
+            );
           }
         }
     }
@@ -98,7 +105,11 @@ class HostSession extends GameSession {
     net.broadcast({'t': 'bye', 'peer': peer.id});
   }
 
-  void _edited(IVec3 cell, int old, int id) => net.broadcast({'t': 'set', 'c': [cell.x, cell.y, cell.z], 'b': id});
+  void _edited(IVec3 cell, int old, int id) => net.broadcast({
+    't': 'set',
+    'c': [cell.x, cell.y, cell.z],
+    'b': id,
+  });
 
   @override
   void tick(VoxelGame game, double dt) {
@@ -115,7 +126,8 @@ class HostSession extends GameSession {
         for (final r in players.values) {'id': r.peer, 'p': _v(r.position), 'yaw': r.yaw, 'dead': r.isDead},
       ],
       'mobs': [
-        for (final m in game.mobs) {'n': m.netId, 's': m.spec.id, 'p': _v(m.position), 'yaw': m.facing, 'hp': m.hp, 'dead': m.isDead},
+        for (final m in game.mobs)
+          {'n': m.netId, 's': m.spec.id, 'p': _v(m.position), 'yaw': m.facing, 'hp': m.hp, 'dead': m.isDead},
       ],
     });
   }
@@ -152,7 +164,11 @@ class ClientSession extends GameSession {
 
   void _edited(IVec3 cell, int old, int id) {
     if (_applying) return;
-    connection.send({'t': 'set', 'c': [cell.x, cell.y, cell.z], 'b': id});
+    connection.send({
+      't': 'set',
+      'c': [cell.x, cell.y, cell.z],
+      'b': id,
+    });
   }
 
   void _message(NetMessage m) {
@@ -167,8 +183,13 @@ class ClientSession extends GameSession {
         _players(m['players']! as List<Object?>);
         _mobsState(m['mobs']! as List<Object?>);
       case 'hurt':
-        game.player.takeDamage(Damage((m['dmg']! as num).toDouble(),
-            from: m['from'] == null ? null : _vec(m['from']), knockback: (m['kb'] as num?)?.toDouble() ?? 0.0));
+        game.player.takeDamage(
+          Damage(
+            (m['dmg']! as num).toDouble(),
+            from: m['from'] == null ? null : _vec(m['from']),
+            knockback: (m['kb'] as num?)?.toDouble() ?? 0.0,
+          ),
+        );
       case 'bye':
         players.remove((m['peer']! as num).toInt())?.removed = true;
     }
@@ -213,12 +234,12 @@ class ClientSession extends GameSession {
 
   @override
   void hitMob(Mob mob, Damage damage) => connection.send({
-        't': 'hit',
-        'n': mob.netId,
-        'dmg': damage.amount,
-        if (damage.from != null) 'from': _v(damage.from!),
-        'kb': damage.knockback,
-      });
+    't': 'hit',
+    'n': mob.netId,
+    'dmg': damage.amount,
+    if (damage.from != null) 'from': _v(damage.from!),
+    'kb': damage.knockback,
+  });
 
   @override
   void tick(VoxelGame game, double dt) {
@@ -238,7 +259,10 @@ class ClientSession extends GameSession {
 
 /// Joins the host at [address]:[port]: says hello and waits for the host's
 /// world. Returns the hello, whose seed and edits start the client's world.
-Future<({NetConnection connection, int peer, SavedWorld world, Vector3 spawn})> joinHost(String address, {int port = 7777}) async {
+Future<({NetConnection connection, int peer, SavedWorld world, Vector3 spawn})> joinHost(
+  String address, {
+  int port = 7777,
+}) async {
   final c = await connectToHost(address, port: port);
   final m = await c.next().timeout(const Duration(seconds: 15));
   if (m['t'] != 'hello') throw StateError('the host answered ${m['t']} before hello');

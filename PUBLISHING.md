@@ -80,6 +80,26 @@ Then the same four without `--dry-run`, in that order, bumping the constraint in
 each dependent to the version just released. `voxel_engine` and `sound_recipes`
 do not depend on each other, so their order between themselves does not matter.
 
+**A dependent waits for its dependencies' analysis.** pub.dev analyses a version the
+moment it lands, and a version published seconds earlier is not yet visible to its
+analyser. `0.1.1-dev` went out four packages in thirty seconds, and `voxel_scene` and
+`voxel_game` scored 50 of 160: "could not find package voxel_engine" failed every check
+that resolves dependencies. `tool/publish_package.sh` now polls
+`https://pub.dev/api/packages/<dep>/metrics` until the dependency's version in this tree
+has been analysed, then publishes.
+
+**The pub points, all 160.** Beyond the metadata above, three things lose them:
+
+- **Formatting** (10): pana runs `dart format` on every file. Each package, and each
+  example app, sets `formatter: page_width: 120` in its `analysis_options.yaml`, the
+  width the code is written at; `tool/publish_package.sh` refuses a package that is not
+  formatted.
+- **Lower bounds** (20): pana runs `flutter pub downgrade` and analyses against the
+  lowest version each constraint allows. A constraint's lower bound is the first version
+  with every API the package calls (`gamepads: ^0.1.10`, where `NormalizedGamepadState`
+  arrived), not the one that happened to be current.
+- **Resolution** (up to 110): see the race above.
+
 **One warning is expected and accepted.** `voxel_scene` and `voxel_game` pin
 `flutter_scene: 0.23.0` exactly, and pub says the constraint should allow more
 than one version. The pin stays: the terrain material imports

@@ -25,7 +25,7 @@ dependencies:
     sdk: flutter
   # Exact pin, as voxel_scene: the renderer's private gpu shim moves between releases.
   flutter_scene: 0.23.0
-  gamepads: ^0.1.1-dev2
+  gamepads: ^0.1.10
   path_provider: ^2.1.6
   pointer_lock: ^0.4.1
   sound_recipes: ^0.1.1-dev

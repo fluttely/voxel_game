@@ -64,7 +64,11 @@ void main() {
     brain
       ..think(cat, 'the kitchen')
       ..tick(cat, 'the kitchen', 0.1);
-    expect(cat.log, ['wake', 'purr', 'pounce in the kitchen'], reason: 'the outranking goal takes the shared slot and stops the other');
+    expect(cat.log, [
+      'wake',
+      'purr',
+      'pounce in the kitchen',
+    ], reason: 'the outranking goal takes the shared slot and stops the other');
 
     cat
       ..log.clear()

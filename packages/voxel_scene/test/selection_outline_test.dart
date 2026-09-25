@@ -20,7 +20,11 @@ void main() {
         for (final other in [(axis + 1) % 3, (axis + 2) % 3]) {
           expect(s.scale[other], 1.0);
           final p = s.position[other];
-          expect((p + g).abs() < 1e-6 || (p - (span[other] + g)).abs() < 1e-6, isTrue, reason: 'axis $axis corner $corner');
+          expect(
+            (p + g).abs() < 1e-6 || (p - (span[other] + g)).abs() < 1e-6,
+            isTrue,
+            reason: 'axis $axis corner $corner',
+          );
         }
         corners.add('${s.position[(axis + 1) % 3]},${s.position[(axis + 2) % 3]}');
       }

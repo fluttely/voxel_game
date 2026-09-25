@@ -15,9 +15,9 @@ class ItemType {
     this.damage = 1,
     this.durability = 0,
     this.tags = const {},
-  })  : r = ((color >> 16) & 0xFF) / 255.0,
-        g = ((color >> 8) & 0xFF) / 255.0,
-        b = (color & 0xFF) / 255.0;
+  }) : r = ((color >> 16) & 0xFF) / 255.0,
+       g = ((color >> 8) & 0xFF) / 255.0,
+       b = (color & 0xFF) / 255.0;
 
   /// An item of linear rgb [r], [g], [b] (0..1).
   const ItemType.rgb(

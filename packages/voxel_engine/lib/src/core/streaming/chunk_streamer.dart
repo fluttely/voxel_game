@@ -59,8 +59,15 @@ class ChunkStreamer {
 
   /// A chunk and its eight neighbours, in the order a mesh job reads them.
   static const List<ChunkPos> ring = [
-    (x: 0, z: 0), (x: -1, z: 0), (x: 1, z: 0), (x: 0, z: -1), (x: 0, z: 1),
-    (x: -1, z: -1), (x: 1, z: -1), (x: -1, z: 1), (x: 1, z: 1),
+    (x: 0, z: 0),
+    (x: -1, z: 0),
+    (x: 1, z: 0),
+    (x: 0, z: -1),
+    (x: 0, z: 1),
+    (x: -1, z: -1),
+    (x: 1, z: -1),
+    (x: -1, z: 1),
+    (x: 1, z: 1),
   ];
 
   /// The chunk holding cell [b].
@@ -101,6 +108,7 @@ class ChunkStreamer {
 
   final Map<ChunkPos, Uint8List> _chunks = {};
   final Map<int, Uint8List> _chunksByKey = {};
+
   /// Meshes handed to the sink, remeshes included.
   int get chunksBuilt => _chunksBuilt;
 
@@ -213,7 +221,8 @@ class ChunkStreamer {
     // its pre-edit mesh and light for good.
     final remeshes = [
       for (final p in _pending)
-        if (_meshed.contains(p) && (p.x - _center.x).abs() <= unloadRadius && (p.z - _center.z).abs() <= unloadRadius) p,
+        if (_meshed.contains(p) && (p.x - _center.x).abs() <= unloadRadius && (p.z - _center.z).abs() <= unloadRadius)
+          p,
     ];
     _pending.clear();
     for (var dz = -loadRadius; dz <= loadRadius; dz++) {
@@ -273,31 +282,37 @@ class ChunkStreamer {
         if (!_genInflight.contains(n)) {
           _genInflight.add(n);
           final epoch = _genEpoch;
-          j.generate(n.x, n.z, dimension).then((blocks) {
-            if (epoch != _genEpoch) return; // generated for the dimension we left
-            _genInflight.remove(n);
-            if (jobs != j) return;
-            _applyEdits(n, blocks);
-            _putChunk(n, blocks);
-          }).catchError((Object e, StackTrace st) {
-            if (epoch == _genEpoch) _genInflight.remove(n);
-            _jobFailed(e, st);
-          });
+          j
+              .generate(n.x, n.z, dimension)
+              .then((blocks) {
+                if (epoch != _genEpoch) return; // generated for the dimension we left
+                _genInflight.remove(n);
+                if (jobs != j) return;
+                _applyEdits(n, blocks);
+                _putChunk(n, blocks);
+              })
+              .catchError((Object e, StackTrace st) {
+                if (epoch == _genEpoch) _genInflight.remove(n);
+                _jobFailed(e, st);
+              });
         }
       }
       if (!ringReady) continue;
       _meshInflight.add(pos);
       final vols = [for (final o in ring) _chunks[(x: pos.x + o.x, z: pos.z + o.z)]];
       final epoch = _genEpoch;
-      j.mesh(pos.x, pos.z, vols).then((surface) {
-        if (epoch != _genEpoch) return;
-        _meshInflight.remove(pos);
-        if (jobs != j) return;
-        _surfaceReady[pos] = surface;
-      }).catchError((Object e, StackTrace st) {
-        if (epoch == _genEpoch) _meshInflight.remove(pos);
-        _jobFailed(e, st);
-      });
+      j
+          .mesh(pos.x, pos.z, vols)
+          .then((surface) {
+            if (epoch != _genEpoch) return;
+            _meshInflight.remove(pos);
+            if (jobs != j) return;
+            _surfaceReady[pos] = surface;
+          })
+          .catchError((Object e, StackTrace st) {
+            if (epoch == _genEpoch) _meshInflight.remove(pos);
+            _jobFailed(e, st);
+          });
     }
   }
 

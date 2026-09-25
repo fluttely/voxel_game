@@ -11,7 +11,8 @@ const Map<String, int> _ids = {
 
 final VoxelBlockTable _table = VoxelBlockTable([
   const VoxelBlockDef(shape: BlockShape.cube, solid: false, opaque: false, r: 0, g: 0, b: 0, a: 0),
-  for (var i = 1; i < 15; i++) const VoxelBlockDef(shape: BlockShape.cube, solid: true, opaque: true, r: 0.5, g: 0.5, b: 0.5),
+  for (var i = 1; i < 15; i++)
+    const VoxelBlockDef(shape: BlockShape.cube, solid: true, opaque: true, r: 0.5, g: 0.5, b: 0.5),
 ]);
 
 void _hut(StructureSite s) {
@@ -25,17 +26,21 @@ const WorldGenSpec _world = WorldGenSpec(
   biomes: [
     Biome('tundra', top: 'snow', climate: Climate.cold, ice: 'ice'),
     Biome('desert', top: 'sand', climate: Climate.hotDry),
-    Biome('plains',
-        top: 'grass',
-        under: 'dirt',
-        trees: [TreeSpec.oak(log: 'log', leaves: 'leaves')],
-        treeChance: 60,
-        plants: [Plant('flower', perMille: 100)]),
+    Biome(
+      'plains',
+      top: 'grass',
+      under: 'dirt',
+      trees: [TreeSpec.oak(log: 'log', leaves: 'leaves')],
+      treeChance: 60,
+      plants: [Plant('flower', perMille: 100)],
+    ),
   ],
   beach: Biome('beach', top: 'sand'),
   ores: [Ore('coal_ore', share: 0.2)],
   caves: CaveSpec(lava: 'lava'),
-  structures: [StructureSpec('hut', build: _hut, chance: 1.0, biomes: ['plains'], radius: 4, regionChunks: 3)],
+  structures: [
+    StructureSpec('hut', build: _hut, chance: 1.0, biomes: ['plains'], radius: 4, regionChunks: 3),
+  ],
 );
 
 /// Top-level, as a worker isolate's generator factory must be.
@@ -127,11 +132,23 @@ void main() {
   test('a blueprint draws its layers with the legend, "." clearing', () {
     final w = ChunkWriter(Uint8List(ChunkSize.volume), 0, 0);
     w.put(5, 11, 5, 3);
-    final site = StructureSite(name: 'x', x: 4, y: 10, z: 4, seed: 1, writer: w, block: (n) => _ids[n]!, surfaceAt: (x, z) => 10);
-    site.blueprint([
-      ['##', '#.'],
-      ['.#'],
-    ], {'#': 'cobblestone'});
+    final site = StructureSite(
+      name: 'x',
+      x: 4,
+      y: 10,
+      z: 4,
+      seed: 1,
+      writer: w,
+      block: (n) => _ids[n]!,
+      surfaceAt: (x, z) => 10,
+    );
+    site.blueprint(
+      [
+        ['##', '#.'],
+        ['.#'],
+      ],
+      {'#': 'cobblestone'},
+    );
     expect(w.get(4, 10, 4), _ids['cobblestone']);
     expect(w.get(5, 10, 5), 0);
     expect(w.get(4, 11, 4), 0);
