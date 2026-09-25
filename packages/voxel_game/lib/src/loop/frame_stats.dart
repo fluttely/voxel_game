@@ -61,6 +61,7 @@ class FrameStats {
     final r = _recording;
     if (r == null) return;
     r.simMs.add(simMs);
+    if (steps > 0) r.stepMs.add(simMs / steps);
     r.steps += steps;
   }
 
@@ -79,7 +80,7 @@ class _Samples {
   final int startUs;
   int? lastVsyncUs;
   int steps = 0;
-  final List<double> intervalMs = [], buildMs = [], rasterMs = [], simMs = [], encodeMs = [], gpuLatencyMs = [], gpuLagFrames = [];
+  final List<double> intervalMs = [], buildMs = [], rasterMs = [], simMs = [], stepMs = [], encodeMs = [], gpuLatencyMs = [], gpuLagFrames = [];
 
   FrameReport report(double seconds) => FrameReport(
         seconds: seconds,
@@ -88,6 +89,7 @@ class _Samples {
         buildMs: buildMs,
         rasterMs: rasterMs,
         simMs: simMs,
+        stepMs: stepMs,
         encodeMs: encodeMs,
         gpuLatencyMs: gpuLatencyMs,
         gpuLagFrames: gpuLagFrames,
@@ -104,6 +106,7 @@ class FrameReport {
     required this.buildMs,
     required this.rasterMs,
     required this.simMs,
+    required this.stepMs,
     required this.encodeMs,
     required this.gpuLatencyMs,
     required this.gpuLagFrames,
@@ -126,6 +129,12 @@ class FrameReport {
 
   /// `VoxelGame.frame` per tick.
   final List<double> simMs;
+
+  /// A fixed step's own cost: each tick that ran steps, its [simMs] over the
+  /// steps it ran. [simMs] grows with the steps a slow frame banks (up to
+  /// `FixedStepLoop.maxSteps`); this does not, so it is what a change to the
+  /// simulation moves on a device that is behind.
+  final List<double> stepMs;
 
   /// The scene's encoding per scene frame.
   final List<double> encodeMs;
@@ -175,6 +184,7 @@ class FrameReport {
         'buildMs': spread(buildMs),
         'rasterMs': spread(rasterMs),
         'simMs': spread(simMs),
+        'stepMs': spread(stepMs),
         'encodeMs': spread(encodeMs),
         'gpuLatencyMs': spread(gpuLatencyMs),
         'gpuLagFrames': spread(gpuLagFrames),

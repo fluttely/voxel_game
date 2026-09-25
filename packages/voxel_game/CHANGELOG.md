@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `FrameReport.stepMs`: a fixed step's own cost (each tick's simulation time over the
+  steps it ran), in the JSON as `stepMs`. `simMs` grows with the steps a slow frame banks,
+  so on a device that is behind it reads `FixedStepLoop`'s cap, not the simulation.
 - `GameWorld.isLoaded` and `groundHeight` read the chunk through
   `ChunkStreamer.chunkAtXZ`. With the engine's faster block queries, 40 creatures
   (`mobs:6`, M2 Pro at 120 Hz) run at 91 fps instead of 50, and the simulation's p99 falls
