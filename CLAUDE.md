@@ -39,8 +39,10 @@ ever sees, because no package sits above them. So every package publishes in pla
 `.pubignore`, through `tool/publish_package.sh` (`PUBLISHING.md`). Do not put a package back
 at the root: that is what forced the `.pubignore` and the git-less copy this layout removed.
 
-Target: every platform Flutter supports. **macOS is the development platform** (Flutter GPU
-is enabled in each example's `macos/Runner/Info.plist`).
+Target: every platform Flutter GPU runs on — macOS, iOS, Android, Windows, Linux — from
+Flutter 3.47.1, **but not the web** (worker isolates, TCP sockets and save files need
+`dart:isolate` and `dart:io`). **macOS is the development platform**; each runner of
+`packages/voxel_game/example/` turns Flutter GPU on.
 
 ## The map
 
@@ -55,6 +57,8 @@ is enabled in each example's `macos/Runner/Info.plist`).
 | How the packages were extracted (VP, VK) and consolidated (VC) | `docs/VOXEL_PACKAGES_PLAN_2026-09-14.md` · `docs/VOXEL_KIT_PLAN_2026-09-18.md` · `docs/VOXEL_CONSOLIDATION_PLAN_2026-09-19.md` |
 | How this folder got its shape (VR; the move of `voxel_game` under `packages/` came after it, 2026-09-23) | `docs/VOXEL_RELAYOUT_PLAN_2026-09-21.md` |
 | Architecture ledger (rule 17) | `docs/LEDGER.md` |
+| The frame-rate plan, its method and its baseline (PF) | `docs/VOXEL_PERF_PLAN_2026-09-25.md` · `docs/perf/` |
+| Measuring the frame rate | `dart tool/run_benchmark.dart` · `packages/voxel_game/example/lib/benchmark.dart` |
 | The terrain shader, source and compiled | `packages/voxel_scene/shaders/` · `packages/voxel_scene/assets/shaders/terrain.shaderbundle` |
 
 ---
@@ -105,8 +109,8 @@ is enabled in each example's `macos/Runner/Info.plist`).
     that built it, and a stale one fails at boot.
 16. **Every automation is a script, named for the job** (app 20), runnable standalone from
     its package's root (the repository's own, from the root), `--dry-run`/`--check` when it writes something committed. Today
-    there are two: `packages/voxel_scene/tool/build_shaders.dart` and
-    `tool/publish_package.sh` (from this folder's root).
+    there are three: `packages/voxel_scene/tool/build_shaders.dart`,
+    `tool/publish_package.sh` and `tool/run_benchmark.dart` (both from this folder's root).
 17. **Record an architectural observation, do not fix it mid-task** (app 21). A structural
     problem found while doing something else goes to `docs/LEDGER.md` as one 4-line entry
     (`Lens`, `Evidence` with `file:line`, `Cost of leaving it`, `Found while`), in the

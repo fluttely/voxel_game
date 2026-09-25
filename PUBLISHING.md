@@ -1,8 +1,9 @@
 # Publishing these packages
 
-Nothing here is published yet, but all four packages are ready to be: each is at
-`0.1.0-dev` under the MIT license, with its metadata and real version ranges, and the
-four dry runs pass (`docs/VOXEL_RELAYOUT_PLAN_2026-09-21.md`, VR4). They resolve
+All four packages are on pub.dev. `0.1.0-dev` went out on 2026-09-23, and `0.1.1-dev` is the
+next release: Windows and Linux runners, the phone graphics preset, and the frame
+measurements, with the four moving together. Each package is under the MIT license, with
+its metadata and real version ranges (`docs/VOXEL_RELAYOUT_PLAN_2026-09-21.md`, VR4). They resolve
 each other through the pub workspace declared in the root `pubspec.yaml`, which is
 not a package: all four live under `packages/`. The reasoning behind the four-package split is in
 [`docs/VOXEL_CONSOLIDATION_PLAN_2026-09-19.md`](docs/VOXEL_CONSOLIDATION_PLAN_2026-09-19.md),
@@ -26,8 +27,8 @@ repository pub bundles a package's own folder, filtered by the `.gitignore` file
 from the git root down to it. The root holds no package, so nothing above a
 package has to be hidden from it, and the repository's own files (`CLAUDE.md`,
 `AGENTS.md`, this file, `README.md`, `docs/`, `tool/`) sit where no tarball looks.
-Each package ships its `example/` whole, the macOS runner included — its
-`Info.plist` is where a reader sees Flutter GPU turned on.
+Each package ships its `example/` whole, its runners included — they are where a
+reader sees Flutter GPU turned on, one platform at a time.
 
 Until 2026-09-23 `voxel_game` sat at the root. It needed a `.pubignore` with
 `packages/` to keep the other three out of its tarball, and that same line hid the

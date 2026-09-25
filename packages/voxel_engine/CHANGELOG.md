@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.1-dev
+
+- No code change. The README says why the web is not a target: streaming spawns
+  isolates and `net.dart` is TCP sockets, through `dart:isolate` and `dart:io`.
+
 ## 0.1.0-dev
 
 First version. It is the five pure-Dart packages that came

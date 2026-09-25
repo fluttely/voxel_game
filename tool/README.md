@@ -14,5 +14,5 @@ tool/publish_package.sh voxel_scene
 tool/publish_package.sh voxel_game
 
 # 3. tags (opcional, mas recomendo)
-git tag voxel_engine-v0.1.0-dev && git tag sound_recipes-v0.1.0-dev \
-  && git tag voxel_scene-v0.1.0-dev && git tag voxel_game-v0.1.0-dev && git push --tags
+git tag voxel_engine-v0.1.1-dev && git tag sound_recipes-v0.1.1-dev \
+  && git tag voxel_scene-v0.1.1-dev && git tag voxel_game-v0.1.1-dev && git push --tags

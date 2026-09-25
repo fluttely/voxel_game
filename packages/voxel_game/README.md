@@ -9,7 +9,7 @@ multiplayer.
 It is the kit over `voxel_engine`, `voxel_scene` and `sound_recipes`, and it
 re-exports what a game needs, so a game imports only this library.
 
-> **Status: 0.1.0-dev**, the first release. The API can still change.
+> **Status: 0.1.1-dev**, beta. The API can still change.
 
 ## The four packages
 
@@ -40,12 +40,16 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
 - `SpawnRule.daylight()` / `SpawnRule.dark()`, `Drop`s.
 - Save slots, and `hostPort` / `join` for multiplayer.
 - Hooks: `onBlockBroken`, `onBlockPlaced`, `onMobKilled`, `onTick`, and `GameSystem`s.
+- `GraphicsSpec`: render scale, a pixel-ratio cap, anti-aliasing and the sun's shadows, with
+  a `desktop` and a `phone` preset (the phone's is picked on iOS and Android).
+- `VoxelGame.stats`: an FPS readout, and per-frame samples (UI, raster, simulation, scene
+  encoding, GPU latency) for a benchmark.
 
 ## Install
 
 ```yaml
 dependencies:
-  voxel_game: ^0.1.0-dev
+  voxel_game: ^0.1.1-dev
 ```
 
 To work against a checkout of the repository instead, override all four packages by
@@ -62,14 +66,26 @@ dependency_overrides:
 
 Dart SDK `^3.13.0`.
 
-- **macOS for now.** Turn Flutter GPU on in `macos/Runner/Info.plist`:
+- **Flutter 3.47.1 or later**, with Flutter GPU turned on in each runner: `flutter_scene`
+  draws through it, and it is off by default.
 
-  ```xml
-  <key>FLTEnableFlutterGPU</key>
-  <true/>
-  ```
+  | Platform | File | Add |
+  |:---|:---|:---|
+  | macOS, iOS | `macos/Runner/Info.plist`, `ios/Runner/Info.plist` | `<key>FLTEnableFlutterGPU</key><true/>` |
+  | Android | `android/app/src/main/AndroidManifest.xml`, in `<application>` | `<meta-data android:name="io.flutter.embedding.android.EnableFlutterGPU" android:value="true" />` |
+  | Windows | `windows/runner/main.cpp`, after `flutter::DartProject project(L"data");` | `project.set_enable_flutter_gpu(true);` |
+  | Linux | `linux/runner/my_application.cc`, after `fl_dart_project_new()` | `fl_dart_project_set_enable_flutter_gpu(project, TRUE);` |
 
-- For multiplayer, add the `com.apple.security.network.server` and
+  The Windows and Linux settings first shipped in Flutter 3.47.1; before it only the
+  `--enable-flutter-gpu` flag turns Flutter GPU on, and release builds ignore it.
+  macOS and Android are measured (`example/`); the example's iOS, Windows and Linux
+  runners are set up but have not been run yet. On Windows and Linux the mouse look is a
+  drag, not a locked cursor: `pointer_lock` locks it only on macOS.
+- **Not the web.** Chunks are generated on worker isolates, multiplayer is TCP sockets and
+  saves are files, through `dart:isolate` and `dart:io`, which a browser does not have.
+  (`flutter_scene` itself runs on the web; the kit does not.)
+
+- For multiplayer on macOS, add the `com.apple.security.network.server` and
   `com.apple.security.network.client` entitlements.
 
 ## Usage
@@ -114,7 +130,7 @@ Dart SDK `^3.13.0`.
    ```
 
 5. **Grow it** with `items`, `recipes`, `player: PlayerSpec(startingItems: {...})`,
-   `sky`, `sounds`, `signals`, and the `on...` hooks.
+   `sky`, `sounds`, `signals`, `graphics`, and the `on...` hooks.
 
 6. **Play together (optional):** `runVoxelGame(spec, hostPort: 7777)` on one
    machine and `runVoxelGame(spec, join: '192.168.0.10')` on another.

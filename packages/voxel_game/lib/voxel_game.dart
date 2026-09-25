@@ -4,6 +4,8 @@
 /// sound_recipes a game declares with, so a game imports this one library.
 library;
 
+export 'package:flutter_scene/scene.dart' show AntiAliasingMode;
+
 export 'package:sound_recipes/sound_recipes.dart' show MusicDirector, SilentSounds, SoundBank, SoundFamily, SoundPlayer, SoundRecipe, StockSounds;
 export 'package:voxel_engine/content.dart';
 export 'package:voxel_engine/core.dart' show BlockShape, IVec3;
@@ -32,6 +34,7 @@ export 'src/entities/target.dart';
 export 'src/input/input_map.dart';
 export 'src/input/voxel_action.dart';
 export 'src/loop/fixed_step_loop.dart';
+export 'src/loop/frame_stats.dart';
 export 'src/mobs/behaviors.dart';
 export 'src/mobs/goal.dart';
 export 'src/mobs/mob.dart';
@@ -42,6 +45,7 @@ export 'src/mobs/spawner.dart';
 export 'src/player/character_motor.dart';
 export 'src/player/player_entity.dart';
 export 'src/player/player_spec.dart';
+export 'src/spec/graphics_spec.dart';
 export 'src/spec/sky_spec.dart';
 export 'src/spec/voxel_game_spec.dart';
 export 'src/world/game_world.dart';

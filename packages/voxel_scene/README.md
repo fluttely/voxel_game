@@ -4,7 +4,7 @@ Draws `voxel_engine` worlds with [flutter_scene](https://pub.dev/packages/flutte
 one scene node per chunk, a terrain material with its own shaders, a day
 and night sky, block models and the selection outline.
 
-> **Status: 0.1.0-dev**, the first release. The API can still change.
+> **Status: 0.1.1-dev**, beta. The API can still change.
 
 ## Features
 
@@ -17,17 +17,20 @@ and night sky, block models and the selection outline.
 
 ```yaml
 dependencies:
-  voxel_scene: ^0.1.0-dev
+  voxel_scene: ^0.1.1-dev
 ```
 
 Dart SDK `^3.13.0`.
 
-- **macOS for now.** Turn Flutter GPU on in `macos/Runner/Info.plist`:
-
-  ```xml
-  <key>FLTEnableFlutterGPU</key>
-  <true/>
-  ```
+- **Flutter 3.47.1 or later**, with Flutter GPU turned on in each runner: `flutter_scene`
+  draws through it, and it is off by default. macOS and iOS take
+  `<key>FLTEnableFlutterGPU</key><true/>` in `Runner/Info.plist`, Android the
+  `io.flutter.embedding.android.EnableFlutterGPU` meta-data in its manifest, Windows
+  `project.set_enable_flutter_gpu(true);` in `runner/main.cpp` and Linux
+  `fl_dart_project_set_enable_flutter_gpu(project, TRUE);` in `runner/my_application.cc`
+  (the last two exist from Flutter 3.47.1). `voxel_game`'s README has the table.
+- **Not the web.** `voxel_engine` streams chunks on worker isolates and talks over TCP
+  sockets (`dart:isolate`, `dart:io`), which a browser does not have.
 
 - `flutter_scene` is pinned to `0.23.0`: the terrain material uses its private GPU layer.
 - The shaders ship compiled in `assets/shaders/`. After a Flutter upgrade or a

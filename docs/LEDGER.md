@@ -60,4 +60,26 @@
 - **Cost of leaving it:** with two clients far from the host, one of them breaks or places a block and the other never sees it until it rejoins; its world disagrees with the host's, collision included. The example app had the same gap and closes it by broadcasting explicitly when the host stores an edit it could not write (`examples/voxel_game_minecraft/lib/src/game/net.dart`, `_onBlockRequest`).
 - **Found while:** 2026-09-23 — fixing the example's lost edits in unloaded chunks.
 
+### KL-004 · Windows and Linux get a drag to look, not a locked mouse
+
+- **Lens:** platform parity / input
+- **Evidence:** `packages/voxel_game/lib/src/input/input_map.dart:180-191`: the look is `pointer_lock`'s when `PointerLock.instance.isSupported`, and a drag otherwise. `pointer_lock` 0.4.1 registers only `macos` (and web), and its method channel answers `isSupported` false on every other target (`pointer_lock_method_channel.dart:28`). So a desktop with a mouse on Windows or Linux falls into the phone's branch: the cursor stays free and visible, and the view turns only while a button is held down. Both examples gained `windows/` and `linux/` runners on 2026-09-24, and neither has been built or run on those systems.
+- **Cost of leaving it:** the kit says it targets every platform Flutter supports, but a first-person game on two of the three desktops plays like a touch screen with a mouse. Nothing tells a game author about it: `pointerLockSupported` is public, but the README never mentions it.
+- **Found while:** 2026-09-24 — adding Windows and Linux runners to the examples, for the launch post.
+
+### KL-006 · The minecraft example measures the published kit, not this tree
+
+- **Lens:** testing / witness
+- **Evidence:** `examples/voxel_game_minecraft/pubspec.lock` resolves `voxel_engine`, `voxel_scene` and `voxel_game` as `hosted` (pub.dev, with a `sha256`), and there is no `pubspec_overrides.yaml` beside it. Its `tool/perf_loop.sh` and its probe flags therefore run whatever 0.1.0-dev pub.dev holds. Its `CLAUDE.md` still describes itself as `poc_cubeworld/` with the kit under `packages/voxel_game/`.
+- **Cost of leaving it:** the app that plays the kit hardest is not a witness of a kit change until the change is published, so a regression in the tree reaches it only after a release. It is also why the frame-rate plan (`docs/VOXEL_PERF_PLAN_2026-09-25.md`) measures the kit's own example instead.
+- **Found while:** 2026-09-25 — `PF0`, choosing the game to benchmark.
+
 ## Closed
+
+### KL-005 · Windows and Linux builds of the examples cannot render in release
+
+- **Lens:** platform parity / build
+- **Evidence:** `packages/voxel_game/example/windows/runner/main.cpp` and `packages/voxel_game/example/linux/runner/my_application.cc` (and the minecraft example's) never switch Flutter GPU on. flutter_scene 0.23.0's README (`~/.pub-cache/hosted/pub.dev/flutter_scene-0.23.0/README.md:128-146`) says a Windows or Linux runner does it with `DartProject.set_enable_flutter_gpu` / `fl_dart_project_set_enable_flutter_gpu`, which exist only from Flutter 3.47.1; on 3.47.0 (this machine) only a command-line flag does, and release builds compile it out.
+- **Cost of leaving it:** the runners added on 2026-09-24 build, launch and draw nothing in release; `KL-004`'s look-by-drag is moot until they draw. The fix is two lines per runner, but only after the Flutter upgrade, and the bundle must be rebuilt then too (`CLAUDE.md` rule 15).
+- **Found while:** 2026-09-25 — `PF0`, deciding which platforms the benchmark can measure.
+- **Closed by:** 2026-09-25 — Flutter 3.47.5 on this machine (the shader bundle rebuilt byte for byte the same), and `voxel_game example: the Windows and Linux runners turn Flutter GPU on`, which adds the call to both runners and has the kit require Flutter 3.47.1. The minecraft example's runners (`examples/voxel_game_minecraft/`) got the same two lines in `examples/voxel_game_minecraft: the Windows and Linux runners turn Flutter GPU on`, after this entry wrongly said that example lived in another repository.

@@ -8,6 +8,7 @@ import '../mobs/mob.dart';
 import '../mobs/mob_spec.dart';
 import '../player/player_spec.dart';
 import '../world/game_world.dart';
+import 'graphics_spec.dart';
 import 'signal_spec.dart';
 import 'sky_spec.dart';
 import 'sound_spec.dart';
@@ -40,6 +41,7 @@ class VoxelGameSpec {
     this.signals,
     this.seed = 1,
     this.renderDistance = 6,
+    this.graphics,
     this.mining = const MiningRules(),
     this.liquids = const {},
     this.systems = const [],
@@ -83,6 +85,10 @@ class VoxelGameSpec {
   /// How many chunks are streamed around the player.
   final int renderDistance;
 
+  /// How the world is drawn; null for [GraphicsSpec.phone] on iOS and Android
+  /// and [GraphicsSpec.desktop] everywhere else.
+  final GraphicsSpec? graphics;
+
   /// How long blocks take to break.
   final MiningRules mining;
 
@@ -103,6 +109,51 @@ class VoxelGameSpec {
 
   /// After every simulation step.
   final void Function(VoxelGame game, double dt)? onTick;
+
+  /// This game with the given fields replaced: the same world at another
+  /// render distance, say, or with a hook of a test's.
+  VoxelGameSpec copyWith({
+    List<BlockType>? blocks,
+    WorldGenSpec? world,
+    List<ItemType>? items,
+    List<Recipe>? recipes,
+    PlayerSpec? player,
+    List<MobSpec>? mobs,
+    SkySpec? sky,
+    SoundSpec? sounds,
+    SignalSpec? signals,
+    int? seed,
+    int? renderDistance,
+    GraphicsSpec? graphics,
+    MiningRules? mining,
+    Map<String, LiquidSpec>? liquids,
+    List<GameSystem>? systems,
+    void Function(VoxelGame game, String block, IVec3 cell)? onBlockBroken,
+    void Function(VoxelGame game, String block, IVec3 cell)? onBlockPlaced,
+    void Function(VoxelGame game, Mob mob)? onMobKilled,
+    void Function(VoxelGame game, double dt)? onTick,
+  }) =>
+      VoxelGameSpec(
+        blocks: blocks ?? this.blocks,
+        world: world ?? this.world,
+        items: items ?? this.items,
+        recipes: recipes ?? this.recipes,
+        player: player ?? this.player,
+        mobs: mobs ?? this.mobs,
+        sky: sky ?? this.sky,
+        sounds: sounds ?? this.sounds,
+        signals: signals ?? this.signals,
+        seed: seed ?? this.seed,
+        renderDistance: renderDistance ?? this.renderDistance,
+        graphics: graphics ?? this.graphics,
+        mining: mining ?? this.mining,
+        liquids: liquids ?? this.liquids,
+        systems: systems ?? this.systems,
+        onBlockBroken: onBlockBroken ?? this.onBlockBroken,
+        onBlockPlaced: onBlockPlaced ?? this.onBlockPlaced,
+        onMobKilled: onMobKilled ?? this.onMobKilled,
+        onTick: onTick ?? this.onTick,
+      );
 
   /// The block registry: [blocks] with air first.
   BlockRegistry<BlockType> buildBlocks() => BlockRegistry([

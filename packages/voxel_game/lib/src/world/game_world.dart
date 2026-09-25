@@ -146,6 +146,12 @@ class GameWorld implements VoxelEditor {
   /// How many chunks are loaded.
   int get loadedChunkCount => _streamer.loadedChunkCount;
 
+  /// Chunk meshes built since the world started, remeshes included.
+  int get chunksBuilt => _streamer.chunksBuilt;
+
+  /// Faces in every mesh built since the world started.
+  int get facesEmitted => _streamer.facesEmitted;
+
   /// How bright the sky's baked light shows (1 noon, ~0.35 night).
   void setSkyIntensity(double value) => _view?.setSkyIntensity(value);
 
