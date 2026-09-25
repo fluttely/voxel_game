@@ -68,6 +68,37 @@ same display, on AC power, other heavy apps closed. Medians of 3 runs; a change 
 only when it is larger than the spread (±) of both sides. The display's refresh rate is in
 every line (`refreshHz`): compare only lines taken at the same rate.
 
+**Validity: the screen must be unlocked.** A locked Mac keeps rendering the game's frames
+behind the lock screen, but the display never shows them: presentation runs at 60 Hz
+whatever the display can do, and `gpuMs` is paced by the lock screen (it stayed at 12–13 ms
+at radius 6 whether the frame drew 100% or 56% of the pixels, with or without shadows). A
+Metal System Trace of that state (`xcrun xctrace record --template 'Metal System Trace'`,
+which needs the **profile** build: release lacks `get-task-allow`) recorded GPU work from
+`loginwindow` only. So, for a run taken with the screen locked, the UI, encode, sim, fill
+and RSS columns hold, and fps, hitches and GPU are indicative at best. Since `906ffac`
+`tool/run_benchmark.dart` records `screenLocked` in every line and says so in its summary
+and comparison. **The baseline and the PF1 runs of 2026-09-25 (≈00:40–01:40) were taken
+locked** (verified during the PF1 runs; the display ran at 60 Hz from the first run, and
+it reached 120 Hz on 2026-09-11), before the script could record it.
+
+**`gpuMs` still needs a check with the screen unlocked**: its values against a Metal
+System Trace of the profile build (the `metal-gpu-intervals` table, summed per frame). If
+it tracks, it stays; if it does not, the trace becomes the GPU column's source.
+
+**The final comparison (PF17) is an A/B in one sitting**, unlocked, which makes the locked
+baseline above a preview rather than the reference: the harness is committed at `67da3ac`,
+so the before is rebuilt from that commit in a worktree and run alternately with the after.
+
+```bash
+git worktree add --detach /tmp/voxel_bench_pf0 67da3ac
+(cd /tmp/voxel_bench_pf0 && flutter pub get)
+dart /tmp/voxel_bench_pf0/tool/run_benchmark.dart --out /tmp/pf17_before.jsonl   # absolute paths:
+dart tool/run_benchmark.dart --out /tmp/pf17_after.jsonl                         # each script runs from its own root
+# second round in the other order (after, then before), same --out files, then:
+dart tool/run_benchmark.dart --compare /tmp/pf17_before.jsonl /tmp/pf17_after.jsonl
+git worktree remove /tmp/voxel_bench_pf0
+```
+
 **Phones.** Not measured yet: no device was attached on 2026-09-25. `benchmark.dart` takes
 its flags from `--dart-define=BENCH="--scenario=orbit --radius=6"` on a platform that
 cannot pass arguments; the line it prints is the same.
@@ -114,6 +145,12 @@ separate baseline, not comparable with this one.
 Each step is one commit, suite green, measured with the benchmark afterwards; its row in
 Progress carries the numbers that moved.
 
+**Order after PF1, by what the baseline showed.** The CPU wall is the creatures (sim p99
+75 ms), and a locked screen still measures CPU honestly, so the next steps are the ones
+that move CPU columns: PF5 → PF6 → PF7 → PF9 → PF3 → PF2 → PF4 → PF8 → PF10 → PF11 → PF12.
+The GPU steps (PF13–PF15) wait for an unlocked sitting and the `gpuMs` check, because their
+gate is a GPU number.
+
 | ID | Step | Packages | Expected to move |
 |:--|:--|:--|:--|
 | PF0 | Measurement: `FrameStats`, `MeasuredScene`, the benchmark entry, `tool/run_benchmark.dart`, the baseline | voxel_game, example | — |
@@ -145,4 +182,13 @@ ledger, not in this plan.
 | ID | Status | Commit | Result |
 |:--|:--|:--|:--|
 | PF0 | done | `67da3ac` (measurement) · this commit (baseline) | the baseline above; `docs/perf/pf0_baseline.jsonl` |
-| PF1 | done | this commit | Desktop preset = the old look, so no change expected but the far plane: none measurable at radius 6/12 (orbit:12 GPU p99 75.6 → 73.4, fps 59.0 → 54.3, both inside the ±2.5 spread). The variants (`docs/perf/pf1_graphics_variants.jsonl`, orbit:12) name the spikes: GPU p99 73 ms with the desktop look, 18–21 ms and **0 hitches** with any of shadows off, FXAA, render scale 0.75 or the phone preset; a 3° sun step leaves them (74.6). So radius 12 saturates the GPU with pixels (MSAA × Retina × the lit shader × four cascades), and the sun's steps are not the cause. Screen locked during these runs: see §Validity. |
+| PF1 | done | `906ffac` | Desktop preset = the old look, so no change expected but the far plane: none measurable at radius 6/12 (orbit:12 GPU p99 75.6 → 73.4, fps 59.0 → 54.3, both inside the ±2.5 spread). The variants (`docs/perf/pf1_graphics_variants.jsonl`, orbit:12) name the spikes: GPU p99 73 ms with the desktop look, 18–21 ms and **0 hitches** with any of shadows off, FXAA, render scale 0.75 or the phone preset; a 3° sun step leaves them (74.6). So radius 12 saturates the GPU with pixels (MSAA × Retina × the lit shader × four cascades), and the sun's steps are not the cause. Screen locked during these runs: see §Validity. |
+| — | tooling | this commit | `run_benchmark.dart` records whether the screen was locked; §Validity written. |
+
+**Where the work stopped (2026-09-25, context budget).** Last commit: this one. Next step:
+**PF5** (block queries), then the order above. Learned and not in the code: (1) the display
+ran at 60 Hz all night because the screen was locked, so no run so far saw 120 Hz; (2) the
+release build cannot be traced by Instruments, the profile build can; (3) `screencapture`
+from the terminal returns a black image (no Screen Recording permission), so a visual check
+needs the owner or an in-app capture; (4) in zsh, `rm -f dir/x*.jsonl` with no match aborts
+an `&&` chain.

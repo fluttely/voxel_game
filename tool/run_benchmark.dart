@@ -78,6 +78,8 @@ Future<void> main(List<String> argv) async {
       if (dryRun) continue;
       if (!first && cooldown > 0) await Future<void>.delayed(Duration(seconds: cooldown));
       first = false;
+      final locked = await screenLocked();
+      if (locked) stderr.writeln('  the screen is locked: the GPU time and fps of this run are not what a player sees');
       final r = await Process.run(cmd.first, cmd.sublist(1)).timeout(const Duration(minutes: 3));
       final found = const LineSplitter().convert('${r.stdout}').where((l) => l.startsWith('[bench] '));
       if (r.exitCode != 0 || found.isEmpty) {
@@ -86,6 +88,7 @@ Future<void> main(List<String> argv) async {
       }
       final line = <String, Object?>{
         ...jsonDecode(found.last.substring(8)) as Map<String, Object?>,
+        'screenLocked': locked,
         'commit': dirty ? '$commit+dirty' : commit,
         'machine': machine,
         'extra': extra.join(' '),
@@ -98,6 +101,20 @@ Future<void> main(List<String> argv) async {
   }
   await sink?.close();
   if (!dryRun) stdout.write(table(lines));
+}
+
+/// Whether the session's screen is locked. A locked Mac still renders the game's
+/// frames, but behind the lock screen: the display does not show them, its
+/// refresh drops to 60 Hz and the GPU time is paced by the lock screen's. The
+/// CPU numbers stay valid; the GPU and fps ones do not (the plan's §Validity).
+Future<bool> screenLocked() async {
+  final r = await Process.run('swift', [
+    '-e',
+    'import CoreGraphics; let d = CGSessionCopyCurrentDictionary() as? [String: Any]; '
+        'print((d?["CGSSessionScreenIsLocked"] as? Bool) == true)',
+  ]);
+  if (r.exitCode != 0) throw StateError('could not read the screen lock state: ${r.stderr}');
+  return '${r.stdout}'.trim() == 'true';
 }
 
 List<Map<String, Object?>> read(String path) =>
@@ -156,6 +173,10 @@ String table(List<Map<String, Object?>> lines) {
     ];
     b.writeln('| ${e.key} | ${e.value.length} | ${cells.join(' | ')} |');
   }
+  final locked = lines.where((l) => l['screenLocked'] == true).length;
+  if (locked > 0) {
+    b.writeln('\n**Screen locked during $locked of ${lines.length} runs**: their GPU and fps columns are not what a player sees.');
+  }
   final first = lines.isEmpty ? null : lines.first;
   if (first != null) {
     b.writeln('\n${first['machine']} · ${first['platform']} · ${first['window']} @${first['dpr']}x · '
@@ -166,8 +187,12 @@ String table(List<Map<String, Object?>> lines) {
 
 /// Before and after, median against median, with the change in percent.
 String comparison(List<Map<String, Object?>> before, List<Map<String, Object?>> after) {
+  final lockedBefore = before.any((l) => l['screenLocked'] == true), lockedAfter = after.any((l) => l['screenLocked'] == true);
+  final warning = lockedBefore == lockedAfter
+      ? (lockedBefore ? '**Both sides ran with the screen locked**: compare CPU columns only.\n\n' : '')
+      : '**One side ran with the screen locked and the other did not**: the GPU and fps rows are not comparable.\n\n';
   final a = byKey(before), z = byKey(after);
-  final b = StringBuffer()
+  final b = StringBuffer(warning)
     ..writeln('| run | metric | before | after | change |')
     ..writeln('|:--|:--|--:|--:|--:|');
   for (final key in a.keys.where(z.containsKey)) {
