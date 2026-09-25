@@ -18,6 +18,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   ::CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
 
   flutter::DartProject project(L"data");
+  // flutter_scene draws through Flutter GPU, which is off by default.
+  project.set_enable_flutter_gpu(true);
 
   std::vector<std::string> command_line_arguments =
       GetCommandLineArguments();
