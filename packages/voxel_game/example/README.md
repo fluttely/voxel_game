@@ -5,8 +5,12 @@ of forest and plains with trees and coal, a few recipes, a player with a
 pickaxe, sheep by day and zombies by night.
 
 ```bash
-flutter run -d macos
+flutter run -d macos          # or a phone: flutter run -d <device id>
 ```
+
+The macOS, Android and iOS runners turn on Flutter GPU, which `flutter_scene` draws
+through (`macos/Runner/Info.plist`, `android/app/src/main/AndroidManifest.xml`,
+`ios/Runner/Info.plist`); the Windows and Linux ones cannot yet (`docs/LEDGER.md`, KL-005).
 
 Click to play. WASD move, Space jump, Shift run, Ctrl sneak, mouse look, left button
 mine or hit, right button place, 1-9 or the wheel pick a hotbar slot, V first or third
