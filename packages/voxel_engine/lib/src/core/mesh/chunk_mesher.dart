@@ -46,8 +46,16 @@ class MeshSurface {
 /// they draw, and the chunk's light volumes.
 class ChunkMeshResult {
   /// A result; [ChunkMesher.build] makes these.
-  ChunkMeshResult(this.solid, this.liquid, this.cutout, this.glow,
-      {required this.sky, required this.block, this.aoVerts = 0, this.ms = 0.0});
+  ChunkMeshResult(
+    this.solid,
+    this.liquid,
+    this.cutout,
+    this.glow, {
+    required this.sky,
+    required this.block,
+    this.aoVerts = 0,
+    this.ms = 0.0,
+  });
 
   /// Opaque, lit faces.
   final MeshSurface solid;
@@ -123,8 +131,20 @@ class _Surface {
 
   int get vertexCount => v.length ~/ 3;
 
-  void vertex(double x, double y, double z, double nx, double ny, double nz, double r, double g, double b, double a,
-      double sky, double block) {
+  void vertex(
+    double x,
+    double y,
+    double z,
+    double nx,
+    double ny,
+    double nz,
+    double r,
+    double g,
+    double b,
+    double a,
+    double sky,
+    double block,
+  ) {
     v.add3(x, y, z);
     n.add3(nx, ny, nz);
     c.add(r);
@@ -140,11 +160,19 @@ class _Surface {
   /// anisotropic AO: `flip = ao0 + ao2 < ao1 + ao3`.
   void quadIndices(int f, bool flip) {
     if (!flip) {
-      i.add(f); i.add(f + 1); i.add(f + 2);
-      i.add(f); i.add(f + 2); i.add(f + 3);
+      i.add(f);
+      i.add(f + 1);
+      i.add(f + 2);
+      i.add(f);
+      i.add(f + 2);
+      i.add(f + 3);
     } else {
-      i.add(f + 1); i.add(f + 2); i.add(f + 3);
-      i.add(f + 1); i.add(f + 3); i.add(f);
+      i.add(f + 1);
+      i.add(f + 2);
+      i.add(f + 3);
+      i.add(f + 1);
+      i.add(f + 3);
+      i.add(f);
     }
   }
 
@@ -227,10 +255,31 @@ class ChunkMesher {
   /// this list to the enum.
   @visibleForTesting
   static const List<int> shapeIndices = [
-    _shapeCube, _shapeCross, _shapeLiquid, _shapeTorch, _shapeFlower, _shapePanelZ, _shapePanelX, _shapeWallTorch,
-    _shapeSlab, _shapeFence, _shapeStairsN, _shapeStairsE, _shapeStairsS, _shapeStairsW, _shapeWire,
-    _shapeRailNs, _shapeRailEw, _shapeRailNe, _shapeRailNw, _shapeRailSe, _shapeRailSw,
-    _shapeRailSlopeN, _shapeRailSlopeE, _shapeRailSlopeS, _shapeRailSlopeW,
+    _shapeCube,
+    _shapeCross,
+    _shapeLiquid,
+    _shapeTorch,
+    _shapeFlower,
+    _shapePanelZ,
+    _shapePanelX,
+    _shapeWallTorch,
+    _shapeSlab,
+    _shapeFence,
+    _shapeStairsN,
+    _shapeStairsE,
+    _shapeStairsS,
+    _shapeStairsW,
+    _shapeWire,
+    _shapeRailNs,
+    _shapeRailEw,
+    _shapeRailNe,
+    _shapeRailNw,
+    _shapeRailSe,
+    _shapeRailSw,
+    _shapeRailSlopeN,
+    _shapeRailSlopeE,
+    _shapeRailSlopeS,
+    _shapeRailSlopeW,
     _shapeLadder,
   ];
 
@@ -273,6 +322,7 @@ class ChunkMesher {
     _glow = _tGlow ??= Uint8List(_padVolume);
     _queue = _tQueue ??= Int32List(_padVolume * 2);
   }
+
   int _aoVerts = 0;
 
   // The light of the cell last read by [_lightUv]: sky / 15, block / 15.
@@ -308,8 +358,17 @@ class ChunkMesher {
     return _opaque[_blocks[_p(x, y, z)]];
   }
 
-  void _fill(Uint8List c, Uint8List? nx, Uint8List? px, Uint8List? nz, Uint8List? pz,
-      Uint8List? nxnz, Uint8List? pxnz, Uint8List? nxpz, Uint8List? pxpz) {
+  void _fill(
+    Uint8List c,
+    Uint8List? nx,
+    Uint8List? px,
+    Uint8List? nz,
+    Uint8List? pz,
+    Uint8List? nxnz,
+    Uint8List? pxnz,
+    Uint8List? nxpz,
+    Uint8List? pxpz,
+  ) {
     _blocks.fillRange(0, _padVolume, 0);
     _copyChunk(c, 0, 0);
     _copyChunk(nx, -_sizeX, 0);
@@ -403,8 +462,10 @@ class ChunkMesher {
             final level = _sky[cell];
             if (level <= 1) continue;
             final need = level - 1;
-            if ((x > -_pad && _sky[cell - 1] < need) || (x < hi && _sky[cell + 1] < need) ||
-                (z > -_pad && _sky[cell - _px] < need) || (z < hiZ && _sky[cell + _px] < need)) {
+            if ((x > -_pad && _sky[cell - 1] < need) ||
+                (x < hi && _sky[cell + 1] < need) ||
+                (z > -_pad && _sky[cell - _px] < need) ||
+                (z < hiZ && _sky[cell + _px] < need)) {
               _queue[tail++] = cell;
             }
           }
@@ -478,15 +539,34 @@ class ChunkMesher {
 
   /// A flat-shaded axis-aligned box from `lo` to `hi` (chunk-local), one
   /// colour and one light for the top and one of each for the sides.
-  void _box(_Surface s, double lx, double ly, double lz, double hx, double hy, double hz,
-      double tr, double tg, double tb, double sr, double sg, double sb,
-      double topSky, double topBlock, double sideSky, double sideBlock, {bool tint = true}) {
+  void _box(
+    _Surface s,
+    double lx,
+    double ly,
+    double lz,
+    double hx,
+    double hy,
+    double hz,
+    double tr,
+    double tg,
+    double tb,
+    double sr,
+    double sg,
+    double sb,
+    double topSky,
+    double topBlock,
+    double sideSky,
+    double sideBlock, {
+    bool tint = true,
+  }) {
     for (var f = 0; f < 6; f++) {
       final k = f * 12;
       final t = tint ? _faceTint[f] : 1.0;
       final r = (f == 0 ? tr : sr) * t, g = (f == 0 ? tg : sg) * t, b = (f == 0 ? tb : sb) * t;
       final ls = f == 0 ? topSky : sideSky, lb = f == 0 ? topBlock : sideBlock;
-      final nx = _faceOffsets[f * 3].toDouble(), ny = _faceOffsets[f * 3 + 1].toDouble(), nz = _faceOffsets[f * 3 + 2].toDouble();
+      final nx = _faceOffsets[f * 3].toDouble(),
+          ny = _faceOffsets[f * 3 + 1].toDouble(),
+          nz = _faceOffsets[f * 3 + 2].toDouble();
       final first = s.vertexCount;
       for (var i = 0; i < 4; i++) {
         final vx = _faceVerts[k + i * 3] == 0 ? lx : hx;
@@ -502,9 +582,25 @@ class ChunkMesher {
   /// with the block boundary is culled and lit exactly like a cube face
   /// (neighbour cell, AO corners); an inner face is lit from the cell itself
   /// with no AO.
-  void _subBox(_Surface s, int x, int y, int z, int id, bool cullSame, List<int> aos,
-      double lox, double loy, double loz, double hix, double hiy, double hiz,
-      double br, double bg, double bb, {int skipMask = 0}) {
+  void _subBox(
+    _Surface s,
+    int x,
+    int y,
+    int z,
+    int id,
+    bool cullSame,
+    List<int> aos,
+    double lox,
+    double loy,
+    double loz,
+    double hix,
+    double hiy,
+    double hiz,
+    double br,
+    double bg,
+    double bb, {
+    int skipMask = 0,
+  }) {
     for (var f = 0; f < 6; f++) {
       if ((skipMask & (1 << f)) != 0) continue;
       final oxf = _faceOffsets[f * 3], oyf = _faceOffsets[f * 3 + 1], ozf = _faceOffsets[f * 3 + 2];
@@ -573,8 +669,24 @@ class ChunkMesher {
     }
   }
 
-  void _quad(_Surface s, List<double> a, List<double> b, List<double> c, List<double> d, double nx, double ny, double nz,
-      double r1, double g1, double b1, double r2, double g2, double b2, double ls, double lb) {
+  void _quad(
+    _Surface s,
+    List<double> a,
+    List<double> b,
+    List<double> c,
+    List<double> d,
+    double nx,
+    double ny,
+    double nz,
+    double r1,
+    double g1,
+    double b1,
+    double r2,
+    double g2,
+    double b2,
+    double ls,
+    double lb,
+  ) {
     final first = s.vertexCount;
     s.vertex(a[0], a[1], a[2], nx, ny, nz, r1, g1, b1, 1, ls, lb);
     s.vertex(b[0], b[1], b[2], nx, ny, nz, r2, g2, b2, 1, ls, lb);
@@ -632,19 +744,103 @@ class ChunkMesher {
                 final dx = w, dz = k == 0 ? w : -w;
                 final a = [c0x - dx, oy, c0z - dz], b = [c0x + dx, oy, c0z + dz];
                 final nX = 0.7, nZ = k == 0 ? -0.7 : 0.7;
-                _quad(cutout, a, [a[0], a[1] + hgt, a[2]], [b[0], b[1] + hgt, b[2]], b, nX, 0, nZ, dr, dg, db, cr, cg, cb, ls, lb);
-                _quad(cutout, b, [b[0], b[1] + hgt, b[2]], [a[0], a[1] + hgt, a[2]], a, -nX, 0, -nZ, dr, dg, db, cr, cg, cb, ls, lb);
+                _quad(
+                  cutout,
+                  a,
+                  [a[0], a[1] + hgt, a[2]],
+                  [b[0], b[1] + hgt, b[2]],
+                  b,
+                  nX,
+                  0,
+                  nZ,
+                  dr,
+                  dg,
+                  db,
+                  cr,
+                  cg,
+                  cb,
+                  ls,
+                  lb,
+                );
+                _quad(
+                  cutout,
+                  b,
+                  [b[0], b[1] + hgt, b[2]],
+                  [a[0], a[1] + hgt, a[2]],
+                  a,
+                  -nX,
+                  0,
+                  -nZ,
+                  dr,
+                  dg,
+                  db,
+                  cr,
+                  cg,
+                  cb,
+                  ls,
+                  lb,
+                );
               }
             } else {
               // A stem and a small coloured head.
               const sr = 0.30, sg = 0.55, sb = 0.22;
               final c0x = ox + 0.5 + jx, c0z = oz + 0.5 + jz;
               const d = 0.05;
-              _quad(cutout, [c0x - d, oy, c0z - d], [c0x - d, oy + 0.45, c0z - d], [c0x + d, oy + 0.45, c0z + d], [c0x + d, oy, c0z + d],
-                  0.7, 0, -0.7, sr, sg, sb, sr, sg, sb, ls, lb);
-              _quad(cutout, [c0x + d, oy, c0z + d], [c0x + d, oy + 0.45, c0z + d], [c0x - d, oy + 0.45, c0z - d], [c0x - d, oy, c0z - d],
-                  -0.7, 0, 0.7, sr, sg, sb, sr, sg, sb, ls, lb);
-              _box(cutout, c0x - 0.14, oy + 0.40, c0z - 0.14, c0x + 0.14, oy + 0.62, c0z + 0.14, cr, cg, cb, cr, cg, cb, ls, lb, ls, lb);
+              _quad(
+                cutout,
+                [c0x - d, oy, c0z - d],
+                [c0x - d, oy + 0.45, c0z - d],
+                [c0x + d, oy + 0.45, c0z + d],
+                [c0x + d, oy, c0z + d],
+                0.7,
+                0,
+                -0.7,
+                sr,
+                sg,
+                sb,
+                sr,
+                sg,
+                sb,
+                ls,
+                lb,
+              );
+              _quad(
+                cutout,
+                [c0x + d, oy, c0z + d],
+                [c0x + d, oy + 0.45, c0z + d],
+                [c0x - d, oy + 0.45, c0z - d],
+                [c0x - d, oy, c0z - d],
+                -0.7,
+                0,
+                0.7,
+                sr,
+                sg,
+                sb,
+                sr,
+                sg,
+                sb,
+                ls,
+                lb,
+              );
+              _box(
+                cutout,
+                c0x - 0.14,
+                oy + 0.40,
+                c0z - 0.14,
+                c0x + 0.14,
+                oy + 0.62,
+                c0z + 0.14,
+                cr,
+                cg,
+                cb,
+                cr,
+                cg,
+                cb,
+                ls,
+                lb,
+                ls,
+                lb,
+              );
             }
             continue;
           }
@@ -653,8 +849,26 @@ class ChunkMesher {
             // Flame on top, stick sides: the flame is full bright (block 15,
             // whatever the cell says), the stick takes the cell's light.
             _lightUv(x, y, z);
-            _box(solid, ox + 0.4, oy, oz + 0.4, ox + 0.6, oy + 0.62, oz + 0.6, br, bg, bb, 0.45, 0.32, 0.18,
-                0.0, 1.0, _ls, _lb, tint: false);
+            _box(
+              solid,
+              ox + 0.4,
+              oy,
+              oz + 0.4,
+              ox + 0.6,
+              oy + 0.62,
+              oz + 0.6,
+              br,
+              bg,
+              bb,
+              0.45,
+              0.32,
+              0.18,
+              0.0,
+              1.0,
+              _ls,
+              _lb,
+              tint: false,
+            );
             continue;
           }
 
@@ -675,20 +889,30 @@ class ChunkMesher {
             } else {
               wall = 2;
             }
-            void bar(double u0, double v0, double y0, double u1, double v1, double y1,
-                double r, double g, double b) {
+            void bar(double u0, double v0, double y0, double u1, double v1, double y1, double r, double g, double b) {
               final double ax0, az0, ax1, az1;
               if (wall == 0) {
-                ax0 = v0; ax1 = v1; az0 = u0; az1 = u1;
+                ax0 = v0;
+                ax1 = v1;
+                az0 = u0;
+                az1 = u1;
               } else if (wall == 1) {
-                ax0 = 1.0 - v1; ax1 = 1.0 - v0; az0 = u0; az1 = u1;
+                ax0 = 1.0 - v1;
+                ax1 = 1.0 - v0;
+                az0 = u0;
+                az1 = u1;
               } else if (wall == 2) {
-                ax0 = u0; ax1 = u1; az0 = v0; az1 = v1;
+                ax0 = u0;
+                ax1 = u1;
+                az0 = v0;
+                az1 = v1;
               } else {
-                ax0 = u0; ax1 = u1; az0 = 1.0 - v1; az1 = 1.0 - v0;
+                ax0 = u0;
+                ax1 = u1;
+                az0 = 1.0 - v1;
+                az1 = 1.0 - v0;
               }
-              _box(solid, ox + ax0, oy + y0, oz + az0, ox + ax1, oy + y1, oz + az1,
-                  r, g, b, r, g, b, ls, lb, ls, lb);
+              _box(solid, ox + ax0, oy + y0, oz + az0, ox + ax1, oy + y1, oz + az1, r, g, b, r, g, b, ls, lb, ls, lb);
             }
 
             const s0 = 0.1875, s1 = 0.3125, s2 = 0.6875, s3 = 0.8125, rungInset = 0.005;
@@ -712,15 +936,53 @@ class ChunkMesher {
               // Leans on the first opaque horizontal neighbour; full bright by design.
               double lx, ly, lz, hx, hy, hz;
               if (_opaqueAt(x - 1, y, z)) {
-                lx = 0.0; ly = 0.3; lz = 0.4; hx = 0.2; hy = 0.85; hz = 0.6;
+                lx = 0.0;
+                ly = 0.3;
+                lz = 0.4;
+                hx = 0.2;
+                hy = 0.85;
+                hz = 0.6;
               } else if (_opaqueAt(x + 1, y, z)) {
-                lx = 0.8; ly = 0.3; lz = 0.4; hx = 1.0; hy = 0.85; hz = 0.6;
+                lx = 0.8;
+                ly = 0.3;
+                lz = 0.4;
+                hx = 1.0;
+                hy = 0.85;
+                hz = 0.6;
               } else if (_opaqueAt(x, y, z - 1)) {
-                lx = 0.4; ly = 0.3; lz = 0.0; hx = 0.6; hy = 0.85; hz = 0.2;
+                lx = 0.4;
+                ly = 0.3;
+                lz = 0.0;
+                hx = 0.6;
+                hy = 0.85;
+                hz = 0.2;
               } else {
-                lx = 0.4; ly = 0.3; lz = 0.8; hx = 0.6; hy = 0.85; hz = 1.0;
+                lx = 0.4;
+                ly = 0.3;
+                lz = 0.8;
+                hx = 0.6;
+                hy = 0.85;
+                hz = 1.0;
               }
-              _box(solid, ox + lx, oy + ly, oz + lz, ox + hx, oy + hy, oz + hz, br, bg, bb, 0.45, 0.32, 0.18, 0.0, 1.0, 0.0, 1.0);
+              _box(
+                solid,
+                ox + lx,
+                oy + ly,
+                oz + lz,
+                ox + hx,
+                oy + hy,
+                oz + hz,
+                br,
+                bg,
+                bb,
+                0.45,
+                0.32,
+                0.18,
+                0.0,
+                1.0,
+                0.0,
+                1.0,
+              );
             } else {
               const t = 0.1875;
               if (sh == _shapePanelZ) {
@@ -730,9 +992,45 @@ class ChunkMesher {
               }
               const kr = 0.85, kg = 0.75, kb = 0.35;
               if (sh == _shapePanelZ) {
-                _box(solid, ox + 0.78, oy + 0.45, oz - 0.04, ox + 0.9, oy + 0.57, oz + t + 0.04, kr, kg, kb, kr, kg, kb, ls, lb, ls, lb);
+                _box(
+                  solid,
+                  ox + 0.78,
+                  oy + 0.45,
+                  oz - 0.04,
+                  ox + 0.9,
+                  oy + 0.57,
+                  oz + t + 0.04,
+                  kr,
+                  kg,
+                  kb,
+                  kr,
+                  kg,
+                  kb,
+                  ls,
+                  lb,
+                  ls,
+                  lb,
+                );
               } else {
-                _box(solid, ox - 0.04, oy + 0.45, oz + 0.78, ox + t + 0.04, oy + 0.57, oz + 0.9, kr, kg, kb, kr, kg, kb, ls, lb, ls, lb);
+                _box(
+                  solid,
+                  ox - 0.04,
+                  oy + 0.45,
+                  oz + 0.78,
+                  ox + t + 0.04,
+                  oy + 0.57,
+                  oz + 0.9,
+                  kr,
+                  kg,
+                  kb,
+                  kr,
+                  kg,
+                  kb,
+                  ls,
+                  lb,
+                  ls,
+                  lb,
+                );
               }
             }
             continue;
@@ -761,10 +1059,42 @@ class ChunkMesher {
                 _subBox(solid, x, y, z, id, cullSame, aos, x0, yo + ty, b2, x1, yo + by, b3, br, bg, bb);
               }
 
-              void tieZ(double zc, double yo) =>
-                  _subBox(solid, x, y, z, id, cullSame, aos, 0.0625, yo, zc - 0.09375, 0.9375, yo + ty, zc + 0.09375, tr, tg, tb);
-              void tieX(double xc, double yo) =>
-                  _subBox(solid, x, y, z, id, cullSame, aos, xc - 0.09375, yo, 0.0625, xc + 0.09375, yo + ty, 0.9375, tr, tg, tb);
+              void tieZ(double zc, double yo) => _subBox(
+                solid,
+                x,
+                y,
+                z,
+                id,
+                cullSame,
+                aos,
+                0.0625,
+                yo,
+                zc - 0.09375,
+                0.9375,
+                yo + ty,
+                zc + 0.09375,
+                tr,
+                tg,
+                tb,
+              );
+              void tieX(double xc, double yo) => _subBox(
+                solid,
+                x,
+                y,
+                z,
+                id,
+                cullSame,
+                aos,
+                xc - 0.09375,
+                yo,
+                0.0625,
+                xc + 0.09375,
+                yo + ty,
+                0.9375,
+                tr,
+                tg,
+                tb,
+              );
               if (sh == _shapeRailNs) {
                 tieZ(0.22, 0);
                 tieZ(0.78, 0);
@@ -844,13 +1174,33 @@ class ChunkMesher {
               _subBox(solid, x, y, z, id, cullSame, aos, 0, 0, 0, 1, 0.5, 1, br, bg, bb);
               double slx, sly, slz, shx, shy, shz;
               if (sh == _shapeStairsN) {
-                slx = 0; sly = 0.5; slz = 0; shx = 1; shy = 1; shz = 0.5;
+                slx = 0;
+                sly = 0.5;
+                slz = 0;
+                shx = 1;
+                shy = 1;
+                shz = 0.5;
               } else if (sh == _shapeStairsS) {
-                slx = 0; sly = 0.5; slz = 0.5; shx = 1; shy = 1; shz = 1;
+                slx = 0;
+                sly = 0.5;
+                slz = 0.5;
+                shx = 1;
+                shy = 1;
+                shz = 1;
               } else if (sh == _shapeStairsE) {
-                slx = 0.5; sly = 0.5; slz = 0; shx = 1; shy = 1; shz = 1;
+                slx = 0.5;
+                sly = 0.5;
+                slz = 0;
+                shx = 1;
+                shy = 1;
+                shz = 1;
               } else {
-                slx = 0; sly = 0.5; slz = 0; shx = 0.5; shy = 1; shz = 1;
+                slx = 0;
+                sly = 0.5;
+                slz = 0;
+                shx = 0.5;
+                shy = 1;
+                shz = 1;
               }
               _subBox(solid, x, y, z, id, cullSame, aos, slx, sly, slz, shx, shy, shz, br, bg, bb, skipMask: 1 << 1);
             }
@@ -910,7 +1260,20 @@ class ChunkMesher {
               final vx = ox + _faceVerts[k + i * 3];
               final vy = oy + _faceVerts[k + i * 3 + 1] * top;
               final vz = oz + _faceVerts[k + i * 3 + 2];
-              target.vertex(vx, vy, vz, oxf.toDouble(), oyf.toDouble(), ozf.toDouble(), br * t, bg * t, bb * t, ba, ls, lb);
+              target.vertex(
+                vx,
+                vy,
+                vz,
+                oxf.toDouble(),
+                oyf.toDouble(),
+                ozf.toDouble(),
+                br * t,
+                bg * t,
+                bb * t,
+                ba,
+                ls,
+                lb,
+              );
             }
             target.quadIndices(first, flip);
           }
@@ -928,7 +1291,15 @@ class ChunkMesher {
       }
     }
     watch.stop();
-    return ChunkMeshResult(solid.toSurface(), liquid.toSurface(), cutout.toSurface(), glow.toSurface(),
-        sky: skyOut, block: blockOut, aoVerts: _aoVerts, ms: watch.elapsedMicroseconds / 1000.0);
+    return ChunkMeshResult(
+      solid.toSurface(),
+      liquid.toSurface(),
+      cutout.toSurface(),
+      glow.toSurface(),
+      sky: skyOut,
+      block: blockOut,
+      aoVerts: _aoVerts,
+      ms: watch.elapsedMicroseconds / 1000.0,
+    );
   }
 }

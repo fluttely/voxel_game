@@ -76,7 +76,9 @@ void main() {
     test('a touch the system takes away decides nothing', () async {
       final input = map();
       input.onPointerDown(touchDown(1));
-      input.onPointerCancel(PointerCancelEvent(pointer: 1, kind: PointerDeviceKind.touch, position: const Offset(400, 300)));
+      input.onPointerCancel(
+        PointerCancelEvent(pointer: 1, kind: PointerDeviceKind.touch, position: const Offset(400, 300)),
+      );
       await Future<void>.delayed(input.mineDelay * 2);
       expect(input.down(VoxelAction.attack), isFalse);
       expect(input.justPressed(VoxelAction.use), isFalse);
@@ -138,7 +140,14 @@ void main() {
       input.setTouchHeld(VoxelAction.jump, true);
       input.touchMove(0.0, -1.0);
       input.hold(VoxelAction.sprint, true);
-      input.onKey(FocusNode(), const KeyDownEvent(physicalKey: PhysicalKeyboardKey.keyW, logicalKey: LogicalKeyboardKey.keyW, timeStamp: Duration.zero));
+      input.onKey(
+        FocusNode(),
+        const KeyDownEvent(
+          physicalKey: PhysicalKeyboardKey.keyW,
+          logicalKey: LogicalKeyboardKey.keyW,
+          timeStamp: Duration.zero,
+        ),
+      );
       expect(input.down(VoxelAction.moveForward), isTrue);
       input.releaseKeys();
       expect(input.down(VoxelAction.jump), isFalse);

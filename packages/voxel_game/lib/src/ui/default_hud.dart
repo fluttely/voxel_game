@@ -15,7 +15,8 @@ class DefaultHud extends StatelessWidget {
   /// The game shown.
   final VoxelGame game;
 
-  static Color _color(double r, double g, double b) => Color.fromARGB(255, (r * 255).round(), (g * 255).round(), (b * 255).round());
+  static Color _color(double r, double g, double b) =>
+      Color.fromARGB(255, (r * 255).round(), (g * 255).round(), (b * 255).round());
 
   @override
   Widget build(BuildContext context) {
@@ -24,12 +25,19 @@ class DefaultHud extends StatelessWidget {
     const shadow = [Shadow(offset: Offset(1, 1), blurRadius: 2)];
     return Stack(
       children: [
-        if (p.hurtFlash > 0.0) Positioned.fill(child: ColoredBox(color: Colors.red.withValues(alpha: 0.35 * p.hurtFlash))),
+        if (p.hurtFlash > 0.0)
+          Positioned.fill(
+            child: ColoredBox(color: Colors.red.withValues(alpha: 0.35 * p.hurtFlash)),
+          ),
         const Center(child: Icon(Icons.add, color: Colors.white70, size: 22)),
         if (p.mineProgress > 0.0)
           Align(
             alignment: const Alignment(0, 0.12),
-            child: SizedBox(width: 60, height: 4, child: LinearProgressIndicator(value: p.mineProgress, backgroundColor: Colors.black38)),
+            child: SizedBox(
+              width: 60,
+              height: 4,
+              child: LinearProgressIndicator(value: p.mineProgress, backgroundColor: Colors.black38),
+            ),
           ),
         Align(
           alignment: Alignment.bottomCenter,
@@ -43,7 +51,9 @@ class DefaultHud extends StatelessWidget {
                   children: [
                     for (var i = 0; i < (p.spec.hp / 2).ceil(); i++)
                       Icon(
-                        p.hp >= (i + 1) * 2 ? Icons.favorite : (p.hp > i * 2 ? Icons.heart_broken : Icons.favorite_border),
+                        p.hp >= (i + 1) * 2
+                            ? Icons.favorite
+                            : (p.hp > i * 2 ? Icons.heart_broken : Icons.favorite_border),
                         color: Colors.redAccent,
                         size: 18,
                       ),
@@ -60,7 +70,10 @@ class DefaultHud extends StatelessWidget {
                         margin: const EdgeInsets.all(2),
                         decoration: BoxDecoration(
                           color: Colors.black45,
-                          border: Border.all(color: i == p.selectedSlot ? Colors.white : Colors.white24, width: i == p.selectedSlot ? 3 : 1),
+                          border: Border.all(
+                            color: i == p.selectedSlot ? Colors.white : Colors.white24,
+                            width: i == p.selectedSlot ? 3 : 1,
+                          ),
                         ),
                         child: inv.isEmptySlot(i)
                             ? null
@@ -80,7 +93,10 @@ class DefaultHud extends StatelessWidget {
                                     Positioned(
                                       right: 3,
                                       bottom: 1,
-                                      child: Text('${inv.countAt(i)}', style: const TextStyle(fontSize: 12, shadows: shadow)),
+                                      child: Text(
+                                        '${inv.countAt(i)}',
+                                        style: const TextStyle(fontSize: 12, shadows: shadow),
+                                      ),
                                     ),
                                 ],
                               ),
@@ -97,11 +113,19 @@ class DefaultHud extends StatelessWidget {
           const Center(
             child: Padding(
               padding: EdgeInsets.only(top: 80),
-              child: Text('Click to play  -  WASD move, Space jump, mouse look, left mine, right place, V view, Esc free the mouse',
-                  style: TextStyle(fontSize: 14, shadows: shadow)),
+              child: Text(
+                'Click to play  -  WASD move, Space jump, mouse look, left mine, right place, V view, Esc free the mouse',
+                style: TextStyle(fontSize: 14, shadows: shadow),
+              ),
             ),
           ),
-        if (p.isDead) const Center(child: Text('You died', style: TextStyle(fontSize: 36, color: Colors.redAccent, shadows: shadow))),
+        if (p.isDead)
+          const Center(
+            child: Text(
+              'You died',
+              style: TextStyle(fontSize: 36, color: Colors.redAccent, shadows: shadow),
+            ),
+          ),
       ],
     );
   }

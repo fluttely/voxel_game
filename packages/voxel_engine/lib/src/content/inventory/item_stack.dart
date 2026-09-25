@@ -6,11 +6,11 @@ class ItemStack {
 
   /// A stack read back from [toJson].
   factory ItemStack.fromJson(Map<String, Object?> json) => ItemStack(
-        json['id']! as String,
-        (json['count']! as num).toInt(),
-        bonus: (json['bonus'] as num?)?.toInt() ?? 0,
-        dur: (json['dur'] as num?)?.toInt() ?? -1,
-      );
+    json['id']! as String,
+    (json['count']! as num).toInt(),
+    bonus: (json['bonus'] as num?)?.toInt() ?? 0,
+    dur: (json['dur'] as num?)?.toInt() ?? -1,
+  );
 
   /// The item.
   String id;

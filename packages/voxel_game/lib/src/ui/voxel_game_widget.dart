@@ -31,16 +31,26 @@ typedef HudBuilder = Widget Function(BuildContext context, VoxelGame game);
 /// when the widget goes away. With [hostPort] others can join the game on
 /// that port; with [join] (`'192.168.0.10'`, or `'host:port'`) this game
 /// joins one instead.
-Future<void> runVoxelGame(VoxelGameSpec spec,
-    {String title = 'Voxel game', HudBuilder? hud, String? saveSlot, int? hostPort, String? join}) async {
+Future<void> runVoxelGame(
+  VoxelGameSpec spec, {
+  String title = 'Voxel game',
+  HudBuilder? hud,
+  String? saveSlot,
+  int? hostPort,
+  String? join,
+}) async {
   WidgetsFlutterBinding.ensureInitialized();
   await VoxelGameWidget.loadResources();
-  runApp(MaterialApp(
-    title: title,
-    debugShowCheckedModeBanner: false,
-    theme: ThemeData.dark(),
-    home: Scaffold(body: VoxelGameWidget(spec: spec, hud: hud, saveSlot: saveSlot, hostPort: hostPort, join: join)),
-  ));
+  runApp(
+    MaterialApp(
+      title: title,
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData.dark(),
+      home: Scaffold(
+        body: VoxelGameWidget(spec: spec, hud: hud, saveSlot: saveSlot, hostPort: hostPort, join: join),
+      ),
+    ),
+  );
 }
 
 /// A running [VoxelGameSpec]: the 3D view, the controls (keyboard, mouse with
@@ -90,7 +100,8 @@ class VoxelGameWidget extends StatefulWidget {
   final Duration autosave;
 
   /// The app's default saves: `<application support>/worlds`.
-  static Future<WorldSaves> defaultSaves() async => WorldSaves(Directory('${(await getApplicationSupportDirectory()).path}/worlds'));
+  static Future<WorldSaves> defaultSaves() async =>
+      WorldSaves(Directory('${(await getApplicationSupportDirectory()).path}/worlds'));
 
   /// Loads flutter_scene's static resources and the terrain shader.
   static Future<void> loadResources() async {
@@ -228,7 +239,10 @@ class _VoxelGameWidgetState extends State<VoxelGameWidget> {
   Widget build(BuildContext context) {
     final game = _game;
     if (game == null) {
-      return const ColoredBox(color: Color(0xFF0E1420), child: Center(child: Text('Generating the world...')));
+      return const ColoredBox(
+        color: Color(0xFF0E1420),
+        child: Center(child: Text('Generating the world...')),
+      );
     }
     game.fitPixelRatio(MediaQuery.devicePixelRatioOf(context));
     return Focus(

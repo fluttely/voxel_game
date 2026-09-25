@@ -76,13 +76,13 @@ class WorldGenSpec {
 
   /// Every block name the spec uses, so a game can check its table has them.
   Set<String> get blockNames => {
-        stone,
-        water,
-        ?bedrock,
-        for (final b in [...biomes, ?ocean, ?beach]) ...b.blockNames,
-        for (final o in ores) o.block,
-        ?caves.lava,
-      };
+    stone,
+    water,
+    ?bedrock,
+    for (final b in [...biomes, ?ocean, ?beach]) ...b.blockNames,
+    for (final o in ores) o.block,
+    ?caves.lava,
+  };
 
   /// The generator of this world for [seed], resolving block names through
   /// [ids]. Throws [ArgumentError] naming the first block [ids] lacks.
@@ -107,15 +107,15 @@ class TerrainRecipe {
 
   /// Level ground at [height] everywhere: a builder's world, a test's floor.
   const TerrainRecipe.flat(int height)
-      : flatHeight = height,
-        lowland = 0,
-        highland = 0,
-        hills = 0,
-        coastHills = 0,
-        mountainBase = 0,
-        mountainRidge = 0,
-        rivers = false,
-        scale = 1.0;
+    : flatHeight = height,
+      lowland = 0,
+      highland = 0,
+      hills = 0,
+      coastHills = 0,
+      mountainBase = 0,
+      mountainRidge = 0,
+      rivers = false,
+      scale = 1.0;
 
   /// The height of a flat world, or null for the continental recipe.
   final int? flatHeight;
@@ -149,7 +149,14 @@ class TerrainRecipe {
 /// -1..1 (temperature drops with altitude); height is the surface height.
 class Climate {
   /// Every bound left null is open.
-  const Climate({this.minTemperature, this.maxTemperature, this.minHumidity, this.maxHumidity, this.minHeight, this.maxHeight});
+  const Climate({
+    this.minTemperature,
+    this.maxTemperature,
+    this.minHumidity,
+    this.maxHumidity,
+    this.minHeight,
+    this.maxHeight,
+  });
 
   /// Anywhere.
   static const Climate any = Climate();
@@ -244,12 +251,12 @@ class Biome {
 
   /// Every block this biome places.
   Set<String> get blockNames => {
-        top,
-        under,
-        for (final t in trees) ...t.blockNames,
-        for (final p in plants) p.block,
-        ?ice,
-      };
+    top,
+    under,
+    for (final t in trees) ...t.blockNames,
+    for (final p in plants) p.block,
+    ?ice,
+  };
 }
 
 /// The tree shapes of `Trees`.
@@ -277,20 +284,26 @@ enum TreeShape {
 class TreeSpec {
   /// A [shape] of [log] and [leaves], its trunk [minHeight] to [maxHeight]
   /// tall; [vines] hang from a jungle tree's crowns.
-  const TreeSpec(this.shape, {required this.log, required this.leaves, this.vines, this.minHeight = 9, this.maxHeight = 12})
-      : assert(minHeight <= maxHeight);
+  const TreeSpec(
+    this.shape, {
+    required this.log,
+    required this.leaves,
+    this.vines,
+    this.minHeight = 9,
+    this.maxHeight = 12,
+  }) : assert(minHeight <= maxHeight);
 
   /// An oak, 9-12 tall.
   const TreeSpec.oak({required String log, required String leaves, int minHeight = 9, int maxHeight = 12})
-      : this(TreeShape.oak, log: log, leaves: leaves, minHeight: minHeight, maxHeight: maxHeight);
+    : this(TreeShape.oak, log: log, leaves: leaves, minHeight: minHeight, maxHeight: maxHeight);
 
   /// A spruce, 12-16 tall.
   const TreeSpec.spruce({required String log, required String leaves, int minHeight = 12, int maxHeight = 16})
-      : this(TreeShape.spruce, log: log, leaves: leaves, minHeight: minHeight, maxHeight: maxHeight);
+    : this(TreeShape.spruce, log: log, leaves: leaves, minHeight: minHeight, maxHeight: maxHeight);
 
   /// A palm, 8-12 tall.
   const TreeSpec.palm({required String log, required String leaves, int minHeight = 8, int maxHeight = 12})
-      : this(TreeShape.palm, log: log, leaves: leaves, minHeight: minHeight, maxHeight: maxHeight);
+    : this(TreeShape.palm, log: log, leaves: leaves, minHeight: minHeight, maxHeight: maxHeight);
 
   /// The shape.
   final TreeShape shape;

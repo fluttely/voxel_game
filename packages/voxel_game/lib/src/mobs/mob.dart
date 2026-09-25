@@ -25,7 +25,10 @@ class Mob extends GameEntity implements Target {
     height = spec.height;
     position = at.clone();
     noclip = false;
-    motor = CharacterMotor(this, MotorTuning(groundAccel: 8.0, airAccel: 4.0, jumpVelocity: spec.gait == Gait.hop ? 7.0 : 8.0));
+    motor = CharacterMotor(
+      this,
+      MotorTuning(groundAccel: 8.0, airAccel: 4.0, jumpVelocity: spec.gait == Gait.hop ? 7.0 : 8.0),
+    );
   }
 
   /// What it is.
@@ -72,12 +75,14 @@ class Mob extends GameEntity implements Target {
   Vector3? _look;
   List<Vector3> _path = const [];
   int _pathIndex = 0;
-  double _repath = 0.0;
+  double _sincePlan = 0.0;
   Vector3? _pathGoal;
   double _hopCooldown = 0.0;
   double _flap = 0.0;
 
-  /// Whether the last path could not reach where it was asked to go.
+  /// Whether the path planned toward the goal of [walkTo] cannot reach it.
+  /// A plan sets it; a goal the last plan was not made for (more than
+  /// [replanDistance] from it) clears it until that goal is planned.
   bool pathBlocked = false;
 
   /// Its number in a networked game (the host's), 0 in a lone one.
@@ -121,6 +126,8 @@ class Mob extends GameEntity implements Target {
 
   /// Walks toward [goal] at [speed] of its pace, around walls.
   void walkTo(Vector3 goal, {double speed = 1.0}) {
+    final planned = _pathGoal;
+    if (planned == null || planned.distanceTo(goal) > replanDistance) pathBlocked = false;
     _goal = goal.clone();
     _speedScale = speed;
   }
@@ -144,10 +151,10 @@ class Mob extends GameEntity implements Target {
   String get _defaultHurt => spec.gait == Gait.fly
       ? 'hurt_flying'
       : spec.height < 0.9
-          ? 'hurt_small'
-          : spec.hp >= 30
-              ? 'hurt_large'
-              : 'hit';
+      ? 'hurt_small'
+      : spec.hp >= 30
+      ? 'hurt_large'
+      : 'hit';
 
   /// Its eye, where it looks and shoots from.
   Vector3 eye() => position + Vector3(0, height * 0.85, 0);
@@ -163,6 +170,8 @@ class Mob extends GameEntity implements Target {
   @override
   void attached(VoxelGame game) {
     _game = game;
+    // Staggered: creatures spawned in one step do not plan in the same steps.
+    _sincePlan = game.random.nextDouble() * replanEvery;
     setup(game.world, spec.halfWidth, spec.height);
     if (!game.headless) {
       final r = spec.rig.build(spec.halfWidth, spec.height);
@@ -231,7 +240,8 @@ class Mob extends GameEntity implements Target {
           // Idle fliers flutter on a fresh heading every few tenths.
           final r = game.random;
           _flap = 0.2 + r.nextDouble() * 0.4;
-          _direction = Vector3(r.nextDouble() * 2 - 1, r.nextDouble() * 1.2 - 0.6, r.nextDouble() * 2 - 1).normalized() * 0.4;
+          _direction =
+              Vector3(r.nextDouble() * 2 - 1, r.nextDouble() * 1.2 - 0.6, r.nextDouble() * 2 - 1).normalized() * 0.4;
           wish = _direction.clone();
         }
         final bob = math.sin(sinceHurt.isFinite ? sinceHurt * 9.0 : _flap * 9.0) * 0.4;
@@ -256,13 +266,37 @@ class Mob extends GameEntity implements Target {
     return to.length2 > 0.25 ? to.normalized() : Vector3.zero();
   }
 
-  /// A* toward [goal], re-planned every 0.6 s or when the goal moves; the
-  /// next waypoint is consumed within 0.35 m.
+  /// Seconds between two plans of a walker on its way.
+  static const double replanEvery = 0.6;
+
+  /// The least seconds between two plans, however far the goal moved.
+  static const double replanSoonest = 0.2;
+
+  /// A* searches one step runs at most, whichever mobs ask.
+  static const int searchesPerStep = 3;
+
+  /// Metres a goal moves before the path planned toward it is for another
+  /// goal: it is replanned from [replanSoonest], and its [pathBlocked] cleared.
+  static const double replanDistance = 1.5;
+
+  /// A* searches this mob has run.
+  int pathsPlanned = 0;
+
+  /// A* toward [goal], re-planned every [replanEvery] s, or sooner (never
+  /// before [replanSoonest]) when the goal moved [replanDistance]; the next waypoint is
+  /// consumed within 0.35 m. A path walked to its end is not re-planned at
+  /// once: an unreachable goal gives a partial or empty one, and planning it
+  /// again every step was most of a step's cost with 40 creatures. A plan
+  /// that is due when the step has spent its [searchesPerStep] waits for the
+  /// next step: mobs that start hunting together, or whose goal (the player)
+  /// moved in the same step, would otherwise all search in one.
   Vector3 _steer(VoxelGame game, Vector3 goal, double dt) {
-    _repath -= dt;
-    final moved = _pathGoal == null || _pathGoal!.distanceTo(goal) > 1.5;
-    if (_repath <= 0.0 || moved || _pathIndex >= _path.length) {
-      _repath = 0.6;
+    _sincePlan += dt;
+    final moved = _pathGoal == null || _pathGoal!.distanceTo(goal) > replanDistance;
+    if ((_sincePlan >= replanEvery || (moved && _sincePlan >= replanSoonest)) && game.searchesLeft > 0) {
+      game.searchesLeft--;
+      _sincePlan = 0.0;
+      pathsPlanned++;
       _pathGoal = goal.clone();
       final from = IVec3.floor(position + Vector3(0, 0.1, 0)), to = IVec3.floor(goal + Vector3(0, 0.1, 0));
       _path = Pathfinder.find(game.world, from, to, costs: game.pathCosts, maxNodes: 400);
@@ -297,14 +331,20 @@ class Mob extends GameEntity implements Target {
       want = (want + math.pi) % (math.pi * 2) - math.pi;
       lookYaw = want;
     }
-    r.animate(dt,
-        speed: math.sqrt(velocity.x * velocity.x + velocity.z * velocity.z),
-        targetYaw: _facing,
-        onFloor: onFloor,
-        flying: spec.gait == Gait.fly,
-        lookYaw: lookYaw,
-        verticalSpeed: velocity.y);
-    r.place(Vector3.zero(), scale: 1.0 + swell * 0.25, shake: _hurtFlash > 0.0 ? math.sin(_hurtFlash * 80.0) * 0.05 : 0.0);
+    r.animate(
+      dt,
+      speed: math.sqrt(velocity.x * velocity.x + velocity.z * velocity.z),
+      targetYaw: _facing,
+      onFloor: onFloor,
+      flying: spec.gait == Gait.fly,
+      lookYaw: lookYaw,
+      verticalSpeed: velocity.y,
+    );
+    r.place(
+      Vector3.zero(),
+      scale: 1.0 + swell * 0.25,
+      shake: _hurtFlash > 0.0 ? math.sin(_hurtFlash * 80.0) * 0.05 : 0.0,
+    );
   }
 
   @override

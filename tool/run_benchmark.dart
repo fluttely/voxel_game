@@ -280,7 +280,8 @@ List<Map<String, Object?>> read(String path) =>
 String keyOf(Map<String, Object?> l) => '${l['scenario']}:${l['radius']}${(l['extra'] as String? ?? '').isEmpty ? '' : ' ${l['extra']}'}';
 
 /// The columns: a label and how to read one run's value, null where the run
-/// did not measure it (the `gpuTrace` ones, taken only with `--trace`).
+/// did not measure it (the `gpuTrace` ones, taken only with `--trace`; the
+/// step ones, missing from runs recorded before PF6).
 final columns = <(String, num? Function(Map<String, Object?>))>[
   ('fps', (l) => l['fps'] as num),
   ('hitches', (l) => l['hitches'] as num),
@@ -293,6 +294,8 @@ final columns = <(String, num? Function(Map<String, Object?>))>[
   ('GPU busy %', (l) => (l['gpuTrace'] as Map?)?['busyPct'] as num?),
   ('encode p50 ms', (l) => (l['encodeMs'] as Map)['p50'] as num),
   ('sim p99 ms', (l) => (l['simMs'] as Map)['p99'] as num),
+  ('step p50 ms', (l) => (l['stepMs'] as Map?)?['p50'] as num?),
+  ('step p99 ms', (l) => (l['stepMs'] as Map?)?['p99'] as num?),
   ('raster p99 ms', (l) => (l['rasterMs'] as Map)['p99'] as num),
   ('fill ms', (l) => l['fillMs'] as num),
   ('faces', (l) => l['faces'] as num),

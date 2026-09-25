@@ -273,8 +273,9 @@ class VoxelBody {
       for (var z = minZ; z <= maxZ; z++) {
         for (var x = minX; x <= maxX; x++) {
           // y < 0 is solid rock.
-          final boxes =
-              y < 0 ? const [CollisionBox.full] : collisionBoxesAt(query, x, y, z, fenceBarrier: fenceBarrier);
+          final boxes = y < 0
+              ? const [CollisionBox.full]
+              : collisionBoxesAt(query, x, y, z, fenceBarrier: fenceBarrier);
           for (final box in boxes) {
             final p = box.shifted(x, y, z);
             if (p.x0 < bx1 && p.x1 > bx0 && p.y0 < by1 && p.y1 > by0 && p.z0 < bz1 && p.z1 > bz0) {

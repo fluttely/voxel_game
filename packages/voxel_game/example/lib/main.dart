@@ -35,8 +35,21 @@ const game = VoxelGameSpec(
   world: WorldGenSpec(
     bedrock: 'stone',
     biomes: [
-      Biome('forest', top: 'grass', under: 'dirt', climate: Climate.wet, trees: [TreeSpec.oak(log: 'log', leaves: 'leaves')], treeChance: 90),
-      Biome('plains', top: 'grass', under: 'dirt', trees: [TreeSpec.oak(log: 'log', leaves: 'leaves')], treeChance: 12),
+      Biome(
+        'forest',
+        top: 'grass',
+        under: 'dirt',
+        climate: Climate.wet,
+        trees: [TreeSpec.oak(log: 'log', leaves: 'leaves')],
+        treeChance: 90,
+      ),
+      Biome(
+        'plains',
+        top: 'grass',
+        under: 'dirt',
+        trees: [TreeSpec.oak(log: 'log', leaves: 'leaves')],
+        treeChance: 12,
+      ),
     ],
     beach: Biome('beach', top: 'sand'),
     ores: [Ore('coal_ore', share: 0.11)],
@@ -45,9 +58,24 @@ const game = VoxelGameSpec(
   player: PlayerSpec(startingItems: {'wooden_pickaxe': 1, 'planks': 16, 'torch': 8}),
   // 5. Creatures: a body, a brain (goals; the lower priority wins), drops and when they spawn.
   mobs: [
-    MobSpec('sheep', hp: 8, speed: 2.0, halfWidth: 0.45, height: 1.2, rig: Rig.quadruped(body: 0xEEEEEE, head: 0xD8C8B0),
-        brain: [FleeWhenHurt(), LookAtPlayer(), Wander()], drops: [Drop('wool', 1, 2)], spawn: SpawnRule.daylight()),
-    MobSpec('zombie', hp: 20, speed: 2.6, rig: Rig.humanoid(skin: 0x5E9A5A, shirt: 0x3A6A9A, armsForward: true, redEyes: true),
-        brain: [MeleeAttack(damage: 3), Hunt(range: 18), Wander()], spawn: SpawnRule.dark()),
+    MobSpec(
+      'sheep',
+      hp: 8,
+      speed: 2.0,
+      halfWidth: 0.45,
+      height: 1.2,
+      rig: Rig.quadruped(body: 0xEEEEEE, head: 0xD8C8B0),
+      brain: [FleeWhenHurt(), LookAtPlayer(), Wander()],
+      drops: [Drop('wool', 1, 2)],
+      spawn: SpawnRule.daylight(),
+    ),
+    MobSpec(
+      'zombie',
+      hp: 20,
+      speed: 2.6,
+      rig: Rig.humanoid(skin: 0x5E9A5A, shirt: 0x3A6A9A, armsForward: true, redEyes: true),
+      brain: [MeleeAttack(damage: 3), Hunt(range: 18), Wander()],
+      spawn: SpawnRule.dark(),
+    ),
   ],
 );

@@ -3,13 +3,21 @@ import 'package:voxel_engine/core.dart';
 import 'package:voxel_engine/signals.dart';
 
 const int _stone = 1, _wireOff = 2, _wireOn = 3, _leverOff = 4, _leverOn = 5, _lampOff = 6, _lampOn = 7;
-const int _button = 8, _buttonOn = 9, _railNs = 10, _railEw = 11, _railNe = 12, _railNw = 13, _railSe = 14, _railSw = 15;
+const int _button = 8,
+    _buttonOn = 9,
+    _railNs = 10,
+    _railEw = 11,
+    _railNe = 12,
+    _railNw = 13,
+    _railSe = 14,
+    _railSw = 15;
 const int _slopeN = 16, _slopeE = 17, _slopeS = 18, _slopeW = 19;
 
 final _table = VoxelBlockTable([
   const VoxelBlockDef(shape: BlockShape.cube, solid: false, opaque: false, r: 0, g: 0, b: 0, a: 0),
   const VoxelBlockDef(shape: BlockShape.cube, solid: true, opaque: true, r: 0.5, g: 0.5, b: 0.5),
-  for (var i = 2; i < 20; i++) const VoxelBlockDef(shape: BlockShape.cube, solid: false, opaque: false, r: 0.5, g: 0.2, b: 0.2),
+  for (var i = 2; i < 20; i++)
+    const VoxelBlockDef(shape: BlockShape.cube, solid: false, opaque: false, r: 0.5, g: 0.2, b: 0.2),
 ]);
 
 /// A stone floor below y 10; every edit reaches the network, as a game's does.
@@ -35,16 +43,16 @@ class _World implements VoxelEditor {
 }
 
 SignalNetwork _network(_World w) => w.net = SignalNetwork(
-      w,
-      SignalRules(
-        wireOff: _wireOff,
-        wireOn: _wireOn,
-        sources: const {_leverOn, _buttonOn},
-        toggles: const {_leverOff: _leverOn, _leverOn: _leverOff},
-        buttons: const {_button: (pressed: _buttonOn, seconds: 1.0)},
-        reactions: {_lampOff: SignalReactions.swap(_lampOff, _lampOn), _lampOn: SignalReactions.swap(_lampOff, _lampOn)},
-      ),
-    );
+  w,
+  SignalRules(
+    wireOff: _wireOff,
+    wireOn: _wireOn,
+    sources: const {_leverOn, _buttonOn},
+    toggles: const {_leverOff: _leverOn, _leverOn: _leverOff},
+    buttons: const {_button: (pressed: _buttonOn, seconds: 1.0)},
+    reactions: {_lampOff: SignalReactions.swap(_lampOff, _lampOn), _lampOn: SignalReactions.swap(_lampOff, _lampOn)},
+  ),
+);
 
 void _run(SignalNetwork n, double seconds) {
   for (var t = 0.0; t < seconds; t += 1 / 60) {

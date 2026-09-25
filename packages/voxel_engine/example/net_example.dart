@@ -26,7 +26,10 @@ Future<void> main() async {
   final client = await connectToHost('127.0.0.1', port: host.port);
 
   // 3. Messages are JSON objects; `t` names their type.
-  client.send({'t': 'pose', 'p': [12.5, 64.0, -3.0]});
+  client.send({
+    't': 'pose',
+    'p': [12.5, 64.0, -3.0],
+  });
   final reply = await client.next();
   print('client: heard ${reply['t']} of player ${reply['id']} at ${reply['p']}');
 

@@ -48,8 +48,8 @@ final List<List<CollisionBox>> _fenceBoxes = _fenceTable(CollisionBox.fencePost.
 final List<List<CollisionBox>> _barrierBoxes = _fenceTable(fenceBarrierHeight);
 
 List<List<CollisionBox>> _fenceTable(double top) => List.unmodifiable([
-      for (var joins = 0; joins < 16; joins++) List<CollisionBox>.unmodifiable(_buildFenceBoxes(joins, top)),
-    ]);
+  for (var joins = 0; joins < 16; joins++) List<CollisionBox>.unmodifiable(_buildFenceBoxes(joins, top)),
+]);
 
 List<CollisionBox> _buildFenceBoxes(int joins, double top) {
   const post = CollisionBox.fencePost;
@@ -58,11 +58,23 @@ List<CollisionBox> _buildFenceBoxes(int joins, double top) {
   if (!alongX && !alongZ) return [CollisionBox(post.x0, post.y0, post.z0, post.x1, top, post.z1)];
   return [
     if (alongX)
-      CollisionBox(joins & FenceJoin.west != 0 ? 0 : post.x0, post.y0, post.z0, joins & FenceJoin.east != 0 ? 1 : post.x1,
-          top, post.z1),
+      CollisionBox(
+        joins & FenceJoin.west != 0 ? 0 : post.x0,
+        post.y0,
+        post.z0,
+        joins & FenceJoin.east != 0 ? 1 : post.x1,
+        top,
+        post.z1,
+      ),
     if (alongZ)
-      CollisionBox(post.x0, post.y0, joins & FenceJoin.north != 0 ? 0 : post.z0, post.x1, top,
-          joins & FenceJoin.south != 0 ? 1 : post.z1),
+      CollisionBox(
+        post.x0,
+        post.y0,
+        joins & FenceJoin.north != 0 ? 0 : post.z0,
+        post.x1,
+        top,
+        joins & FenceJoin.south != 0 ? 1 : post.z1,
+      ),
   ];
 }
 

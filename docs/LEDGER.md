@@ -74,6 +74,13 @@
 - **Cost of leaving it:** the app that plays the kit hardest is not a witness of a kit change until the change is published, so a regression in the tree reaches it only after a release. It is also why the frame-rate plan (`docs/VOXEL_PERF_PLAN_2026-09-25.md`) measures the kit's own example instead.
 - **Found while:** 2026-09-25 — `PF0`, choosing the game to benchmark.
 
+### KL-007 · Every drop and every projectile meshes a geometry of its own
+
+- **Lens:** rendering / draw batching
+- **Evidence:** `packages/voxel_game/lib/src/entities/item_pickup.dart:50` builds a `VoxelModelMesh.node` for each drop from the item's colour, and `packages/voxel_game/lib/src/entities/projectile.dart:98` a `CuboidGeometry(size)` for each shot. flutter_scene 0.23 batches only render items with the identical geometry and material (`render/instance_batching.dart`, `opaqueBatchEnd` / `depthBatchEnd`), so each of them is a draw of its own in the colour pass and, being a moving caster, in every shadow cascade each frame. That is what the creatures' rigs cost before PF7 (`e770ef0`): 260 parts, 6.1 ms of the phone's shadow pass.
+- **Cost of leaving it:** a mined-out room or a skeleton volley puts dozens of identical cubes on screen, each drawn once a pass; on the phone that is the encode PF7 just won back from the creatures. The fix is the rigs' one: a geometry per item kind and per projectile size, made once and shared.
+- **Found while:** 2026-09-25 — PF7, sharing the creatures' meshes.
+
 ## Closed
 
 ### KL-005 · Windows and Linux builds of the examples cannot render in release

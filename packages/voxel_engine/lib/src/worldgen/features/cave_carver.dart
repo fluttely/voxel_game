@@ -55,7 +55,9 @@ class CaveCarver {
     final depth = surface - wy;
     final c = cave.getNoise3(wx.toDouble(), wy * 1.5, wz.toDouble());
     if (c > caveThreshold && depth > minDepth) return true;
-    if (wy < cavernBelowY && depth > cavernMinDepth && cavern.getNoise3(wx.toDouble(), wy * 2.0, wz.toDouble()) > cavernThreshold) {
+    if (wy < cavernBelowY &&
+        depth > cavernMinDepth &&
+        cavern.getNoise3(wx.toDouble(), wy * 2.0, wz.toDouble()) > cavernThreshold) {
       return true;
     }
     return c > mouthThreshold && depth <= minDepth && surface > seaLevel + mouthAboveSea;

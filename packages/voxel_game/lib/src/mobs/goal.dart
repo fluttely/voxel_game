@@ -81,7 +81,10 @@ class GoalSelector<M, G> {
     for (final g in goals) {
       if (_running.contains(g)) continue;
       // Every slot it needs is free, or held by something it outranks.
-      final rivals = [for (final r in _running) if (r.slots.any(g.slots.contains)) r];
+      final rivals = [
+        for (final r in _running)
+          if (r.slots.any(g.slots.contains)) r,
+      ];
       if (rivals.any((r) => r.priority <= g.priority)) continue;
       if (!g.canStart(mob, game)) continue;
       for (final r in rivals) {

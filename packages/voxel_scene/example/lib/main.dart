@@ -28,7 +28,16 @@ final VoxelBlockTable table = VoxelBlockTable(const [
   VoxelBlockDef(shape: BlockShape.cube, solid: true, opaque: true, r: 0.45, g: 0.31, b: 0.19),
   VoxelBlockDef(shape: BlockShape.cube, solid: true, opaque: true, r: 0.30, g: 0.58, b: 0.22),
   VoxelBlockDef(
-      shape: BlockShape.liquid, solid: false, opaque: false, r: 0.2, g: 0.42, b: 0.78, a: 0.62, liquidKind: 0, liquidSource: true),
+    shape: BlockShape.liquid,
+    solid: false,
+    opaque: false,
+    r: 0.2,
+    g: 0.42,
+    b: 0.78,
+    a: 0.62,
+    liquidKind: 0,
+    liquidSource: true,
+  ),
   VoxelBlockDef(shape: BlockShape.cube, solid: true, opaque: true, r: 0.98, g: 0.88, b: 0.5, emission: 15),
 ]);
 
@@ -102,21 +111,22 @@ class _HillsViewState extends State<HillsView> {
       ..sunColor = vm.Vector3(1.0, 0.95, 0.85) * 2.9;
     _scene
       ..skybox = Skybox(sky)
-      ..sunLight = (SunLight(
-        sky,
-        castsShadow: true,
-        shadowMaxDistance: 140.0,
-        shadowMapResolution: 2048,
-        shadowCascadeCount: 4,
-        shadowSoftness: 0.04,
-        shadowDepthBias: 0.02,
-        shadowNormalBias: 0.06,
-        // voxel_core meshes wind clockwise; MirroredCamera shows them the right
-        // way round, and the unmirrored shadow pass draws their front faces.
-        shadowCasterFaces: MirroredCamera.shadowCasterFaces,
-      )
-        ..color = vm.Vector3(1.0, 0.95, 0.85)
-        ..intensity = 2.5)
+      ..sunLight =
+          (SunLight(
+              sky,
+              castsShadow: true,
+              shadowMaxDistance: 140.0,
+              shadowMapResolution: 2048,
+              shadowCascadeCount: 4,
+              shadowSoftness: 0.04,
+              shadowDepthBias: 0.02,
+              shadowNormalBias: 0.06,
+              // voxel_core meshes wind clockwise; MirroredCamera shows them the right
+              // way round, and the unmirrored shadow pass draws their front faces.
+              shadowCasterFaces: MirroredCamera.shadowCasterFaces,
+            )
+            ..color = vm.Vector3(1.0, 0.95, 0.85)
+            ..intensity = 2.5)
       ..toneMapping = ToneMappingMode.aces
       ..environment = EnvironmentMap.constantDiffuse(vm.Vector3(0.80, 0.84, 0.92) * 0.5);
     _scene.fog
@@ -149,18 +159,19 @@ class _HillsViewState extends State<HillsView> {
     _statsClock += dt;
     if (_statsClock >= 0.5) {
       _statsClock = 0.0;
-      _stats.value = '${_streamer.meshCount} chunks, ${_streamer.facesEmitted} faces, '
+      _stats.value =
+          '${_streamer.meshCount} chunks, ${_streamer.facesEmitted} faces, '
           '${pool.workers} workers${_streamer.isIdle ? '' : ', streaming'}';
     }
   }
 
   Camera _camera() => MirroredCamera(
-        position: _target + vm.Vector3(math.cos(_angle) * 56, 30, math.sin(_angle) * 56),
-        target: _target,
-        fovRadiansY: 65 * math.pi / 180,
-        fovNear: 0.1,
-        fovFar: 500,
-      );
+    position: _target + vm.Vector3(math.cos(_angle) * 56, 30, math.sin(_angle) * 56),
+    target: _target,
+    fovRadiansY: 65 * math.pi / 180,
+    fovNear: 0.1,
+    fovFar: 500,
+  );
 
   @override
   void dispose() {
@@ -173,18 +184,24 @@ class _HillsViewState extends State<HillsView> {
 
   @override
   Widget build(BuildContext context) => Stack(
-        fit: StackFit.expand,
-        children: [
-          SceneView(_scene, cameraBuilder: (elapsed) => _camera(), onTick: (elapsed, dt) => _tick(dt)),
-          Positioned(
-            left: 12,
-            top: 12,
-            child: ValueListenableBuilder<String>(
-              valueListenable: _stats,
-              builder: (context, text, _) => Text(text,
-                  style: const TextStyle(color: Colors.white, fontSize: 14, shadows: [Shadow(offset: Offset(1, 1))])),
+    fit: StackFit.expand,
+    children: [
+      SceneView(_scene, cameraBuilder: (elapsed) => _camera(), onTick: (elapsed, dt) => _tick(dt)),
+      Positioned(
+        left: 12,
+        top: 12,
+        child: ValueListenableBuilder<String>(
+          valueListenable: _stats,
+          builder: (context, text, _) => Text(
+            text,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+              shadows: [Shadow(offset: Offset(1, 1))],
             ),
           ),
-        ],
-      );
+        ),
+      ),
+    ],
+  );
 }

@@ -28,7 +28,15 @@ class ProjectileSpec {
   static const ProjectileSpec arrow = ProjectileSpec();
 
   /// A bolt of magic: straight, glowing.
-  static const ProjectileSpec bolt = ProjectileSpec(kind: 'bolt', speed: 18.0, gravity: 0.0, damage: 4.0, radius: 0.25, color: 0x70A0FF, glow: true);
+  static const ProjectileSpec bolt = ProjectileSpec(
+    kind: 'bolt',
+    speed: 18.0,
+    gravity: 0.0,
+    damage: 4.0,
+    radius: 0.25,
+    color: 0x70A0FF,
+    glow: true,
+  );
 
   /// What a hit reports as the damage source.
   final String kind;
@@ -115,7 +123,9 @@ class Projectile extends GameEntity {
       }
     }
     if (hit != null) {
-      hit.takeDamage(Damage(spec.damage, source: spec.kind, from: position, knockback: spec.knockback, attacker: owner));
+      hit.takeDamage(
+        Damage(spec.damage, source: spec.kind, from: position, knockback: spec.knockback, attacker: owner),
+      );
       removed = true;
       return;
     }
@@ -125,7 +135,8 @@ class Projectile extends GameEntity {
     }
     position.add(step);
     node.position = position.clone();
-    node.rotation = Quaternion.axisAngle(Vector3(0, 1, 0), math.atan2(-dir.x, -dir.z)) *
+    node.rotation =
+        Quaternion.axisAngle(Vector3(0, 1, 0), math.atan2(-dir.x, -dir.z)) *
         Quaternion.axisAngle(Vector3(1, 0, 0), math.asin(dir.y.clamp(-1.0, 1.0)));
   }
 }

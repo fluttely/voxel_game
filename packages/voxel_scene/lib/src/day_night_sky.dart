@@ -17,15 +17,16 @@ class DayNightSky {
   ///
   /// The shadows are [shadowCascades] cascades of [shadowResolution]² texels
   /// splitting [shadowDistance] metres.
-  DayNightSky(this.scene,
-      {this.sunScale = 0.6,
-      this.ambientScale = 0.6,
-      bool shadows = true,
-      int shadowCascades = 4,
-      int shadowResolution = 2048,
-      double shadowDistance = 110.0,
-      double sunStepDegrees = 0.5})
-      : _sunStep = sunStepDegrees * math.pi / 180.0 {
+  DayNightSky(
+    this.scene, {
+    this.sunScale = 0.6,
+    this.ambientScale = 0.6,
+    bool shadows = true,
+    int shadowCascades = 4,
+    int shadowResolution = 2048,
+    double shadowDistance = 110.0,
+    double sunStepDegrees = 0.5,
+  }) : _sunStep = sunStepDegrees * math.pi / 180.0 {
     sky = GradientSkySource(sunSharpness: 600.0);
     scene.skybox = Skybox(sky);
     sun = SunLight(
@@ -101,7 +102,11 @@ class DayNightSky {
     final dusk = (1.0 - elevation.abs() * 5.0).clamp(0.0, 1.0);
     final sunColor = _mix(Vector3(1.0, 0.95, 0.85), Vector3(1.0, 0.55, 0.3), dusk);
     final top = _mix(Vector3(0.02, 0.03, 0.08), Vector3(0.20, 0.42, 0.85), day);
-    final hor = _mix(_mix(Vector3(0.06, 0.08, 0.15), Vector3(0.62, 0.78, 0.92), day), Vector3(0.95, 0.55, 0.30), dusk * 0.8);
+    final hor = _mix(
+      _mix(Vector3(0.06, 0.08, 0.15), Vector3(0.62, 0.78, 0.92), day),
+      Vector3(0.95, 0.55, 0.30),
+      dusk * 0.8,
+    );
     sky
       ..zenithColor = top
       ..horizonColor = hor

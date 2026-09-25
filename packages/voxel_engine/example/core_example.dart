@@ -17,7 +17,16 @@ final VoxelBlockTable table = VoxelBlockTable(const [
   VoxelBlockDef(shape: BlockShape.cube, solid: true, opaque: true, r: 0.45, g: 0.31, b: 0.19),
   VoxelBlockDef(shape: BlockShape.cube, solid: true, opaque: true, r: 0.30, g: 0.58, b: 0.22),
   VoxelBlockDef(
-      shape: BlockShape.liquid, solid: false, opaque: false, r: 0.2, g: 0.42, b: 0.78, a: 0.62, liquidKind: 0, liquidSource: true),
+    shape: BlockShape.liquid,
+    solid: false,
+    opaque: false,
+    r: 0.2,
+    g: 0.42,
+    b: 0.78,
+    a: 0.62,
+    liquidKind: 0,
+    liquidSource: true,
+  ),
   VoxelBlockDef(shape: BlockShape.cube, solid: true, opaque: true, r: 0.98, g: 0.88, b: 0.5, emission: 15),
 ]);
 
@@ -107,19 +116,25 @@ Future<void> main() async {
 
   final clock = Stopwatch()..start();
   await settle(streamer);
-  print('${sink.meshed.length} chunks meshed on ${pool.workers} workers in ${clock.elapsedMilliseconds} ms, '
-      '${sink.faces} faces');
+  print(
+    '${sink.meshed.length} chunks meshed on ${pool.workers} workers in ${clock.elapsedMilliseconds} ms, '
+    '${sink.faces} faces',
+  );
 
   final world = StreamedWorld(streamer);
   final hit = VoxelRaycast.solid(world, Vector3(4.5, 100, 4.5), Vector3(0, -1, 0), 100)!;
-  print('a ray straight down at (4, 4) hits block ${hit.block} (id ${world.getBlockXYZ(hit.block.x, hit.block.y, hit.block.z)}) '
-      'after ${hit.distance.toStringAsFixed(2)}');
+  print(
+    'a ray straight down at (4, 4) hits block ${hit.block} (id ${world.getBlockXYZ(hit.block.x, hit.block.y, hit.block.z)}) '
+    'after ${hit.distance.toStringAsFixed(2)}',
+  );
 
   final above = hit.block + hit.normal;
   streamer.setBlock(above, lamp);
   await settle(streamer);
-  print('a lamp placed at $above queued ${streamer.remeshesQueued} remeshes; the cell beside it has block light '
-      '${streamer.lightAt(above + const IVec3(1, 0, 0)).block}');
+  print(
+    'a lamp placed at $above queued ${streamer.remeshesQueued} remeshes; the cell beside it has block light '
+    '${streamer.lightAt(above + const IVec3(1, 0, 0)).block}',
+  );
 
   // A save holds the edits only; the generator rebuilds everything else.
   const codec = EditDeltaCodec(magic: 0x4C58564F, version: 1, dimensions: 1);
@@ -136,8 +151,10 @@ Future<void> main() async {
       ..applyGravity(1 / 60)
       ..move(1 / 60);
   }
-  print('a body dropped from y 80 at (10, 10) stands at y ${body.position.y.toStringAsFixed(3)} after $ticks ticks '
-      '(ground ends at ${HillsGenerator.surfaceHeight(10, 10)})');
+  print(
+    'a body dropped from y 80 at (10, 10) stands at y ${body.position.y.toStringAsFixed(3)} after $ticks ticks '
+    '(ground ends at ${HillsGenerator.surfaceHeight(10, 10)})',
+  );
 
   pool.dispose();
 }

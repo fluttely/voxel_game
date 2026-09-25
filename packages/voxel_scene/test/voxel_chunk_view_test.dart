@@ -8,8 +8,14 @@ import 'package:voxel_scene/voxel_scene.dart';
 /// GPU geometry, so the view's bookkeeping is testable without Flutter GPU.
 ChunkMeshResult _empty() {
   MeshSurface surface() => MeshSurface(Float32List(0), Float32List(0), Float32List(0), Float32List(0), Int32List(0));
-  return ChunkMeshResult(surface(), surface(), surface(), surface(),
-      sky: Uint8List(ChunkSize.volume), block: Uint8List(ChunkSize.volume));
+  return ChunkMeshResult(
+    surface(),
+    surface(),
+    surface(),
+    surface(),
+    sky: Uint8List(ChunkSize.volume),
+    block: Uint8List(ChunkSize.volume),
+  );
 }
 
 void main() {

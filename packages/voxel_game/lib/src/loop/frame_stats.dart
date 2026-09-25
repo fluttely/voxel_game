@@ -61,6 +61,7 @@ class FrameStats {
     final r = _recording;
     if (r == null) return;
     r.simMs.add(simMs);
+    if (steps > 0) r.stepMs.add(simMs / steps);
     r.steps += steps;
   }
 
@@ -79,19 +80,27 @@ class _Samples {
   final int startUs;
   int? lastVsyncUs;
   int steps = 0;
-  final List<double> intervalMs = [], buildMs = [], rasterMs = [], simMs = [], encodeMs = [], gpuLatencyMs = [], gpuLagFrames = [];
+  final List<double> intervalMs = [],
+      buildMs = [],
+      rasterMs = [],
+      simMs = [],
+      stepMs = [],
+      encodeMs = [],
+      gpuLatencyMs = [],
+      gpuLagFrames = [];
 
   FrameReport report(double seconds) => FrameReport(
-        seconds: seconds,
-        steps: steps,
-        intervalMs: intervalMs,
-        buildMs: buildMs,
-        rasterMs: rasterMs,
-        simMs: simMs,
-        encodeMs: encodeMs,
-        gpuLatencyMs: gpuLatencyMs,
-        gpuLagFrames: gpuLagFrames,
-      );
+    seconds: seconds,
+    steps: steps,
+    intervalMs: intervalMs,
+    buildMs: buildMs,
+    rasterMs: rasterMs,
+    simMs: simMs,
+    stepMs: stepMs,
+    encodeMs: encodeMs,
+    gpuLatencyMs: gpuLatencyMs,
+    gpuLagFrames: gpuLagFrames,
+  );
 }
 
 /// The samples of one [FrameStats] recording.
@@ -104,6 +113,7 @@ class FrameReport {
     required this.buildMs,
     required this.rasterMs,
     required this.simMs,
+    required this.stepMs,
     required this.encodeMs,
     required this.gpuLatencyMs,
     required this.gpuLagFrames,
@@ -126,6 +136,12 @@ class FrameReport {
 
   /// `VoxelGame.frame` per tick.
   final List<double> simMs;
+
+  /// A fixed step's own cost: each tick that ran steps, its [simMs] over the
+  /// steps it ran. [simMs] grows with the steps a slow frame banks (up to
+  /// `FixedStepLoop.maxSteps`); this does not, so it is what a change to the
+  /// simulation moves on a device that is behind.
+  final List<double> stepMs;
 
   /// The scene's encoding per scene frame.
   final List<double> encodeMs;
@@ -156,27 +172,28 @@ class FrameReport {
 
   /// p50, p90, p99 and max of [xs], rounded to 0.01.
   static Map<String, double> spread(List<double> xs) => {
-        'p50': _round(percentile(xs, 50)),
-        'p90': _round(percentile(xs, 90)),
-        'p99': _round(percentile(xs, 99)),
-        'max': _round(xs.isEmpty ? 0.0 : xs.reduce(math.max)),
-      };
+    'p50': _round(percentile(xs, 50)),
+    'p90': _round(percentile(xs, 90)),
+    'p99': _round(percentile(xs, 99)),
+    'max': _round(xs.isEmpty ? 0.0 : xs.reduce(math.max)),
+  };
 
   static double _round(double v) => (v * 100).roundToDouble() / 100;
 
   /// The report as JSON, [periodMs] being the display's refresh period.
   Map<String, Object> toJson(double periodMs) => {
-        'seconds': _round(seconds),
-        'frames': buildMs.length,
-        'fps': _round(fps),
-        'stepsPerSecond': _round(steps / seconds),
-        'hitches': hitches(periodMs),
-        'intervalMs': spread(intervalMs),
-        'buildMs': spread(buildMs),
-        'rasterMs': spread(rasterMs),
-        'simMs': spread(simMs),
-        'encodeMs': spread(encodeMs),
-        'gpuLatencyMs': spread(gpuLatencyMs),
-        'gpuLagFrames': spread(gpuLagFrames),
-      };
+    'seconds': _round(seconds),
+    'frames': buildMs.length,
+    'fps': _round(fps),
+    'stepsPerSecond': _round(steps / seconds),
+    'hitches': hitches(periodMs),
+    'intervalMs': spread(intervalMs),
+    'buildMs': spread(buildMs),
+    'rasterMs': spread(rasterMs),
+    'simMs': spread(simMs),
+    'stepMs': spread(stepMs),
+    'encodeMs': spread(encodeMs),
+    'gpuLatencyMs': spread(gpuLatencyMs),
+    'gpuLagFrames': spread(gpuLagFrames),
+  };
 }

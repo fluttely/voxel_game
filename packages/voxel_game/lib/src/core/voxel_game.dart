@@ -42,12 +42,15 @@ import '../world/world_save.dart';
 /// visuals, and steps as fast as it is asked: tests, bots and servers.
 class VoxelGame {
   VoxelGame._(this.spec, this.blocks, this.items, this.world, {required this.headless, this.authority = true})
-      : random = math.Random(spec.seed),
-        input = InputMap<VoxelAction>(VoxelAction.defaultBindings),
-        recipes = RecipeBook(spec.recipes),
-        timeOfDay = spec.sky.startTime {
+    : random = math.Random(spec.seed),
+      input = InputMap<VoxelAction>(VoxelAction.defaultBindings),
+      recipes = RecipeBook(spec.recipes),
+      timeOfDay = spec.sky.startTime {
     pathCosts = blocks.pathCosts(avoidLiquids: const {'lava'});
-    player = PlayerEntity(spec.player, Inventory(stackSize: (id) => items[id].stack, maxDurability: (id) => items[id].durability));
+    player = PlayerEntity(
+      spec.player,
+      Inventory(stackSize: (id) => items[id].stack, maxDurability: (id) => items[id].durability),
+    );
     spawner = MobSpawner(this);
     if (!authority) {
       // A client: the host runs the liquids, the circuits and the spawning.
@@ -73,7 +76,10 @@ class VoxelGame {
     }
     if (s.doors.isNotEmpty) {
       final pairs = {for (final e in s.doors.entries) id(e.key): id(e.value)};
-      final door = SignalReactions.door(pairs, onSwing: (c) => playSound('door', at: Vector3(c.x + 0.5, c.y + 1.0, c.z + 0.5), volumeDb: -6));
+      final door = SignalReactions.door(
+        pairs,
+        onSwing: (c) => playSound('door', at: Vector3(c.x + 0.5, c.y + 1.0, c.z + 0.5), volumeDb: -6),
+      );
       for (final e in pairs.entries) {
         reactions[e.key] = door;
         reactions[e.value] = door;
@@ -88,9 +94,15 @@ class VoxelGame {
     return SignalRules(
       wireOff: id(s.wire.$1),
       wireOn: id(s.wire.$2),
-      sources: {for (final l in s.levers.values) id(l), for (final b in s.buttons.values) id(b.$1), for (final x in s.sources) id(x)},
+      sources: {
+        for (final l in s.levers.values) id(l),
+        for (final b in s.buttons.values) id(b.$1),
+        for (final x in s.sources) id(x),
+      },
       pressSources: {for (final p in s.plates) id(p)},
-      toggles: {for (final e in s.levers.entries) ...{id(e.key): id(e.value), id(e.value): id(e.key)}},
+      toggles: {
+        for (final e in s.levers.entries) ...{id(e.key): id(e.value), id(e.value): id(e.key)},
+      },
       buttons: {for (final e in s.buttons.entries) id(e.key): (pressed: id(e.value.$1), seconds: e.value.$2)},
       reactions: reactions,
     );
@@ -109,18 +121,26 @@ class VoxelGame {
   /// and its player.
   static Future<VoxelGame> start(VoxelGameSpec spec, {SavedWorld? save, bool authority = true}) async {
     final blocks = spec.buildBlocks();
-    final world = GameWorld(blocks, spec.world, save?.seed ?? spec.seed, loadRadius: spec.renderDistance, liquids: spec.liquids);
+    final world = GameWorld(
+      blocks,
+      spec.world,
+      save?.seed ?? spec.seed,
+      loadRadius: spec.renderDistance,
+      liquids: spec.liquids,
+    );
     final game = VoxelGame._(spec, blocks, spec.buildItems(blocks), world, headless: false, authority: authority);
     final g = game.graphics, shadows = g.shadows;
     game.scene = MeasuredScene(game.stats)
       ..antiAliasingMode = g.antiAliasing
       ..renderScale = g.renderScale;
-    game.sky = DayNightSky(game.scene!,
-        shadows: shadows.enabled,
-        shadowCascades: shadows.cascades,
-        shadowResolution: shadows.resolution,
-        shadowDistance: shadows.distance,
-        sunStepDegrees: shadows.sunStepDegrees);
+    game.sky = DayNightSky(
+      game.scene!,
+      shadows: shadows.enabled,
+      shadowCascades: shadows.cascades,
+      shadowResolution: shadows.resolution,
+      shadowDistance: shadows.distance,
+      sunStepDegrees: shadows.sunStepDegrees,
+    );
     game.scene!.add(world.root!);
     game._begin(save);
     game.firstPerson = FirstPersonView(game);
@@ -130,9 +150,20 @@ class VoxelGame {
 
   /// A game with no renderer and no isolates: chunks are generated as they
   /// are needed, on this isolate. [loadRadius] chunks around the player.
-  static Future<VoxelGame> startHeadless(VoxelGameSpec spec, {int loadRadius = 2, SavedWorld? save, bool authority = true}) async {
+  static Future<VoxelGame> startHeadless(
+    VoxelGameSpec spec, {
+    int loadRadius = 2,
+    SavedWorld? save,
+    bool authority = true,
+  }) async {
     final blocks = spec.buildBlocks();
-    final world = GameWorld.headless(blocks, spec.world, save?.seed ?? spec.seed, loadRadius: loadRadius, liquids: spec.liquids);
+    final world = GameWorld.headless(
+      blocks,
+      spec.world,
+      save?.seed ?? spec.seed,
+      loadRadius: loadRadius,
+      liquids: spec.liquids,
+    );
     final game = VoxelGame._(spec, blocks, spec.buildItems(blocks), world, headless: true, authority: authority);
     game._begin(save);
     await world.start();
@@ -169,7 +200,12 @@ class VoxelGame {
 
   /// Joins the game hosted at [address]:[port]: its world, its players, its
   /// mobs. [headless] for a test or a bot.
-  static Future<VoxelGame> joinGame(VoxelGameSpec spec, String address, {int port = 7777, bool headless = false}) async {
+  static Future<VoxelGame> joinGame(
+    VoxelGameSpec spec,
+    String address, {
+    int port = 7777,
+    bool headless = false,
+  }) async {
     final hello = await joinHost(address, port: port);
     final game = headless
         ? await startHeadless(spec, save: hello.world, authority: false)
@@ -223,6 +259,10 @@ class VoxelGame {
   /// The path policy of every walking creature: lava is never entered.
   late final PathCosts pathCosts;
 
+  /// A* searches this step may still run: [Mob.searchesPerStep] at its start.
+  /// A mob whose plan is due when none is left plans on a later step.
+  int searchesLeft = 0;
+
   /// The player.
   late final PlayerEntity player;
 
@@ -248,18 +288,20 @@ class VoxelGame {
 
   /// The material family block [id] sounds like (see `SoundSpec`).
   String soundFamily(int id) => _families.putIfAbsent(id, () {
-        final t = blocks[id];
-        for (final tag in t.tags) {
-          if (tag.startsWith('sound:')) return tag.substring(6);
-        }
-        if (t.isLiquid) return SoundFamily.liquid;
-        if (t.tool == 'axe') return SoundFamily.wood;
-        if (t.tool == 'shovel') return SoundFamily.earth;
-        if (t.shape == BlockShape.cross || t.shape == BlockShape.flower || (!t.solid && t.tool == null)) return SoundFamily.plant;
-        if (t.solid && t.alpha < 1.0) return SoundFamily.glass;
-        if (!t.opaque && t.solid && t.tool == null) return SoundFamily.plant;
-        return SoundFamily.stone;
-      });
+    final t = blocks[id];
+    for (final tag in t.tags) {
+      if (tag.startsWith('sound:')) return tag.substring(6);
+    }
+    if (t.isLiquid) return SoundFamily.liquid;
+    if (t.tool == 'axe') return SoundFamily.wood;
+    if (t.tool == 'shovel') return SoundFamily.earth;
+    if (t.shape == BlockShape.cross || t.shape == BlockShape.flower || (!t.solid && t.tool == null)) {
+      return SoundFamily.plant;
+    }
+    if (t.solid && t.alpha < 1.0) return SoundFamily.glass;
+    if (!t.opaque && t.solid && t.tool == null) return SoundFamily.plant;
+    return SoundFamily.stone;
+  });
 
   /// Plays [name] as heard from [at] by the player: quieter with distance,
   /// nothing past 32 m; at the player when [at] is null.
@@ -297,7 +339,10 @@ class VoxelGame {
   final ValueNotifier<String?> openScreen = ValueNotifier(null);
 
   /// Every station some recipe names.
-  late final Set<String> stations = {for (final r in spec.recipes) if (r.station.isNotEmpty) r.station};
+  late final Set<String> stations = {
+    for (final r in spec.recipes)
+      if (r.station.isNotEmpty) r.station,
+  };
 
   /// Whether the player stands in a loaded world yet.
   bool get ready => player.placed;
@@ -335,7 +380,8 @@ class VoxelGame {
   final Stopwatch _frameWatch = Stopwatch();
 
   /// How the world is drawn: the spec's, or the preset of this platform.
-  late final GraphicsSpec graphics = spec.graphics ??
+  late final GraphicsSpec graphics =
+      spec.graphics ??
       (defaultTargetPlatform == TargetPlatform.iOS || defaultTargetPlatform == TargetPlatform.android
           ? GraphicsSpec.phone
           : GraphicsSpec.desktop);
@@ -369,6 +415,7 @@ class VoxelGame {
       input.endTick();
       return;
     }
+    searchesLeft = Mob.searchesPerStep;
     time += dt;
     if (spec.sky.cycle) timeOfDay = (timeOfDay + dt / spec.sky.dayLength) % 1.0;
     player.tick(this, dt, gameplay: gameplay);
@@ -453,15 +500,24 @@ class VoxelGame {
 
   /// A creature of the spec's mob [id] at [at].
   Mob spawnMob(String id, Vector3 at) {
-    final spec = this.spec.mobs.firstWhere((m) => m.id == id, orElse: () => throw ArgumentError.value(id, 'id', 'no such mob'));
+    final spec = this.spec.mobs.firstWhere(
+      (m) => m.id == id,
+      orElse: () => throw ArgumentError.value(id, 'id', 'no such mob'),
+    );
     return add(Mob(spec, at));
   }
 
   /// [count] of [item] dropped at [at].
   ItemPickup dropItem(String item, int count, Vector3 at, {Vector3? throwVelocity}) {
     if (!items.has(item)) throw ArgumentError.value(item, 'item', 'no such item');
-    return add(ItemPickup(item, count, at,
-        throwVelocity: throwVelocity ?? Vector3(random.nextDouble() * 2 - 1, 3.0, random.nextDouble() * 2 - 1)));
+    return add(
+      ItemPickup(
+        item,
+        count,
+        at,
+        throwVelocity: throwVelocity ?? Vector3(random.nextDouble() * 2 - 1, 3.0, random.nextDouble() * 2 - 1),
+      ),
+    );
   }
 
   /// Shoots [projectile] from [from] toward [at], by [owner].

@@ -18,8 +18,7 @@ void main() {
     });
 
     test('OpenSimplex2S 2D/3D stays within sane bounds over a grid', () {
-      final noise = FastNoiseLite(seed: 1337)
-        ..noiseType = NoiseType.openSimplex2S;
+      final noise = FastNoiseLite(seed: 1337)..noiseType = NoiseType.openSimplex2S;
       for (double x = -50; x <= 50; x += 3.7) {
         for (double y = -50; y <= 50; y += 3.7) {
           final v2 = noise.getNoise2(x, y);
@@ -39,20 +38,14 @@ void main() {
         for (double x = -30; x <= 30; x += 2.5) {
           for (double y = -30; y <= 30; y += 2.5) {
             expect(noise.getNoise2(x, y), inInclusiveRange(-1.05, 1.05));
-            expect(
-              noise.getNoise3(x, y, x * 0.5),
-              inInclusiveRange(-1.05, 1.05),
-            );
+            expect(noise.getNoise3(x, y, x * 0.5), inInclusiveRange(-1.05, 1.05));
           }
         }
       }
     });
 
     test('ridged and pingPong fractals stay bounded', () {
-      for (final fractal in <FractalType>[
-        FractalType.ridged,
-        FractalType.pingPong,
-      ]) {
+      for (final fractal in <FractalType>[FractalType.ridged, FractalType.pingPong]) {
         final noise = FastNoiseLite(seed: 4242)
           ..fractalType = fractal
           ..octaves = 6;
@@ -124,10 +117,7 @@ void main() {
       final n = FastNoiseLite(seed: 1337);
       expect(n.getNoise3(10.0, 20.0, 30.0), closeTo(0.066842120170555, tol));
       expect(n.getNoise3(-3.5, 7.25, 0.5), closeTo(0.273804249016109, tol));
-      expect(
-        n.getNoise3(123.456, -78.9, 42.0),
-        closeTo(0.835447107935540, tol),
-      );
+      expect(n.getNoise3(123.456, -78.9, 42.0), closeTo(0.835447107935540, tol));
     });
 
     test('OpenSimplex2S 2D/3D', () {

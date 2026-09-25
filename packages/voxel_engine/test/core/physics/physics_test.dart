@@ -13,7 +13,16 @@ final _table = VoxelBlockTable(const [
   VoxelBlockDef(shape: BlockShape.cube, solid: false, opaque: false, r: 0, g: 0, b: 0, a: 0),
   VoxelBlockDef(shape: BlockShape.cube, solid: true, opaque: true, r: 0.5, g: 0.5, b: 0.5),
   VoxelBlockDef(
-      shape: BlockShape.liquid, solid: false, opaque: false, r: 0.2, g: 0.4, b: 0.8, a: 0.6, liquidKind: 0, liquidSource: true),
+    shape: BlockShape.liquid,
+    solid: false,
+    opaque: false,
+    r: 0.2,
+    g: 0.4,
+    b: 0.8,
+    a: 0.6,
+    liquidKind: 0,
+    liquidSource: true,
+  ),
   VoxelBlockDef(shape: BlockShape.slab, solid: true, opaque: false, r: 0.7, g: 0.5, b: 0.3),
   VoxelBlockDef(shape: BlockShape.cube, solid: true, opaque: false, r: 0.9, g: 0.9, b: 1.0, a: 0.3),
   VoxelBlockDef(shape: BlockShape.fence, solid: true, opaque: false, r: 0.4, g: 0.3, b: 0.2),
@@ -135,7 +144,9 @@ void main() {
       body.applyGravity(1 / 60);
       body.velocity.x = 3.0;
       body.move(1 / 60);
-      if (body.stepAhead(fullBlock: false) > 0.0 || (body.hitWall && body.onFloor && body.stepFits(1.02))) body.velocity.y = 8.6;
+      if (body.stepAhead(fullBlock: false) > 0.0 || (body.hitWall && body.onFloor && body.stepFits(1.02))) {
+        body.velocity.y = 8.6;
+      }
       maxRise = body.position.y - before > maxRise ? body.position.y - before : maxRise;
     }
     expect(body.position.x, greaterThan(7.3));

@@ -12,7 +12,8 @@ const int railNs = 8, railEw = 9, railNe = 10, railNw = 11, railSe = 12, railSw 
 final VoxelBlockTable blockTable = VoxelBlockTable([
   const VoxelBlockDef(shape: BlockShape.cube, solid: false, opaque: false, r: 0, g: 0, b: 0, a: 0),
   const VoxelBlockDef(shape: BlockShape.cube, solid: true, opaque: true, r: 0.5, g: 0.5, b: 0.5),
-  for (var i = 2; i <= railSw; i++) const VoxelBlockDef(shape: BlockShape.cube, solid: false, opaque: false, r: 0.6, g: 0.2, b: 0.2),
+  for (var i = 2; i <= railSw; i++)
+    const VoxelBlockDef(shape: BlockShape.cube, solid: false, opaque: false, r: 0.6, g: 0.2, b: 0.2),
 ]);
 
 /// A stone floor below y 10 and whatever was placed above it. Every edit is
@@ -90,7 +91,9 @@ void main() {
     rails.place(world, IVec3(x, 10, 4), railNs);
   }
   rails.place(world, const IVec3(3, 10, 5), railNs);
-  print('the line runs ${rails.shapeOf(world.getBlockXYZ(1, 10, 4))} and bends ${rails.shapeOf(world.getBlockXYZ(3, 10, 4))} at its end');
+  print(
+    'the line runs ${rails.shapeOf(world.getBlockXYZ(1, 10, 4))} and bends ${rails.shapeOf(world.getBlockXYZ(3, 10, 4))} at its end',
+  );
 
   // 5. A cart follows the track until it ends.
   var cell = const IVec3(0, 10, 4);

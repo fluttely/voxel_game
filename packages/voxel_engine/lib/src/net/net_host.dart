@@ -36,7 +36,8 @@ class NetHost {
   }
 
   /// Listens on [port] of every interface (0 picks a free one).
-  static Future<NetHost> bind({int port = 7777}) async => NetHost._(await ServerSocket.bind(InternetAddress.anyIPv4, port));
+  static Future<NetHost> bind({int port = 7777}) async =>
+      NetHost._(await ServerSocket.bind(InternetAddress.anyIPv4, port));
 
   final ServerSocket _server;
   late final StreamSubscription<Socket> _sub;
@@ -76,5 +77,8 @@ class NetHost {
 }
 
 /// Connects to a host at [address]:[port].
-Future<NetConnection> connectToHost(String address, {int port = 7777, Duration timeout = const Duration(seconds: 5)}) async =>
-    NetConnection(await Socket.connect(address, port, timeout: timeout));
+Future<NetConnection> connectToHost(
+  String address, {
+  int port = 7777,
+  Duration timeout = const Duration(seconds: 5),
+}) async => NetConnection(await Socket.connect(address, port, timeout: timeout));

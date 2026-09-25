@@ -21,8 +21,18 @@ class StatModifier {
 /// bend named stats while it lasts.
 class EffectType {
   /// An effect.
-  const EffectType(this.id, this.name, this.r, this.g, this.b,
-      {this.period = 0.0, this.damage = 0.0, this.heal = 0.0, this.bad = false, this.stats = const {}});
+  const EffectType(
+    this.id,
+    this.name,
+    this.r,
+    this.g,
+    this.b, {
+    this.period = 0.0,
+    this.damage = 0.0,
+    this.heal = 0.0,
+    this.bad = false,
+    this.stats = const {},
+  });
 
   /// The id.
   final String id;
@@ -119,7 +129,10 @@ class StatusEffects {
 
   /// Ends every bad effect; returns how many.
   int clearBad() {
-    final bad = [for (final id in rows.keys) if (typeOf(id).bad) id];
+    final bad = [
+      for (final id in rows.keys)
+        if (typeOf(id).bad) id,
+    ];
     for (final id in bad) {
       rows.remove(id);
     }
@@ -181,8 +194,8 @@ class StatusEffects {
 
   /// Each active effect as `[seconds left, power]`.
   Map<String, Object> toJson() => {
-        for (final e in rows.entries) e.key: [e.value.time, e.value.power],
-      };
+    for (final e in rows.entries) e.key: [e.value.time, e.value.power],
+  };
 
   /// Reads [json] back, skipping effects no longer in [types].
   void fromJson(Map<String, Object?> json) {

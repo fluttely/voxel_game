@@ -44,8 +44,10 @@ class TerrainMaterial extends PhysicallyBasedMaterial {
     if (_library != null) return;
     final lib = await gpu.loadShaderLibraryAsync(asset);
     if (lib == null || lib['TerrainFragment'] == null) {
-      throw Exception('$asset holds no TerrainFragment this engine can read; recompile it with '
-          '`dart tool/build_shaders.dart` from packages/voxel_scene (a bundle is tied to the Flutter engine that built it)');
+      throw Exception(
+        '$asset holds no TerrainFragment this engine can read; recompile it with '
+        '`dart tool/build_shaders.dart` from packages/voxel_scene (a bundle is tied to the Flutter engine that built it)',
+      );
     }
     _library = lib;
   }

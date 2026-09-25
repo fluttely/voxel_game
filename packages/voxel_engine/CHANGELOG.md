@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.1.2-dev
+
+- Formatted by `dart format` at the 120 columns the code is written at
+  (`formatter: page_width: 120` in `analysis_options.yaml`); pana took 10 pub points
+  for formatting.
+- `Pathfinder.find` keys its cells by an int (the offset from the start, packed) and
+  keeps its nodes in lists reused from one search to the next, allocating nothing per
+  cell it opens; the paths are the same, the search about 1.6 times faster. A `PathCosts`
+  callback that searches again throws a `StateError`. With 40 creatures (`mobs:6`, M2 Pro)
+  a step's p99 goes from 8.7 ms to 4.7.
+- `ChunkStreamer.getBlockXYZ` and `lightAt` find a chunk by shifts and an int key
+  (`ChunkStreamer.keyOf`) instead of a double division and a record key: 41 → 14.5 ns
+  and 66 → 32 ns a call. `ChunkStreamer.chunkAtXZ` returns a column's volume the same
+  way. `ChunkSize` gains `shiftX`/`shiftZ` and `maskX`/`maskZ`.
+- `ChunkStreamer.chunks` is read-only (an `UnmodifiableMapView`): the streamer keeps it in
+  step with the int-keyed copy its queries read.
+
 ## 0.1.1-dev
 
 - No code change. The README says why the web is not a target: streaming spawns

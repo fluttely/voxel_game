@@ -5,13 +5,13 @@ import 'package:voxel_game/voxel_game.dart';
 
 /// A frame that started at [vsyncUs], built for [buildUs] and rastered for [rasterUs].
 FrameTiming frame(int vsyncUs, {int buildUs = 2000, int rasterUs = 1000}) => FrameTiming(
-      vsyncStart: vsyncUs,
-      buildStart: vsyncUs,
-      buildFinish: vsyncUs + buildUs,
-      rasterStart: vsyncUs + buildUs,
-      rasterFinish: vsyncUs + buildUs + rasterUs,
-      rasterFinishWallTime: vsyncUs + buildUs + rasterUs,
-    );
+  vsyncStart: vsyncUs,
+  buildStart: vsyncUs,
+  buildFinish: vsyncUs + buildUs,
+  rasterStart: vsyncUs + buildUs,
+  rasterFinish: vsyncUs + buildUs + rasterUs,
+  rasterFinishWallTime: vsyncUs + buildUs + rasterUs,
+);
 
 void main() {
   test('percentile is the nearest rank, 0 for no samples', () {
@@ -31,6 +31,7 @@ void main() {
     stats.addTimings([frame(16667), frame(33333), frame(50000), frame(66667), frame(100000, buildUs: 9000)]);
     stats.addFrame(simMs: 0.5, steps: 1);
     stats.addFrame(simMs: 1.5, steps: 2);
+    stats.addFrame(simMs: 0.1, steps: 0); // ran no step: no step cost
     stats.addEncode(1.0);
     stats.addGpuLatency(12.0);
     stats.addGpuLag(1);
@@ -40,6 +41,7 @@ void main() {
     expect(report.intervalMs.length, 4);
     expect(report.hitches(1000 / 60), 1);
     expect(report.steps, 3);
+    expect(report.stepMs, [0.5, 0.75]);
     expect(report.gpuLatencyMs, [12.0]);
     expect(stats.recording, isFalse);
     final json = report.toJson(1000 / 60);
@@ -52,7 +54,11 @@ void main() {
   });
 
   test('copyWith replaces only what it is given', () {
-    const spec = VoxelGameSpec(blocks: [BlockType('stone', color: 0x808080)], world: WorldGenSpec(biomes: [Biome('plain', top: 'stone')]), seed: 7);
+    const spec = VoxelGameSpec(
+      blocks: [BlockType('stone', color: 0x808080)],
+      world: WorldGenSpec(biomes: [Biome('plain', top: 'stone')]),
+      seed: 7,
+    );
     final far = spec.copyWith(renderDistance: 12);
     expect(far.renderDistance, 12);
     expect(far.seed, 7);

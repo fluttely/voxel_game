@@ -102,8 +102,13 @@ abstract final class VoxelRaycast {
   /// reads the boxes, not the cells, so the line passes through the gap in a
   /// fence, an open door and a flower, exactly where a body passes. A box the
   /// ray starts inside is not in the way: a shoulder in a wall still swings.
-  static double? barrier(VoxelQuery q, Vector3 origin, Vector3 direction, double reachDist,
-      {bool fenceBarrier = false}) {
+  static double? barrier(
+    VoxelQuery q,
+    Vector3 origin,
+    Vector3 direction,
+    double reachDist, {
+    bool fenceBarrier = false,
+  }) {
     var bx = origin.x.floor(), by = origin.y.floor(), bz = origin.z.floor();
     final sx = direction.x > 0.0 ? 1 : -1, sy = direction.y > 0.0 ? 1 : -1, sz = direction.z > 0.0 ? 1 : -1;
     final tdx = direction.x.abs() < 1e-9 ? double.infinity : (1.0 / direction.x).abs();

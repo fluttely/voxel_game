@@ -54,8 +54,11 @@ void main() {
     const v3 = EditDeltaCodec(magic: 0x4342574F, version: 3, dimensions: 2);
     expect(() => _codec.decode(v3.encode(1, edits)), throwsFormatException);
     final whole = _codec.encode(1, edits);
-    expect(() => _codec.decode(Uint8List.sublistView(whole, 0, whole.length - 3)), throwsFormatException,
-        reason: 'cut inside the last edit');
+    expect(
+      () => _codec.decode(Uint8List.sublistView(whole, 0, whole.length - 3)),
+      throwsFormatException,
+      reason: 'cut inside the last edit',
+    );
     expect(() => _codec.decode(Uint8List.fromList([...whole, 0])), throwsFormatException, reason: 'a byte left over');
   });
 }

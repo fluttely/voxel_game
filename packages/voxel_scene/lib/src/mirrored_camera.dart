@@ -46,8 +46,9 @@ class MirroredCamera extends PerspectiveCamera {
     ..castsShadows = castsShadows;
 
   /// A node holding [primitive] of [mesh], free to move, scale and rotate.
-  static Node primitiveNode(Mesh mesh, {bool castsShadows = true}) =>
-      Node()..add(primitive(mesh, castsShadows: castsShadows))..castsShadows = castsShadows;
+  static Node primitiveNode(Mesh mesh, {bool castsShadows = true}) => Node()
+    ..add(primitive(mesh, castsShadows: castsShadows))
+    ..castsShadows = castsShadows;
 }
 
 /// flutter_scene's perspective lens with clip-space x negated. A

@@ -238,7 +238,9 @@ class PlayerEntity extends NodeBody implements Target {
   void _walk(double dt, bool gameplay) {
     final input = _game.input;
     final x = gameplay ? input.axis(VoxelAction.moveLeft, VoxelAction.moveRight, stick: _leftX) : 0.0;
-    final y = gameplay ? input.axis(VoxelAction.moveForward, VoxelAction.moveBack, stick: _leftY, invertStick: true) : 0.0;
+    final y = gameplay
+        ? input.axis(VoxelAction.moveForward, VoxelAction.moveBack, stick: _leftY, invertStick: true)
+        : 0.0;
     var wish = flatForward * -y + right * x;
     if (wish.length > 1.0) wish = wish.normalized();
     final sneaking = gameplay && input.down(VoxelAction.sneak);
@@ -251,8 +253,14 @@ class PlayerEntity extends NodeBody implements Target {
     }
     final floor = _game.world.getBlockXYZ(position.x.floor(), (position.y - 0.05).floor(), position.z.floor());
     if (onFloor) speed *= _game.blocks[floor].speed;
-    final events = motor.step(dt,
-        wish: wish, speed: speed, jump: gameplay && input.down(VoxelAction.jump), sneak: sneaking, onLadder: _onLadder());
+    final events = motor.step(
+      dt,
+      wish: wish,
+      speed: speed,
+      jump: gameplay && input.down(VoxelAction.jump),
+      sneak: sneaking,
+      onLadder: _onLadder(),
+    );
     // A step every 0.4 s on foot (0.3 running), sounding like the ground.
     final horizontal = math.sqrt(velocity.x * velocity.x + velocity.z * velocity.z);
     if (onFloor && horizontal > 1.0) {
@@ -306,7 +314,14 @@ class PlayerEntity extends NodeBody implements Target {
     final origin = eyePosition, dir = forward;
     final hit = VoxelRaycast.solid(_game.world, origin, dir, spec.reach);
     final clear = Reach.toBarrier(_game.world, origin, dir, spec.reach);
-    final mob = Reach.nearestBody(_game.mobs, origin, dir, maxDist: spec.meleeReach, blockedAt: clear, accepts: (m) => !m.isDead);
+    final mob = Reach.nearestBody(
+      _game.mobs,
+      origin,
+      dir,
+      maxDist: spec.meleeReach,
+      blockedAt: clear,
+      accepts: (m) => !m.isDead,
+    );
     final mobD = mob?.rayDistance(origin, dir) ?? double.infinity;
     final block = hit != null && hit.distance <= mobD;
     aimedBlock = block ? hit : null;
@@ -404,7 +419,11 @@ class PlayerEntity extends NodeBody implements Target {
     if (world.blocks[id].solid && _bodiesIn(cell)) return;
     if (!world.setBlock(cell, id)) return;
     _swingArm();
-    _game.playSound('place_${_game.soundFamily(id)}', at: Vector3(cell.x + 0.5, cell.y + 0.5, cell.z + 0.5), volumeDb: -4.0);
+    _game.playSound(
+      'place_${_game.soundFamily(id)}',
+      at: Vector3(cell.x + 0.5, cell.y + 0.5, cell.z + 0.5),
+      volumeDb: -4.0,
+    );
     if (!spec.creative) inventory.remove(item.id, 1);
     _game.spec.onBlockPlaced?.call(_game, item.block!, cell);
   }

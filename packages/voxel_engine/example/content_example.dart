@@ -29,13 +29,17 @@ final ItemRegistry<ItemType> items = ItemRegistry([
 void main() {
   // 1. Blocks: an id for you, a number for the engine.
   final stone = blocks.indexOf('stone');
-  print('stone is block $stone, drops ${blocks.dropOf(stone)}; '
-      'the torch gives light ${blocks.table.emissionOf(blocks.indexOf('torch'))}');
+  print(
+    'stone is block $stone, drops ${blocks.dropOf(stone)}; '
+    'the torch gives light ${blocks.table.emissionOf(blocks.indexOf('torch'))}',
+  );
 
   // 2. Mining: the right tool is fast, the hand cannot break stone.
   const rules = MiningRules();
-  print('stone by hand: ${rules.mineTime(blocks[stone], null)} (-1: cannot), '
-      'with a wooden pickaxe: ${rules.mineTime(blocks[stone], items['wooden_pickaxe'])} s');
+  print(
+    'stone by hand: ${rules.mineTime(blocks[stone], null)} (-1: cannot), '
+    'with a wooden pickaxe: ${rules.mineTime(blocks[stone], items['wooden_pickaxe'])} s',
+  );
 
   // 3. An inventory that knows stack sizes and tool wear.
   final bag = Inventory(stackSize: (id) => items[id].stack, maxDurability: (id) => items[id].durability)
@@ -61,20 +65,23 @@ void main() {
   print('the chest at (10, 64, -3) holds ${[for (final l in loot) '${l.count} ${l.id}']}');
 
   // 6. Status effects tick, bend stats and wear off.
-  final effects = StatusEffects(const {
-    'poison': EffectType('poison', 'Poisoned', 0.3, 0.8, 0.3, period: 1, damage: 1, bad: true),
-    'speed': EffectType('speed', 'Swiftness', 0.4, 0.8, 0.9, stats: {'speed': StatModifier.multiply(0.3)}),
-  })
-    ..apply('poison', 3)
-    ..apply('speed', 10);
+  final effects =
+      StatusEffects(const {
+          'poison': EffectType('poison', 'Poisoned', 0.3, 0.8, 0.3, period: 1, damage: 1, bad: true),
+          'speed': EffectType('speed', 'Swiftness', 0.4, 0.8, 0.9, stats: {'speed': StatModifier.multiply(0.3)}),
+        })
+        ..apply('poison', 3)
+        ..apply('speed', 10);
   var hurt = 0.0;
   for (var t = 0; t < 5; t++) {
     for (final e in effects.tick(1.0)) {
       hurt += e.damage;
     }
   }
-  print('poison dealt $hurt damage and wore off: ${!effects.has('poison')}; '
-      'speed is x${effects.multiplier('speed')} for ${effects.timeLeft('speed')} s more');
+  print(
+    'poison dealt $hurt damage and wore off: ${!effects.has('poison')}; '
+    'speed is x${effects.multiplier('speed')} for ${effects.timeLeft('speed')} s more',
+  );
 
   // 7. Everything saves as JSON.
   final back = Inventory(stackSize: (id) => items[id].stack)..fromJson(bag.toJson(), known: items.has);

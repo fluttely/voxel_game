@@ -111,8 +111,7 @@ class CollisionBox {
   double max(int axis) => axis == 0 ? x1 : (axis == 1 ? y1 : z1);
 
   /// This box moved by whole cells, from block space to world space.
-  CollisionBox shifted(int dx, int dy, int dz) =>
-      CollisionBox(x0 + dx, y0 + dy, z0 + dz, x1 + dx, y1 + dy, z1 + dz);
+  CollisionBox shifted(int dx, int dy, int dz) => CollisionBox(x0 + dx, y0 + dy, z0 + dz, x1 + dx, y1 + dy, z1 + dz);
 
   @override
   String toString() => 'Box($x0, $y0, $z0 .. $x1, $y1, $z1)';

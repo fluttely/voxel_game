@@ -80,7 +80,8 @@ class RailGraph {
   /// The two ends rail [id] joins, as steps from its cell.
   List<IVec3> connections(int id) => ends[variants[id]!.shape]!;
 
-  bool _has(String kind, String shape) => _byKey.containsKey(_key(kind, shape, false)) || _byKey.containsKey(_key(kind, shape, true));
+  bool _has(String kind, String shape) =>
+      _byKey.containsKey(_key(kind, shape, false)) || _byKey.containsKey(_key(kind, shape, true));
 
   /// The rail of [baseId]'s kind (and state) turned to [shape]; a kind that
   /// lacks the shape lays the straight nearest to it.
@@ -200,8 +201,8 @@ class RailGraph {
   /// Every cell whose rail may change when [cell] does: the four sides, a
   /// cell up and a cell down on each.
   static List<IVec3> neighbours(IVec3 cell) => [
-        for (final d in four) ...[cell + d, cell + d + IVec3.up, cell + d + IVec3.down],
-      ];
+    for (final d in four) ...[cell + d, cell + d + IVec3.up, cell + d + IVec3.down],
+  ];
 
   /// Re-orients the rail at [c], if there is one.
   void refresh(VoxelEditor world, IVec3 c) {

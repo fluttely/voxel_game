@@ -19,7 +19,10 @@ void main() {
     expect(d.renderScale, 1.0);
     expect(d.maxPixelRatio, isNull);
     expect(d.antiAliasing, AntiAliasingMode.msaa);
-    expect((d.shadows.cascades, d.shadows.resolution, d.shadows.distance, d.shadows.sunStepDegrees), (4, 2048, 110.0, 0.5));
+    expect(
+      (d.shadows.cascades, d.shadows.resolution, d.shadows.distance, d.shadows.sunStepDegrees),
+      (4, 2048, 110.0, 0.5),
+    );
     expect(p.antiAliasing, AntiAliasingMode.fxaa);
     expect(p.shadows.cascades, lessThan(d.shadows.cascades));
     expect(p.shadows.resolution, lessThan(d.shadows.resolution));
@@ -30,7 +33,11 @@ void main() {
 
   const flat = VoxelGameSpec(
     blocks: [BlockType('stone', color: 0x808080), BlockType.liquid('water', color: 0x3366CC)],
-    world: WorldGenSpec(terrain: TerrainRecipe.flat(20), caves: CaveSpec.none, biomes: [Biome('plain', top: 'stone')]),
+    world: WorldGenSpec(
+      terrain: TerrainRecipe.flat(20),
+      caves: CaveSpec.none,
+      biomes: [Biome('plain', top: 'stone')],
+    ),
   );
 
   for (final (platform, preset) in [

@@ -51,13 +51,8 @@ typedef LiquidContact = int? Function(int kind, bool source, int touching);
 /// Call [touch] from every block edit and [tick] once per simulation step.
 class LiquidFlow {
   /// A flow over [table] with one [LiquidRule] per liquid kind index.
-  LiquidFlow({
-    required this.table,
-    required this.rules,
-    required this.canEnter,
-    this.contact,
-    this.budget = 400,
-  }) : _timers = List<double>.filled(rules.length, 0.0);
+  LiquidFlow({required this.table, required this.rules, required this.canEnter, this.contact, this.budget = 400})
+    : _timers = List<double>.filled(rules.length, 0.0);
 
   /// A flowing cell whose distance is not known (loaded from a save): it
   /// re-derives it when touched.

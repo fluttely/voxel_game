@@ -270,10 +270,10 @@ class InputMap<A extends Object> {
   }
 
   static Set<MouseBinding> _buttons(int mask) => {
-        if (mask & kPrimaryMouseButton != 0) MouseBinding.left,
-        if (mask & kSecondaryMouseButton != 0) MouseBinding.right,
-        if (mask & kMiddleMouseButton != 0) MouseBinding.middle,
-      };
+    if (mask & kPrimaryMouseButton != 0) MouseBinding.left,
+    if (mask & kSecondaryMouseButton != 0) MouseBinding.right,
+    if (mask & kMiddleMouseButton != 0) MouseBinding.middle,
+  };
 
   /// A pointer press. A touch decides nothing yet: the gesture is undecided
   /// until the finger moves, lifts, or outstays [mineDelay].

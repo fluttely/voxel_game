@@ -49,11 +49,15 @@ Future<void> main(List<String> args) async {
   await SystemChrome.setPreferredOrientations([DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   await VoxelGameWidget.loadResources();
-  runApp(MaterialApp(
-    debugShowCheckedModeBanner: false,
-    theme: ThemeData.dark(),
-    home: Scaffold(body: VoxelGameWidget(spec: bench.spec, onReady: bench.ready)),
-  ));
+  runApp(
+    MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData.dark(),
+      home: Scaffold(
+        body: VoxelGameWidget(spec: bench.spec, onReady: bench.ready),
+      ),
+    ),
+  );
 }
 
 /// One benchmark run: [scenario] at [radius] chunks, measured for [seconds],
@@ -67,7 +71,8 @@ class Bench {
   /// `cascades:resolution:distance`) and `--sun-step=` over it. The rest is the
   /// runner's.
   factory Bench.parse(List<String> args) {
-    String? arg(String name) => args.where((a) => a.startsWith('--$name=')).map((a) => a.substring(name.length + 3)).lastOrNull;
+    String? arg(String name) =>
+        args.where((a) => a.startsWith('--$name=')).map((a) => a.substring(name.length + 3)).lastOrNull;
     final base = switch (arg('graphics') ?? 'desktop') {
       'desktop' => GraphicsSpec.desktop,
       'phone' => GraphicsSpec.phone,
@@ -78,7 +83,11 @@ class Bench {
     final ShadowSpec shadows = switch (parts) {
       null => base.shadows,
       ['off'] => ShadowSpec.off,
-      [final c, final r, final d] => ShadowSpec(cascades: int.parse(c), resolution: int.parse(r), distance: double.parse(d)),
+      [final c, final r, final d] => ShadowSpec(
+        cascades: int.parse(c),
+        resolution: int.parse(r),
+        distance: double.parse(d),
+      ),
       _ => throw ArgumentError('--shadows=$shadowArg: off or cascades:resolution:distance'),
     };
     final maxRatio = arg('max-ratio');
@@ -93,10 +102,15 @@ class Bench {
               cascades: shadows.cascades,
               resolution: shadows.resolution,
               distance: shadows.distance,
-              sunStepDegrees: double.parse(sunStep)),
+              sunStepDegrees: double.parse(sunStep),
+            ),
     );
-    return Bench(Scenario.values.byName(arg('scenario') ?? 'orbit'), int.parse(arg('radius') ?? '6'),
-        double.parse(arg('seconds') ?? '12'), graphics);
+    return Bench(
+      Scenario.values.byName(arg('scenario') ?? 'orbit'),
+      int.parse(arg('radius') ?? '6'),
+      double.parse(arg('seconds') ?? '12'),
+      graphics,
+    );
   }
 
   final Scenario scenario;

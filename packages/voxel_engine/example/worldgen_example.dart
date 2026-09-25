@@ -9,16 +9,36 @@ final Map<String, int> ids = {for (var i = 0; i < blocks.length; i++) blocks[i]:
 
 const WorldGenSpec world = WorldGenSpec(
   biomes: [
-    Biome('tundra', top: 'snow', under: 'dirt', climate: Climate.cold,
-        trees: [TreeSpec.spruce(log: 'log', leaves: 'leaves')], treeChance: 30),
+    Biome(
+      'tundra',
+      top: 'snow',
+      under: 'dirt',
+      climate: Climate.cold,
+      trees: [TreeSpec.spruce(log: 'log', leaves: 'leaves')],
+      treeChance: 30,
+    ),
     Biome('desert', top: 'sand', climate: Climate.hotDry),
-    Biome('forest', top: 'grass', under: 'dirt', climate: Climate.wet,
-        trees: [TreeSpec.oak(log: 'log', leaves: 'leaves')], treeChance: 90),
-    Biome('plains', top: 'grass', under: 'dirt', trees: [TreeSpec.oak(log: 'log', leaves: 'leaves')], treeChance: 15),
+    Biome(
+      'forest',
+      top: 'grass',
+      under: 'dirt',
+      climate: Climate.wet,
+      trees: [TreeSpec.oak(log: 'log', leaves: 'leaves')],
+      treeChance: 90,
+    ),
+    Biome(
+      'plains',
+      top: 'grass',
+      under: 'dirt',
+      trees: [TreeSpec.oak(log: 'log', leaves: 'leaves')],
+      treeChance: 15,
+    ),
   ],
   beach: Biome('beach', top: 'sand'),
   ores: [Ore('coal_ore', share: 0.11)],
-  structures: [StructureSpec('tower', build: tower, biomes: ['plains', 'forest'], radius: 3)],
+  structures: [
+    StructureSpec('tower', build: tower, biomes: ['plains', 'forest'], radius: 3),
+  ],
 );
 
 /// A cobblestone tower with a door, drawn around its site on the surface.
@@ -52,7 +72,8 @@ Future<void> main() async {
 
   final table = VoxelBlockTable([
     const VoxelBlockDef(shape: BlockShape.cube, solid: false, opaque: false, r: 0, g: 0, b: 0, a: 0),
-    for (var i = 1; i < blocks.length; i++) const VoxelBlockDef(shape: BlockShape.cube, solid: true, opaque: true, r: 0.5, g: 0.5, b: 0.5),
+    for (var i = 1; i < blocks.length; i++)
+      const VoxelBlockDef(shape: BlockShape.cube, solid: true, opaque: true, r: 0.5, g: 0.5, b: 0.5),
   ]);
   final pool = ChunkWorkerPool(ChunkWorkerConfig(generator: makeGenerator, table: table));
   await pool.start();

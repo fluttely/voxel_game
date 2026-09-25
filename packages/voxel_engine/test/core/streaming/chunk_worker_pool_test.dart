@@ -31,7 +31,8 @@ class _FlatGenerator implements ChunkGenerator {
 }
 
 /// Made in a top-level function, so the closure captures only [height].
-ChunkGeneratorFactory _flatFactory(int height) => () => _FlatGenerator(height);
+ChunkGeneratorFactory _flatFactory(int height) =>
+    () => _FlatGenerator(height);
 
 ChunkGenerator _brokenFactory() => throw StateError('the generator could not be built');
 
@@ -87,8 +88,9 @@ void main() {
 
   test('a job that throws fails with the worker error, and the worker keeps serving', () async {
     await expectLater(
-        pool.generate(_FlatGenerator.throws, 0),
-        throwsA(isA<RemoteError>().having((e) => e.toString(), 'message', contains('no terrain at x 13'))));
+      pool.generate(_FlatGenerator.throws, 0),
+      throwsA(isA<RemoteError>().having((e) => e.toString(), 'message', contains('no terrain at x 13'))),
+    );
     expect(pool.inflight, 0);
     expect(await pool.generate(1, 2), hasLength(ChunkSize.volume));
   });

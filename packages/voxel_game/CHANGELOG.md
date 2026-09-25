@@ -1,5 +1,47 @@
 # Changelog
 
+## 0.1.2-dev
+
+- The creatures of a species share their meshes: `RigModel.of(rig, halfWidth, height)`
+  builds a look at a size once (its parts' voxels as `RigShape`s, their rest poses, the
+  fit), and each `RigInstance` hangs only its own posable nodes on it. flutter_scene then
+  draws a part once a pass, instanced over every creature that has it, instead of once a
+  creature. `Rig` is equal by its values, so two species declared with the same look
+  share one model; a humanoid's two legs and two arms, and a quadruped's four legs, share
+  one shape. With 40 creatures (`mobs:6`) their meshes go from 260 to 8, and on the M2 Pro
+  the shadow pass, which draws every creature again in every cascade each frame, from
+  2.4 ms to 0.45 a frame.
+- `gamepads: ^0.1.10`, the first version with `NormalizedGamepadState`. The constraint
+  allowed `0.1.1-dev2`, which lacks it, so the lowest resolution did not compile and
+  pana took 20 pub points.
+- Formatted by `dart format` at the 120 columns the code is written at
+  (`formatter: page_width: 120` in `analysis_options.yaml`); pana took 10 pub points
+  for formatting.
+- A step runs at most `Mob.searchesPerStep` (3) A* searches; a mob whose plan is due
+  when they are spent plans on a later step (`VoxelGame.searchesLeft`). The random phase
+  each mob starts with was lost at its first plan, so hunters that saw the player in one
+  step replanned together every 0.6 s, as every hunter does when the player moves 1.5 m:
+  up to 18 searches in one step. With 40 creatures (`mobs:6`, M2 Pro) a step's p99 falls
+  from 4.5 ms to 1.15, with as many searches a second.
+- Fixed: a `Wander`er whose last walk was blocked dropped every later goal at once and
+  stood still. `Mob.pathBlocked` belonged to the last plan, which is made after the
+  behaviours run, so `Wander` read the verdict on the previous goal. `walkTo` now clears it
+  for a goal more than `Mob.replanDistance` (1.5 m, the distance that already triggered a
+  replan) from the planned one, until that goal is planned.
+- A walking mob replans its path every `Mob.replanEvery` (0.6 s), sooner (never before
+  `Mob.replanSoonest`, 0.2 s) only when its goal moved 1.5 m, from a random phase per mob;
+  it used to replan every step once its path ran out, which an unreachable goal makes
+  happen every step. `Mob.pathsPlanned` counts its searches. With 40 creatures (`mobs:6`,
+  M2 Pro) a step costs 0.27 ms instead of 7.8 at the median, and the frame rate goes from
+  84 to 93 fps.
+- `FrameReport.stepMs`: a fixed step's own cost (each tick's simulation time over the
+  steps it ran), in the JSON as `stepMs`. `simMs` grows with the steps a slow frame banks,
+  so on a device that is behind it reads `FixedStepLoop`'s cap, not the simulation.
+- `GameWorld.isLoaded` and `groundHeight` read the chunk through
+  `ChunkStreamer.chunkAtXZ`. With the engine's faster block queries, 40 creatures
+  (`mobs:6`, M2 Pro at 120 Hz) run at 91 fps instead of 50, and the simulation's p99 falls
+  from 66 ms to 11.
+
 ## 0.1.1-dev
 
 - Requires Flutter 3.47.1, the first with a runner setting that turns Flutter GPU on for

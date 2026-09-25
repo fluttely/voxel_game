@@ -38,9 +38,21 @@ final ItemRegistry<ItemType> items = ItemRegistry([
 /// 2. The world, written in the ids the registry above numbered.
 const WorldGenSpec world = WorldGenSpec(
   biomes: [
-    Biome('forest', top: 'grass', under: 'dirt', climate: Climate.wet,
-        trees: [TreeSpec.oak(log: 'log', leaves: 'leaves')], treeChance: 90),
-    Biome('plains', top: 'grass', under: 'dirt', trees: [TreeSpec.oak(log: 'log', leaves: 'leaves')], treeChance: 12),
+    Biome(
+      'forest',
+      top: 'grass',
+      under: 'dirt',
+      climate: Climate.wet,
+      trees: [TreeSpec.oak(log: 'log', leaves: 'leaves')],
+      treeChance: 90,
+    ),
+    Biome(
+      'plains',
+      top: 'grass',
+      under: 'dirt',
+      trees: [TreeSpec.oak(log: 'log', leaves: 'leaves')],
+      treeChance: 12,
+    ),
   ],
   beach: Biome('beach', top: 'sand'),
   ores: [Ore('coal_ore', share: 0.11)],
@@ -86,8 +98,10 @@ void main() {
   // 4. A ray straight down from the sky finds the ground.
   final hit = VoxelRaycast.solid(voxels, Vector3(12.5, 120, 3.5), Vector3(0, -1, 0), 200)!;
   final top = voxels.getBlockXYZ(hit.block.x, hit.block.y, hit.block.z);
-  print('a ray down at (12, 3) lands on ${blocks.idOf(top)} at ${hit.block}, '
-      'in the ${generator.biomeAt(12, 3).name}');
+  print(
+    'a ray down at (12, 3) lands on ${blocks.idOf(top)} at ${hit.block}, '
+    'in the ${generator.biomeAt(12, 3).name}',
+  );
 
   // 5. Breaking it is content again: the tool decides the time and whether the
   // block breaks at all, and the drop is not always the block.
@@ -95,9 +109,11 @@ void main() {
   final pick = items['wooden_pickaxe'];
   final deep = voxels.getBlockXYZ(hit.block.x, hit.block.y - 6, hit.block.z);
   for (final id in [top, deep]) {
-    print('${blocks.idOf(id)}: ${rules.mineTime(blocks[id], null).toStringAsFixed(2)} s by hand, '
-        '${rules.mineTime(blocks[id], pick).toStringAsFixed(2)} s with a wooden pickaxe '
-        '(-1 meaning never), drops ${blocks.dropOf(id)}');
+    print(
+      '${blocks.idOf(id)}: ${rules.mineTime(blocks[id], null).toStringAsFixed(2)} s by hand, '
+      '${rules.mineTime(blocks[id], pick).toStringAsFixed(2)} s with a wooden pickaxe '
+      '(-1 meaning never), drops ${blocks.dropOf(id)}',
+    );
   }
 
   // 6. The drops go in a bag that knows stack sizes and wears the tool down.
@@ -106,6 +122,8 @@ void main() {
     ..add(blocks.dropOf(top), 1)
     ..add(blocks.dropOf(deep), 1);
   bag.wear(bag.find('wooden_pickaxe'), 1);
-  print('the bag holds ${blocks.dropOf(top)} and ${blocks.dropOf(deep)}; '
-      'the pickaxe has ${bag.durAt(bag.find('wooden_pickaxe'))} uses left');
+  print(
+    'the bag holds ${blocks.dropOf(top)} and ${blocks.dropOf(deep)}; '
+    'the pickaxe has ${bag.durAt(bag.find('wooden_pickaxe'))} uses left',
+  );
 }

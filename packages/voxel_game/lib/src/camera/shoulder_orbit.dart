@@ -37,25 +37,27 @@ class ShoulderOrbit {
   /// How far down the orbit the eye may sit: the box of the eye swept from
   /// [pivot] along the orbit, [jitter] (a jolt, a sway) included because it
   /// moves the eye too, stopped at the last clear step.
-  double clearFrom(
-          {required Vector3 pivot,
-          required Vector3 right,
-          required Vector3 up,
-          required Vector3 back,
-          required Vector3 jitter,
-          required bool Function(int x, int y, int z) cellIsClear}) =>
-      clearDistance(distance, (d) => pivot + offset(right, up, back, d) + jitter, cellIsClear);
+  double clearFrom({
+    required Vector3 pivot,
+    required Vector3 right,
+    required Vector3 up,
+    required Vector3 back,
+    required Vector3 jitter,
+    required bool Function(int x, int y, int z) cellIsClear,
+  }) => clearDistance(distance, (d) => pivot + offset(right, up, back, d) + jitter, cellIsClear);
 
   /// Moves [current] toward [clearFrom] for this frame. In at once, out
   /// gently: an eye eased into place is an eye inside the wall for the length
   /// of the ease.
-  double settle(double dt,
-      {required Vector3 pivot,
-      required Vector3 right,
-      required Vector3 up,
-      required Vector3 back,
-      required Vector3 jitter,
-      required bool Function(int x, int y, int z) cellIsClear}) {
+  double settle(
+    double dt, {
+    required Vector3 pivot,
+    required Vector3 right,
+    required Vector3 up,
+    required Vector3 back,
+    required Vector3 jitter,
+    required bool Function(int x, int y, int z) cellIsClear,
+  }) {
     final clear = clearFrom(pivot: pivot, right: right, up: up, back: back, jitter: jitter, cellIsClear: cellIsClear);
     current = clear < current ? clear : lerpd(current, clear, math.min(1.0, dt * 6.0));
     return current;
@@ -64,7 +66,11 @@ class ShoulderOrbit {
   /// The furthest a box of [eyeRadius] slides along [eyeAt] from 0 to
   /// [wanted] with every cell it touches accepted by [cellIsClear], marched
   /// outward: an air pocket behind a wall is not room.
-  static double clearDistance(double wanted, Vector3 Function(double distance) eyeAt, bool Function(int x, int y, int z) cellIsClear) {
+  static double clearDistance(
+    double wanted,
+    Vector3 Function(double distance) eyeAt,
+    bool Function(int x, int y, int z) cellIsClear,
+  ) {
     const step = eyeRadius * 0.5;
     var clear = 0.0;
     while (clear < wanted) {
