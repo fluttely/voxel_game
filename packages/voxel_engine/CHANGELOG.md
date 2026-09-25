@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.2-dev
 
 - Formatted by `dart format` at the 120 columns the code is written at
   (`formatter: page_width: 120` in `analysis_options.yaml`); pana took 10 pub points

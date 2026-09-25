@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.2-dev
 
 - The creatures of a species share their meshes: `RigModel.of(rig, halfWidth, height)`
   builds a look at a size once (its parts' voxels as `RigShape`s, their rest poses, the

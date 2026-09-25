@@ -1,8 +1,9 @@
 # Publishing these packages
 
-All four packages are on pub.dev. `0.1.0-dev` went out on 2026-09-23, and `0.1.1-dev` is the
-next release: Windows and Linux runners, the phone graphics preset, and the frame
-measurements, with the four moving together. Each package is under the MIT license, with
+All four packages are on pub.dev. `0.1.0-dev` went out on 2026-09-23 and `0.1.1-dev` on
+2026-09-25 (Windows and Linux runners, the phone graphics preset, the frame measurements).
+`0.1.2-dev` is the next release: the frame-rate work of the PF plan and the fixes that give
+every package its 160 pub points, with the four moving together. Each package is under the MIT license, with
 its metadata and real version ranges (`docs/VOXEL_RELAYOUT_PLAN_2026-09-21.md`, VR4). They resolve
 each other through the pub workspace declared in the root `pubspec.yaml`, which is
 not a package: all four live under `packages/`. The reasoning behind the four-package split is in

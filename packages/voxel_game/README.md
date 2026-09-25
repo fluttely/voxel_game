@@ -9,7 +9,7 @@ multiplayer.
 It is the kit over `voxel_engine`, `voxel_scene` and `sound_recipes`, and it
 re-exports what a game needs, so a game imports only this library.
 
-> **Status: 0.1.1-dev**, beta. The API can still change.
+> **Status: 0.1.2-dev**, beta. The API can still change.
 
 ## The four packages
 
@@ -49,7 +49,7 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
 
 ```yaml
 dependencies:
-  voxel_game: ^0.1.1-dev
+  voxel_game: ^0.1.2-dev
 ```
 
 To work against a checkout of the repository instead, override all four packages by
