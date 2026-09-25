@@ -280,10 +280,13 @@ ledger, not in this plan.
 | — | tooling | `eeb4a3d` | `run_benchmark.dart` records whether the screen was locked; §Validity written. |
 | — | measurement | `2187947` · `797de1d` · `41c2695` · `b82a370` · `344270e` | The example runs on Android and iOS; `--android` runs the benchmark on a phone; the app's GPU number is `gpuLatencyMs` (a latency, checked against Instruments); `--trace` gives the GPU's cost per frame; §Baseline at 120 Hz, the reference for every step from here. |
 | PF5 | done | this commit | `getBlockXYZ` / `lightAt` by shifts and an int key: 41 → 14.5 ns and 66 → 32 ns a call (a microbenchmark, AOT). A/B on the Mac at 120 Hz, unlocked, `cdea482` against this commit, three rounds alternated (`docs/perf/pf5_mac120_ab_*.jsonl`): **mobs:6 fps 50.4 → 91.4** (runs 45.5–50.9 → 89.1–92.2), **sim p99 66.4 → 11.3 ms**, UI p99 69.5 → 14.7, frame p99 83 → 25. So the creatures' wall was mostly the block query their paths call: A* reads `getBlockXYZ` for every cell it opens. Hitches rose 246 → 350 because twice the frames are presented; they are counted, not a rate. |
+| PF5 | phone | this commit | Galaxy S24 at 120 Hz, A/B against `e77e82b` (the tree `cdea482` had, reworded), three rounds alternated, `mobs:6` and `orbit:6` as control (`docs/perf/pf5_s24_*_ab_*.jsonl`): **no change**. Phone preset: mobs:6 23.8 → 23.7 fps, sim p99 80.5 → 75.6 (runs 76–85 → 69–76), steps a second 51–53 → 53–56; desktop look: 18.6 → 18.9 fps. Why the Mac moved and the phone did not: `FixedStepLoop` runs up to `maxSteps` (4) steps a frame, so a frame slower than a step banks more steps and the next frame is slower still. On the Mac PF5 took a step's cost under the point where that feeds itself (sim p50 ~3 ms after); on the phone a step still costs ~18 ms and the loop stays capped at 4 steps (4 × 18 ≈ the 72–80 ms p99, and fewer than 60 steps a second). So sim p99 reads the cap there, not a step's cost: PF6 needs a per-step number (sim ms ÷ steps) to be judged on the phone. |
 
 **Where the work stopped (2026-09-25).** Last commit: PF5. Next step: **PF6** (mob
-brains; sim p99 in `mobs:6` is 11 ms after PF5, so re-measure what is left before
-choosing its items), then the order in §Steps. Learned and not in the code: (1) the screen was
+brains). After PF5 sim p99 in `mobs:6` is 11 ms on the Mac but still ~75 ms on the phone,
+where the loop is capped at 4 steps a frame (see PF5's phone row): judge PF6 by a step's
+own cost, which `FrameReport` does not report yet. A phone run takes `-- --graphics=phone`,
+or `benchmark.dart` draws the desktop look. Learned and not in the code: (1) the screen was
 locked all night, so the first baseline is a preview; the reference was taken unlocked at
 120 Hz the next day; (2) Instruments traces only a profile build, and `xctrace` leaves a
 ~1 GB raw recording per run in the user's temp dir (the script deletes it; by hand, delete
