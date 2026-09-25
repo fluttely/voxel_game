@@ -67,4 +67,18 @@
 - **Cost of leaving it:** the kit says it targets every platform Flutter supports, but a first-person game on two of the three desktops plays like a touch screen with a mouse. Nothing tells a game author about it: `pointerLockSupported` is public, but the README never mentions it.
 - **Found while:** 2026-09-24 — adding Windows and Linux runners to the examples, for the launch post.
 
+### KL-005 · Windows and Linux builds of the examples cannot render in release
+
+- **Lens:** platform parity / build
+- **Evidence:** `packages/voxel_game/example/windows/runner/main.cpp` and `packages/voxel_game/example/linux/runner/my_application.cc` (and the minecraft example's) never switch Flutter GPU on. flutter_scene 0.23.0's README (`~/.pub-cache/hosted/pub.dev/flutter_scene-0.23.0/README.md:128-146`) says a Windows or Linux runner does it with `DartProject.set_enable_flutter_gpu` / `fl_dart_project_set_enable_flutter_gpu`, which exist only from Flutter 3.47.1; on 3.47.0 (this machine) only a command-line flag does, and release builds compile it out.
+- **Cost of leaving it:** the runners added on 2026-09-24 build, launch and draw nothing in release; `KL-004`'s look-by-drag is moot until they draw. The fix is two lines per runner, but only after the Flutter upgrade, and the bundle must be rebuilt then too (`CLAUDE.md` rule 15).
+- **Found while:** 2026-09-25 — `PF0`, deciding which platforms the benchmark can measure.
+
+### KL-006 · The minecraft example measures the published kit, not this tree
+
+- **Lens:** testing / witness
+- **Evidence:** `examples/voxel_game_minecraft/pubspec.lock` resolves `voxel_engine`, `voxel_scene` and `voxel_game` as `hosted` (pub.dev, with a `sha256`), and there is no `pubspec_overrides.yaml` beside it. Its `tool/perf_loop.sh` and its probe flags therefore run whatever 0.1.0-dev pub.dev holds. Its `CLAUDE.md` still describes itself as `poc_cubeworld/` with the kit under `packages/voxel_game/`.
+- **Cost of leaving it:** the app that plays the kit hardest is not a witness of a kit change until the change is published, so a regression in the tree reaches it only after a release. It is also why the frame-rate plan (`docs/VOXEL_PERF_PLAN_2026-09-25.md`) measures the kit's own example instead.
+- **Found while:** 2026-09-25 — `PF0`, choosing the game to benchmark.
+
 ## Closed

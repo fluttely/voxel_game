@@ -77,7 +77,35 @@ cannot pass arguments; the line it prints is the same.
 Taken at `PF0` (see Progress), before any optimisation. The raw lines are
 `docs/perf/pf0_baseline.jsonl`.
 
-_(filled by the PF0 baseline commit)_
+| run | n | fps | hitches | frame p99 ms | GPU p50 ms | GPU p99 ms | UI p50 ms | UI p99 ms | encode p50 ms | sim p99 ms | raster p99 ms | fill ms | faces | RSS MB |
+|:--|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| orbit:6 | 3 | 61.0 ±0.30 | 0 | 16.7 | 14.1 ±0.62 | 15.6 | 0.89 | 3.83 | 0.76 | 0.14 | 1.01 | 484 | 185130 | 296 |
+| orbit:12 | 3 | 59.0 ±2.62 | 22 | 33.3 | 16.4 ±1.17 | 75.6 | 2.39 | 5.36 | 2.19 | 0.06 | 22.5 | 1328 | 663953 | 519 |
+| fly:6 | 3 | 60.9 ±0.05 | 0 | 16.7 | 13.5 ±0.32 | 16.3 | 1.18 | 4.97 | 0.94 | 1.59 | 1.55 | 475 | 185130 | 307 |
+| fly:12 | 3 | 60.7 ±2.41 | 0 | 16.7 | 12.1 ±0.13 | 20.5 | 2.24 | 7.37 | 2.04 | 3.31 | 1.12 | 1220 | 663953 | 530 |
+| mobs:6 | 3 | 35.3 ±0.41 | 83 | 100 | 17.1 ±2.18 | 90.1 | 11.1 | 77.9 | 3.38 | 74.6 | 6.01 | 480 | 185130 | 344 |
+
+Apple M2 Pro · macos · 1600x900 @2.0x · 60.0 Hz · commit a4b988c
+
+Medians of 3 runs (± half the spread). Every run was presented at the display's 60 Hz: the
+built-in display ran at 60 Hz that day, although it reached 120 Hz on 2026-09-11 (the
+minecraft example's study), so its refresh setting changed in between. A 120 Hz run is a
+separate baseline, not comparable with this one.
+
+**What it says.**
+
+- **The GPU is the wall.** At radius 6, with nothing moving but the camera, the GPU spends
+  14 of the 16.7 ms a 60 Hz frame has; the UI thread spends under 1. A 120 Hz frame (8.3 ms)
+  is out of reach at any radius as the kit draws today, and a phone's GPU is several times
+  slower than an M2 Pro's.
+- **Radius 12 stutters from the GPU, not the CPU.** GPU p99 75 ms against p50 16: a few frames
+  cost four or five normal ones (22 hitches in 36 s). The raster thread's p99 (22 ms) is the
+  composite waiting on those frames. The periodic suspect is the shadow cascades re-rendered
+  on every step of the sun.
+- **Creatures are the CPU wall.** 40 of them take the frame rate to 35: the simulation's p99
+  is 75 ms (the hunters' paths to a player they cannot reach) and the UI thread's median is 11 ms.
+- **Streaming is not a problem on this machine at 60 Hz.** Flying a chunk a second leaves
+  UI p99 at 5–7 ms and no hitches.
 
 ---
 
@@ -116,4 +144,5 @@ ledger, not in this plan.
 
 | ID | Status | Commit | Result |
 |:--|:--|:--|:--|
-| PF0 | in progress | | |
+| PF0 | done | `67da3ac` (measurement) · this commit (baseline) | the baseline above; `docs/perf/pf0_baseline.jsonl` |
+| PF1 | in progress | | |
