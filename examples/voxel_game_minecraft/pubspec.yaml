@@ -16,11 +16,11 @@ dependencies:
   hooks: ^2.2.0
   path_provider: ^2.1.6
   pointer_lock: ^0.4.1
-  sound_recipes: ^0.1.0-dev
+  sound_recipes: ^0.1.1-dev
   vector_math: ^2.4.2
-  voxel_engine: ^0.1.0-dev
-  voxel_game: ^0.1.0-dev
-  voxel_scene: ^0.1.0-dev
+  voxel_engine: ^0.1.1-dev
+  voxel_game: ^0.1.1-dev
+  voxel_scene: ^0.1.1-dev
 
 dev_dependencies:
   flutter_test:

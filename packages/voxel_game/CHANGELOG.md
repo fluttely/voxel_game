@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- `GameWorld.isLoaded` and `groundHeight` read the chunk through
+  `ChunkStreamer.chunkAtXZ`. With the engine's faster block queries, 40 creatures
+  (`mobs:6`, M2 Pro at 120 Hz) run at 91 fps instead of 50, and the simulation's p99 falls
+  from 66 ms to 11.
+
 ## 0.1.1-dev
 
 - Requires Flutter 3.47.1, the first with a runner setting that turns Flutter GPU on for

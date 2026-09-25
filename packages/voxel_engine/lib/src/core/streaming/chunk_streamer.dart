@@ -1,3 +1,4 @@
+import 'dart:collection';
 import 'dart:typed_data';
 
 import '../grid/chunk_size.dart';
@@ -66,7 +67,12 @@ class ChunkStreamer {
   static ChunkPos chunkOf(IVec3 b) => chunkOfXZ(b.x, b.z);
 
   /// The chunk holding the column at world ([x], [z]).
-  static ChunkPos chunkOfXZ(int x, int z) => (x: (x / ChunkSize.sizeX).floor(), z: (z / ChunkSize.sizeZ).floor());
+  static ChunkPos chunkOfXZ(int x, int z) => (x: x >> ChunkSize.shiftX, z: z >> ChunkSize.shiftZ);
+
+  /// Chunk ([cx], [cz]) as one int: the key of the maps the block and light
+  /// queries read, which a record key would cost an allocation and a record
+  /// hash per call. Unique for any chunk a 32-bit coordinate names.
+  static int keyOf(int cx, int cz) => (cx << 32) | (cz & 0xFFFFFFFF);
 
   /// What each block id is: which edits change light and remesh the ring.
   final VoxelBlockTable table;
@@ -89,7 +95,12 @@ class ChunkStreamer {
   ChunkJobs? jobs;
 
   /// Generated chunk volumes: the window plus the ring generated around it.
-  final Map<ChunkPos, Uint8List> chunks = {};
+  /// Read-only: the streamer keeps them in step with the int-keyed copy its
+  /// queries read.
+  late final Map<ChunkPos, Uint8List> chunks = UnmodifiableMapView(_chunks);
+
+  final Map<ChunkPos, Uint8List> _chunks = {};
+  final Map<int, Uint8List> _chunksByKey = {};
   /// Meshes handed to the sink, remeshes included.
   int get chunksBuilt => _chunksBuilt;
 
@@ -111,8 +122,8 @@ class ChunkStreamer {
   final List<ChunkPos> _pending = [];
   ChunkPos _center = (x: 999999, z: 999999);
 
-  final Map<ChunkPos, Uint8List> _lightSky = {};
-  final Map<ChunkPos, Uint8List> _lightBlock = {};
+  final Map<int, Uint8List> _lightSky = {};
+  final Map<int, Uint8List> _lightBlock = {};
   final Map<ChunkPos, int> _aoVerts = {};
 
   /// The one dimension the streamer holds. A switch keeps the live edits under
@@ -140,7 +151,7 @@ class ChunkStreamer {
   bool get isIdle => _pending.isEmpty && _genInflight.isEmpty && _meshInflight.isEmpty && _surfaceReady.isEmpty;
 
   /// Generated chunk volumes held, the ring around the window included.
-  int get loadedChunkCount => chunks.length;
+  int get loadedChunkCount => _chunks.length;
 
   /// Chunks waiting for a mesh, remeshes included.
   int get pendingCount => _pending.length;
@@ -154,11 +165,11 @@ class ChunkStreamer {
   /// A cell whose chunk has no mesh yet reads as open sky.
   CellLight lightAt(IVec3 b) {
     if (b.y < 0 || b.y >= ChunkSize.sizeY) return (sky: 15, block: 0);
-    final pos = chunkOf(b);
-    final sky = _lightSky[pos];
+    final key = keyOf(b.x >> ChunkSize.shiftX, b.z >> ChunkSize.shiftZ);
+    final sky = _lightSky[key];
     if (sky == null) return (sky: 15, block: 0);
-    final i = ChunkSize.index(b.x - pos.x * ChunkSize.sizeX, b.y, b.z - pos.z * ChunkSize.sizeZ);
-    return (sky: sky[i], block: _lightBlock[pos]![i]);
+    final i = ChunkSize.index(b.x & ChunkSize.maskX, b.y, b.z & ChunkSize.maskZ);
+    return (sky: sky[i], block: _lightBlock[key]![i]);
   }
 
   /// Vertices of the chunk's last mesh whose AO is below 1.
@@ -167,8 +178,9 @@ class ChunkStreamer {
   /// Keep what a mesh job learnt about its chunk's light.
   void storeLight(ChunkPos pos, ChunkMeshResult surface) {
     _meshMsTotal += surface.ms;
-    _lightSky[pos] = surface.sky;
-    _lightBlock[pos] = surface.block;
+    final key = keyOf(pos.x, pos.z);
+    _lightSky[key] = surface.sky;
+    _lightBlock[key] = surface.block;
     _aoVerts[pos] = surface.aoVerts;
   }
 
@@ -190,8 +202,8 @@ class ChunkStreamer {
     for (final pos in _meshed.toList()) {
       if ((pos.x - _center.x).abs() > loadRadius || (pos.z - _center.z).abs() > loadRadius) _unload(pos);
     }
-    for (final pos in chunks.keys.toList()) {
-      if ((pos.x - _center.x).abs() > loadRadius + 1 || (pos.z - _center.z).abs() > loadRadius + 1) chunks.remove(pos);
+    for (final pos in _chunks.keys.toList()) {
+      if ((pos.x - _center.x).abs() > loadRadius + 1 || (pos.z - _center.z).abs() > loadRadius + 1) _dropChunk(pos);
     }
   }
 
@@ -216,8 +228,8 @@ class ChunkStreamer {
     for (final pos in _meshed.toList()) {
       if ((pos.x - _center.x).abs() > unloadRadius || (pos.z - _center.z).abs() > unloadRadius) _unload(pos);
     }
-    for (final pos in chunks.keys.toList()) {
-      if ((pos.x - _center.x).abs() > unloadRadius + 1 || (pos.z - _center.z).abs() > unloadRadius + 1) chunks.remove(pos);
+    for (final pos in _chunks.keys.toList()) {
+      if ((pos.x - _center.x).abs() > unloadRadius + 1 || (pos.z - _center.z).abs() > unloadRadius + 1) _dropChunk(pos);
     }
   }
 
@@ -235,7 +247,7 @@ class ChunkStreamer {
     final sw = Stopwatch()..start();
     final applied = <ChunkPos>[];
     for (final e in _surfaceReady.entries) {
-      if (chunks.containsKey(e.key)) _apply(e.key, e.value);
+      if (_chunks.containsKey(e.key)) _apply(e.key, e.value);
       applied.add(e.key);
       if (sw.elapsedMicroseconds >= frameBudgetUsec) break;
     }
@@ -256,7 +268,7 @@ class ChunkStreamer {
       var ringReady = true;
       for (final o in ring) {
         final n = (x: pos.x + o.x, z: pos.z + o.z);
-        if (chunks.containsKey(n)) continue;
+        if (_chunks.containsKey(n)) continue;
         ringReady = false;
         if (!_genInflight.contains(n)) {
           _genInflight.add(n);
@@ -266,7 +278,7 @@ class ChunkStreamer {
             _genInflight.remove(n);
             if (jobs != j) return;
             _applyEdits(n, blocks);
-            chunks[n] = blocks;
+            _putChunk(n, blocks);
           }).catchError((Object e, StackTrace st) {
             if (epoch == _genEpoch) _genInflight.remove(n);
             _jobFailed(e, st);
@@ -275,7 +287,7 @@ class ChunkStreamer {
       }
       if (!ringReady) continue;
       _meshInflight.add(pos);
-      final vols = [for (final o in ring) chunks[(x: pos.x + o.x, z: pos.z + o.z)]];
+      final vols = [for (final o in ring) _chunks[(x: pos.x + o.x, z: pos.z + o.z)]];
       final epoch = _genEpoch;
       j.mesh(pos.x, pos.z, vols).then((surface) {
         if (epoch != _genEpoch) return;
@@ -304,9 +316,20 @@ class ChunkStreamer {
 
   void _unload(ChunkPos pos) {
     if (_meshed.remove(pos)) sink.remove(pos);
-    _lightSky.remove(pos);
-    _lightBlock.remove(pos);
+    final key = keyOf(pos.x, pos.z);
+    _lightSky.remove(key);
+    _lightBlock.remove(key);
     _aoVerts.remove(pos);
+  }
+
+  void _putChunk(ChunkPos pos, Uint8List blocks) {
+    _chunks[pos] = blocks;
+    _chunksByKey[keyOf(pos.x, pos.z)] = blocks;
+  }
+
+  void _dropChunk(ChunkPos pos) {
+    _chunks.remove(pos);
+    _chunksByKey.remove(keyOf(pos.x, pos.z));
   }
 
   void _applyEdits(ChunkPos pos, Uint8List blocks) {
@@ -323,11 +346,14 @@ class ChunkStreamer {
   /// that is not generated.
   int getBlockXYZ(int x, int y, int z) {
     if (y < 0 || y >= ChunkSize.sizeY) return VoxelBlockTable.air;
-    final pos = chunkOfXZ(x, z);
-    final blocks = chunks[pos];
+    final blocks = _chunksByKey[keyOf(x >> ChunkSize.shiftX, z >> ChunkSize.shiftZ)];
     if (blocks == null) return VoxelBlockTable.air;
-    return blocks[ChunkSize.index(x - pos.x * ChunkSize.sizeX, y, z - pos.z * ChunkSize.sizeZ)];
+    return blocks[ChunkSize.index(x & ChunkSize.maskX, y, z & ChunkSize.maskZ)];
   }
+
+  /// The generated volume of the chunk holding world column ([x], [z]), or
+  /// null when it is not generated.
+  Uint8List? chunkAtXZ(int x, int z) => _chunksByKey[keyOf(x >> ChunkSize.shiftX, z >> ChunkSize.shiftZ)];
 
   /// Writes [id] at [b], records the edit and queues the remeshes it needs.
   /// False when nothing changed: outside 1..sizeY-1, an ungenerated chunk, or
@@ -335,7 +361,7 @@ class ChunkStreamer {
   bool setBlock(IVec3 b, int id) {
     if (b.y < 1 || b.y >= ChunkSize.sizeY) return false;
     final pos = chunkOf(b);
-    final blocks = chunks[pos];
+    final blocks = _chunks[pos];
     if (blocks == null) return false;
     final lx = b.x - pos.x * ChunkSize.sizeX;
     final lz = b.z - pos.z * ChunkSize.sizeZ;
@@ -368,7 +394,7 @@ class ChunkStreamer {
   void storeEdit(IVec3 b, int id) {
     if (b.y < 1 || b.y >= ChunkSize.sizeY) return;
     final pos = chunkOf(b);
-    if (chunks.containsKey(pos)) {
+    if (_chunks.containsKey(pos)) {
       setBlock(b, id);
       return;
     }
@@ -376,7 +402,7 @@ class ChunkStreamer {
   }
 
   void _queueRemesh(ChunkPos pos) {
-    if (!chunks.containsKey(pos) || !_meshed.contains(pos)) return;
+    if (!_chunks.containsKey(pos) || !_meshed.contains(pos)) return;
     if (_meshInflight.contains(pos) || _surfaceReady.containsKey(pos)) _remeshAgain.add(pos);
     if (!_pending.contains(pos)) {
       _pending.insert(0, pos);
@@ -394,7 +420,8 @@ class ChunkStreamer {
     _lightBlock.clear();
     _aoVerts.clear();
     _remeshAgain.clear();
-    chunks.clear();
+    _chunks.clear();
+    _chunksByKey.clear();
     _pending.clear();
     _surfaceReady.clear();
     _center = (x: 999999, z: 999999);

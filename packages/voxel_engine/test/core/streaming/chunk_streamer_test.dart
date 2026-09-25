@@ -179,4 +179,29 @@ void main() {
     await _settle(s);
     expect(s.getBlockXYZ(1, 60, 1), _stone);
   });
+
+  test('a world cell maps to its chunk by floor division, negative coordinates included', () {
+    expect(ChunkStreamer.chunkOfXZ(0, 15), (x: 0, z: 0));
+    expect(ChunkStreamer.chunkOfXZ(-1, 16), (x: -1, z: 1));
+    expect(ChunkStreamer.chunkOfXZ(-16, -17), (x: -1, z: -2));
+    final keys = {for (final c in [-2, -1, 0, 1, 2]) for (final d in [-2, -1, 0, 1, 2]) ChunkStreamer.keyOf(c, d)};
+    expect(keys, hasLength(25));
+  });
+
+  test('block and light queries find a cell across a negative chunk border', () async {
+    s.updateAround((x: 0, z: 0));
+    await _settle(s);
+    expect(s.setBlock(const IVec3(-1, 50, -16), _glass), isTrue);
+    expect(s.getBlockXYZ(-1, 50, -16), _glass);
+    expect(s.getBlockXYZ(0, 50, -16), 0);
+    expect(s.getBlockXYZ(-1, 50, -17), 0);
+    expect(s.chunkAtXZ(-1, -16), same(s.chunks[(x: -1, z: -1)]));
+    expect(s.lightAt(const IVec3(-1, 20, -16)).sky, 0, reason: 'inside the stone');
+  });
+
+  test('the chunk map is read-only', () async {
+    s.updateAround((x: 0, z: 0));
+    await _settle(s);
+    expect(() => s.chunks.remove((x: 0, z: 0)), throwsUnsupportedError);
+  });
 }

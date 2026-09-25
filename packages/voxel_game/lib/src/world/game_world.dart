@@ -168,7 +168,7 @@ class GameWorld implements VoxelEditor {
   String blockNameAt(IVec3 cell) => blocks.idOf(getBlock(cell));
 
   /// Whether [cell]'s chunk is loaded.
-  bool isLoaded(IVec3 cell) => _streamer.chunks.containsKey(ChunkStreamer.chunkOf(cell));
+  bool isLoaded(IVec3 cell) => _streamer.chunkAtXZ(cell.x, cell.z) != null;
 
   /// Whether the block at [cell] stops a body; below the world counts.
   bool isSolid(IVec3 cell) => cell.y < 0 || blocks.table.isSolid(getBlock(cell));
@@ -220,10 +220,10 @@ class GameWorld implements VoxelEditor {
   /// among loaded chunks, or the generator's surface where the chunk is not
   /// loaded yet.
   int groundHeight(int x, int z) {
-    final chunk = _streamer.chunks[ChunkStreamer.chunkOfXZ(x, z)];
+    final chunk = _streamer.chunkAtXZ(x, z);
     if (chunk == null) return generator.surfaceHeight(x, z);
-    final lx = x - (x / ChunkSize.sizeX).floor() * ChunkSize.sizeX;
-    final lz = z - (z / ChunkSize.sizeZ).floor() * ChunkSize.sizeZ;
+    final lx = x & ChunkSize.maskX;
+    final lz = z & ChunkSize.maskZ;
     for (var y = ChunkSize.sizeY - 1; y >= 0; y--) {
       if (blocks.table.isSolid(chunk[ChunkSize.index(lx, y, lz)])) return y + 1;
     }
