@@ -470,10 +470,10 @@ packages:
     dependency: "direct main"
     description:
       name: sound_recipes
-      sha256: "65ad98b0ad0a5ad958ececff3efccce31a07ffb10c278e23f801c2139d132d0b"
+      sha256: "26d93ffd5b9f71970a1100a36e20281f92845eef2e57d38ed2c2e1743fbc637e"
       url: "https://pub.dev"
     source: hosted
-    version: "0.1.0-dev"
+    version: "0.1.1-dev"
   source_span:
     dependency: transitive
     description:
@@ -550,26 +550,26 @@ packages:
     dependency: "direct main"
     description:
       name: voxel_engine
-      sha256: "660990bcc6ee9a61ae4583e11449e16c3991c39134773c384ef6f189cb506524"
+      sha256: "03438df2e11fa8f35fed11503d89e15844c3c896317b401a7d8624f5ba0e5053"
       url: "https://pub.dev"
     source: hosted
-    version: "0.1.0-dev"
+    version: "0.1.1-dev"
   voxel_game:
     dependency: "direct main"
     description:
       name: voxel_game
-      sha256: "94389806d8b27cdd55bb96ad2779e6196c750a9f9f856a113e23b0af5ef24cf9"
+      sha256: "3b88dc03390f3eb14204298a407e9e372b48a16eb89ab483e2a12ddd792851d0"
       url: "https://pub.dev"
     source: hosted
-    version: "0.1.0-dev"
+    version: "0.1.1-dev"
   voxel_scene:
     dependency: "direct main"
     description:
       name: voxel_scene
-      sha256: "60520493a428b23de3f85026df984ede3a47b08c50f5799bf5f8f45386ab35c0"
+      sha256: "80b86199b703bebbbef476e8fcb81ce1c2e706d4c749993c84ba5f9fb4fd1999"
       url: "https://pub.dev"
     source: hosted
-    version: "0.1.0-dev"
+    version: "0.1.1-dev"
   web:
     dependency: transitive
     description:

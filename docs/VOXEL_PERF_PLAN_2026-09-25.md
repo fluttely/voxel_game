@@ -284,12 +284,18 @@ ledger, not in this plan.
 | — | measurement | `a5d1ebd` | `FrameReport.stepMs`: each tick's simulation time over the steps it ran, a step's own cost whatever the loop banks; `--compare` shows its p50 and p99. |
 | PF6 | replans | this commit | Stopwatches in the step (temporary, not committed) put 5.8 of a 6.0 ms step (Mac, `mobs:6`) in `Pathfinder.find`, at **11.2 searches a step** where 40 mobs replanning every 0.6 s make 1.1: `Mob._steer` replanned at once whenever its path ran out, and an unreachable goal (a hunter at the player, who floats a metre up in creative) gives a partial path that runs out every step, each search spending all 400 nodes. The brains (`think` + behaviours, the Hunt scan with them) cost 0.03 ms a step and the rigs 0.12: neither is worth touching. Now a path is replanned every 0.6 s, sooner (≥ 0.2 s) only when the goal moved 1.5 m, and each mob's timer starts at a random phase. A/B on the Mac at 120 Hz against `a5d1ebd`, three rounds alternated (`docs/perf/pf6_mac120_ab_*.jsonl`; the after build still had the stopwatches, its lines carry `prof`): **step p50 7.82 → 0.27 ms**, step p99 11.1 → 8.8, sim p99 13.9 → 8.6, UI p50 7.1 → 3.8, **fps 84.2 → 93.5**, frame p99 30.7 → 23.9. 0.58 searches a step remain, 0.6 ms each (they still spend 400 nodes): the next half of PF6. |
 | PF6 | A* | this commit | `Pathfinder` keys a cell by an int (its offset from the start, 12 bits an axis), finds a node by one `Map<int, int>` into lists (key, g, parent, closed) reused from one search to the next, and reads each cell's blocks once, with no `IVec3` made in the loop. Against the old code on 1200 random searches (far and negative coordinates, fences, water, lava, mud, budgets 100–600): the same paths, 228 → 141 µs a search (JIT). A/B on the Mac at 120 Hz against `364c6b4`, three rounds alternated (`docs/perf/pf6_mac120_ab_{364c6b4,astar}.jsonl`): **step p99 8.65 → 4.73 ms** (runs 8.6–9.7 → 4.6–4.9), sim p99 8.5 → 4.6, UI p99 12.4 → 8.7. fps is no judge here: 37–103 on both sides, the third round low on both, and the GPU the limit once the step is cheap. The Hunt's target scan is left as it is: the brains measured 0.03 ms a step. |
+| PF6 | phone | this commit | Galaxy S24 at 120 Hz, phone preset, the whole of PF6 (`a5d1ebd` against `2a79328`), three rounds alternated (`docs/perf/pf6_s24_phone_ab_*.jsonl`): **mobs:6 fps 24.0 → 58.2** (runs 22.0–25.9 → 58.0–58.6), **step p50 8.62 → 0.58 ms**, step p99 26.2 → 19.8, sim p99 70.4 → 19.8, steps a second 53–56 → 60 (the loop no longer falls behind), UI p50 23.6 → 12.3, frame p99 83 → 33. Hitches 287 → 698 only because 2.4× the frames were shown at 120 Hz. Encode p50 7.7 → 10.9: the mobs move now, and more frames are encoded. Step p99 still ~20 ms on the phone, the steps that run a search spending the whole budget. |
 
-**Where the work stopped (2026-09-25).** Last commit: PF5. Next step: **PF6** (mob
-brains). After PF5 sim p99 in `mobs:6` is 11 ms on the Mac but still ~75 ms on the phone,
-where the loop is capped at 4 steps a frame (see PF5's phone row): judge PF6 by a step's
-own cost, which `FrameReport` does not report yet. A phone run takes `-- --graphics=phone`,
-or `benchmark.dart` draws the desktop look. Learned and not in the code: (1) the screen was
+**Where the work stopped (2026-09-25).** Last commit: PF6 (the phone row). Next step:
+**PF9** (per-step garbage), then PF7. After PF6 `mobs:6` runs at 93–97 fps on the Mac and
+58 on the phone, where the loop keeps 60 steps a second again; judge a step by `stepMs`,
+not `simMs`. What is left of a step's p99 (4.7 ms on the Mac, ~20 on the phone) is most likely the
+steps that run an A* search spending its whole budget toward an unreachable goal: a lower
+budget for such goals, or a search spread over steps, would take it, if PF9 does not.
+Found in PF6 and not fixed (a bug, not a step): `Wander` reads `Mob.pathBlocked` right
+after `walkTo`, before any plan, and the flag is only set by a plan, so a wanderer whose
+last walk was blocked drops every later goal at once and never walks again. A phone run
+takes `-- --graphics=phone`, or `benchmark.dart` draws the desktop look. Learned and not in the code: (1) the screen was
 locked all night, so the first baseline is a preview; the reference was taken unlocked at
 120 Hz the next day; (2) Instruments traces only a profile build, and `xctrace` leaves a
 ~1 GB raw recording per run in the user's temp dir (the script deletes it; by hand, delete
