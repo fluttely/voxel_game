@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.1-dev
 
 - Requires Flutter 3.47.1, the first with a runner setting that turns Flutter GPU on for
   Windows and Linux. The README says how on every platform, and why the web is not one.

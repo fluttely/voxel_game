@@ -2,7 +2,7 @@ name: voxel_scene
 description: >-
   flutter_scene renderer for voxel_engine: one scene node per chunk, the terrain
   material and its shaders.
-version: 0.1.0-dev
+version: 0.1.1-dev
 homepage: https://github.com/fluttely/voxel_game
 repository: https://github.com/fluttely/voxel_game/tree/main/packages/voxel_scene
 issue_tracker: https://github.com/fluttely/voxel_game/issues
@@ -25,7 +25,7 @@ dependencies:
   # Exact pin: the terrain material imports flutter_scene's private gpu shim.
   flutter_scene: 0.23.0
   vector_math: ^2.1.4
-  voxel_engine: ^0.1.0-dev
+  voxel_engine: ^0.1.1-dev
 
 dev_dependencies:
   flutter_lints: ^6.0.0
