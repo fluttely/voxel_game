@@ -292,9 +292,11 @@ ledger, not in this plan.
 not `simMs`. What is left of a step's p99 (4.7 ms on the Mac, ~20 on the phone) is most likely the
 steps that run an A* search spending its whole budget toward an unreachable goal: a lower
 budget for such goals, or a search spread over steps, would take it, if PF9 does not.
-Found in PF6 and not fixed (a bug, not a step): `Wander` reads `Mob.pathBlocked` right
-after `walkTo`, before any plan, and the flag is only set by a plan, so a wanderer whose
-last walk was blocked drops every later goal at once and never walks again. A phone run
+Found in PF6 and fixed on its own after it (a bug, not a step): `Wander` read
+`Mob.pathBlocked` right after `walkTo`, before any plan, so a wanderer whose last walk was
+blocked dropped every later goal at once; `walkTo` now clears the verdict for a new goal.
+A wanderer walks again, so a `mobs:6` run after the fix is not comparable with one before
+it: rebuild the before from the fix's commit. A phone run
 takes `-- --graphics=phone`, or `benchmark.dart` draws the desktop look. Learned and not in the code: (1) the screen was
 locked all night, so the first baseline is a preview; the reference was taken unlocked at
 120 Hz the next day; (2) Instruments traces only a profile build, and `xctrace` leaves a

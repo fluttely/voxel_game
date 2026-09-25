@@ -77,7 +77,9 @@ class Mob extends GameEntity implements Target {
   double _hopCooldown = 0.0;
   double _flap = 0.0;
 
-  /// Whether the last path could not reach where it was asked to go.
+  /// Whether the path planned toward the goal of [walkTo] cannot reach it.
+  /// A plan sets it; a goal the last plan was not made for (more than
+  /// [replanDistance] from it) clears it until that goal is planned.
   bool pathBlocked = false;
 
   /// Its number in a networked game (the host's), 0 in a lone one.
@@ -121,6 +123,8 @@ class Mob extends GameEntity implements Target {
 
   /// Walks toward [goal] at [speed] of its pace, around walls.
   void walkTo(Vector3 goal, {double speed = 1.0}) {
+    final planned = _pathGoal;
+    if (planned == null || planned.distanceTo(goal) > replanDistance) pathBlocked = false;
     _goal = goal.clone();
     _speedScale = speed;
   }
@@ -264,17 +268,21 @@ class Mob extends GameEntity implements Target {
   /// The least seconds between two plans, however far the goal moved.
   static const double replanSoonest = 0.2;
 
+  /// Metres a goal moves before the path planned toward it is for another
+  /// goal: it is replanned from [replanSoonest], and its [pathBlocked] cleared.
+  static const double replanDistance = 1.5;
+
   /// A* searches this mob has run.
   int pathsPlanned = 0;
 
   /// A* toward [goal], re-planned every [replanEvery] s, or sooner (never
-  /// before [replanSoonest]) when the goal moved 1.5 m; the next waypoint is
+  /// before [replanSoonest]) when the goal moved [replanDistance]; the next waypoint is
   /// consumed within 0.35 m. A path walked to its end is not re-planned at
   /// once: an unreachable goal gives a partial or empty one, and planning it
   /// again every step was most of a step's cost with 40 creatures.
   Vector3 _steer(VoxelGame game, Vector3 goal, double dt) {
     _sincePlan += dt;
-    final moved = _pathGoal == null || _pathGoal!.distanceTo(goal) > 1.5;
+    final moved = _pathGoal == null || _pathGoal!.distanceTo(goal) > replanDistance;
     if (_sincePlan >= replanEvery || (moved && _sincePlan >= replanSoonest)) {
       _sincePlan = 0.0;
       pathsPlanned++;

@@ -204,6 +204,32 @@ void main() {
         reason: 'a partial path walked to its end waits for the timer (180 steps ran)');
   });
 
+  test('a wanderer whose last walk was blocked walks again once it is let out', () async {
+    const cow = MobSpec('cow', hp: 4, speed: 2.0, brain: [Wander(radius: 8, speed: 1.0)]);
+    final game = await _start(_flat(mobs: const [cow]));
+    final at = game.player.position + Vector3(0, 0, -6);
+    final cell = IVec3.floor(at);
+    final walls = [
+      for (var dx = -1; dx <= 1; dx++)
+        for (var dz = -1; dz <= 1; dz++)
+          if (dx != 0 || dz != 0)
+            for (var dy = 0; dy < 3; dy++) cell + IVec3(dx, dy, dz),
+    ];
+    for (final w in walls) {
+      game.world.setBlockNamed(w, 'stone');
+    }
+    final m = game.spawnMob('cow', Vector3(cell.x + 0.5, at.y, cell.z + 0.5));
+    await _run(game, 6.0);
+    expect(m.pathBlocked, isTrue, reason: 'every walk it tried ended inside the box');
+    for (final w in walls) {
+      game.world.setBlock(w, BlockRegistry.air);
+    }
+    final planned = m.pathsPlanned, start = m.position.clone();
+    await _run(game, 12.0);
+    expect(m.pathsPlanned, greaterThan(planned), reason: 'a new goal is planned, not dropped on the old verdict');
+    expect(m.position.distanceTo(start), greaterThan(1.0));
+  });
+
   test('a frightened animal runs from what hurt it', () async {
     const sheep = MobSpec('sheep', hp: 8, speed: 2.0, rig: Rig.quadruped(), brain: [FleeWhenHurt(), Wander()]);
     final game = await _start(_flat(mobs: const [sheep]));

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Fixed: a `Wander`er whose last walk was blocked dropped every later goal at once and
+  stood still. `Mob.pathBlocked` belonged to the last plan, which is made after the
+  behaviours run, so `Wander` read the verdict on the previous goal. `walkTo` now clears it
+  for a goal more than `Mob.replanDistance` (1.5 m, the distance that already triggered a
+  replan) from the planned one, until that goal is planned.
 - A walking mob replans its path every `Mob.replanEvery` (0.6 s), sooner (never before
   `Mob.replanSoonest`, 0.2 s) only when its goal moved 1.5 m, from a random phase per mob;
   it used to replan every step once its path ran out, which an unreachable goal makes
