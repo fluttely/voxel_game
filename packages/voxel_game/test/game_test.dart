@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vector_math/vector_math.dart';
@@ -202,6 +203,26 @@ void main() {
     expect(m.pathBlocked, isTrue);
     expect(m.pathsPlanned, inInclusiveRange(3, (3.0 / Mob.replanEvery).ceil() + 1),
         reason: 'a partial path walked to its end waits for the timer (180 steps ran)');
+  });
+
+  test('hunters that all want a path at once share a budget of searches a step', () async {
+    const zombie = MobSpec('zombie', hp: 6, speed: 3.0, brain: [Hunt(range: 20)]);
+    final game = await _start(_flat(mobs: const [zombie]));
+    final p = game.player;
+    final pack = [
+      for (var i = 0; i < 24; i++)
+        game.spawnMob('zombie', p.position + Vector3(math.cos(i * math.pi / 12) * 10, 0, math.sin(i * math.pi / 12) * 10)),
+    ];
+    var before = 0, most = 0;
+    for (var i = 0; i < 90; i++) {
+      game.step(1 / 60);
+      final planned = pack.fold<int>(0, (n, m) => n + m.pathsPlanned);
+      most = math.max(most, planned - before);
+      before = planned;
+      await Future<void>.delayed(Duration.zero);
+    }
+    expect(most, lessThanOrEqualTo(Mob.searchesPerStep));
+    expect(pack.where((m) => m.pathsPlanned == 0), isEmpty, reason: 'a mob that waited plans on a later step');
   });
 
   test('a wanderer whose last walk was blocked walks again once it is let out', () async {

@@ -268,6 +268,9 @@ class Mob extends GameEntity implements Target {
   /// The least seconds between two plans, however far the goal moved.
   static const double replanSoonest = 0.2;
 
+  /// A* searches one step runs at most, whichever mobs ask.
+  static const int searchesPerStep = 3;
+
   /// Metres a goal moves before the path planned toward it is for another
   /// goal: it is replanned from [replanSoonest], and its [pathBlocked] cleared.
   static const double replanDistance = 1.5;
@@ -279,11 +282,15 @@ class Mob extends GameEntity implements Target {
   /// before [replanSoonest]) when the goal moved [replanDistance]; the next waypoint is
   /// consumed within 0.35 m. A path walked to its end is not re-planned at
   /// once: an unreachable goal gives a partial or empty one, and planning it
-  /// again every step was most of a step's cost with 40 creatures.
+  /// again every step was most of a step's cost with 40 creatures. A plan
+  /// that is due when the step has spent its [searchesPerStep] waits for the
+  /// next step: mobs that start hunting together, or whose goal (the player)
+  /// moved in the same step, would otherwise all search in one.
   Vector3 _steer(VoxelGame game, Vector3 goal, double dt) {
     _sincePlan += dt;
     final moved = _pathGoal == null || _pathGoal!.distanceTo(goal) > replanDistance;
-    if (_sincePlan >= replanEvery || (moved && _sincePlan >= replanSoonest)) {
+    if ((_sincePlan >= replanEvery || (moved && _sincePlan >= replanSoonest)) && game.searchesLeft > 0) {
+      game.searchesLeft--;
       _sincePlan = 0.0;
       pathsPlanned++;
       _pathGoal = goal.clone();

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- A step runs at most `Mob.searchesPerStep` (3) A* searches; a mob whose plan is due
+  when they are spent plans on a later step (`VoxelGame.searchesLeft`). The random phase
+  each mob starts with was lost at its first plan, so hunters that saw the player in one
+  step replanned together every 0.6 s, as every hunter does when the player moves 1.5 m:
+  up to 18 searches in one step. With 40 creatures (`mobs:6`, M2 Pro) a step's p99 falls
+  from 4.5 ms to 1.15, with as many searches a second.
 - Fixed: a `Wander`er whose last walk was blocked dropped every later goal at once and
   stood still. `Mob.pathBlocked` belonged to the last plan, which is made after the
   behaviours run, so `Wander` read the verdict on the previous goal. `walkTo` now clears it

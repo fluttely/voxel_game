@@ -223,6 +223,10 @@ class VoxelGame {
   /// The path policy of every walking creature: lava is never entered.
   late final PathCosts pathCosts;
 
+  /// A* searches this step may still run: [Mob.searchesPerStep] at its start.
+  /// A mob whose plan is due when none is left plans on a later step.
+  int searchesLeft = 0;
+
   /// The player.
   late final PlayerEntity player;
 
@@ -369,6 +373,7 @@ class VoxelGame {
       input.endTick();
       return;
     }
+    searchesLeft = Mob.searchesPerStep;
     time += dt;
     if (spec.sky.cycle) timeOfDay = (timeOfDay + dt / spec.sky.dayLength) % 1.0;
     player.tick(this, dt, gameplay: gameplay);
