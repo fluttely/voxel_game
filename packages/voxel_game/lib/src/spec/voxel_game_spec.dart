@@ -8,6 +8,7 @@ import '../mobs/mob.dart';
 import '../mobs/mob_spec.dart';
 import '../player/player_spec.dart';
 import '../world/game_world.dart';
+import 'graphics_spec.dart';
 import 'signal_spec.dart';
 import 'sky_spec.dart';
 import 'sound_spec.dart';
@@ -40,6 +41,7 @@ class VoxelGameSpec {
     this.signals,
     this.seed = 1,
     this.renderDistance = 6,
+    this.graphics,
     this.mining = const MiningRules(),
     this.liquids = const {},
     this.systems = const [],
@@ -83,6 +85,10 @@ class VoxelGameSpec {
   /// How many chunks are streamed around the player.
   final int renderDistance;
 
+  /// How the world is drawn; null for [GraphicsSpec.phone] on iOS and Android
+  /// and [GraphicsSpec.desktop] everywhere else.
+  final GraphicsSpec? graphics;
+
   /// How long blocks take to break.
   final MiningRules mining;
 
@@ -118,6 +124,7 @@ class VoxelGameSpec {
     SignalSpec? signals,
     int? seed,
     int? renderDistance,
+    GraphicsSpec? graphics,
     MiningRules? mining,
     Map<String, LiquidSpec>? liquids,
     List<GameSystem>? systems,
@@ -138,6 +145,7 @@ class VoxelGameSpec {
         signals: signals ?? this.signals,
         seed: seed ?? this.seed,
         renderDistance: renderDistance ?? this.renderDistance,
+        graphics: graphics ?? this.graphics,
         mining: mining ?? this.mining,
         liquids: liquids ?? this.liquids,
         systems: systems ?? this.systems,

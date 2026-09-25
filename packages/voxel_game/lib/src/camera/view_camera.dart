@@ -63,7 +63,10 @@ class ViewCamera {
       up: up + right * viewBob.roll,
       fovRadiansY: p.spec.fov * math.pi / 180.0,
       fovNear: 0.05,
-      fovFar: 800.0,
+      // Past the fog's end every pixel is fog: the far plane stops there (and a
+      // chunk further, for the corners of the view), so the ring of loaded but
+      // hidden chunks is culled instead of drawn.
+      fovFar: game.viewDistance + 16.0,
     );
   }
 }

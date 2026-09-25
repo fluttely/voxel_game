@@ -1,6 +1,6 @@
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart' show ValueNotifier;
+import 'package:flutter/foundation.dart' show TargetPlatform, ValueNotifier, defaultTargetPlatform;
 import 'package:flutter_scene/scene.dart';
 import 'package:vector_math/vector_math.dart';
 import 'package:sound_recipes/sound_recipes.dart';
@@ -27,6 +27,7 @@ import '../mobs/spawner.dart';
 import '../net/remote_player.dart';
 import '../net/sessions.dart';
 import '../player/player_entity.dart';
+import '../spec/graphics_spec.dart';
 import '../spec/signal_spec.dart';
 import '../spec/voxel_game_spec.dart';
 import '../world/game_world.dart';
@@ -110,8 +111,16 @@ class VoxelGame {
     final blocks = spec.buildBlocks();
     final world = GameWorld(blocks, spec.world, save?.seed ?? spec.seed, loadRadius: spec.renderDistance, liquids: spec.liquids);
     final game = VoxelGame._(spec, blocks, spec.buildItems(blocks), world, headless: false, authority: authority);
-    game.scene = MeasuredScene(game.stats);
-    game.sky = DayNightSky(game.scene!);
+    final g = game.graphics, shadows = g.shadows;
+    game.scene = MeasuredScene(game.stats)
+      ..antiAliasingMode = g.antiAliasing
+      ..renderScale = g.renderScale;
+    game.sky = DayNightSky(game.scene!,
+        shadows: shadows.enabled,
+        shadowCascades: shadows.cascades,
+        shadowResolution: shadows.resolution,
+        shadowDistance: shadows.distance,
+        sunStepDegrees: shadows.sunStepDegrees);
     game.scene!.add(world.root!);
     game._begin(save);
     game.firstPerson = FirstPersonView(game);
@@ -316,7 +325,7 @@ class VoxelGame {
     firstPerson?.update(dt);
     final s = sky;
     if (s != null) {
-      final intensity = s.update(timeOfDay, fogDistance: world.loadRadius * 16.0);
+      final intensity = s.update(timeOfDay, fogDistance: viewDistance);
       world.setSkyIntensity(intensity);
     }
     _frameWatch.stop();
@@ -324,6 +333,19 @@ class VoxelGame {
   }
 
   final Stopwatch _frameWatch = Stopwatch();
+
+  /// How the world is drawn: the spec's, or the preset of this platform.
+  late final GraphicsSpec graphics = spec.graphics ??
+      (defaultTargetPlatform == TargetPlatform.iOS || defaultTargetPlatform == TargetPlatform.android
+          ? GraphicsSpec.phone
+          : GraphicsSpec.desktop);
+
+  /// Metres to the edge of the loaded chunks: where the fog is full and the
+  /// camera's far plane ends, so nothing past it is drawn.
+  double get viewDistance => world.loadRadius * 16.0;
+
+  /// Draws the world at [graphics]' scale on a screen of [devicePixelRatio].
+  void fitPixelRatio(double devicePixelRatio) => scene?.renderScale = graphics.sceneScale(devicePixelRatio);
 
   /// What the frames cost: an FPS readout, and every sample while a benchmark
   /// records.

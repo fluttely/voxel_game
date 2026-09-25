@@ -46,20 +46,53 @@ Future<void> main(List<String> args) async {
   ));
 }
 
-/// One benchmark run: [scenario] at [radius] chunks, measured for [seconds].
+/// One benchmark run: [scenario] at [radius] chunks, measured for [seconds],
+/// drawn with [graphics].
 class Bench {
-  Bench(this.scenario, this.radius, this.seconds);
+  Bench(this.scenario, this.radius, this.seconds, this.graphics);
 
-  /// Reads `--scenario=`, `--radius=` and `--seconds=` (the rest is the runner's).
+  /// Reads `--scenario=`, `--radius=`, `--seconds=` and the look: `--graphics=`
+  /// (`desktop` or `phone`, the base), then `--scale=`, `--max-ratio=`,
+  /// `--aa=` (an `AntiAliasingMode`), `--shadows=` (`off`, or
+  /// `cascades:resolution:distance`) and `--sun-step=` over it. The rest is the
+  /// runner's.
   factory Bench.parse(List<String> args) {
-    String arg(String name, String fallback) =>
-        args.firstWhere((a) => a.startsWith('--$name='), orElse: () => '--$name=$fallback').split('=')[1];
-    return Bench(Scenario.values.byName(arg('scenario', 'orbit')), int.parse(arg('radius', '6')), double.parse(arg('seconds', '12')));
+    String? arg(String name) => args.where((a) => a.startsWith('--$name=')).map((a) => a.substring(name.length + 3)).lastOrNull;
+    final base = switch (arg('graphics') ?? 'desktop') {
+      'desktop' => GraphicsSpec.desktop,
+      'phone' => GraphicsSpec.phone,
+      final other => throw ArgumentError('--graphics=$other: desktop or phone'),
+    };
+    final shadowArg = arg('shadows'), sunStep = arg('sun-step');
+    final parts = shadowArg?.split(':');
+    final ShadowSpec shadows = switch (parts) {
+      null => base.shadows,
+      ['off'] => ShadowSpec.off,
+      [final c, final r, final d] => ShadowSpec(cascades: int.parse(c), resolution: int.parse(r), distance: double.parse(d)),
+      _ => throw ArgumentError('--shadows=$shadowArg: off or cascades:resolution:distance'),
+    };
+    final maxRatio = arg('max-ratio');
+    final graphics = GraphicsSpec(
+      renderScale: double.parse(arg('scale') ?? '${base.renderScale}'),
+      maxPixelRatio: maxRatio == null ? base.maxPixelRatio : double.parse(maxRatio),
+      antiAliasing: arg('aa') == null ? base.antiAliasing : AntiAliasingMode.values.byName(arg('aa')!),
+      shadows: sunStep == null
+          ? shadows
+          : ShadowSpec(
+              enabled: shadows.enabled,
+              cascades: shadows.cascades,
+              resolution: shadows.resolution,
+              distance: shadows.distance,
+              sunStepDegrees: double.parse(sunStep)),
+    );
+    return Bench(Scenario.values.byName(arg('scenario') ?? 'orbit'), int.parse(arg('radius') ?? '6'),
+        double.parse(arg('seconds') ?? '12'), graphics);
   }
 
   final Scenario scenario;
   final int radius;
   final double seconds;
+  final GraphicsSpec graphics;
 
   /// Seconds after the window fills before the recording starts.
   static const double settle = 2.0;
@@ -75,6 +108,7 @@ class Bench {
 
   late final VoxelGameSpec spec = example.game.copyWith(
     renderDistance: radius,
+    graphics: graphics,
     // Creative: the hunters of the mobs run cannot end it by killing the player.
     player: PlayerSpec(creative: true, startingItems: example.game.player.startingItems),
     onTick: _tick,
@@ -174,6 +208,14 @@ class Bench {
       'refreshHz': display.refreshRate,
       'window': '${size.width.round()}x${size.height.round()}',
       'dpr': view.devicePixelRatio,
+      'graphics': {
+        'scale': game.scene!.renderScale,
+        'aa': graphics.antiAliasing.name,
+        'shadows': graphics.shadows.enabled
+            ? '${graphics.shadows.cascades}x${graphics.shadows.resolution} ${graphics.shadows.distance.round()}m'
+            : 'off',
+        'sunStep': graphics.shadows.sunStepDegrees,
+      },
       'fillMs': _fillMs!.round(),
       ...?_world,
       'mobs': game.mobs.length,

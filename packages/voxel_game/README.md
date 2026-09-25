@@ -40,6 +40,10 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
 - `SpawnRule.daylight()` / `SpawnRule.dark()`, `Drop`s.
 - Save slots, and `hostPort` / `join` for multiplayer.
 - Hooks: `onBlockBroken`, `onBlockPlaced`, `onMobKilled`, `onTick`, and `GameSystem`s.
+- `GraphicsSpec`: render scale, a pixel-ratio cap, anti-aliasing and the sun's shadows, with
+  a `desktop` and a `phone` preset (the phone's is picked on iOS and Android).
+- `VoxelGame.stats`: an FPS readout, and per-frame samples (UI, raster, simulation, scene
+  encoding, GPU) for a benchmark.
 
 ## Install
 
@@ -114,7 +118,7 @@ Dart SDK `^3.13.0`.
    ```
 
 5. **Grow it** with `items`, `recipes`, `player: PlayerSpec(startingItems: {...})`,
-   `sky`, `sounds`, `signals`, and the `on...` hooks.
+   `sky`, `sounds`, `signals`, `graphics`, and the `on...` hooks.
 
 6. **Play together (optional):** `runVoxelGame(spec, hostPort: 7777)` on one
    machine and `runVoxelGame(spec, join: '192.168.0.10')` on another.

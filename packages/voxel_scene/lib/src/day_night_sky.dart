@@ -14,16 +14,26 @@ import 'mirrored_camera.dart';
 /// the baked sky light shows, for `VoxelChunkView.setSkyIntensity`.
 class DayNightSky {
   /// A sky over [scene], replacing its skybox, sun, tone mapping and fog.
-  DayNightSky(this.scene, {this.sunScale = 0.6, this.ambientScale = 0.6, bool shadows = true, double sunStepDegrees = 0.5})
+  ///
+  /// The shadows are [shadowCascades] cascades of [shadowResolution]² texels
+  /// splitting [shadowDistance] metres.
+  DayNightSky(this.scene,
+      {this.sunScale = 0.6,
+      this.ambientScale = 0.6,
+      bool shadows = true,
+      int shadowCascades = 4,
+      int shadowResolution = 2048,
+      double shadowDistance = 110.0,
+      double sunStepDegrees = 0.5})
       : _sunStep = sunStepDegrees * math.pi / 180.0 {
     sky = GradientSkySource(sunSharpness: 600.0);
     scene.skybox = Skybox(sky);
     sun = SunLight(
       sky,
       castsShadow: shadows,
-      shadowMaxDistance: 110.0,
-      shadowMapResolution: 2048,
-      shadowCascadeCount: 4,
+      shadowMaxDistance: shadowDistance,
+      shadowMapResolution: shadowResolution,
+      shadowCascadeCount: shadowCascades,
       shadowSoftness: 0.04,
       shadowDepthBias: 0.02,
       shadowNormalBias: 0.06,

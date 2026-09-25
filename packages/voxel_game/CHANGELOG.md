@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+- `FrameStats` (`VoxelGame.stats`): what the frames cost. An `fps` readout, and between
+  `startRecording` and `stopRecording` every sample: Flutter's presented frames (interval,
+  UI build, raster), the simulation (`VoxelGame.frame`), the scene's encoding and the GPU's
+  time to finish each scene frame. `FrameReport` summarises them (percentiles, hitches).
+  The scene is a `MeasuredScene`, which times its own encoding and the GPU's completion.
+- `VoxelGameSpec.copyWith`; `GameWorld.chunksBuilt` and `GameWorld.facesEmitted`.
+- `GraphicsSpec` (`VoxelGameSpec.graphics`): `renderScale`, `maxPixelRatio`,
+  `antiAliasing` and a `ShadowSpec` (cascades, resolution, distance, the sun's step).
+  `GraphicsSpec.desktop` is the look as it was; `GraphicsSpec.phone` draws at most 1.5
+  pixels a point, with FXAA and two 1024² cascades over 48 m, and is what a spec without
+  `graphics` gets on iOS and Android.
+- The camera's far plane ends where the fog is full (`VoxelGame.viewDistance`, plus a
+  chunk) instead of 800 m, so the loaded chunks past the fog are culled, not drawn.
+
 ## 0.1.0-dev
 
 First version.
@@ -24,12 +40,6 @@ First version.
 - Day and night sky, sounds, circuits (`SignalSpec`), liquids.
 - Save slots, and hosting or joining a multiplayer world.
 - Hooks: `onBlockBroken`, `onBlockPlaced`, `onMobKilled`, `onTick`, `GameSystem`.
-- `FrameStats` (`VoxelGame.stats`): what the frames cost. An `fps` readout, and between
-  `startRecording` and `stopRecording` every sample: Flutter's presented frames (interval,
-  UI build, raster), the simulation (`VoxelGame.frame`), the scene's encoding and the GPU's
-  time to finish each scene frame. `FrameReport` summarises them (percentiles, hitches).
-  The scene is a `MeasuredScene`, which times its own encoding and the GPU's completion.
-- `VoxelGameSpec.copyWith`; `GameWorld.chunksBuilt` and `GameWorld.facesEmitted`.
 - The package description and the dartdoc say what the kit does, not which game it was
   measured against: "a voxel sandbox in a few lines". The library's header names the
   three packages it sits on as they are called today.

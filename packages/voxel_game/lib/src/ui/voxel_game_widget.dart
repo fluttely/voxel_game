@@ -230,6 +230,7 @@ class _VoxelGameWidgetState extends State<VoxelGameWidget> {
     if (game == null) {
       return const ColoredBox(color: Color(0xFF0E1420), child: Center(child: Text('Generating the world...')));
     }
+    game.fitPixelRatio(MediaQuery.devicePixelRatioOf(context));
     return Focus(
       focusNode: _focus,
       autofocus: true,
