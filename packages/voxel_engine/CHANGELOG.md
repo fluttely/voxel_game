@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- `ChunkMesher` merges cube and liquid faces greedily: coplanar neighbours of the same
+  block, light, AO corners and lowered top become one quad, across a direction only
+  where the AO does not change along it, so the interpolated colour is what the unit
+  faces had. The kit example's radius-6 window meshes 114,193 faces where it meshed
+  185,130 (solid −31%, liquid −98.5%). **Breaking:** the per-block colour variation is
+  no longer in `MeshSurface.colors` (it made every face different); a renderer computes
+  it from the cell with the new `ChunkMesher.voxelTint`, as voxel_scene's terrain shader
+  does. The `glow` surface, meant for an unlit material, keeps it baked and unmerged.
+
 ## 0.1.2-dev
 
 - Formatted by `dart format` at the 120 columns the code is written at

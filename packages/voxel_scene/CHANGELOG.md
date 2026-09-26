@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- The terrain shader multiplies in each block's colour variation, computed from the
+  fragment's cell with the same hash as voxel_engine's `ChunkMesher.voxelTint`, which the
+  mesher no longer bakes into the vertex colour so it can merge faces. The terrain
+  looks as it did: against the baked variation, 97.7% of a frame's pixels are identical
+  and the rest lie on cells' edges, where multisampling now shades one cell's variation.
+  Requires voxel_engine's greedy mesher; the shader bundle is rebuilt.
 - `VoxelChunkView` draws chunks in regions of `regionChunks` × `regionChunks` (2 by
   default): one node per region, one geometry per surface in it, the chunks' offsets
   baked into its positions and its bounds taken while they are copied. flutter_scene

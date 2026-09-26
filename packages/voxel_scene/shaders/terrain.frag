@@ -2,7 +2,8 @@
 //
 // This is flutter_scene 0.23's `flutter_scene_standard.frag` with one change in Surface():
 // the mesher writes block tint x face tint x AO into the vertex colour and the two light
-// levels into texture_coords_1 (x = sky / 15, y = block / 15); the sky half is scaled by
+// levels into texture_coords_1 (x = sky / 15, y = block / 15), and the shader multiplies in
+// the per-block colour variation (VoxelTint) the mesher leaves out; the sky half is scaled by
 // `sky_intensity` (1.0 noon, 0.35 night, 0.0 underworld, set once per frame by the game),
 // the brighter of the two wins, and the level goes through Godot's fourth-power curve.
 // The albedo is multiplied by that light and an `emission_mix` share of the lit albedo is
@@ -76,6 +77,19 @@ float TerrainLight(vec2 uv1) {
   return pow(v, 2.2);
 }
 
+// The block's colour variation, 0.93 .. 1.07: voxel_engine's ChunkMesher.voxelTint, the
+// same hash of the world cell in 32-bit unsigned arithmetic. The mesher no longer bakes it,
+// so faces of one block merge into one quad; the cell is the one a tenth of a block behind
+// the face, along the normal the mesher gave it (v_normal, not flipped for a back face).
+float VoxelTint() {
+  ivec3 c = ivec3(floor(v_position - v_normal * 0.1));
+  uint h = (uint(c.x) * 73856093u) ^ (uint(c.y) * 19349663u) ^ (uint(c.z) * 83492791u);
+  h ^= h >> 13u;
+  h *= 0x5bd1e995u;
+  h ^= h >> 15u;
+  return 0.93 + float(h % 1000u) / 1000.0 * 0.14;
+}
+
 void Surface(inout MaterialInputs material) {
   vec4 vertex_color = mix(vec4(1), v_color, frag_info.vertex_color_weight);
   bool transformed_uvs = texture_transforms.base_color_rotation.w > 0.5;
@@ -87,7 +101,7 @@ void Surface(inout MaterialInputs material) {
   vec4 base_color_srgb = texture(base_color_texture, base_color_uv);
   float light = TerrainLight(GetUV1());
   vec3 albedo = SRGBToLinear(base_color_srgb.rgb) * vertex_color.rgb *
-                frag_info.color.rgb * light;
+                frag_info.color.rgb * light * VoxelTint();
   float alpha = base_color_srgb.a * vertex_color.a * frag_info.color.a;
   if (frag_info.alpha_mode == 1.0) {
     if (alpha < frag_info.alpha_cutoff) {
