@@ -342,8 +342,10 @@ time, and let the phone cool (under ~33 °C) before a run whose absolute numbers
 launches the app by bundle id, so once both sides have a profile build it may run the other
 side's (two "before" traces of PF15 ran the greedy build; the line's `faces` gave it away):
 move the other side's `Profile/voxel_game_example.app` out of the way for each call and check
-`faces`; (9) 28 of PF15's 33 traced runs ended in "no composited frame in the traced window", on
-both sides and with the screen unlocked, the last 24 in a row: cause not found; a later
-sitting tries again from a fresh login; (10) a phone that
+`faces`; (9) 28 of PF15's 33 traced runs ended in "no composited frame in the traced window",
+on both sides: the same bundle id again, xctrace launching the **release** build of the tree
+(which Instruments cannot trace; four of them were found still running, started at the
+failed calls' times): the runner should move `Release/voxel_game_example.app` (and the other
+worktree's builds) aside while it traces, and kill what it launched; (10) a phone that
 drops off USB hangs the runner at `adb logcat` with no error: a driver script that reports
 each call's start time shows it as a call older than ~3 minutes.
