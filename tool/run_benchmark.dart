@@ -148,16 +148,28 @@ Future<String> runMac(String app, List<String> flags) async {
 
 /// One run on an Android device: the app started afresh with [flags] in its
 /// launch intent (`FlutterActivity` hands them to `main`), waited for until its
-/// process exits, and logcat's `flutter` lines, where its line lands.
+/// process exits, and logcat's `flutter` lines, where its line lands. A process
+/// that ends without its line died: the reason Android recorded for its exit
+/// and the crash log (signal, backtrace) follow, since the `flutter` tag holds
+/// neither.
 Future<String> runAndroid(String serial, List<String> flags) async {
   await adb(serial, ['logcat', '-c']);
   await adb(serial, ['shell', 'am', 'start', '-S', '-W', '-n', '$androidPackage/.MainActivity', '--esal', 'dart_entrypoint_args', flags.join(',')]);
+  final pid = (await Process.run('adb', ['-s', serial, 'shell', 'pidof', androidPackage])).stdout.toString().trim();
   final deadline = DateTime.now().add(const Duration(minutes: 3));
   while ((await Process.run('adb', ['-s', serial, 'shell', 'pidof', androidPackage])).exitCode == 0) {
     if (DateTime.now().isAfter(deadline)) throw StateError('the run on $serial did not end in 3 minutes');
     await Future<void>.delayed(const Duration(seconds: 1));
   }
-  return adb(serial, ['logcat', '-d', '-v', 'raw', '-s', 'flutter:I']);
+  final output = await adb(serial, ['logcat', '-d', '-v', 'raw', '-s', 'flutter:I']);
+  if (output.contains('[bench] {')) return output;
+  // `dumpsys activity exit-info` lists the package's last exits, newest first,
+  // each as a `timestamp=... pid=N` line and a `process=... reason=...` one.
+  final exits = const LineSplitter().convert(await adb(serial, ['shell', 'dumpsys', 'activity', 'exit-info', androidPackage]));
+  final at = exits.indexWhere((l) => l.contains(' pid=$pid '));
+  final exit = pid.isEmpty ? 'the process was gone when `am start` returned' : at < 0 ? 'no exit recorded for pid $pid' : exits[at + 1].trim();
+  final crash = await adb(serial, ['logcat', '-d', '-v', 'raw', '-b', 'crash']);
+  return '$output\n\nexit: $exit\n\ncrash log:\n${crash.isEmpty ? '(empty)' : crash}';
 }
 
 /// One run on this Mac under a Metal System Trace: the app's stdout, and the
