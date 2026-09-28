@@ -3,12 +3,16 @@ import 'package:vector_math/vector_math.dart';
 import 'package:voxel_engine/core.dart';
 
 import 'merged_surface.dart';
+import 'packed_surface.dart';
+import 'terrain_geometry.dart';
 import 'terrain_material.dart';
 
 /// voxel_core's chunks drawn with flutter_scene: the [ChunkMeshSink] a
 /// [ChunkStreamer] hands finished meshes to. Chunks are drawn in regions of
 /// [regionChunks] × [regionChunks]: one [Node] per region under [root], one
-/// child per non-empty surface on its material, light in the second UV set.
+/// child per non-empty surface on its material. The three lit surfaces draw in
+/// [TerrainGeometry]'s 16-byte packed vertex; the glow in the engine's own, its
+/// light in the second UV set.
 ///
 /// A region is one draw per surface where a chunk was one each, because
 /// flutter_scene batches only draws of the identical geometry. The price is
@@ -18,6 +22,10 @@ class VoxelChunkView implements ChunkMeshSink {
   /// A view with an empty [root] named [rootName]. Add [root] to a scene.
   VoxelChunkView({String rootName = 'World', this.regionChunks = 2})
     : assert(regionChunks >= 1, 'a region holds at least one chunk'),
+      assert(
+        regionChunks * ChunkSize.sizeX <= 255 && regionChunks * ChunkSize.sizeZ <= 255,
+        'a packed terrain vertex spans 256 m',
+      ),
       root = Node(name: rootName) {
     // The three lit surfaces share the terrain shader's light term fed by
     // [setSkyIntensity]; specular 0 turns off sky reflections (the dielectric F0
@@ -109,17 +117,38 @@ class VoxelChunkView implements ChunkMeshSink {
         0,
         region.z * regionChunks * ChunkSize.sizeZ.toDouble(),
       );
-    for (final (i, material) in [matSolid, matCutout, matGlow, matLiquid].indexed) {
-      final surface = _merge([for (final (offset, s) in members) (offset, s[i])], material);
+    List<(ChunkPos, MeshSurface)> parts(int i) => [for (final (offset, s) in members) (offset, s[i])];
+    for (final surface in [
+      _mergeLit(parts(0), matSolid),
+      _mergeLit(parts(1), matCutout),
+      _mergeGlow(parts(2)),
+      _mergeLit(parts(3), matLiquid),
+    ]) {
       if (surface != null) node.add(surface);
     }
     root.add(node);
     _regions[region] = node;
   }
 
-  /// One node drawing [parts] (each at its chunk's offset in the region, in
-  /// chunks) on [material], or null when they are all empty.
-  Node? _merge(List<(ChunkPos, MeshSurface)> parts, Material material) {
+  /// The region's box in its own frame, from the heights its vertices span.
+  Aabb3 _bounds(double minY, double maxY) => Aabb3.minMax(
+    Vector3(0, minY, 0),
+    Vector3(regionChunks * ChunkSize.sizeX.toDouble(), maxY, regionChunks * ChunkSize.sizeZ.toDouble()),
+  );
+
+  /// One node drawing lit [parts] (each at its chunk's offset in the region, in
+  /// chunks) in the packed terrain vertex on [material], or null when they are
+  /// all empty.
+  Node? _mergeLit(List<(ChunkPos, MeshSurface)> parts, TerrainMaterial material) {
+    final m = PackedSurface.of(parts);
+    if (m == null) return null;
+    return Node(mesh: Mesh(TerrainGeometry(m, _bounds(m.minY, m.maxY)), material))..shadowStatic = true;
+  }
+
+  /// One node drawing the glow [parts] on [matGlow], or null when they are all
+  /// empty. Their colour keeps each block's variation baked in, which can pass
+  /// 1.0 where the packed vertex stores 0..1, so they stay in the engine's vertex.
+  Node? _mergeGlow(List<(ChunkPos, MeshSurface)> parts) {
     final m = MergedSurface.of(parts);
     if (m == null) return null;
     final geometry = MeshGeometry.fromArrays(
@@ -128,12 +157,9 @@ class VoxelChunkView implements ChunkMeshSink {
       colors: m.colors,
       texCoords1: m.light, // (sky / 15, block / 15)
       indices: m.indices,
-      bounds: Aabb3.minMax(
-        Vector3(0, m.minY, 0),
-        Vector3(regionChunks * ChunkSize.sizeX.toDouble(), m.maxY, regionChunks * ChunkSize.sizeZ.toDouble()),
-      ),
+      bounds: _bounds(m.minY, m.maxY),
       retainCpuData: false,
     );
-    return Node(mesh: Mesh(geometry, material))..shadowStatic = true;
+    return Node(mesh: Mesh(geometry, matGlow))..shadowStatic = true;
   }
 }

@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- The terrain's lit surfaces (solid, cutout, liquid) draw in a packed 16-byte vertex
+  where the engine's is 72: a `Geometry` of the kit's with its own vertex shaders
+  (`shaders/terrain.vert`, and `terrain_depth.vert` for the shadow cascades, the depth
+  prepass and the selection mask), two streams of two 32-bit words. The position is in
+  1/256 m from the region's corner, which the depth passes read alone (8 bytes a vertex
+  where they read 12); the colour's square root, the normal and the two light levels
+  are the second. The glow surface keeps the engine's vertex: its baked colour can pass
+  1.0. The terrain looks as it did: against the 72-byte vertex, 0.04% of a frame's
+  pixels differ by more than 2 of 255, fewer than between two runs of the same build.
+  `VoxelChunkView` asserts `regionChunks` × the chunk size stays under 256 m, and
+  `TerrainMaterial.loadLibrary` now requires the bundle's two vertex shaders; the
+  bundle is rebuilt, and `tool/build_shaders.dart` compiles vertex shaders too.
 - The terrain shader multiplies in each block's colour variation, computed from the
   fragment's cell with the same hash as voxel_engine's `ChunkMesher.voxelTint`, which the
   mesher no longer bakes into the vertex colour so it can merge faces. The terrain

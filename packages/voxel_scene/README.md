@@ -9,7 +9,9 @@ and night sky, block models and the selection outline.
 ## Features
 
 - `VoxelChunkView`: a `ChunkMeshSink` that draws chunks in regions (2 × 2 by
-  default), one geometry per surface a region, so the terrain costs few draws.
+  default), one geometry per surface a region, so the terrain costs few draws, and
+  its lit surfaces in a packed 16-byte vertex (the engine's is 72) with a vertex
+  shader of its own.
 - `TerrainMaterial`: the terrain shader (lit, fogged, shadowed).
 - `MirroredCamera`: the camera that shows `voxel_engine`'s winding the right way round.
 - `DayNightSky`, `SelectionOutline`, `VoxelModelMesh`, `RigPart`, `NodeBody`.
@@ -33,7 +35,8 @@ Dart SDK `^3.13.0`.
 - **Not the web.** `voxel_engine` streams chunks on worker isolates and talks over TCP
   sockets (`dart:isolate`, `dart:io`), which a browser does not have.
 
-- `flutter_scene` is pinned to `0.23.0`: the terrain material uses its private GPU layer.
+- `flutter_scene` is pinned to `0.23.0`: the terrain material and geometry use its
+  private GPU layer and its geometry's stream binding.
 - The shaders ship compiled in `assets/shaders/`. After a Flutter upgrade or a
   shader edit, rebuild them with `dart tool/build_shaders.dart`.
 
