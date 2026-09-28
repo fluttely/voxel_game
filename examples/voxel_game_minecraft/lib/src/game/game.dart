@@ -5090,7 +5090,7 @@ class Game extends ChangeNotifier {
       await nextFrame();
     }
     debugPrint('[probe] stage26 music: plains day=$mDay -> night=$mNight -> desert=$mDunes -> underground=$mDeep');
-    debugPrint('[probe] stage26 music tracks started=${music.handlesPlayed}, playing=${music.isPlaying}, audio device=${Sfx.ready}');
+    debugPrint('[probe] stage26 music tracks started=${music.handlesPlayed}, playing=${music.isPlaying} from ${music.origin?.name}, audio device=${Sfx.ready}');
   }
 
   /// --stage26 --shot=biome|village|trade: stand where the capture wants before

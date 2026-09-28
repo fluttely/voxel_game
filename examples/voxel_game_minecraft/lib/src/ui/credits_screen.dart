@@ -47,7 +47,7 @@ class CreditsScreen extends StatefulWidget {
         'Engine', 'Flutter + flutter_scene 0.23 (Flutter GPU / Impeller), Dart ${Platform.version.split(' ').first}',
         'Dart for the game, a pool of isolates for chunk generation and meshing', '',
         'Fonts', 'the system fallback font (no font files)', '',
-        'Music and sound', 'music and footsteps from Dawnforge (the 2D game): the Cozy Games pack and "Rites of Passage"', 'every other sound procedural, rendered in Dart, all played through SoLoud', '',
+        'Music and sound', 'music synthesised by sound_recipes (StockMusic), footsteps from Dawnforge (the 2D game)', 'every other sound procedural, rendered in Dart, all played through SoLoud', '',
         'Lineage', 'the Godot POC (GDScript + C#), ported file by file; before it, the dev_3d_spike probe', '',
         'Stages',
         ...stages,

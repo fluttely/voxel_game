@@ -22,6 +22,11 @@ dependencies:
   voxel_game: ^0.1.1-dev
   voxel_scene: ^0.1.1-dev
 
+# The music falls back to sound_recipes' StockMusic, which is not published yet.
+dependency_overrides:
+  sound_recipes:
+    path: ../../packages/sound_recipes
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -35,6 +40,6 @@ flutter:
     - assets/audio/footstep/snow/
     - assets/audio/footstep/swamp/
     - assets/audio/footstep/lava/
-    - assets/audio/music/
+    - assets/audio/music/ # <track>.mp3, all optional (assets/audio/music/README.md)
     - ROADMAP.md # stage 30: the credits read the stage table at runtime
   uses-material-design: true
