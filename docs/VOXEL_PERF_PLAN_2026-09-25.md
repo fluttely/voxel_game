@@ -86,7 +86,7 @@ far below the refresh period.
 same display, on AC power, other heavy apps closed. Medians of 3 runs; a change is real
 only when it is larger than the spread (±) of both sides. The display's refresh rate is in
 every line (`refreshHz`), and so is the window's pixel ratio (`dpr`): compare only lines
-taken at the same rate and ratio. With the external 1080p display connected the window opens
+taken at the same rate and ratio (`--compare` warns when the sides differ in either). With the external 1080p display connected the window opens
 on it at `dpr` 1.0, a quarter of the Retina's pixels at 2.0: `orbit:6` then traces 5.7–5.9 ms
 of GPU a frame, 70% busy and held at 120 fps, against 8.8–8.9 at 2.0 (PF15).
 

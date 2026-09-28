@@ -471,6 +471,16 @@ String table(List<Map<String, Object?>> lines) {
   return b.toString();
 }
 
+/// A warning when the sides' lines hold different values of [field] (each side's
+/// set of them, as [show] writes one): a run at another pixel ratio draws a
+/// different number of pixels, one at another refresh rate has another budget
+/// a frame, so neither compares.
+String differs(String what, String field, List<Map<String, Object?>> before, List<Map<String, Object?>> after, String Function(Object? v) show) {
+  String side(List<Map<String, Object?>> lines) => {for (final l in lines) show(l[field])}.join(', ');
+  final x = side(before), y = side(after);
+  return x == y ? '' : '**The sides ran at different ${what}s** (before $x, after $y): the fps, GPU and raster rows are not comparable.\n\n';
+}
+
 /// Before and after, median against median, with the change in percent.
 String comparison(List<Map<String, Object?>> before, List<Map<String, Object?>> after) {
   final lockedBefore = before.any((l) => l['screenLocked'] == true), lockedAfter = after.any((l) => l['screenLocked'] == true);
@@ -479,6 +489,8 @@ String comparison(List<Map<String, Object?>> before, List<Map<String, Object?>> 
       : '**One side ran with the screen locked and the other did not**: the GPU and fps rows are not comparable.\n\n';
   final a = byKey(before), z = byKey(after);
   final b = StringBuffer(warning)
+    ..write(differs('pixel ratio', 'dpr', before, after, (v) => '${v}x'))
+    ..write(differs('refresh rate', 'refreshHz', before, after, (v) => '${(v as num).round()} Hz'))
     ..writeln('| run | metric | before | after | change |')
     ..writeln('|:--|:--|--:|--:|--:|');
   final shown = measured([...before, ...after]);
