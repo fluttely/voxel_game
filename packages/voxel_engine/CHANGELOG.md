@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.0-dev
 
 - `ChunkMesher` merges cube and liquid faces greedily: coplanar neighbours of the same
   block, light, AO corners and lowered top become one quad, across a direction only

@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.2-dev
+## 0.2.0-dev
 
 - **Frames between two steps are drawn between them.** Above 60 fps half the frames ran
   no step, and everything drawn moved in the steps, so the view and every body stood
@@ -40,6 +40,9 @@
   counts the frames that moved less than a quarter of the mean; the JSON has them under
   `view`. At 120 Hz the kit today reads about 1 and half its frames: the view moves in
   the 60 Hz steps.
+
+## 0.1.2-dev
+
 - The creatures of a species share their meshes: `RigModel.of(rig, halfWidth, height)`
   builds a look at a size once (its parts' voxels as `RigShape`s, their rest poses, the
   fit), and each `RigInstance` hangs only its own posable nodes on it. flutter_scene then

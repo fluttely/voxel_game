@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.0-dev
 
 - `NodeBody` keeps two poses of its node, the last step's and the one before it, each a
   position, a yaw and a pitch, and draws the node between them: `syncNode({at, yaw,

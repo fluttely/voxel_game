@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.0-dev
 
 - `MusicScore` + `StockMusic`: background music with no audio files, a loop written as
   chords and an eighth-note melody (with optional wind and drips) and synthesised like any
