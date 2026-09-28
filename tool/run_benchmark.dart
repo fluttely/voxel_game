@@ -10,6 +10,7 @@
 //   dart tool/run_benchmark.dart --dry-run               # print what it would run
 //   dart tool/run_benchmark.dart -- --graphics=phone     # after `--`: passed to every run
 //   dart tool/run_benchmark.dart --android R5CX... --cooldown 20   # on a phone (adb serial)
+//   dart tool/run_benchmark.dart --android R5CX... --max-temp 38   # hotter than the 36 °C default
 //   dart tool/run_benchmark.dart --trace --runs orbit:6  # + the GPU's work, from Instruments
 //
 // Runs go round-robin (every scenario once, then again) with a cooldown between
@@ -17,6 +18,9 @@
 // On this Mac by default; `--android SERIAL` builds the APK, installs it and runs
 // each scenario on that device through its launch intent, reading the line back
 // from logcat. A phone heats: give it a longer cooldown, and read `deviceTempC`.
+// Before each run on a phone the script waits for its battery to be under
+// `--max-temp` (36 °C by default): at 120 Hz it stays over 33 for minutes
+// between runs, so 36 is the base every side can reach.
 //
 // `--trace` (macOS) runs a profile build under a Metal System Trace and adds
 // `gpuTrace` to each line: the GPU's busy time per composited frame. It is the
@@ -67,6 +71,7 @@ Future<void> main(List<String> argv) async {
   final dryRun = args.contains('--dry-run');
   final build = !args.contains('--no-build');
   final android = value('--android');
+  final maxTempC = double.parse(value('--max-temp') ?? '36');
   final trace = args.contains('--trace');
   if (trace && android != null) throw ArgumentError('--trace reads a Metal System Trace: macOS only');
   final mode = trace ? 'profile' : 'release';
@@ -104,7 +109,7 @@ Future<void> main(List<String> argv) async {
       first = false;
       final locked = android == null ? await screenLocked() : await deviceLocked(android);
       if (locked) stderr.writeln('  the screen is locked: the GPU time and fps of this run are not what a player sees');
-      final tempC = android == null ? null : await deviceTempC(android);
+      final tempC = android == null ? null : await coolDown(android, maxTempC);
       final (output, gpuTrace) = android != null
           ? (await runAndroid(android, flags), null)
           : trace
@@ -358,6 +363,17 @@ Future<double> deviceTempC(String serial) async {
   final m = RegExp(r'temperature: (\d+)').firstMatch(await adb(serial, ['shell', 'dumpsys', 'battery']));
   if (m == null) throw StateError('dumpsys battery reported no temperature');
   return int.parse(m.group(1)!) / 10.0;
+}
+
+/// Waits until the battery is under [maxC] and returns its temperature then: a
+/// run taken hotter reads a throttled phone.
+Future<double> coolDown(String serial, double maxC) async {
+  while (true) {
+    final t = await deviceTempC(serial);
+    if (t < maxC) return t;
+    stderr.writeln('  the battery is at $t °C: waiting for it to be under $maxC');
+    await Future<void>.delayed(const Duration(seconds: 30));
+  }
 }
 
 /// Whether the session's screen is locked. A locked Mac still renders the game's
