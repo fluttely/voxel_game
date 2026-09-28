@@ -57,6 +57,15 @@ void main() {
       input.dispose();
     });
 
+    test('a turn from code is a rate, taken by the time each look covers', () {
+      final input = map()..turn(0.5, -0.25);
+      expect(input.takeLook(0.1).dx, closeTo(0.05, 1e-12));
+      expect(input.takeLook(0.02).dy, closeTo(-0.005, 1e-12));
+      input.turn(0, 0);
+      expect(input.takeLook(1.0), Offset.zero);
+      input.dispose();
+    });
+
     test('staying put holds the primary button, and is not also a tap', () async {
       final input = map();
       input.onPointerDown(touchDown(1));

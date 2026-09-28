@@ -2,6 +2,9 @@
 
 ## 0.1.2-dev
 
+- `InputMap.turn(yaw, pitch)`: a steady turn from code, radians a second, taken by
+  `takeLook` over its `dt` as the right stick's is. A bot, a cutscene or the benchmark
+  turns the view the way a held stick does.
 - `FrameStats` measures how evenly the view moves, which no frame timing can: a frame
   presented on time may show the view the one before showed. `addView(eye, forward)`,
   which `ViewCamera` calls once a frame, keeps how far the view moved (the angle its
