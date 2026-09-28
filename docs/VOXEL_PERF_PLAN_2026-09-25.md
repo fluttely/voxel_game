@@ -424,6 +424,54 @@ nothing until `rebuild`; four applies to one region build it once; a zero budget
 one region a call; the nearest region goes first; a region whose chunks all left is dropped
 in the same call.
 
+### PF4, the design (2026-09-28)
+
+**What is wrong today.** `VoxelGameWidget._tick` bumps a `ValueNotifier<int>` every frame
+and a `ValueListenableBuilder` under it calls the `HudBuilder` again, so `DefaultHud` is
+built, laid out and painted from scratch 120 times a second: a `Stack` of about sixty
+widgets (ten hearts, nine hotbar slots with their counts, the held item's name, the
+crosshair, the "click to play" line, each text with a blurred shadow), of which nothing
+changes in `orbit`, `fly` or `mobs`. And it would be painted every frame even if it were
+not rebuilt: `SceneView` paints through a `CustomPaint` whose `repaint` listenable fires
+every tick, a `CustomPaint` is not a repaint boundary, so the nearest boundary above it (the
+route's) repaints everything under it, the HUD included. The typedef's own doc says it:
+"rebuilt every frame, so keep it light". Only `DefaultHud` uses `HudBuilder` (the minecraft
+example builds its own HUD outside the kit).
+
+**The HUD is built once, and each piece watches what it shows.** `HudSelector<T>` (new,
+`lib/src/ui/`): a widget given a `Listenable` that ticks once a frame, a `select` that reads
+a value from the game, and a `builder` of that value; it runs `select` on every tick and
+rebuilds only when the value is not `==` to the last one. A value is a record of primitives
+(`(String, int, bool)` for a slot), so equality is structural and nothing is hashed.
+`VoxelGame.frames` (a `ValueListenable<int>`, the frames drawn so far) is that tick: it
+moves at the end of `VoxelGame.frame`, where the widget's own counter moved, so a HUD needs
+only the game, and a headless game ticks it too. `DefaultHud` becomes a static tree of
+selectors, one per thing that changes: the hurt flash, the mining bar, the hearts (`hp`),
+each hotbar slot (its id, count and whether it is selected: selecting a slot rebuilds two),
+the held item's name, "click to play" (`input.wantCapture`) and "You died". While nothing
+changes a frame costs nine small record reads and no build.
+
+**`HudBuilder` is called when the widget builds, no longer every frame** (when the game
+starts and when a screen opens or closes). That is a break of voxel_game's API, under
+`## Unreleased` with PF2's: a custom HUD that read the game in its build without a selector
+would freeze, so the typedef's doc says to watch through `HudSelector` or `game.frames`.
+The HUD sits behind a `RepaintBoundary`, so the scene's paint every frame reuses the HUD's
+layer and the HUD repaints only when a selector rebuilds. The scene keeps no boundary of its
+own: what repaints with it is the widget's `Stack` and listeners, which paint nothing.
+
+**What does not change.** What the HUD shows and where; `InventoryScreen` (built only
+while open, and rebuilt by its inventory's listeners); the game's frame and step. The
+GPU still draws the HUD every frame (Impeller keeps no raster cache, so the blurred shadows
+cost what they cost, ~3% of the Mac's GPU at `orbit:6`, §Baseline at 120 Hz): PF4 is UI
+thread, not GPU.
+
+**Judged by** UI p50 and p99 on `orbit:6`, `fly:6` and `mobs:6`, the phone above all (its
+frame is the UI thread's: UI p50 ~4.9 ms at `orbit:6`, ~3.9 of it the encode, so the HUD
+and the step share the other ~1), with the CPU held busy for one scenario (the clock slows
+when a frame gets cheaper, PF7). A/B against `2b7a1d6` on the Mac and the phone. Tests:
+`HudSelector` builds once for ticks that select the same value and again when it changes;
+`VoxelGame.frames` moves once a frame.
+
 ## Progress
 
 | ID | Status | Commit | Result |
@@ -461,6 +509,7 @@ in the same call.
 | PF2 | design | this commit | §PF2, the design: a probe (stopwatches, not committed; Mac, `fly:12`) put the streaming at 78 ms in 12 s, in bursts: up to 15 applies in one frame (4.6 ms) and the leaving column's 25 removals in one frame, outside the budget, each apply and removal rebuilding its region at once; applying is 40% packing, 34% merging, 19% upload. The phone's `fly:6` hitches (16–18 in 12 s) match the bursts. So: the view rebuilds each dirty region once a frame, nearest the focus first, inside a 2 ms budget checked before each region by a cost predicted from its vertices, and packs a chunk inside the rebuild. |
 | PF2 | budget | this commit | As §PF2, the design: `VoxelChunkView.apply` / `remove` keep or drop the chunk and mark its region; `rebuild(near, {budgetUsec})`, called by `GameWorld.update` after the streamer, builds the marked regions nearest the focus first, each once, while the next one's cost predicted from its vertices (pack and build rates in µs a vertex, running means) fits in 2 ms, the first always; packing happens in the rebuild; `GameWorld.isIdle` waits for the regions. Seen running: `fly:6` draws the whole window while it streams. **A/B on the Mac at 120 Hz**, `dpr` 2.0 and unlocked on every line, `72e53e9` against this commit (its lines say `72ce198+dirty`), three rounds alternated (`docs/perf/pf2_mac120_ab_{72e53e9,budget}.jsonl`). Medians of three: **sim max `fly:6` 3.82 → 1.74 ms** (runs 2.96–4.64 → 1.65–2.01), **`fly:12` 4.04 → 2.30** (3.72–4.53 → 2.10–2.61): a burst no longer lands in one frame; sim p99 1.18 → 1.10 and 2.05 → 1.86; UI p99 2.11 → 1.87 and **3.69 → 3.09**; step p99 1.37 → 1.19 and **2.60 → 1.96**; UI max `fly:12` 5.27 → 4.19 (5.14–5.89 → 4.08–4.34), `fly:6` 5.42 → 5.15 (one after run at 7.2); hitches 6 → 5 and 116 → 104; fill 405 → 396 ms and 1090 → 1041 (the budget does not slow the first fill); RSS unchanged. `fly:12` fps read 111.1 → 104.3 (after runs 112.5 · 103.8 · 104.3): two more rounds of `fly:12` alone (`docs/perf/pf2_mac120_fly12_extra_*.jsonl`) read the other way, 106.6 · 104.0 before against 112.8 · 112.1 after, sim max 4.1 · 4.2 → 2.2 · 2.4: at radius 12 the GPU is the wall (latency p50 29 ms on both) and its fps wanders 104–113 on either side. The phone A/B follows. |
 | PF2 | phone A/B | this commit | **Galaxy S24, phone preset, 120 Hz** (`low_power` 0, `refreshHz` 120 and unlocked on every line), `72e53e9` against `a793549`, three rounds alternated, `fly:6` and `orbit:6` (`docs/perf/pf2_s24_phone120_ab_{72e53e9,budget}.jsonl`), the battery 28.4–31.6 °C before and 29.2–32.1 after, one USB drop (the driver waited), no line lost. Medians of three: **sim max `fly:6` 6.74 → 3.29 ms** (runs 6.66–6.90 → 2.41–4.02), sim p99 1.88 → 1.56, **step p99 2.38 → 1.78** (2.13–2.74 → 1.46–1.87), fill 1259 → 1206 ms. **What did not move: hitches (13 · 16 · 13 → 13 · 15 · 15), UI p99 (6.86 → 6.78) and UI max (14.4–22.6 → 15.9–17.1).** §PF2, the design, read the phone's `fly:6` hitches as the streaming's bursts; they are not: `orbit:6`, which streams nothing once filled, has as many (15–34 hitches, UI max 14–16 ms with sim max 0.2–2.4) on both sides, and after PF2 `fly:6`'s UI p99 is under `orbit:6`'s (6.78 against 8.23). So the streaming no longer shows in the phone's tail, and packing on the worker, gated on that, is not done. fps 111 on the first run after an install on both sides (fill ~1250 ms), 119–120 otherwise: the order, not the code. **PF2 is done.** The phone's ~15 ms UI frames with no simulation in them are the next lead (a trace: GC, PF9's question, or encode). |
+| PF4 | design | this commit | §PF4, the design: the HUD is rebuilt and repainted every frame today (a counter bumped per tick under a `ValueListenableBuilder`, and the scene's `CustomPaint` is no repaint boundary, so the route repaints the HUD with it). So: `HudBuilder` is called when the widget builds, `DefaultHud` is a tree of `HudSelector`s each rebuilt when the value it reads from the game changes, checked on `VoxelGame.frames` once a frame, and the HUD sits behind a `RepaintBoundary`. |
 
 **Where the work stopped (2026-09-28, PF2 done).** Last commit: this one (`docs:`, PF2's phone A/B), over `a793549` (`voxel_scene, voxel_game:`, chunk regions rebuilt once a frame within a budget, with the Mac A/B) and `72ce198` (§PF2, the design, from a probe). PF3 was done before it (`37e3190`, judder ~1 → 0.00 at 120 Hz). PF2: `VoxelChunkView.apply` / `remove` only mark a region, `rebuild(near)` builds the marked regions once a frame, nearest first, inside 2 ms predicted before each; the streaming's slowest frame halved on both platforms (sim max `fly:12` 4.0 → 2.3 ms on the Mac, `fly:6` 6.7 → 3.3 on the phone), step p99 −25%. It is a **break in voxel_scene's API** (a game driving the view must call `rebuild`), under `## Unreleased` in the CHANGELOGs: 0.2.0-dev is on pub.dev, so the next release is 0.3.0-dev. **What PF2 showed that is not in the code:** the phone's hitches (13–16 in `fly:6`, 15–34 in `orbit:6`) and its ~15 ms UI max are not the streaming's: `orbit:6` has them with no simulation in the frame. That is the lead for **PF9** (a Perfetto or Dart timeline trace on the phone: GC pauses, or an encode spike), which waits for that trace. **Next step: PF4, the HUD** (rebuilt when what it shows changes, behind a `RepaintBoundary`; judged by UI p50, on the phone above all, where the UI thread is the frame), **on `opus 5.5:medium`** (one package, the step is specified; read `DefaultHud` and `VoxelGameWidget` and write its design here first; `opus 5.5:high` if it has to touch how the game notifies the HUD across packages). Then PF8 → PF10 → PF11 → PF12. Optional, one `tool:` commit: `--compare` warns when the two sides differ in `dpr` or `refreshHz`, as it does for `screenLocked`. After PF13 the Mac runs `orbit:6` at ~109 fps (the GPU 8.9 ms a frame at `dpr` 2.0, 96% busy: pixels, not vertices), `orbit:12` at ~94, `fly:12` at 104–113 (GPU-bound, it wanders); the phone `orbit:6` and `fly:6` at the display's 119, `mobs:6` at 85–94: on the phone the frame is the UI thread's and the encode is draws × passes (PF12's outline, `KL-007`'s drops), not vertices. `KL-008` (the driver crash in the first two
 seconds) did not come back in PF15's 25 phone launches; if a run dies, the runner prints the exit
