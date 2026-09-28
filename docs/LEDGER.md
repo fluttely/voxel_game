@@ -87,6 +87,7 @@
 - **Evidence:** three tombstones on the Galaxy S24 (Snapdragon 8 Gen 3, Android 16, Flutter 3.47.5, `adb shell dumpsys dropbox --print SYSTEM_TOMBSTONE`), 2026-09-25 20:10, 20:13 and 20:20, each with the process 1–2 s old: `SIGSEGV`, null pointer dereference at `0x3f8`, on the main thread (UI and platform merged), in `vulkan.adreno.so` `vkCmdBeginRenderPass` called from `InternalFlutterGpu_RenderPass_Begin`, so from a flutter_scene render pass the game encodes. They hit both sides of PF14's A/B (`70ca8dc`, `2f89a05`); the dropbox, which reaches back to 2026-09-22 and the 104 phone runs committed under `docs/perf/`, holds no other native crash of the app. `packages/voxel_game/example/lib/benchmark.dart:49-50` turns the window to landscape and full screen as `main` starts, so the first frames are drawn while the surface is resized; that is the suspect, not a finding.
 - **Cost of leaving it:** a game built on the kit can die at launch on a current flagship, with nothing in the `flutter` log; a phone benchmark loses the run (`tool/run_benchmark.dart` now prints the exit reason and the crash log when it does).
 - **Found while:** 2026-09-25 — finding why the phone runner lost runs during PF14's A/B.
+- **Seen again:** 2026-09-28, PF3's phone A/B: the same `SIGSEGV` at `0x3f8` in `vkCmdBeginRenderPass` under `InternalFlutterGpu_RenderPass_Begin`, the second run of a call (`orbit:6` after `mobs:6`, `9c36cc2`, no PF3 code), 18 lines and 19 launches that day.
 
 ## Closed
 
