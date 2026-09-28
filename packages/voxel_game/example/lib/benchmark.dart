@@ -21,6 +21,7 @@ import 'dart:ui' show PlatformDispatcher;
 
 import 'package:flutter/foundation.dart' show kProfileMode, kReleaseMode;
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart' show SchedulerBinding;
 import 'package:flutter/services.dart' show DeviceOrientation, SystemChrome, SystemUiMode;
 import 'package:vector_math/vector_math.dart' show Vector3;
 import 'package:voxel_game/voxel_game.dart';
@@ -30,11 +31,13 @@ import 'main.dart' as example;
 /// What the camera does while the frames are measured.
 enum Scenario {
   /// Hovers over the spawn and turns once around: the steady cost of a loaded
-  /// window, every chunk of it in view once.
+  /// window, every chunk of it in view once. The view is turned as a mouse
+  /// turns it, a look fed once a frame.
   orbit,
 
   /// Flies east at [Bench.flySpeed] over the terrain: the cost of streaming,
-  /// chunks arriving and leaving every second.
+  /// chunks arriving and leaving every second. The player is moved by the
+  /// game's clock, a step at a time, as a walk moves it.
   fly,
 
   /// As [orbit], lower, with [Bench.mobCount] creatures around the player,
@@ -144,10 +147,27 @@ class Bench {
   double? _fillMs;
   Vector3? _origin;
   Map<String, Object>? _world;
+  double _measuredFrom = 0.0;
+  Duration? _lastFrame;
 
   void ready(VoxelGame game) {
     game.spawner.enabled = false;
+    // The step reads the controls with no mouse captured: the view is turned
+    // through them, as a player's is.
+    game.playWithoutCapture = true;
+    SchedulerBinding.instance.addPersistentFrameCallback((stamp) => _turn(game, stamp));
     _clock.start();
+  }
+
+  /// A full turn over [seconds] while [Scenario.orbit] and [Scenario.mobs]
+  /// measure, fed to the look once a frame by the frame's timestamp: what a
+  /// mouse turning at a steady rate hands the game.
+  void _turn(VoxelGame game, Duration stamp) {
+    final last = _lastFrame;
+    _lastFrame = stamp;
+    if (last == null || _phase != _Phase.measuring || scenario == Scenario.fly) return;
+    final radians = 2 * math.pi * (stamp - last).inMicroseconds / 1e6 / seconds;
+    game.input.look(-radians / game.input.lookSensitivity, 0);
   }
 
   double get _now => _clock.elapsedMicroseconds / 1e6;
@@ -155,8 +175,7 @@ class Bench {
   void _tick(VoxelGame game, double dt) {
     if (!game.ready) return;
     final origin = _origin ??= _start(game);
-    final t = _phase == _Phase.measuring ? _now - _phaseStart : 0.0;
-    _pose(game, origin, t);
+    _pose(game, origin, _phase == _Phase.measuring ? game.time - _measuredFrom : 0.0);
     switch (_phase) {
       case _Phase.filling:
         final window = (2 * radius + 1) * (2 * radius + 1);
@@ -172,10 +191,11 @@ class Bench {
       case _Phase.settling:
         if (_now - _phaseStart >= settle) {
           game.stats.startRecording();
+          _measuredFrom = game.time;
           _enter(_Phase.measuring);
         }
       case _Phase.measuring:
-        if (t >= seconds) _finish(game);
+        if (_now - _phaseStart >= seconds) _finish(game);
     }
   }
 
@@ -191,14 +211,15 @@ class Bench {
     return Vector3(p.x, scenario == Scenario.mobs ? ground + 1.0 : ground + 16.0, p.z);
   }
 
-  /// The player's pose [t] seconds into the recording, held at t = 0 before.
+  /// The player's pose [t] seconds of game time into the recording, held at
+  /// t = 0 before; [_turn] turns it while it records.
   void _pose(VoxelGame game, Vector3 origin, double t) {
     final player = game.player;
     player.velocity = Vector3.zero();
     switch (scenario) {
       case Scenario.orbit || Scenario.mobs:
         player.position.setFrom(origin);
-        player.yaw = 2 * math.pi * t / seconds;
+        if (_phase != _Phase.measuring) player.yaw = 0.0;
         player.pitch = scenario == Scenario.mobs ? -0.15 : -0.35;
       case Scenario.fly:
         player.position.setValues(origin.x + flySpeed * t, origin.y, origin.z);

@@ -381,11 +381,13 @@ String keyOf(Map<String, Object?> l) => '${l['scenario']}:${l['radius']}${(l['ex
 
 /// The columns: a label and how to read one run's value, null where the run
 /// did not measure it (the `gpuTrace` ones, taken only with `--trace`; the
-/// step ones, missing from runs recorded before PF6).
+/// step ones, missing from runs recorded before PF6; the view ones, before PF3).
 final columns = <(String, num? Function(Map<String, Object?>))>[
   ('fps', (l) => l['fps'] as num),
   ('hitches', (l) => l['hitches'] as num),
   ('frame p99 ms', (l) => (l['intervalMs'] as Map)['p99'] as num),
+  ('view judder', (l) => (l['view'] as Map?)?['judder'] as num?),
+  ('still frames', (l) => (l['view'] as Map?)?['stillFrames'] as num?),
   ('GPU latency p50 ms', (l) => (l['gpuLatencyMs'] as Map)['p50'] as num),
   ('GPU latency p99 ms', (l) => (l['gpuLatencyMs'] as Map)['p99'] as num),
   ('UI p50 ms', (l) => (l['buildMs'] as Map)['p50'] as num),

@@ -65,6 +65,7 @@ class ViewCamera {
       orbit.settle(dt, pivot: pivot, right: right, up: up, back: back, jitter: sway, cellIsClear: clearCell);
       eye = pivot + orbit.offset(right, up, back, orbit.current) + sway;
     }
+    game.stats.addView(eye, fwd);
     return MirroredCamera(
       position: eye,
       target: eye + fwd + up * viewBob.pitch,

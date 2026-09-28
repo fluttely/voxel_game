@@ -374,7 +374,7 @@ class VoxelGame {
       world.setSkyIntensity(intensity);
     }
     _frameWatch.stop();
-    stats.addFrame(simMs: _frameWatch.elapsedMicroseconds / 1000.0, steps: steps);
+    stats.addFrame(seconds: dt, simMs: _frameWatch.elapsedMicroseconds / 1000.0, steps: steps);
   }
 
   final Stopwatch _frameWatch = Stopwatch();

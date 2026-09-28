@@ -2,6 +2,16 @@
 
 ## 0.1.2-dev
 
+- `FrameStats` measures how evenly the view moves, which no frame timing can: a frame
+  presented on time may show the view the one before showed. `addView(eye, forward)`,
+  which `ViewCamera` calls once a frame, keeps how far the view moved (the angle its
+  forward turned, plus its eye's travel over `FrameStats.viewDepth`, 10 m), and
+  `addFrame` takes the frame's `seconds`. `FrameReport.viewJudder` is the root mean
+  square of each frame's speed against the mean, minus one (0 for a view that moves by
+  the time that passed, about 1 for one that moves every other frame) and `stillFrames`
+  counts the frames that moved less than a quarter of the mean; the JSON has them under
+  `view`. At 120 Hz the kit today reads about 1 and half its frames: the view moves in
+  the 60 Hz steps.
 - The creatures of a species share their meshes: `RigModel.of(rig, halfWidth, height)`
   builds a look at a size once (its parts' voxels as `RigShape`s, their rest poses, the
   fit), and each `RigInstance` hangs only its own posable nodes on it. flutter_scene then

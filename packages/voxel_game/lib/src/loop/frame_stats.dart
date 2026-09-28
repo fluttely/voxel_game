@@ -1,6 +1,8 @@
 import 'dart:math' as math;
 import 'dart:ui' show FramePhase, FrameTiming;
 
+import 'package:vector_math/vector_math.dart';
+
 /// What the frames cost, measured where each cost is paid.
 ///
 /// Flutter's [FrameTiming]s give the frames that reached the screen: the gap
@@ -10,7 +12,9 @@ import 'dart:ui' show FramePhase, FrameTiming;
 /// on the UI thread, inside paint; the kit adds the two halves of it it owns,
 /// the simulation ([addFrame]'s `simMs`) and the scene's encoding (`encodeMs`),
 /// and how long a scene frame waited and ran on the GPU (`gpuLatencyMs`,
-/// `gpuLagFrames`).
+/// `gpuLagFrames`). The camera each frame drew with ([addView]) says how evenly
+/// the view moved, which none of the timings can: a frame presented on time may
+/// show the same view as the one before.
 ///
 /// Always on and cheap: [fps] is a readout for a HUD. Between [startRecording]
 /// and [stopRecording] every sample is kept, for a benchmark.
@@ -54,15 +58,38 @@ class FrameStats {
     }
   }
 
-  /// One tick of the kit's own: [simMs] in `VoxelGame.frame`, [steps] fixed
-  /// steps run.
-  void addFrame({required double simMs, required int steps}) {
+  /// One tick of the kit's own: [seconds] since the last one, [simMs] in
+  /// `VoxelGame.frame`, [steps] fixed steps run.
+  void addFrame({required double seconds, required double simMs, required int steps}) {
     _recentFrames.add(_clock.elapsedMicroseconds);
     final r = _recording;
     if (r == null) return;
     r.simMs.add(simMs);
     if (steps > 0) r.stepMs.add(simMs / steps);
     r.steps += steps;
+    r.tickSeconds = seconds;
+    r.viewed = false;
+  }
+
+  /// How far in front of the eye a view's travel is weighed: a point this many
+  /// metres ahead moves on screen by about the angle the eye's travel subtends.
+  static const double viewDepth = 10.0;
+
+  /// The camera the last tick drew with: its [eye] and unit [forward]. The
+  /// first view of a tick counts, so a camera built twice in one tick moved
+  /// once.
+  void addView(Vector3 eye, Vector3 forward) {
+    final r = _recording;
+    if (r == null || r.viewed) return;
+    r.viewed = true;
+    final lastEye = r.lastEye, lastForward = r.lastForward;
+    if (lastEye != null && lastForward != null && r.tickSeconds > 0.0) {
+      final turn = math.atan2(lastForward.cross(forward).length, lastForward.dot(forward));
+      r.viewMotion.add(turn + lastEye.distanceTo(eye) / viewDepth);
+      r.viewSeconds.add(r.tickSeconds);
+    }
+    r.lastEye = eye.clone();
+    r.lastForward = forward.clone();
   }
 
   /// One scene frame encoded in [encodeMs].
@@ -80,6 +107,9 @@ class _Samples {
   final int startUs;
   int? lastVsyncUs;
   int steps = 0;
+  double tickSeconds = 0.0;
+  bool viewed = false;
+  Vector3? lastEye, lastForward;
   final List<double> intervalMs = [],
       buildMs = [],
       rasterMs = [],
@@ -87,7 +117,9 @@ class _Samples {
       stepMs = [],
       encodeMs = [],
       gpuLatencyMs = [],
-      gpuLagFrames = [];
+      gpuLagFrames = [],
+      viewMotion = [],
+      viewSeconds = [];
 
   FrameReport report(double seconds) => FrameReport(
     seconds: seconds,
@@ -100,6 +132,8 @@ class _Samples {
     encodeMs: encodeMs,
     gpuLatencyMs: gpuLatencyMs,
     gpuLagFrames: gpuLagFrames,
+    viewMotion: viewMotion,
+    viewSeconds: viewSeconds,
   );
 }
 
@@ -117,6 +151,8 @@ class FrameReport {
     required this.encodeMs,
     required this.gpuLatencyMs,
     required this.gpuLagFrames,
+    required this.viewMotion,
+    required this.viewSeconds,
   });
 
   /// How long the recording ran.
@@ -154,6 +190,51 @@ class FrameReport {
 
   /// Ticks between a scene frame's submission and the GPU finishing it.
   final List<double> gpuLagFrames;
+
+  /// How far the view moved each tick: the angle its forward turned, plus its
+  /// eye's travel over [FrameStats.viewDepth].
+  final List<double> viewMotion;
+
+  /// How long each tick of [viewMotion] took.
+  final List<double> viewSeconds;
+
+  /// The view's mean speed: all its motion over all its time; 0 for a view
+  /// that did not move.
+  double get _viewSpeed {
+    var motion = 0.0, time = 0.0;
+    for (var i = 0; i < viewMotion.length; i++) {
+      motion += viewMotion[i];
+      time += viewSeconds[i];
+    }
+    return motion < 1e-6 ? 0.0 : motion / time;
+  }
+
+  /// How unevenly the view moved: the root mean square, over the ticks, of each
+  /// tick's speed against the mean speed, minus one. 0 for a view that moved by
+  /// exactly the time each tick took; about 1 for one that moved every other
+  /// tick (a 60 Hz step drawn at 120 Hz). Null for a view that did not move.
+  double? get viewJudder {
+    final mean = _viewSpeed;
+    if (mean == 0.0) return null;
+    var sum = 0.0;
+    for (var i = 0; i < viewMotion.length; i++) {
+      final e = viewMotion[i] / viewSeconds[i] / mean - 1.0;
+      sum += e * e;
+    }
+    return math.sqrt(sum / viewMotion.length);
+  }
+
+  /// Ticks whose view moved less than a quarter of its mean speed: shown still,
+  /// or nearly. Null for a view that did not move.
+  int? get stillFrames {
+    final mean = _viewSpeed;
+    if (mean == 0.0) return null;
+    var n = 0;
+    for (var i = 0; i < viewMotion.length; i++) {
+      if (viewMotion[i] / viewSeconds[i] < mean * 0.25) n++;
+    }
+    return n;
+  }
 
   /// Frames presented per second.
   double get fps => buildMs.length / seconds;
@@ -195,5 +276,6 @@ class FrameReport {
     'encodeMs': spread(encodeMs),
     'gpuLatencyMs': spread(gpuLatencyMs),
     'gpuLagFrames': spread(gpuLagFrames),
+    if (viewJudder case final judder?) 'view': {'judder': _round(judder), 'stillFrames': stillFrames!},
   };
 }
