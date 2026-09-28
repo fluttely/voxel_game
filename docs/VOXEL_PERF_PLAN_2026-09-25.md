@@ -69,8 +69,13 @@ column counts the queue. It comes from a Metal System Trace of the profile build
 build's (its fps is within 1% of release's at `orbit:6`): its lines go in their own file,
 compared only with other traced lines. Each traced run leaves nothing behind (the trace
 and the ~1 GB raw recording are deleted), and every line says which build it was (`mode`),
-checked against the one the script built: xctrace launches an app by bundle id, and once
-started a stale debug build of it that never exited and filled the disk.
+checked against the one the script built. xctrace launches the app by its bundle id, which
+LaunchServices resolves to any copy it knows (registered, or indexed by Spotlight), whatever
+path it was handed: it once started a stale debug build that never exited and filled the
+disk, and in PF15 the release build and the other worktree's. So while it records, the
+script unregisters every other copy and renames it out of its `.app` extension, registers the
+tree's profile build, refuses the run unless the trace's launched process is that build, and
+kills the processes of the app it left behind (xctrace leaves one suspended every run).
 A frame is GPU-bound when the trace shows the GPU busy nearly all the time while UI p50 is
 far below the refresh period.
 
@@ -78,7 +83,10 @@ far below the refresh period.
 `examples/voxel_game_minecraft/docs/PERFORMANCE_VS_GODOT_2026-09-11.md`). Same window,
 same display, on AC power, other heavy apps closed. Medians of 3 runs; a change is real
 only when it is larger than the spread (±) of both sides. The display's refresh rate is in
-every line (`refreshHz`): compare only lines taken at the same rate.
+every line (`refreshHz`), and so is the window's pixel ratio (`dpr`): compare only lines
+taken at the same rate and ratio. With the external 1080p display connected the window opens
+on it at `dpr` 1.0, a quarter of the Retina's pixels at 2.0: `orbit:6` then traces 5.7–5.9 ms
+of GPU a frame, 70% busy and held at 120 fps, against 8.8–8.9 at 2.0 (PF15).
 
 **Validity: the screen must be unlocked.** A locked Mac keeps rendering the game's frames
 behind the lock screen, but the display never shows them: presentation runs at 60 Hz
@@ -295,14 +303,16 @@ ledger, not in this plan.
 | PF14 | regions of 4 | — (measured, not adopted) | `regionChunks` 4 (a worktree with the default changed) against 2, Galaxy S24, phone preset, three rounds alternated, right after the busy-CPU runs, so the battery at 38.1–39.1 °C on both sides: the columns compare, the absolute numbers are below the cool A/B's (`docs/perf/pf14_s24_phone_r4_regions{2,4}.jsonl`). Encode p50 **orbit 3.87 → 2.84 ms** (3.80–4.20 → 2.84–2.90), **fly 3.64 → 2.67**, mobs 4.72 → 4.20 (ranges overlap); UI p50 orbit 4.92 → 3.89, fly 4.73 → 3.74. The costs: **fly step p99 4.72 → 24.5 ms** (4.69–7.20 → 23.9–30.1: a chunk arriving rebuilds sixteen chunks' surfaces, three frames at 120 Hz), fly RSS 422 → 482 MB, and fps moves inside the noise (mobs 83.7 → 91.0, orbit 106 → 107, fly 110 → 102). A quarter of the encode is not worth a hitch at every streamed chunk: the default stays 2. |
 | PF15 | greedy | `f60cd42` | `ChunkMesher` merges cube and liquid faces greedily (per direction and slice, as wide as a row allows along u, then whole rows along v), a merge allowed along a direction only where the corners' AO does not change along it, so the interpolation is the unit faces'; the key is block, sky and block light, the four AO corners and the lowered liquid top. The per-voxel colour variation left the vertex colour for the terrain shader (`VoxelTint`, the same 32-bit hash as `ChunkMesher.voxelTint`, of the cell a tenth of a block behind the face); the unlit `glow` surface keeps it baked and unmerged. **The example's `orbit:6` window** (a probe meshing the benchmark's 13 × 13 chunks, its count equal to the benchmark's `faces`): **faces 185,130 → 114,193** (solid 165,431 → 113,902, −31%; liquid 19,699 → 291), vertices 740,520 → 456,772; the mesh job 3.67 → 4.11 ms a chunk (JIT). Solid merges less than a flat world would: hills put AO on most edges, and the grass/dirt/stone and ore ids split the sides. A frame of `orbit:6` against the baked variation (release, Mac): 97.7% of the pixels identical, 99.7% within 2 levels, the rest (up to 37) on cells' edges, where multisampling now shades one cell's variation. |
 | PF15 | A/B | this commit | Against `67725a5` (PF14's tree), three rounds alternated, 120 Hz. **Mac, release** (`docs/perf/pf15_mac120_ab_{67725a5,greedy}.jsonl`; the screen locked during the third round, so its locked lines are left out and the first two rounds judge, runs of both sides without overlap): **orbit:6 fps 101.1 → 109.3** (101.0–101.2 → 109.0–109.6), **orbit:12 70.5 → 85.9**, fly:6 118.6 → 120.8 (the display's rate), **fly:12 88.4 → 108.5**, mobs:6 102.7 → 110.0; frame p99 orbit:6 24.8 → 16.7; encode and UI p50 unchanged (0.31–0.72 ms: the draws are the same, only smaller); fly step p99 3.07 → 2.25 and fly:12 5.27 → 3.40 (less to upload a chunk); **RSS −8 to −20%** (orbit:12 686 → 548 MB). **Mac, GPU** (`--trace`, `docs/perf/pf15_mac120_trace_*.jsonl`): orbit:6 **9.78 ms a frame before** (97.7% busy; 9.99 in §Baseline at 120 Hz) **against 8.83 · 8.89 after** (95.6–96.1%), fly:6 7.51 · 7.48 after; the other traced runs of both sides failed (below), so the GPU number rests on one before run, and the release fps, GPU-bound, say the same (1000 / 101 = 9.9 ms, 1000 / 109 = 9.2). Still over the 8.3 ms a 120 Hz frame has at `orbit:6`. **Galaxy S24, phone preset** (`docs/perf/pf15_s24_phone_ab_{67725a5,greedy}.jsonl`, no run lost, battery 25.8–30.8 °C on both sides): **orbit:6 113.3 → 118.8 fps** (112.0–116.2 → 118.8–119.2, the display's rate), UI p99 15.0 → 8.0; **fly:6 step p99 5.43 → 2.91 ms** (4.82–5.82 → 2.70–4.03: PF14's region rebuild, half undone by smaller surfaces), UI p99 9.5 → 7.1; mobs:6 87.7 → 88.8 (82.6–99.0 and 85.5–94.2: noise); encode p50 unchanged on all three (the phone's encode is draws, not vertices); **RSS −43 to −57 MB**. |
+| — | tooling | this commit | **`--trace` traces the tree's own profile build.** xctrace launches the app by its bundle id (`com.remottely.voxelGameExample`), and LaunchServices resolves it to any copy it registered or Spotlight indexed, **whatever path xctrace was handed** (the worktree's `.app` path launched this tree's `Profile`), and follows a registered copy through a rename. It also spawns a first process suspended (state `T`, orphaned to launchd) that never runs: one was left every traced run, so a failed trace of the release build left two. `runTraced` now hands xctrace the resolved executable, and while it records unregisters every other copy (`lsregister -u`; the LaunchServices dump and `mdfind` list them) and renames it to `….app.run_benchmark_aside`, which is no bundle, registers the tree's own (`lsregister -f`), refuses the run unless the trace's launched pid has that bundle's path (`xctrace export --toc`), then kills the app's processes that were not running before and moves the copies back; a copy found already aside stops the script. Checked with a traced A/B of `orbit:6` against a worktree at `67725a5` (the runner copied into it), three rounds alternated, unlocked (`docs/perf/trace_guard_mac1x_ab_{67725a5,0634891}.jsonl`): 6 of 6 traced runs of the right tree (`faces` 185,130 on the worktree's, 114,193 on this tree's), no process left, no recording left, every copy back. Before the fix the same calls from the worktree traced this tree's `Profile` 3 times in 4, each refused by the new check. The runs opened on the external 1080p display (`dpr` 1.0), so their GPU ms (5.87 → 5.67, 70% busy, 120 fps on both) do not compare with PF15's at 2.0. |
 
-**Where the work stopped (2026-09-26, PF15 closed on both platforms).** Last commit: this
-one (PF15's A/B), over `f60cd42` (PF15: greedy meshing, the tint in the shader) and
-`67725a5` (PF14's regions of 4, not adopted). Next step: **PF13** (the packed terrain vertex,
-8–16 B instead of 72: a custom geometry and vertex shader), judged on the Mac by `--trace`'s
-GPU ms a frame (`orbit:6` is 8.8–8.9 ms after PF15 against the 8.3 a 120 Hz frame has, the GPU
-95–96% busy) and on the phone by encode and fps; PF9 only after a trace shows GC in the UI
-thread. After PF15 the Mac runs `orbit:6` at ~109 fps, `orbit:12` at ~86, `fly:12` at ~108;
+**Where the work stopped (2026-09-27, `--trace` fixed).** Last commit: this one (`tool:`,
+`--trace` traces only the tree's own profile build), over `0634891` (why PF15's traces
+failed), `f9bebd5` (PF15's A/B) and `f60cd42` (PF15: greedy meshing, the tint in the
+shader). Next step: **PF13** (the packed terrain vertex, 8–16 B instead of 72: a custom
+geometry and vertex shader), judged on the Mac by `--trace`'s GPU ms a frame (`orbit:6` is
+8.8–8.9 ms after PF15 at `dpr` 2.0 against the 8.3 a 120 Hz frame has, the GPU 95–96% busy;
+check every line's `dpr`, note (11)) and on the phone by encode p50, fps and RSS; PF9 only
+after a trace shows GC in the UI thread; then PF3 → PF2 → PF4 → PF8 → PF10 → PF11 → PF12. After PF15 the Mac runs `orbit:6` at ~109 fps, `orbit:12` at ~86, `fly:12` at ~108;
 the phone `orbit:6` and `fly:6` at the display's 119, `mobs:6` at 85–94 (encode p50 4.5 ms,
 UI p50 6.2): on the phone the frame is the UI thread's and the encode is draws × passes
 (PF12's outline, `KL-007`'s drops), not vertices. `KL-008` (the driver crash in the first two
@@ -338,14 +348,34 @@ X"; $A ...`) is not split into words: use a function; (6) four `yes` on the phon
 it from 34 to 40 °C in 18 runs and it throttles: hold the CPU busy for one scenario at a
 time, and let the phone cool (under ~33 °C) before a run whose absolute numbers matter;
 (7) a phone A/B needs no babysitting when a driver script calls the runner per side with
-`--repeat 1` and launches again, `--no-build`, only the scenarios a failed call left; (8) `--trace` A/B across a worktree is unsafe: xctrace
-launches the app by bundle id, so once both sides have a profile build it may run the other
-side's (two "before" traces of PF15 ran the greedy build; the line's `faces` gave it away):
-move the other side's `Profile/voxel_game_example.app` out of the way for each call and check
-`faces`; (9) 28 of PF15's 33 traced runs ended in "no composited frame in the traced window",
-on both sides: the same bundle id again, xctrace launching the **release** build of the tree
-(which Instruments cannot trace; four of them were found still running, started at the
-failed calls' times): the runner should move `Release/voxel_game_example.app` (and the other
-worktree's builds) aside while it traces, and kill what it launched; (10) a phone that
+`--repeat 1` and launches again, `--no-build`, only the scenarios a failed call left; (8) a
+`--trace` A/B across a worktree was unsafe (two "before" traces of PF15 ran the greedy
+build; the line's `faces` gave it away) and (9) 28 of PF15's 33 traced runs ended in "no
+composited frame in the traced window", xctrace launching the tree's **release** build by
+its bundle id: both fixed in the runner (the tooling row after PF15's A/B), which now refuses
+a trace of any other copy and kills what xctrace left; a worktree side runs the new runner
+only if it is copied into it (`cp tool/run_benchmark.dart <worktree>/tool/`), since an older
+commit carries the old one; a traced run that dies uncaught (Ctrl-C) leaves copies named
+`….app.run_benchmark_aside`: the next traced run names them, move them back by hand; (10) a phone that
 drops off USB hangs the runner at `adb logcat` with no error: a driver script that reports
-each call's start time shows it as a call older than ~3 minutes.
+each call's start time shows it as a call older than ~3 minutes. (11) with the
+external 1080p display connected the benchmark's window opens on it at `dpr` 1.0 (a quarter
+of the pixels): the GPU is no longer the wall there (`orbit:6` 5.7–5.9 ms, 70% busy, 120
+fps), so PF13's Mac gate needs the window on the Retina display (`dpr` 2.0, as PF15's lines);
+disconnect the external display or make the built-in the main one, and check `dpr` in every
+line; (12) PF13 in flutter_scene 0.23 (read, nothing built): a `Geometry` subclass takes its
+own vertex shader from the kit's bundle (`setVertexShader`) and its own layout
+(`defaultVertexLayout`, attributes bound by name, vertex formats 32-bit only, so the packed
+vertex is `uint32x2/3/4` unpacked with bit operations); the pipeline pairs the geometry's
+vertex shader with the material's fragment (`scene_encoder.dart:522`), so `TerrainMaterial`
+stands; the shader must output the standard varyings (`#include <material_vertex.glsl>`:
+`v_position, v_normal, v_viewvector, v_texture_coords, v_texture_coords_1, v_color,
+v_tangent`) and take `FrameInfo` and the 80-B instance record (`model_transform_0..3`,
+`instance_color`) at the slot after the vertex streams; `bind()` must be written (templates:
+`LineSegmentsGeometry`, the closest, whose varyings are the standard ones); shadow cascades,
+depth prepass and selection mask use `depthOnlyVertex` when a geometry gives one (else its
+full shader through `bind()`): give a position-only one; the velocity pass assumes a float
+`position` but draws only moving nodes, which regions are not; `build_shaders.dart` lists
+fragment shaders only, and a `"type": "vertex"` entry is what flutter_scene's own bundle
+uses; today's surfaces are `MeshGeometry.fromArrays` (`voxel_chunk_view.dart:125`), six
+streams of which uv0 and the tangent (24 B) are unused.
