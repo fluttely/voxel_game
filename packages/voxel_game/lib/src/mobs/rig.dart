@@ -355,7 +355,9 @@ class RigModel {
 }
 
 /// A built [Rig]: its own scene nodes over the shared [model], posed every
-/// frame by [animate], placed by [place].
+/// step by [animate], placed by [place]. Its facing ([yaw]) is its owner's to
+/// turn: the node it hangs under is turned by it (`NodeBody.syncNode`), so the
+/// frames between two steps turn the body as evenly as they move it.
 class RigInstance {
   RigInstance._(this.model) {
     for (final p in model.parts) {
@@ -440,9 +442,10 @@ class RigInstance {
   }
 
   /// Puts the model at the feet [position], [scale] times its fitted size,
-  /// toppled by [topple] radians (a death) and shaken sideways by [shake].
+  /// toppled by [topple] radians (a death) and shaken sideways by [shake]. It
+  /// does not turn it: its owner's node faces [yaw].
   void place(Vector3 position, {double scale = 1.0, double topple = 0.0, double shake = 0.0}) {
-    root.rotation = topple == 0.0 ? Quaternion.axisAngle(Vector3(0, 1, 0), _yaw) : eulerYXZ(topple, _yaw, 0);
+    root.rotation = topple == 0.0 ? Quaternion.identity() : Quaternion.axisAngle(Vector3(1, 0, 0), topple);
     final ms = scale * model.fit;
     final sq = rig.kind == RigKind.blob ? animator.squash : 1.0;
     root.scale = Vector3(ms / math.sqrt(sq), ms * sq, ms / math.sqrt(sq));

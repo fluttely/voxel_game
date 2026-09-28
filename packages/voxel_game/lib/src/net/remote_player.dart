@@ -63,12 +63,13 @@ class RemotePlayer extends GameEntity implements Target {
     final moved = position - before
       ..y = 0;
     _speed = lerpd(_speed, moved.length / math.max(dt, 1e-6), math.min(1.0, dt * 8.0));
-    syncNode();
     final r = rig;
-    if (r == null) return;
-    r.root.visible = !_dead;
-    r.animate(dt, speed: _speed, targetYaw: _yaw, onFloor: true);
-    r.place(Vector3.zero());
+    if (r != null) {
+      r.root.visible = !_dead;
+      r.animate(dt, speed: _speed, targetYaw: _yaw, onFloor: true);
+      r.place(Vector3.zero());
+    }
+    syncNode(yaw: r?.yaw);
   }
 
   @override

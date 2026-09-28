@@ -30,11 +30,13 @@ import 'main.dart' as example;
 /// What the camera does while the frames are measured.
 enum Scenario {
   /// Hovers over the spawn and turns once around: the steady cost of a loaded
-  /// window, every chunk of it in view once.
+  /// window, every chunk of it in view once. The view is turned by the look,
+  /// at a steady rate, as a held stick turns it.
   orbit,
 
   /// Flies east at [Bench.flySpeed] over the terrain: the cost of streaming,
-  /// chunks arriving and leaving every second.
+  /// chunks arriving and leaving every second. The player is moved by the
+  /// game's clock, a step at a time, as a walk moves it.
   fly,
 
   /// As [orbit], lower, with [Bench.mobCount] creatures around the player,
@@ -144,9 +146,13 @@ class Bench {
   double? _fillMs;
   Vector3? _origin;
   Map<String, Object>? _world;
+  double _measuredFrom = 0.0;
 
   void ready(VoxelGame game) {
     game.spawner.enabled = false;
+    // The step reads the controls with no mouse captured: the view is turned
+    // through them, as a player's is.
+    game.playWithoutCapture = true;
     _clock.start();
   }
 
@@ -155,8 +161,7 @@ class Bench {
   void _tick(VoxelGame game, double dt) {
     if (!game.ready) return;
     final origin = _origin ??= _start(game);
-    final t = _phase == _Phase.measuring ? _now - _phaseStart : 0.0;
-    _pose(game, origin, t);
+    _pose(game, origin, _phase == _Phase.measuring ? game.time - _measuredFrom : 0.0);
     switch (_phase) {
       case _Phase.filling:
         final window = (2 * radius + 1) * (2 * radius + 1);
@@ -172,10 +177,13 @@ class Bench {
       case _Phase.settling:
         if (_now - _phaseStart >= settle) {
           game.stats.startRecording();
+          _measuredFrom = game.time;
+          // A full turn over the recording, through the look.
+          if (scenario != Scenario.fly) game.input.turn(-2 * math.pi / seconds, 0);
           _enter(_Phase.measuring);
         }
       case _Phase.measuring:
-        if (t >= seconds) _finish(game);
+        if (_now - _phaseStart >= seconds) _finish(game);
     }
   }
 
@@ -191,14 +199,15 @@ class Bench {
     return Vector3(p.x, scenario == Scenario.mobs ? ground + 1.0 : ground + 16.0, p.z);
   }
 
-  /// The player's pose [t] seconds into the recording, held at t = 0 before.
+  /// The player's pose [t] seconds of game time into the recording, held at
+  /// t = 0 before; the look turns it while it records.
   void _pose(VoxelGame game, Vector3 origin, double t) {
     final player = game.player;
     player.velocity = Vector3.zero();
     switch (scenario) {
       case Scenario.orbit || Scenario.mobs:
         player.position.setFrom(origin);
-        player.yaw = 2 * math.pi * t / seconds;
+        if (_phase != _Phase.measuring) player.yaw = 0.0;
         player.pitch = scenario == Scenario.mobs ? -0.15 : -0.35;
       case Scenario.fly:
         player.position.setValues(origin.x + flySpeed * t, origin.y, origin.z);

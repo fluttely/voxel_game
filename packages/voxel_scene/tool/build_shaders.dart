@@ -6,7 +6,7 @@
 // SwiftPM plugin symlinks of an app that uses one), so the bundle is compiled by hand with
 // the SDK's impellerc, with the same arguments flutter_gpu_shaders' hook passes, and
 // committed as a plain asset. A bundle is tied to the engine that compiled it: run this again after a
-// Flutter upgrade, or after editing shaders/*.frag. The includes come from flutter_scene's
+// Flutter upgrade, or after editing anything in shaders/. The includes come from flutter_scene's
 // own shaders/ directory (the engine lighting framework the terrain shader reuses).
 import 'dart:convert';
 import 'dart:io';
@@ -37,6 +37,8 @@ Future<void> main() async {
   final manifest = jsonEncode({
     'TerrainFragment': {'type': 'fragment', 'file': 'shaders/terrain.frag'},
     'TerrainCubeFragment': {'type': 'fragment', 'file': 'shaders/terrain_cube.frag'},
+    'TerrainVertex': {'type': 'vertex', 'file': 'shaders/terrain.vert'},
+    'TerrainDepthVertex': {'type': 'vertex', 'file': 'shaders/terrain_depth.vert'},
   });
   final args = [
     '--sl=assets/shaders/terrain.shaderbundle',

@@ -79,8 +79,6 @@ class ItemPickup extends GameEntity {
       }
     }
     move(dt);
-    node
-      ..position = position + Vector3(0, 0.1 + math.sin(_age * 2.5) * 0.06, 0)
-      ..rotation = Quaternion.axisAngle(Vector3(0, 1, 0), _age * 1.8);
+    syncNode(at: position + Vector3(0, 0.1 + math.sin(_age * 2.5) * 0.06, 0), yaw: _age * 1.8);
   }
 }

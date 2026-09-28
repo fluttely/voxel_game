@@ -96,7 +96,11 @@ class Projectile extends GameEntity {
         : (PhysicallyBasedMaterial()..baseColorFactor = color);
     final size = spec.kind == 'arrow' ? Vector3(0.06, 0.06, 0.6) : Vector3.all(spec.radius * 2);
     node.add(MirroredCamera.primitiveNode(Mesh(CuboidGeometry(size), mat), castsShadows: false));
+    _face(velocity.normalized());
   }
+
+  /// Turns the node along [dir], a unit vector.
+  void _face(Vector3 dir) => syncNode(yaw: math.atan2(-dir.x, -dir.z), pitch: math.asin(dir.y.clamp(-1.0, 1.0)));
 
   @override
   void tick(VoxelGame game, double dt) {
@@ -134,9 +138,6 @@ class Projectile extends GameEntity {
       return;
     }
     position.add(step);
-    node.position = position.clone();
-    node.rotation =
-        Quaternion.axisAngle(Vector3(0, 1, 0), math.atan2(-dir.x, -dir.z)) *
-        Quaternion.axisAngle(Vector3(1, 0, 0), math.asin(dir.y.clamp(-1.0, 1.0)));
+    _face(dir);
   }
 }

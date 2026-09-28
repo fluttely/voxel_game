@@ -1,5 +1,46 @@
 # Changelog
 
+## 0.2.0-dev
+
+- **Frames between two steps are drawn between them.** Above 60 fps half the frames ran
+  no step, and everything drawn moved in the steps, so the view and every body stood
+  still one frame and moved a whole step the next: a 60 Hz world on a 120 Hz display.
+  Now `VoxelGame.frame` draws every body `alpha` of the way between its last two steps'
+  poses (`NodeBody.drawNode`, the steps keeping the pose before theirs with `beginStep`),
+  the camera's eye and the first-person hand follow the drawn player
+  (`PlayerEntity.drawnEye`), and the view bob and the third-person pull-out move by
+  `VoxelGame.drawnTime`, the game time a frame shows. A frame is drawn a step behind the
+  simulation, 16.7 ms. The step is unchanged: 60 Hz, nothing paused.
+- **The look is drained once a frame**, by `VoxelGame.frame`, before the steps, and no
+  longer by the step: the view turns at the display's rate, and the steps aim with the
+  newest yaw. `PlayerEntity.look` applies it (dropped while dead or not yet placed). The
+  buttons are still read by the step alone. A game that calls `step` itself, without
+  `frame`, turns the player with `look`.
+- A rig's facing is its owner's: `RigInstance.place` no longer turns the rig's root, and
+  the mob, the player and a remote player turn their node by `rig.yaw` through
+  `syncNode`, so a body turns as smoothly as it moves. The limbs are still posed a step
+  at a time. The outline around an aimed creature follows its drawn box, once a frame
+  (`PlayerEntity.drawOutline`).
+- Drops and projectiles set their pose through `syncNode` (a drop's bob and spin, a
+  projectile's heading) instead of writing their node, so they are drawn between steps
+  too; a respawn or a placement snaps (`syncNode(snap: true)`) instead of gliding there.
+- `FrameStats` at 120 Hz, the Mac, `dpr` 2.0: `view judder` 1.0 → 0.0 at `orbit:6` and
+  `mobs:6`, 1.0 → 0.05 at `fly:6` (its first four frames, before the flight starts), and
+  no other frame shows the view of the frame before.
+- `InputMap.turn(yaw, pitch)`: a steady turn from code, radians a second, taken by
+  `takeLook` over its `dt` as the right stick's is. A bot, a cutscene or the benchmark
+  turns the view the way a held stick does.
+- `FrameStats` measures how evenly the view moves, which no frame timing can: a frame
+  presented on time may show the view the one before showed. `addView(eye, forward)`,
+  which `ViewCamera` calls once a frame, keeps how far the view moved (the angle its
+  forward turned, plus its eye's travel over `FrameStats.viewDepth`, 10 m), and
+  `addFrame` takes the frame's `seconds`. `FrameReport.viewJudder` is the root mean
+  square of each frame's speed against the mean, minus one (0 for a view that moves by
+  the time that passed, about 1 for one that moves every other frame) and `stillFrames`
+  counts the frames that moved less than a quarter of the mean; the JSON has them under
+  `view`. At 120 Hz the kit today reads about 1 and half its frames: the view moves in
+  the 60 Hz steps.
+
 ## 0.1.2-dev
 
 - The creatures of a species share their meshes: `RigModel.of(rig, halfWidth, height)`

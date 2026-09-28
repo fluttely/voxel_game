@@ -184,7 +184,7 @@ void main() {
     expect(Species.def('parrot').tameWith, ['wheat_seeds']);
   });
 
-  test('music moods per biome, night and depth; each mood plays a 2D game track that exists', () {
+  test('music moods per biome, night and depth; each mood plays a track with a stock score, and no file ships', () {
     expect(Music.moodFor(2, false, false), 'Meadow');
     expect(Music.moodFor(2, true, false), 'Meadow Night');
     expect(Music.moodFor(8, false, false), 'Jungle');
@@ -192,12 +192,15 @@ void main() {
     expect(Music.moodFor(2, false, true), 'Deep');
     expect(Music.moodFor(5, true, true), 'Deep');
     expect(Music.trackFor('Meadow Night'), Music.trackFor('Meadow')); // night keeps the day's track
-    expect(Music.trackFor('Dunes'), 'stardust_dreams.ogg');
-    expect(Music.trackFor('Deep'), 'rites_of_passage.mp3');
-    expect(Music.title('fishing_by_the_lake.ogg'), 'Fishing By The Lake');
-    for (final t in Music.tracks.values) {
-      expect(File('assets/audio/music/$t').existsSync(), isTrue, reason: t);
-    }
+    expect(Music.trackFor('Jungle'), Music.trackFor('Meadow'));
+    expect(Music.trackFor('Dunes'), 'dunes');
+    expect(Music.trackFor('Deep'), 'deep');
+    expect(Music.assetFor('frost'), 'assets/audio/music/frost.mp3');
+    expect(Music.title('marsh'), 'Marsh');
+    expect(Music.tracks.values.toSet(), Music.scores.keys.toSet(), reason: 'every track has a score, every score a track');
+    expect(Music.scores.values.toSet().length, Music.scores.length, reason: 'one score per track');
+    final shipped = Directory('assets/audio/music').listSync().map((f) => f.uri.pathSegments.last).toList();
+    expect(shipped, ['README.md'], reason: 'the repository ships no music file');
     for (final k in Sfx.stepKinds) {
       for (var i = 1; i <= 4; i++) {
         expect(File('assets/audio/footstep/$k/${k}_$i.wav').existsSync(), isTrue, reason: '$k $i');

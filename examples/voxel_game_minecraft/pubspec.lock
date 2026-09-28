@@ -469,11 +469,10 @@ packages:
   sound_recipes:
     dependency: "direct main"
     description:
-      name: sound_recipes
-      sha256: "26d93ffd5b9f71970a1100a36e20281f92845eef2e57d38ed2c2e1743fbc637e"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.1.1-dev"
+      path: "../../packages/sound_recipes"
+      relative: true
+    source: path
+    version: "0.1.2-dev"
   source_span:
     dependency: transitive
     description:

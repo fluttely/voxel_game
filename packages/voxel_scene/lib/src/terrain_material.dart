@@ -17,8 +17,9 @@ import 'package:flutter_scene/src/gpu/gpu.dart' as gpu;
 ///
 /// The shader bundle is an asset of this package compiled by
 /// `tool/build_shaders.dart`; [loadLibrary] must finish before a material that
-/// draws is constructed. A material built without it (unit tests, which never
-/// draw) stays a stock PBR material.
+/// draws is constructed, and before a `VoxelChunkView` meshes a lit surface (its
+/// geometry runs the bundle's vertex shaders). A material built without it (unit
+/// tests, which never draw) stays a stock PBR material.
 class TerrainMaterial extends PhysicallyBasedMaterial {
   /// A terrain material; without [loadLibrary] it draws as stock PBR.
   TerrainMaterial({this.emissionMix = 0.5}) {
@@ -37,17 +38,26 @@ class TerrainMaterial extends PhysicallyBasedMaterial {
   /// [loadLibrary] has finished.
   static bool get loaded => _library != null;
 
+  /// The bundle's shader [name]; [loadLibrary] must have finished.
+  static gpu.Shader shader(String name) {
+    final lib = _library;
+    if (lib == null) throw StateError('TerrainMaterial.loadLibrary has not finished; $name is in its bundle');
+    return lib[name]!;
+  }
+
   /// Loads the terrain shader bundle once. Throws when the bundle holds no
   /// shader this Flutter engine can read: a bundle is tied to the engine that
   /// compiled it.
   static Future<void> loadLibrary() async {
     if (_library != null) return;
     final lib = await gpu.loadShaderLibraryAsync(asset);
-    if (lib == null || lib['TerrainFragment'] == null) {
-      throw Exception(
-        '$asset holds no TerrainFragment this engine can read; recompile it with '
-        '`dart tool/build_shaders.dart` from packages/voxel_scene (a bundle is tied to the Flutter engine that built it)',
-      );
+    for (final name in const ['TerrainFragment', 'TerrainVertex', 'TerrainDepthVertex']) {
+      if (lib == null || lib[name] == null) {
+        throw Exception(
+          '$asset holds no $name this engine can read; recompile it with '
+          '`dart tool/build_shaders.dart` from packages/voxel_scene (a bundle is tied to the Flutter engine that built it)',
+        );
+      }
     }
     _library = lib;
   }

@@ -56,10 +56,10 @@ class InputBindings<A extends Object> {
   final Map<A, TriggerBinding> triggers;
 }
 
-/// Held and just-pressed actions, the wheel and the look motion (mouse and
-/// right stick), read by the simulation once per step and cleared by
-/// [endTick]. Generic over the game's own action type; `VoxelAction` is the
-/// kit's.
+/// Held and just-pressed actions and the wheel, read by the simulation once
+/// per step and cleared by [endTick], and the look motion (mouse and right
+/// stick), drained once a frame by [takeLook]. Generic over the game's own
+/// action type; `VoxelAction` is the kit's.
 ///
 /// Feed it from a widget ([onKey], the pointer callbacks) and [attachDevices];
 /// or drive it from code with [hold] (tests, bots, cutscenes).
@@ -125,6 +125,7 @@ class InputMap<A extends Object> {
   int _wheel = 0;
   Offset _drag = Offset.zero;
   Offset _scriptLook = Offset.zero;
+  Offset _scriptTurn = Offset.zero;
   // Where each live finger landed, and which of them have already travelled
   // past [tapSlop] and so became look drags.
   final Map<int, Offset> _touchOrigin = {};
@@ -363,6 +364,12 @@ class InputMap<A extends Object> {
   /// Adds a look motion from code, in pixels.
   void look(double dx, double dy) => _scriptLook += Offset(dx, dy);
 
+  /// Turns the view from code at a steady rate, [yaw] and [pitch] radians a
+  /// second with [takeLook]'s signs, until turned again (`turn(0, 0)` stops):
+  /// a held stick, integrated over each [takeLook]'s `dt` as the right stick
+  /// is. For a bot, a cutscene or a benchmark.
+  void turn(double yaw, double pitch) => _scriptTurn = Offset(yaw, pitch);
+
   /// Whether [action] is held.
   bool down(A action) {
     if (_scriptHeld.contains(action) || _touchHeld.contains(action)) return true;
@@ -431,7 +438,8 @@ class InputMap<A extends Object> {
   }
 
   /// The look since the last call, in radians (yaw right, pitch down
-  /// positive): the mouse (or drag) motion plus [dt] of right stick.
+  /// positive): the mouse (or drag) motion plus [dt] of right stick and of
+  /// [turn].
   Offset takeLook(double dt) {
     var d = _scriptLook;
     _scriptLook = Offset.zero;
@@ -441,7 +449,7 @@ class InputMap<A extends Object> {
     d += _drag;
     _drag = Offset.zero;
     if (pointerLockSupported && wantCapture) d += PointerLock.instance.takeDelta();
-    var rad = d * lookSensitivity;
+    var rad = d * lookSensitivity + _scriptTurn * dt;
     final gx = _pad.axisValue(GamepadAxis.rightStickX), gy = _pad.axisValue(GamepadAxis.rightStickY);
     if (gx.abs() > deadzone || gy.abs() > deadzone) rad += Offset(gx, -gy) * (stickTurnRate * dt);
     return rad;

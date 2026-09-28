@@ -101,7 +101,9 @@ Flutter 3.47.1, **but not the web** (worker isolates, TCP sockets and save files
     Gameplay never reads a raw pointer event position.
 14. **Never poll input state inside an event callback.** A handler reads the event it was
     handed; polling belongs in the fixed step and only there. `VoxelGame.step` is the one
-    reader of the buttons every surface shares.
+    reader of the buttons every surface shares. The look is not a button but a motion the
+    handlers only add to: `VoxelGame.frame` drains it, once a frame, before the steps, so
+    the view turns at the display's rate (PF3).
 15. **Never hand-edit a generated artifact** (app 17).
     `packages/voxel_scene/assets/shaders/terrain.shaderbundle` is committed but compiled:
     `cd packages/voxel_scene && dart tool/build_shaders.dart` after editing
@@ -195,3 +197,24 @@ Nearing **200k tokens of context**: finish or back out the step in hand, commit 
 the suite green, write where the work stopped into the live plan's Progress table (last
 commit, next step by its ID, what was learned that is not in the code), and end the turn
 with that summary. The work continues from the file, not from the conversation.
+
+**Every hand-off names the model and the effort for the next session.** Whenever a turn
+ends with work left for a new session — the context budget above, or a prompt written for
+the next chat — the summary (and the Progress table row) says what to run it on, written
+`opus 5.5:<effort>` (`opus 5.5:low`, `opus 5.5:high`), and why, judged by what the next
+step needs, not by what this session ran on.
+
+**Only Opus 5.5, from `low` to `max`.** The effort is the one knob: Opus 5.5 at `low` does
+about ten times the work of Sonnet at `high` for the cost, and beats Fable 5.1 at every
+other level. Never name Sonnet, Haiku, Fable or any other model in a hand-off.
+
+| Next step needs | Run it on |
+|:---|:---|
+| Docs, a CHANGELOG, a rename, a checklist run with no judgement in it | `opus 5.5:low` |
+| A step already specified in the plan, mechanical edits across files, tests for code that exists | `opus 5.5:medium` |
+| Design, a cross-package change | `opus 5.5:high` |
+| Perf investigation, shader or rendering work | `opus 5.5:xhigh` |
+| A bug with no known cause, or a step that already failed at a lower effort | `opus 5.5:max` |
+
+When in doubt between two, name the higher effort and say what would let the next step
+drop to the lower.

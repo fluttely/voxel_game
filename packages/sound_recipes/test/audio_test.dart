@@ -47,4 +47,29 @@ void main() {
       ..play('hit', volumeDb: -6);
     expect(s.played, ['dig', 'hit']);
   });
+
+  test('every stock score renders a loop of whole bars, audible, in range, silent at the seam', () {
+    for (final e in StockMusic.all.entries) {
+      final score = e.value;
+      final bytes = renderWav(score.toRecipe());
+      final d = ByteData.sublistView(bytes);
+      final n = (bytes.length - 44) ~/ 2;
+      expect(n, (score.seconds * 22050).toInt(), reason: e.key);
+      expect(score.seconds, closeTo(score.chords.length * 240 / score.bpm, 1e-9), reason: e.key);
+      var peak = 0;
+      for (var o = 44; o < bytes.length; o += 2) {
+        final v = d.getInt16(o, Endian.little).abs();
+        if (v > peak) peak = v;
+      }
+      expect(peak, greaterThan(3000), reason: '${e.key} is audible');
+      expect(peak, lessThan(32000), reason: '${e.key} does not clip');
+      expect(d.getInt16(44, Endian.little).abs(), lessThan(400), reason: '${e.key} starts from silence');
+      expect(d.getInt16(bytes.length - 2, Endian.little).abs(), lessThan(400), reason: '${e.key} ends in silence');
+    }
+  });
+
+  test('no two stock scores share their notes', () {
+    final notes = {for (final s in StockMusic.all.values) '${s.chords} ${s.melody}'};
+    expect(notes.length, StockMusic.all.length);
+  });
 }

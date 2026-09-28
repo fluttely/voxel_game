@@ -8,7 +8,7 @@ music that crossfades by mood.
 Nothing here is specific to voxels, or to any genre: it is one file of
 synthesis, a bank and a player.
 
-> **Status: 0.1.2-dev**, beta. The API can still change.
+> **Status: 0.2.0-dev**, beta. The API can still change.
 
 ## Features
 
@@ -16,13 +16,14 @@ synthesis, a bank and a player.
 - `StockSounds`: `break_`, `place_` and `step_` for every `SoundFamily`, plus `hit`, `hurt`, `pickup`, `explode` and more.
 - `SoundBank`: plays sounds by name, from recipes or asset files.
 - `SoundPlayer` / `SilentSounds`: play through an interface, so tests and servers stay silent.
-- `MusicDirector`: one track per mood, crossfaded.
+- `MusicScore` / `StockMusic`: background music synthesised from notes, six stock loops.
+- `MusicDirector`: one track per mood, crossfaded; a file when the app bundles it, else its recipe.
 
 ## Install
 
 ```yaml
 dependencies:
-  sound_recipes: ^0.1.2-dev
+  sound_recipes: ^0.2.0-dev
 ```
 
 Dart SDK `^3.13.0`.
@@ -53,8 +54,16 @@ Needs Flutter (it plays through `flutter_soloud`).
    bank.play('break_${SoundFamily.stone}', volumeDb: -3);
    ```
 
-4. **Music (optional):** `MusicDirector({'day': 'assets/day.ogg', 'night': 'assets/night.ogg'})`,
-   then `setMood('night')` to crossfade.
+4. **Music (optional):** a mood maps to a file, a recipe, or both — the file plays when
+   the app bundles it, the recipe until then. `setMood('night')` crossfades.
+
+   ```dart
+   final music = MusicDirector(
+     {'day': 'assets/music/day.mp3', 'night': 'assets/music/night.mp3'},
+     recipes: {'day': StockMusic.pastoral.toRecipe(), 'night': StockMusic.frozen.toRecipe()},
+   );
+   await music.setMood('day');
+   ```
 
 5. **In tests,** pass a `SilentSounds` wherever a `SoundPlayer` is asked for.
 

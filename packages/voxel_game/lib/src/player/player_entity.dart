@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui' show Offset;
 
 import 'package:gamepads/gamepads.dart';
 import 'package:vector_math/vector_math.dart';
@@ -103,6 +104,10 @@ class PlayerEntity extends NodeBody implements Target {
   /// The eye (first person), above the feet.
   Vector3 get eyePosition => position + Vector3(0, spec.eyeHeight, 0);
 
+  /// The eye as this frame draws it: above the feet where the node stands,
+  /// between the last two steps.
+  Vector3 get drawnEye => drawnPosition + Vector3(0, spec.eyeHeight, 0);
+
   /// Whether the player has been put on the ground of a loaded chunk yet.
   bool get placed => _placed;
 
@@ -142,7 +147,7 @@ class PlayerEntity extends NodeBody implements Target {
       velocity = Vector3.zero();
       _restoreAt = null;
       _placed = true;
-      syncNode();
+      syncNode(snap: true);
       return true;
     }
     if (!_game.world.isLoaded(IVec3(x, 0, z))) return false;
@@ -150,7 +155,7 @@ class PlayerEntity extends NodeBody implements Target {
     spawnPoint = position.clone();
     velocity = Vector3.zero();
     _placed = true;
-    syncNode();
+    syncNode(snap: true);
     return true;
   }
 
@@ -185,7 +190,17 @@ class PlayerEntity extends NodeBody implements Target {
     return taken;
   }
 
-  /// One step of [dt], reading [input] when [gameplay] (not in a menu).
+  /// Turns the view by [look] radians (yaw right and pitch down positive):
+  /// what `VoxelGame.frame` drains from the input once a frame, so the view
+  /// turns at the display's rate. Dropped while dead or not yet placed.
+  void look(Offset look) {
+    if (_dead || !_placed) return;
+    yaw -= look.dx;
+    pitch = (pitch - look.dy).clamp(-1.5, 1.5);
+  }
+
+  /// One step of [dt], reading [input] when [gameplay] (not in a menu). The
+  /// look is not read here: [look] takes it once a frame.
   void tick(VoxelGame game, double dt, {required bool gameplay}) {
     final input = game.input;
     _invulnerable = math.max(_invulnerable - dt, 0.0);
@@ -200,9 +215,6 @@ class PlayerEntity extends NodeBody implements Target {
       return;
     }
     if (gameplay) {
-      final look = input.takeLook(dt);
-      yaw -= look.dx;
-      pitch = (pitch - look.dy).clamp(-1.5, 1.5);
       final wheel = input.takeWheel();
       final hotbar = inventory.hotbarSize;
       if (wheel != 0) selectedSlot = (selectedSlot + wheel) % hotbar;
@@ -231,8 +243,8 @@ class PlayerEntity extends NodeBody implements Target {
       _use();
       _useCooldown = usePressed ? 0.25 : 0.2;
     }
-    syncNode();
     _animate(dt);
+    syncNode(yaw: rig?.yaw);
   }
 
   void _walk(double dt, bool gameplay) {
@@ -330,12 +342,18 @@ class PlayerEntity extends NodeBody implements Target {
     if (o == null) return;
     if (block) {
       o.show(selectionBoxAt(_game.world, hit.block.x, hit.block.y, hit.block.z));
-    } else if (mob != null) {
-      final p = mob.position, w = mob.halfWidth;
-      o.show(CollisionBox(p.x - w, p.y, p.z - w, p.x + w, p.y + mob.height, p.z + w));
-    } else {
+    } else if (mob == null) {
       o.hide();
     }
+  }
+
+  /// Puts the outline around the aimed creature where the creature is drawn
+  /// this frame; a block's is set by the step, where blocks change.
+  void drawOutline() {
+    final o = outline, mob = aimedMob;
+    if (o == null || mob == null) return;
+    final p = mob.drawnPosition, w = mob.halfWidth;
+    o.show(CollisionBox(p.x - w, p.y, p.z - w, p.x + w, p.y + mob.height, p.z + w));
   }
 
   ItemType? get _heldType {
@@ -456,7 +474,7 @@ class PlayerEntity extends NodeBody implements Target {
     hp = spec.hp;
     position = spawnPoint.clone();
     velocity = Vector3.zero();
-    syncNode();
+    syncNode(snap: true);
   }
 
   void _animate(double dt) {

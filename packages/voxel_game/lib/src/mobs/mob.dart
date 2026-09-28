@@ -196,7 +196,7 @@ class Mob extends GameEntity implements Target {
       velocity = (position - before) / math.max(dt, 1e-6);
       _hurtFlash = math.max(_hurtFlash - dt, 0.0);
       _animate(dt);
-      syncNode();
+      syncNode(yaw: rig?.yaw);
       return;
     }
     if (!game.world.isLoaded(IVec3.floor(position))) return;
@@ -209,7 +209,7 @@ class Mob extends GameEntity implements Target {
     _locomote(game, dt);
     _animate(dt);
     if (position.y < -10.0) removed = true;
-    syncNode();
+    syncNode(yaw: rig?.yaw);
   }
 
   /// The behaviours running now.

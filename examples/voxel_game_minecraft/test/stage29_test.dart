@@ -77,7 +77,7 @@ void main() {
     expect(Achievements.def('underworld').name, 'Into the Fire');
     expect(Achievements.def('heart').name, 'Heart of the Underworld');
     expect(Music.moodFor(9, true, false, true), 'Underworld');
-    expect(Music.trackFor('Underworld'), 'nighttime_fireflies.ogg');
+    expect(Music.trackFor('Underworld'), 'underworld');
   });
 
   test('the underworld chunk: bedrock floor y 7 and roof y 100, lava only at y <= 28, nothing above the roof', () {

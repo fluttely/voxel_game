@@ -49,6 +49,8 @@ their shadow re-renders are part of every run.
 | `fps` | presented frames (`FrameTiming`s) ÷ seconds | what the player sees; capped by the display's refresh |
 | `hitches` | frame intervals over 1.5 refresh periods | frames the display showed twice |
 | frame p99 | interval between the vsyncs that started two presented frames | pacing |
+| view judder | `FrameStats.addView`, the camera once a frame: RMS of (the frame's view motion ÷ its `dt` ÷ the run's mean speed − 1), motion being the forward's turn plus the eye's travel over 10 m | how evenly the view moves: 0 moves by the time that passed, ~1 moves every other frame |
+| still frames | the frames whose view moved less than a quarter of the mean speed | frames that showed the view the one before showed |
 | GPU latency p50 / p99 | an empty command buffer submitted after the scene's; its completion callback minus the end of the encoding | how long a frame waited and ran on the GPU, the queue included: **not the GPU's cost** (§Validity); a GPU-bound frame reads about three refresh periods |
 | **GPU ms/frame** (`--trace`) | a Metal System Trace of the profile build: the union of the app's `metal-gpu-intervals` over the recorded seconds, ÷ Flutter's composites in them | **the GPU's cost per frame**; the budget is 8.3 ms at 120 Hz |
 | GPU busy % (`--trace`) | the same union ÷ the recorded seconds | near 100: the GPU is what caps the frame rate |
@@ -69,8 +71,13 @@ column counts the queue. It comes from a Metal System Trace of the profile build
 build's (its fps is within 1% of release's at `orbit:6`): its lines go in their own file,
 compared only with other traced lines. Each traced run leaves nothing behind (the trace
 and the ~1 GB raw recording are deleted), and every line says which build it was (`mode`),
-checked against the one the script built: xctrace launches an app by bundle id, and once
-started a stale debug build of it that never exited and filled the disk.
+checked against the one the script built. xctrace launches the app by its bundle id, which
+LaunchServices resolves to any copy it knows (registered, or indexed by Spotlight), whatever
+path it was handed: it once started a stale debug build that never exited and filled the
+disk, and in PF15 the release build and the other worktree's. So while it records, the
+script unregisters every other copy and renames it out of its `.app` extension, registers the
+tree's profile build, refuses the run unless the trace's launched process is that build, and
+kills the processes of the app it left behind (xctrace leaves one suspended every run).
 A frame is GPU-bound when the trace shows the GPU busy nearly all the time while UI p50 is
 far below the refresh period.
 
@@ -78,7 +85,10 @@ far below the refresh period.
 `examples/voxel_game_minecraft/docs/PERFORMANCE_VS_GODOT_2026-09-11.md`). Same window,
 same display, on AC power, other heavy apps closed. Medians of 3 runs; a change is real
 only when it is larger than the spread (±) of both sides. The display's refresh rate is in
-every line (`refreshHz`): compare only lines taken at the same rate.
+every line (`refreshHz`), and so is the window's pixel ratio (`dpr`): compare only lines
+taken at the same rate and ratio. With the external 1080p display connected the window opens
+on it at `dpr` 1.0, a quarter of the Retina's pixels at 2.0: `orbit:6` then traces 5.7–5.9 ms
+of GPU a frame, 70% busy and held at 120 fps, against 8.8–8.9 at 2.0 (PF15).
 
 **Validity: the screen must be unlocked.** A locked Mac keeps rendering the game's frames
 behind the lock screen, but the display never shows them: presentation runs at 60 Hz
@@ -271,6 +281,85 @@ outward-facing action. Windows and Linux cannot render in release on Flutter 3.4
 (Flutter GPU is switched on from the runner only from 3.47.1); that is recorded in the
 ledger, not in this plan.
 
+### PF3, the design (2026-09-28)
+
+**What is wrong today.** `VoxelGame.frame` runs `FixedStepLoop.advance`, 60 steps a second,
+and everything a frame draws is written by the step: `NodeBody.syncNode` (the player, the
+creatures, drops, projectiles, remote players), `RigInstance.place` (a rig's facing), and
+the player's `yaw` / `pitch`, which `PlayerEntity.tick` takes from `InputMap.takeLook`.
+`ViewCamera.camera` reads them in paint. At 120 Hz half the frames run no step, so the
+view and every body stand still for a frame and move a whole step the next: the world is
+drawn at 60 Hz on a 120 Hz display. The view bob and the third-person orbit advance by
+`game.time`, which moves only in steps, so they stand still with it. `FixedStepLoop.alpha`
+exists and nothing reads it. The benchmark cannot see any of this: its camera is posed from
+`onTick`, inside the step, so it moves at 60 Hz whatever the display does, and fps, hitches
+and frame p99 say when frames were presented, not what they showed. PF3 changes what a
+frame shows, not when it is presented, so those columns hold its cost (the interpolation is
+UI-thread work every frame), not its gain.
+
+**The measurement first, in its own commit.** `FrameStats.addView(eye, forward)`, called by
+`ViewCamera.camera` once a frame, keeps how far the view moved that frame: the angle the
+forward turned plus the eye's travel over 10 m (a point 10 m ahead moves on screen by about
+that angle); `addFrame` takes the frame's `dt`. The report's `view` holds `judder`, the RMS
+over the frames of (the frame's speed ÷ the run's mean speed − 1), 0 for a view that moves
+by exactly the time that passed and ~1 for one that moves every other frame, and
+`stillFrames`, the frames that moved less than a quarter of the mean. The benchmark drives
+the view as a player does: `orbit` and `mobs` turn through the look at a steady rate
+(`InputMap.turn`, a held stick, which `takeLook` integrates over its `dt`;
+`playWithoutCapture` so that the game reads it), and `fly` places the player by `game.time`
+(a walk moves in steps),
+not by the wall clock the steps happened to run at. The A/B's before is that commit.
+
+**What keeps the previous state.** `NodeBody` (voxel_scene) holds two poses of its node, the
+one the last step set and the one before it, each a position, a yaw and a pitch (a node's
+scale is its model's business). `syncNode({at, yaw, pitch})` sets this step's pose (`at`
+defaults to `position`; a turn left out keeps its value); `beginStep()` makes the last pose
+the one the frames draw from, and `VoxelGame.step` calls it on every body before anything
+moves; `drawNode(alpha)` writes `from + (to − from)·alpha` into the node (the yaw the short
+way round), once a frame from `VoxelGame.frame`, and skips a body whose two poses are equal
+and already drawn. A body's first `syncNode`, and `syncNode(snap: true)` (a respawn, a
+placement), set both poses, so nothing streaks from the origin or across the map.
+`drawnPosition` is where the node stands this frame. A frame is drawn one step behind the
+simulation, the price of interpolating (16.7 ms), for motion as even as the display.
+
+**Where `alpha` enters.** In `VoxelGame.frame`: after `_loop.advance`, every body is drawn
+at `_loop.alpha` (the player, the mobs, the entities, remote players among them); then the
+hand (`FirstPersonView.update`) and, in paint, the camera read drawn values.
+`VoxelGame.drawnTime`, `time − step · (1 − alpha)`, is the game time a frame shows; between
+two frames it moves by the frame's `dt`. `ViewCamera` advances the view bob and the orbit's
+easing by it instead of `time`, and its eye is `PlayerEntity.drawnEye`. The selection
+outline around a creature follows the creature's drawn box, once a frame
+(`PlayerEntity.drawOutline`); around a block nothing changes.
+
+**The rigs.** A rig's facing moves from `RigInstance.place` (the rig's root) to its owner's
+node: `place` keeps the topple, the scale, the squash and the shake, and the owner passes
+`yaw: rig.yaw` to `syncNode`, so a body turns as smoothly as it moves. The limbs
+(`RigPart`s) stay posed at the step's rate, and so does a death's topple: the rigs cost
+0.12 ms a step on the Mac (PF9's stopwatches), and posing them every frame at 120 Hz would
+double that for a swing of a few degrees a step.
+
+**The look, once a frame, and rule 14.** `VoxelGame.frame`, while `gameplay`, drains the look
+once, before the steps (`input.takeLook(dt)`, handed to `PlayerEntity.look`, which drops it
+while the player is dead or not yet placed); `PlayerEntity.tick` no longer takes it. The
+view turns at the display's rate, a frame's latency instead of a step's, and the steps of
+that frame aim and walk with the newest yaw. The camera's turn is never interpolated, only
+its eye. Rule 14 keeps polling in the fixed step so that one press has one reader; the look
+is not a button but a motion, which the event handlers only add to and one reader drains,
+never inside an event callback. The rule gains that sentence in PF3's commit: the step
+reads the buttons, the frame drains the look. The stick's share is integrated over the
+frame's `dt`, as the mouse's already is over its events.
+
+**What does not change.** The step: 60 Hz, `FixedStepLoop` as it is, nothing paused (rule
+12); the buttons, read by the step alone; the network, which sends the step's pose and yaw;
+a headless game, whose frame draws its nodes too (cheap, and what the tests read).
+
+**Judged by** `view judder` and `still frames` on `orbit:6`, `fly:6` (`fly:12` too on the
+Mac) and `mobs:6`, ~1 and half the frames before at 120 Hz, near 0 after; and by what it
+costs: UI p50 and p99, step p99, frame p99 and hitches. A/B against the measurement commit,
+on the Mac and the phone. Tests: `NodeBody`'s two poses (voxel_scene); in voxel_game, that
+the drawn eye moves by `alpha` between two steps, that a frame with no step still turns the
+view, and that a respawn does not streak.
+
 ## Progress
 
 | ID | Status | Commit | Result |
@@ -290,14 +379,45 @@ ledger, not in this plan.
 | PF9 | measured | — | The same stopwatches: a step without a search costs **0.24 ms at p50 and 0.32 at p99** on the Mac (brains 0.03, movement 0.06, rigs 0.12, player 0.02, items, liquids, spawner and pruning ~0), so the per-step garbage PF9 names has no cost inside the step there. If it costs anything it is as GC pauses elsewhere in the UI thread, which only a trace (Perfetto on the phone, a Dart timeline) would show: PF9 waits for one, behind PF7. A phone line with a `prof` field did not parse: logcat cuts a line at ~1000 characters, so a profile on the phone goes on its own line. |
 | PF7 | shared meshes | `e770ef0` | **Where the encode went** (flutter_scene's own profile, `--dart-define=FLUTTER_SCENE_PROFILE=true`, in a temporary build with `print` sent to the benchmark's output; nothing committed): with 40 creatures the **shadow pass** was the cost, 6.14 ms a frame on the Galaxy S24 (phone preset, 2 cascades) against 0.98 at `orbit:6`, and 2.42 against 0.06 on the Mac (4 cascades); the colour pass barely moved (+0.2 ms on the Mac, 3.3 ms on the phone with or without creatures). Every creature part was a geometry of its own (260 for 40 creatures) and flutter_scene 0.23 batches only items with the identical geometry and material (`opaqueBatchEnd` / `depthBatchEnd`), so each part was a draw in every cascade every frame: a moving creature is a dynamic caster the shadow cache (`shadowStatic`) cannot keep. Now `RigModel.of(rig, halfWidth, height)` builds a look at a size once and every `RigInstance` shares its meshes: **260 → 8 geometries**, each part one instanced draw a pass; the profile's shadow pass **2.42 → 0.45 ms** on the Mac and **6.14 → 1.46** on the phone, the colour pass 146 draws → 96 for 140 instances (Mac). A/B against `3d56938`, three rounds alternated, unlocked, 120 Hz (`docs/perf/pf7_{mac120,s24_phone}_ab_{3d56938,shared}.jsonl`): Mac **encode p50 3.40 → 1.11 ms** (runs 3.38–3.42 → 1.03–1.16), UI p50 3.67 → 1.45, RSS 338 → 300 MB, fps 102 on both (the GPU is the limit); Galaxy S24, phone preset, **fps 58.3 → 68.2** (runs 54–59 → 68–72), **encode p50 10.7 → 6.2 ms**, UI p50 12.4 → 9.5, RSS 481 → 419 MB, battery 32–33 °C on both sides. **The step read slower after** (Mac p50 0.24 → 0.31, p99 1.16 → 2.03; phone 0.63 → 1.03, 4.45 → 8.35) although no code it runs changed: rerun with the CPU held busy (two `yes` on the Mac, four through `adb shell` on the phone, `docs/perf/pf7_{mac120,s24_phone}_cpuload_*.jsonl`) the step is the same on both sides (Mac p50 0.26–0.30 → 0.22–0.28, p99 1.19 → 1.13–1.15; phone 0.51 → 0.51–0.54, p99 3.6–4.0 → 4.2–4.6). It is the clock: with less work a frame, the CPU runs slower. On the phone that also caps the frame rate: held busy, the after runs **92–99 fps, encode 3.6 ms, UI p50 4.7–5.1** against 68 fps unloaded, the before 60.5 either way. The rest of PF7 is left: the creatures' shadows now cost ~0.5 ms on the phone (1.46 against `orbit:6`'s 0.98), and their rigs 0.12 ms a step on the Mac (PF9 measured), so shadows only near and no animation far would win less than the noise. |
 | — | ADPF probe | this commit (numbers; the prototype is not committed) | **The phone's clock, tried through Android's Dynamic Performance Framework: no gain, a loss at `orbit`.** Flutter 3.47.5 creates no hint session: no `PerformanceHint` in the engine's source (`engine/src/flutter`), its release `libflutter.so` or `flutter.jar`. `dumpsys performance_hint` on the Galaxy S24 (Android 16) shows the process's only session is HWUI's (tag 2: the main thread, which runs Dart since the UI and platform threads merged, `RenderThread`, `hwuiTask0/1`; target 16.7 ms), fed only when HWUI draws a view, and the game draws into a SurfaceView; `1.raster` is in no session. A prototype in the benchmark's entry created one through the NDK by `dart:ffi` (`APerformanceHint_createSession` in `libandroid.so`, API 33+: the UI and raster threads, target the display's period, 8.33 ms; it showed in `dumpsys` as tag 4), fed every frame from a `WidgetsFlutterBinding` subclass (release batches `FrameTiming` a second at a time, too late for a governor). A/B against `68c3619`, three rounds alternated, phone preset, 120 Hz. **(A) the UI thread's work** (`handleBeginFrame` to the end of `handleDrawFrame`, step and encode inside; `docs/perf/adpf_s24_phone_ab_{68c3619,hint}.jsonl`): `mobs:6` fps 82.4 · 66.6 · 68.1 → 62.9 · 76.0 · 74.8, UI p50 8.78 → 8.55, encode p50 6.13 → 6.18: the ranges overlap and the UI thread is no faster; `orbit:6` **107.7 · 104.4 · 110.0 → 92.9 · 96.1 · 92.6 (−14%)**, GPU latency p50 9.38 → 11.7 ms, UI p50 5.63 → 5.74. **(B) the interval between frames' starts**, clamped at 3 targets, the period the pipeline holds, to say "120 Hz is missed" even when the UI thread is under target (`docs/perf/adpf_s24_phone_ivl_*.jsonl`): `mobs:6` 67.0 · 68.9 · 74.8 → 62.2 · 71.2 · 69.2, UI p50 9.47 → 10.4; `orbit:6` 99.3 · 101.2 · 96.4 → 95.3 · 90.3 · 92.1 (−7%), GPU latency p50 9.58 → 11.3. Neither buys what four busy loops do (UI p50 ~5, 92–99 fps), and both slow the GPU at `orbit`: with a session of its own the app hands the vendor's power HAL a CPU budget it seems to take from elsewhere. Not a step. A variant reporting the GPU's time too (`AWorkDuration`, API 35) needs a per-frame GPU duration the Dart side does not have. |
+| PF14 | regions | this commit | `VoxelChunkView` draws chunks in 2 × 2 regions: one node a region, one geometry a surface, the chunk offsets baked into the positions (`MergedSurface`), 16-bit indices while they fit, bounds taken during the copy; a chunk's apply or removal rebuilds its region from the surfaces the view keeps. flutter_scene's profile, `orbit:6`: colour-pass **draws 85–101 → 39–40** on the Mac, encode 326–454 → 164–189 µs; on the phone the colour pass cost 3.7–4.0 ms for 95–99 draws before (~31 µs a draw, ~4 on the Mac). A/B against `70ca8dc` (the tree of `6d990fb`), three rounds alternated, 120 Hz, Mac (`docs/perf/pf14_mac120_ab_{70ca8dc,regions}.jsonl`), no overlap between runs: **encode p50 orbit 0.63 → 0.31 ms** (0.62–0.64 → 0.30–0.31), mobs 1.10 → 0.75, fly 0.58 → 0.29; UI p50 −29 to −44%, UI p99 orbit 1.91 → 0.90, mobs 4.44 → 2.20; fps unchanged (GPU-bound); the costs: **fly UI p99 2.29 → 2.89** (a region's rebuild when a chunk streams in) and **RSS +34 to +53 MB** (the kept surfaces). Galaxy S24, phone preset, 120 Hz, three full rounds alternated against `70ca8dc` (the after is `3577f2a`, PF14's tree; `docs/perf/pf14_s24_phone_ab_{70ca8dc,regions}.jsonl`, which replace the partial files of the first attempt), no run lost, the battery 30.7–33.5 °C on both sides: **mobs fps 72.2 → 87.4** (runs 70.7–72.7 → 79.5–90.8), encode p50 6.27 → 4.50, UI p50 9.29 → 6.18, UI p99 20.2 → 17.3, GPU latency p50 15.8 → 10.6; **orbit 91.2 → 114** (87.1–99.5 → 112–116), encode 5.15 → 3.82, UI p50 5.92 → 4.84; **fly 116 → 117** (at the display's rate on both), encode 4.59 → 3.50, UI p50 5.41 → 4.57. The costs: **fly step p99 2.08 → 6.01 ms** (2.03–2.71 → 5.01–6.29; `stepMs` holds the streaming uploads, so this is a region rebuilt when a chunk arrives), fly UI p99 9.6 → 11.6 (ranges overlap), RSS +11 to +30 MB; mobs step p99 7.90 → 9.70, with no chunk streaming and no code of the step changed: the clock, as in PF7. **With the CPU held busy** (four `yes`, `docs/perf/pf14_s24_phone_cpuload_*.jsonl`) the A/B says nothing: the battery climbed 33.6 → 40.4 °C over the 18 runs and one build ran `orbit` at 37–86 fps, the first round, the coolest, the fastest on both sides. The busy-CPU check works for a few runs (PF7's), not for three rounds of three scenarios on a phone. |
+| — | tooling | this commit | **The runs the phone lost were crashes of the app**, not the runner's: `dumpsys activity exit-info` recorded `APP CRASH(NATIVE)`, signal 11, for each, and the dropbox kept their tombstones (20:10, 20:13, 20:20): a null dereference in the Adreno driver's `vkCmdBeginRenderPass` under Flutter GPU's `RenderPass.begin`, the process 1–2 s old, 20 s after the previous run's clean exit (the cooldown), so neither a process still alive at `am start -S` nor logcat's buffer. It is `KL-008` in the ledger. The runner read only `flutter:I`, which holds neither; now a run that ends without its line prints the exit reason Android recorded for its pid and logcat's `crash` buffer. 30 launches of 2 s runs 5 s apart afterwards (`mobs` and `orbit` alternated, the APK of `2f89a05`) did not crash once. |
+| PF14 | regions of 4 | — (measured, not adopted) | `regionChunks` 4 (a worktree with the default changed) against 2, Galaxy S24, phone preset, three rounds alternated, right after the busy-CPU runs, so the battery at 38.1–39.1 °C on both sides: the columns compare, the absolute numbers are below the cool A/B's (`docs/perf/pf14_s24_phone_r4_regions{2,4}.jsonl`). Encode p50 **orbit 3.87 → 2.84 ms** (3.80–4.20 → 2.84–2.90), **fly 3.64 → 2.67**, mobs 4.72 → 4.20 (ranges overlap); UI p50 orbit 4.92 → 3.89, fly 4.73 → 3.74. The costs: **fly step p99 4.72 → 24.5 ms** (4.69–7.20 → 23.9–30.1: a chunk arriving rebuilds sixteen chunks' surfaces, three frames at 120 Hz), fly RSS 422 → 482 MB, and fps moves inside the noise (mobs 83.7 → 91.0, orbit 106 → 107, fly 110 → 102). A quarter of the encode is not worth a hitch at every streamed chunk: the default stays 2. |
+| PF15 | greedy | `f60cd42` | `ChunkMesher` merges cube and liquid faces greedily (per direction and slice, as wide as a row allows along u, then whole rows along v), a merge allowed along a direction only where the corners' AO does not change along it, so the interpolation is the unit faces'; the key is block, sky and block light, the four AO corners and the lowered liquid top. The per-voxel colour variation left the vertex colour for the terrain shader (`VoxelTint`, the same 32-bit hash as `ChunkMesher.voxelTint`, of the cell a tenth of a block behind the face); the unlit `glow` surface keeps it baked and unmerged. **The example's `orbit:6` window** (a probe meshing the benchmark's 13 × 13 chunks, its count equal to the benchmark's `faces`): **faces 185,130 → 114,193** (solid 165,431 → 113,902, −31%; liquid 19,699 → 291), vertices 740,520 → 456,772; the mesh job 3.67 → 4.11 ms a chunk (JIT). Solid merges less than a flat world would: hills put AO on most edges, and the grass/dirt/stone and ore ids split the sides. A frame of `orbit:6` against the baked variation (release, Mac): 97.7% of the pixels identical, 99.7% within 2 levels, the rest (up to 37) on cells' edges, where multisampling now shades one cell's variation. |
+| PF15 | A/B | this commit | Against `67725a5` (PF14's tree), three rounds alternated, 120 Hz. **Mac, release** (`docs/perf/pf15_mac120_ab_{67725a5,greedy}.jsonl`; the screen locked during the third round, so its locked lines are left out and the first two rounds judge, runs of both sides without overlap): **orbit:6 fps 101.1 → 109.3** (101.0–101.2 → 109.0–109.6), **orbit:12 70.5 → 85.9**, fly:6 118.6 → 120.8 (the display's rate), **fly:12 88.4 → 108.5**, mobs:6 102.7 → 110.0; frame p99 orbit:6 24.8 → 16.7; encode and UI p50 unchanged (0.31–0.72 ms: the draws are the same, only smaller); fly step p99 3.07 → 2.25 and fly:12 5.27 → 3.40 (less to upload a chunk); **RSS −8 to −20%** (orbit:12 686 → 548 MB). **Mac, GPU** (`--trace`, `docs/perf/pf15_mac120_trace_*.jsonl`): orbit:6 **9.78 ms a frame before** (97.7% busy; 9.99 in §Baseline at 120 Hz) **against 8.83 · 8.89 after** (95.6–96.1%), fly:6 7.51 · 7.48 after; the other traced runs of both sides failed (below), so the GPU number rests on one before run, and the release fps, GPU-bound, say the same (1000 / 101 = 9.9 ms, 1000 / 109 = 9.2). Still over the 8.3 ms a 120 Hz frame has at `orbit:6`. **Galaxy S24, phone preset** (`docs/perf/pf15_s24_phone_ab_{67725a5,greedy}.jsonl`, no run lost, battery 25.8–30.8 °C on both sides): **orbit:6 113.3 → 118.8 fps** (112.0–116.2 → 118.8–119.2, the display's rate), UI p99 15.0 → 8.0; **fly:6 step p99 5.43 → 2.91 ms** (4.82–5.82 → 2.70–4.03: PF14's region rebuild, half undone by smaller surfaces), UI p99 9.5 → 7.1; mobs:6 87.7 → 88.8 (82.6–99.0 and 85.5–94.2: noise); encode p50 unchanged on all three (the phone's encode is draws, not vertices); **RSS −43 to −57 MB**. |
+| — | tooling | this commit | **`--trace` traces the tree's own profile build.** xctrace launches the app by its bundle id (`com.remottely.voxelGameExample`), and LaunchServices resolves it to any copy it registered or Spotlight indexed, **whatever path xctrace was handed** (the worktree's `.app` path launched this tree's `Profile`), and follows a registered copy through a rename. It also spawns a first process suspended (state `T`, orphaned to launchd) that never runs: one was left every traced run, so a failed trace of the release build left two. `runTraced` now hands xctrace the resolved executable, and while it records unregisters every other copy (`lsregister -u`; the LaunchServices dump and `mdfind` list them) and renames it to `….app.run_benchmark_aside`, which is no bundle, registers the tree's own (`lsregister -f`), refuses the run unless the trace's launched pid has that bundle's path (`xctrace export --toc`), then kills the app's processes that were not running before and moves the copies back; a copy found already aside stops the script. Checked with a traced A/B of `orbit:6` against a worktree at `67725a5` (the runner copied into it), three rounds alternated, unlocked (`docs/perf/trace_guard_mac1x_ab_{67725a5,0634891}.jsonl`): 6 of 6 traced runs of the right tree (`faces` 185,130 on the worktree's, 114,193 on this tree's), no process left, no recording left, every copy back. Before the fix the same calls from the worktree traced this tree's `Profile` 3 times in 4, each refused by the new check. The runs opened on the external 1080p display (`dpr` 1.0), so their GPU ms (5.87 → 5.67, 70% busy, 120 fps on both) do not compare with PF15's at 2.0. |
+| PF13 | packed vertex | this commit | The three lit terrain surfaces draw in a **16-byte vertex** where `MeshGeometry` spent 72: `TerrainGeometry` (voxel_scene), a `Geometry` with its own layout and vertex shaders in the kit's bundle (`TerrainVertex`, and `TerrainDepthVertex` for shadows, prepass and mask), two streams of two `uint32` words unpacked with bit operations: the position in 1/256 m from the region's corner (the depth passes read it alone, 8 B where they read 12), then rgba8 (rgb as its square root), the normal biased by 128 and the two light levels. The glow surface stays in the engine's vertex (its baked colour passes 1.0). A debug run (asserts on) packed the whole `orbit:6` window without a failure; the pixels, release, `orbit` held at its start, cropped to the window: against the 72-B vertex 9.1% differ, **0.04% by more than 2 of 255** and 0.01% by more than 8, where two runs of the old build differ by 1.4% and 0.35%. A/B against `4d2e833`, three rounds alternated, unlocked, `dpr` 2.0 on every line. **Mac, traced** (`docs/perf/pf13_mac120_trace_{4d2e833,packed}.jsonl`): **GPU ms a frame at `orbit:6` 8.90 · 8.92 · 8.87 → 8.91 · 8.94 · 9.00, no change**, 96% busy on both: at `dpr` 2.0 the GPU pays for pixels, not vertex fetch. **Mac, release** (`docs/perf/pf13_mac120_ab_{4d2e833,packed}.jsonl`): `orbit:6` 109.0 → 109.2 fps; **`orbit:12` 84.0 → 93.7 fps** (runs 83.6–84.2 → 87.4–95.6), where 3.7× the faces are drawn; `fly:12` 112.0 → 114.3; **RSS −15% at radius 12** (503 → 426 MB `orbit:12`, 540 → 454 `fly:12`), 300 → 282 at `orbit:6`. **The cost: `fly:12` sim p99 2.33 → 4.12 ms** (runs 2.21–2.33 → 4.08–4.17), step p99 3.39 → 4.15, UI p99 3.97 → 5.70: packing on the UI thread when a region is rebuilt (every chunk of the region is repacked at every apply, sqrt and rounding per channel) costs more than copying floats did. **Galaxy S24, phone preset, in power-saving mode** (`low_power` 1, the display held at 60 Hz on both sides, so fps is capped and not a reference: `docs/perf/pf13_s24_phone_lowpower_ab_{4d2e833,packed}.jsonl`, battery 29–32 °C): encode p50 unchanged (`orbit:6` 4.28 → 4.32, `mobs:6` 6.35 → 6.50; it is draws × passes), GPU latency unchanged, fps 60 on both, **RSS −28 to −43 MB** (`orbit:6` 324 → 295, `fly:6` 366 → 323, `mobs:6` 366 → 338), `fly:6` step p99 4.85 → 4.74. |
+| PF13 | pack once | this commit | **A chunk is packed once, when its mesh arrives, and a region's rebuild moves words.** `PackedSurface.of` packs one chunk's `MeshSurface` in its own frame; `PackedSurface.merge` joins a region's chunks, adding `ox·4096 | oz·4096 << 16` to the `x | z` word and copying `y` and the attribute words as they are; `VoxelChunkView` keeps the three lit surfaces packed (and no longer their floats) and the glow as floats. Bit-identical to the first packer: a whole number of metres is a whole number of 1/256 steps, `(p + ox)` is exact in double, and a region under 256 m never carries between the halves; a test packs random chunks (on and off the mesher's grid, 1 to 15 chunks a side) both ways and compares every word. Done in voxel_scene, not on the worker: the mesher's `MeshSurface` is the engine's API and its tests' and the minecraft example's, and the glow still needs the floats. A/B against `4b621de` (= `7a5dcf6`, PF13's first half, plus sound and docs), three rounds alternated, unlocked, `dpr` 2.0 on every line. **Mac, release** (`docs/perf/pf13b_mac120_ab_{4b621de,packonce}.jsonl`): **`fly:12` step p99 4.17 → 1.96 ms** (runs 4.12–4.45 → 1.89–2.65; 3.39 before PF13), **sim p99 3.77 → 1.90** (3.12–3.84 → 1.90–2.16), **UI p99 5.21 → 3.73** (5.19–5.27 → 3.20–3.94); fps unchanged (`orbit:6` 109.4 → 109.6, `orbit:12` 85.9 → 87.3, `fly:12` 113.5 → 113.2); **RSS −17% at radius 12** (451 → 375 MB `orbit:12`, 478 → 396 `fly:12`), 284 → 271 at `orbit:6`. **With the CPU held busy** (`yes` ×2, `fly:12` only, `docs/perf/pf13b_mac120_busy_ab_{4b621de,packonce}.jsonl`): step p99 4.03 → 2.37 (3.59–4.70 → 2.30–2.62), sim p99 3.35 → 2.08, UI p99 5.02 → 3.67. |
+| PF13 | phone A/B | this commit | **Galaxy S24, phone preset, 120 Hz** (`low_power` 0, `refreshHz` 120 on every line), three sides in rounds A B C, C B A, A B C: `4d2e833` (before PF13), `4b621de` (its first half) and `340843c` (packed once), `docs/perf/pf13_s24_phone120_ab_{4d2e833,4b621de,packonce}.jsonl`, no run lost. The battery climbed from 30.5 to 36.5 °C across the 27 runs, so every side has a cool and a warm run and the spread is wide; medians of three. **`fly:6` step p99 3.80 → 3.96 → 2.68 ms** (runs 2.32–4.00 → 2.82–4.23 → 2.00–3.21), sim p99 2.92 → 2.74 → 2.16, UI p99 10.4 → 6.8 → 7.2; **RSS −53 to −72 MB over PF13** (`orbit:6` 344 → 311 → 291, `fly:6` 377 → 336 → 312, `mobs:6` 378 → 361 → 349). fps within the noise: `orbit:6` 112.2 → 118.3 → 117.2 (the one run at 95 is the last and warmest), `fly:6` 116.9 → 119.2 → 119.5, `mobs:6` 88 → 87 → 85 (79–108 across all); encode p50 unchanged (`orbit:6` 3.84 → 3.89 → 3.93, the first round lower on every side: the clock). On the phone PF13 buys memory and, packed once, a cheaper streaming step; the frame is still the UI thread's and the encode is draws × passes. |
+| PF3 | design | this commit | §PF3, the design: what keeps the previous pose (`NodeBody`'s two), where `alpha` enters (`VoxelGame.frame`, `drawnTime`), the rigs' facing moved to their owner's node, the look drained once a frame and how that sits with rule 14, and the measurement PF3 needs first: no column saw how the view moves, and the benchmark posed its camera inside the step. |
+| — | measurement | `0e19bc9` | `FrameStats.addView` and the report's `view` (`judder`, `stillFrames`; `--compare` shows both); the benchmark turns `orbit` and `mobs` through `InputMap.look`, once a frame by the frame's timestamp, with `playWithoutCapture` (a mouse), and moves `fly` by `game.time` (a walk). One run each on the Mac at 120 Hz, `dpr` 2.0, before PF3: **`orbit:6` judder 1.03, 577 still frames of ~1310; `fly:6` 1.00, 720 of ~1450**: the view moves in the 60 Hz steps, every other frame. fps, UI and step as before (`orbit:6` 109 fps, `fly:6` 121). |
+| — | measurement | `9c36cc2` | **The benchmark turns the view by `InputMap.turn`**, a steady rate `takeLook` integrates over its `dt` (a held stick), no longer by `look` fed from a persistent frame callback: that callback runs after paint, so each frame's turn reached the next frame and was weighed against that frame's `dt`. PF3's first probe showed it (`orbit:6` judder 0.46 with 1 still frame, the frames alternating 8.3 and 16.7 ms at ~105 fps, where `fly:6`, not turned, read 0.08). A mouse drained once a frame covers the frame's own interval, as the stick does. |
+| PF3 | interpolation | `37e3190` | As §PF3, the design: `NodeBody`'s two poses (`syncNode` / `beginStep` / `drawNode`, `drawnPosition`), `VoxelGame.frame` drawing every body at the loop's `alpha` and draining the look once a frame, `drawnTime` for the bob and the pull-out, the rigs' facing on their owner's node, the creature outline per frame, rule 14's sentence on the look. One probe run each on the Mac at 120 Hz, `dpr` 2.0, against `9c36cc2`'s (above): **view judder `orbit:6` 1.03 → 0.00, `mobs:6` → 0.00, `fly:6` 1.00 → 0.05, still frames 577 → 0, 720 → 4**; `fly:6`'s four are the run's first two steps, the player held at the origin before the flight starts (√(4/1450) = 0.05), the same on both sides. The A/B follows. |
+| PF3 | phone A/B | `c87a846` | **Galaxy S24, phone preset, 120 Hz** (`low_power` 0, `refreshHz` 120 and unlocked on every line), `9c36cc2` against `37e3190`, three rounds alternated (A B, B A, A B), `docs/perf/pf3_s24_phone120_ab_{9c36cc2,interp}.jsonl`, the battery 29.9–35.7 °C before and 31.1–36.4 after (a call waited for it under 36 °C: at 120 Hz it stayed over 33 for minutes). Medians of three: **view judder `orbit:6` 0.99 → 0.00, `fly:6` 1.00 → 0.05, `mobs:6` 0.79 → 0.00; still frames 687 → 0, 707 → 3, 318 → 0** (`mobs:6` read under 1 before because at ~87 fps more frames run a step; `fly:6`'s three are the flight's start, on both sides). The cost is inside the noise: UI p50 `orbit:6` 4.92 → 4.91, `fly:6` 4.71 → 4.61, `mobs:6` 6.36 → 6.05; UI p99 `orbit:6` 7.97 → 8.43 (runs 7.86–8.93 → 8.39–18.4, the high one the warmest run), `fly:6` 6.94 → 7.32 (6.82–7.21 → 7.15–7.32); step p99 `fly:6` 2.65 → 3.09 (2.45–3.18 → 2.03–3.40), `mobs:6` 8.96 → 8.44; fps and frame p99 unchanged (`orbit:6` 118, `fly:6` 119, `mobs:6` 87 → 90 within 82–93 on both). Two USB drops, no line lost; one `orbit:6` of the before side died in the Adreno driver (`KL-008`) and was rerun. |
+| PF3 | Mac A/B | this commit | **Mac at 120 Hz, `dpr` 2.0, unlocked on every line**, `9c36cc2` against `37e3190` (its lines say `c87a846`, the same code plus docs), three rounds alternated (`docs/perf/pf3_mac120_ab_{9c36cc2,interp}.jsonl`; one `orbit:6` of the before side ran 52.6 s at 2 fps, its window covered for a while, and is set apart in `…_9c36cc2_occluded.jsonl`, replaced by a fourth run). Medians of three: **view judder `orbit:6` 0.95 → 0.00, `fly:6` 1.00 → 0.05, `fly:12` 0.98 → 0.05, `mobs:6` 0.95 → 0.00; still frames 578 → 0, 719 → 4, 658 → 3, 591 → 0** (`fly`'s are the flight's start). The cost is in the noise: UI p50 `orbit:6` 0.48 → 0.44, `fly:6` 0.48 → 0.48, `fly:12` 0.75 → 0.73, `mobs:6` 1.10 → 1.05; UI p99 `mobs:6` 2.24 → 2.85 (runs 2.24–3.60 → 2.28–3.11), the others lower; step p99 unchanged (`fly:12` 2.56 → 2.51); fps unchanged (109, 120.7, 114.6 → 113.0 inside `fly:12`'s 111.7–116.7, 110). **With the CPU held busy** (`yes` ×2, `mobs:6`, `docs/perf/pf3_mac120_busy_ab_{9c36cc2,interp}.jsonl`): UI p50 1.02 → 1.07 (1.02–1.08 → 1.04–1.16), UI p99 2.23 → 2.27, step p99 1.15 → 1.18: drawing 40 creatures between steps costs hundredths of a millisecond a frame. Seen running: `mobs` held still, the creatures upright and facing where they walk with their facing on the node. **PF3 is done.** |
 
-**Where the work stopped (2026-09-25, after the ADPF probe).** Last commit: the ADPF
-probe's numbers (docs), over `23b348a` (0.1.2-dev) and PF7. Next step: **PF14** (chunk
-regions: the terrain's draws, the phone's encode), judged by encode p50 and UI p50 on the
-phone and fps / `--trace` on the Mac; PF9 only after a trace shows GC in the UI thread.
-With 40 creatures the phone runs `mobs:6` at 67–82 fps (encode p50 6.2 ms, UI p50 9.5; the
-spread is between runs of one build), the Mac at ~102, GPU-bound as `orbit:6` is (its
-ceiling is the terrain's: PF15, PF13). **The phone's CPU clock is a closed lead:** four busy
+**Where the work stopped (2026-09-28, PF3 done).** Last commit: this one (`docs:`, PF3's
+Mac A/B), over `c87a846` (its phone A/B), `37e3190` (`voxel_scene, voxel_game:`, frames
+between two steps drawn between them), `9c36cc2` (`InputMap.turn`, the benchmark turning the
+view by it) and `0e19bc9` (the `view` column). PF3 is done on both platforms: at 120 Hz the
+view moved in the 60 Hz steps, half the frames showing the frame before's (view judder ~1);
+now judder is 0.00 (0.05 at `fly`, its start) and no frame repeats, for no measurable UI or
+step cost (§PF3, the design; the three PF3 rows in Progress). Not interpolated, by design: a
+rig's limbs and a death's topple (posed a step at a time). Next step: **PF9 only after a
+trace shows GC in the UI thread; otherwise PF2, chunk upload** (the frame budget checked
+before each apply and lowered, 16-bit indices where they fit, bounds computed on the worker;
+judged by UI p99 and hitches in `fly`, `fly:12` on the Mac, `fly:6` on the phone), **on
+`opus 5.5:high`** (it crosses voxel_engine's worker and voxel_scene's upload; `opus
+5.5:medium` once its design is written here). Then PF4 → PF8 → PF10 → PF11 → PF12.
+Optional, one `tool:` commit: `--compare` warns when the two sides differ in `dpr` or
+`refreshHz`, as it does for `screenLocked`. After PF13 the Mac runs `orbit:6` at ~109 fps (the GPU
+8.9 ms a frame at `dpr` 2.0, 96% busy: pixels, not vertices), `orbit:12` at ~94, `fly:12` at
+~114; before it (after PF15)
+the phone `orbit:6` and `fly:6` at the display's 119, `mobs:6` at 85–94 (encode p50 4.5 ms,
+UI p50 6.2): on the phone the frame is the UI thread's and the encode is draws × passes
+(PF12's outline, `KL-007`'s drops), not vertices. `KL-008` (the driver crash in the first two
+seconds) did not come back in PF15's 25 phone launches; if a run dies, the runner prints the exit
+reason and the crash log, and the tombstone is in `adb shell dumpsys dropbox --print
+SYSTEM_TOMBSTONE`. **The phone's CPU clock is a closed lead:** four busy
 loops holding the CPU up still run `mobs:6` at 92–99 fps, but an ADPF hint session from the
 app does not buy that (the ADPF row in Progress), so it is not a step; Flutter 3.47.5 creates
 none itself. The clock still colours every A/B on both platforms: a step reads slower when
@@ -323,4 +443,59 @@ the VS Code terminal once VS Code has Screen Recording permission (granted 2026-
 behind it, `open -n <app> --args ...` brings it to the front; (4) the phone's adb serial is
 `RQCY706J2YV` (Galaxy S24 Ultra), its screen timeout 10 minutes; (5) in zsh, `rm -f
 dir/x*.jsonl` with no match aborts an `&&` chain, and a command in a variable (`A="adb -s
-X"; $A ...`) is not split into words: use a function.
+X"; $A ...`) is not split into words: use a function; (6) four `yes` on the phone heat
+it from 34 to 40 °C in 18 runs and it throttles: hold the CPU busy for one scenario at a
+time, and let the phone cool (under ~33 °C) before a run whose absolute numbers matter;
+(7) a phone A/B needs no babysitting when a driver script calls the runner per side with
+`--repeat 1` and launches again, `--no-build`, only the scenarios a failed call left; (8) a
+`--trace` A/B across a worktree was unsafe (two "before" traces of PF15 ran the greedy
+build; the line's `faces` gave it away) and (9) 28 of PF15's 33 traced runs ended in "no
+composited frame in the traced window", xctrace launching the tree's **release** build by
+its bundle id: both fixed in the runner (the tooling row after PF15's A/B), which now refuses
+a trace of any other copy and kills what xctrace left; a worktree side runs the new runner
+only if it is copied into it (`cp tool/run_benchmark.dart <worktree>/tool/`), since an older
+commit carries the old one; a traced run that dies uncaught (Ctrl-C) leaves copies named
+`….app.run_benchmark_aside`: the next traced run names them, move them back by hand; (10) a phone that
+drops off USB hangs the runner at `adb logcat` with no error: a driver script that reports
+each call's start time shows it as a call older than ~3 minutes. (11) with the
+external 1080p display connected the benchmark's window opens on it at `dpr` 1.0 (a quarter
+of the pixels): the GPU is no longer the wall there (`orbit:6` 5.7–5.9 ms, 70% busy, 120
+fps), so PF13's Mac gate needs the window on the Retina display (`dpr` 2.0, as PF15's lines);
+disconnect the external display or make the built-in the main one, and check `dpr` in every
+line; (12) PF13 in flutter_scene 0.23 (read, nothing built): a `Geometry` subclass takes its
+own vertex shader from the kit's bundle (`setVertexShader`) and its own layout
+(`defaultVertexLayout`, attributes bound by name, vertex formats 32-bit only, so the packed
+vertex is `uint32x2/3/4` unpacked with bit operations); the pipeline pairs the geometry's
+vertex shader with the material's fragment (`scene_encoder.dart:522`), so `TerrainMaterial`
+stands; the shader must output the standard varyings (`#include <material_vertex.glsl>`:
+`v_position, v_normal, v_viewvector, v_texture_coords, v_texture_coords_1, v_color,
+v_tangent`) and take `FrameInfo` and the 80-B instance record (`model_transform_0..3`,
+`instance_color`) at the slot after the vertex streams; `bind()` must be written (templates:
+`LineSegmentsGeometry`, the closest, whose varyings are the standard ones); shadow cascades,
+depth prepass and selection mask use `depthOnlyVertex` when a geometry gives one (else its
+full shader through `bind()`): give a position-only one; the velocity pass assumes a float
+`position` but draws only moving nodes, which regions are not; `build_shaders.dart` lists
+fragment shaders only, and a `"type": "vertex"` entry is what flutter_scene's own bundle
+uses; today's surfaces are `MeshGeometry.fromArrays` (`voxel_chunk_view.dart:125`), six
+streams of which uv0 and the tangent (24 B) are unused. (13) PF13 as built: a custom opaque
+`Geometry` does reach the screen (the `LineSegmentsGeometry` note in `selection_outline.dart`
+is about that class, not custom geometry); `setVertexStreams` and `bindGeometryBuffers` are
+`@internal` to flutter_scene but needed for two streams (`terrain_geometry.dart` ignores the
+lint); `uvec2` inputs compile with `--gles-language-version=300` and draw on Metal and
+Vulkan, the GLES backend is untested; `packed` is a reserved word in GLSL. (14) the phone
+can be in power-saving mode (`adb shell settings get global low_power` = 1): the display
+drops to 60 Hz and every line says `refreshHz` 60; check it before a phone A/B. (15) the
+pixel diff: `open -n <app> --args --scenario=orbit --radius=6 --seconds=100000 --window=1600x900`
+holds the camera still, `screencapture -x` at 14 s, crop the window (`(140, 220, 3320, 2000)`
+on the Retina), compare two runs of the same build too, for the noise. (16) at 120 Hz with no busy loop the phone still warms
+~0.7 °C a call of three scenarios (30.5 → 36.5 °C over PF13's nine calls): a driver script
+that waits for the battery under ~33 °C before each call keeps a phone A/B's absolute
+numbers; the Mac's `orbit:12` read 84–95 fps on the same build across days, so compare it
+only within one A/B. (17) macOS stops sending vsync to a benchmark window that is fully covered
+(another app in front): the run stalls at 0% CPU, its line reads far more `seconds` than
+asked and a few fps, or the runner times out after 3 minutes; the Mac must be left alone
+with the window in front, not only unlocked, and a line with `seconds` over 12 is set apart.
+(18) a persistent frame callback runs after paint: anything fed from it reaches the next
+frame, so a scripted turn goes through `InputMap.turn`, a rate `takeLook` integrates. (19)
+at 120 Hz the phone stays over 33 °C for minutes between calls; PF3's driver waited for
+36 °C, both sides within 30–36.

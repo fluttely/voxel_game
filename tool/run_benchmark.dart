@@ -22,7 +22,10 @@
 // `gpuTrace` to each line: the GPU's busy time per composited frame. It is the
 // only GPU cost the benchmark has; the app's own `gpuLatencyMs` includes the
 // queue. Instruments cannot attach to a release build, so a traced run is a
-// profile build's: keep its lines in their own file.
+// profile build's: keep its lines in their own file. While it records, every
+// other copy of the app (the release build, another worktree's) is hidden from
+// LaunchServices, since xctrace launches the app by its bundle id; a trace of
+// any other copy is refused.
 import 'dart:convert';
 import 'dart:io';
 
@@ -122,7 +125,7 @@ Future<void> main(List<String> argv) async {
         'extra': extra.join(' '),
         'round': round,
       };
-      // xctrace launches an app by its bundle id, so it can start another build of it.
+      // The line's own word on the build that ran, beside runTraced's check of the bundle.
       if (line['mode'] != mode) {
         stderr.writeln('the run was a ${line['mode']} build, not the $mode build this script made');
         exit(1);
@@ -148,16 +151,28 @@ Future<String> runMac(String app, List<String> flags) async {
 
 /// One run on an Android device: the app started afresh with [flags] in its
 /// launch intent (`FlutterActivity` hands them to `main`), waited for until its
-/// process exits, and logcat's `flutter` lines, where its line lands.
+/// process exits, and logcat's `flutter` lines, where its line lands. A process
+/// that ends without its line died: the reason Android recorded for its exit
+/// and the crash log (signal, backtrace) follow, since the `flutter` tag holds
+/// neither.
 Future<String> runAndroid(String serial, List<String> flags) async {
   await adb(serial, ['logcat', '-c']);
   await adb(serial, ['shell', 'am', 'start', '-S', '-W', '-n', '$androidPackage/.MainActivity', '--esal', 'dart_entrypoint_args', flags.join(',')]);
+  final pid = (await Process.run('adb', ['-s', serial, 'shell', 'pidof', androidPackage])).stdout.toString().trim();
   final deadline = DateTime.now().add(const Duration(minutes: 3));
   while ((await Process.run('adb', ['-s', serial, 'shell', 'pidof', androidPackage])).exitCode == 0) {
     if (DateTime.now().isAfter(deadline)) throw StateError('the run on $serial did not end in 3 minutes');
     await Future<void>.delayed(const Duration(seconds: 1));
   }
-  return adb(serial, ['logcat', '-d', '-v', 'raw', '-s', 'flutter:I']);
+  final output = await adb(serial, ['logcat', '-d', '-v', 'raw', '-s', 'flutter:I']);
+  if (output.contains('[bench] {')) return output;
+  // `dumpsys activity exit-info` lists the package's last exits, newest first,
+  // each as a `timestamp=... pid=N` line and a `process=... reason=...` one.
+  final exits = const LineSplitter().convert(await adb(serial, ['shell', 'dumpsys', 'activity', 'exit-info', androidPackage]));
+  final at = exits.indexWhere((l) => l.contains(' pid=$pid '));
+  final exit = pid.isEmpty ? 'the process was gone when `am start` returned' : at < 0 ? 'no exit recorded for pid $pid' : exits[at + 1].trim();
+  final crash = await adb(serial, ['logcat', '-d', '-v', 'raw', '-b', 'crash']);
+  return '$output\n\nexit: $exit\n\ncrash log:\n${crash.isEmpty ? '(empty)' : crash}';
 }
 
 /// One run on this Mac under a Metal System Trace: the app's stdout, and the
@@ -165,20 +180,37 @@ Future<String> runAndroid(String serial, List<String> flags) async {
 /// deleted once read, and so is the raw recording xctrace leaves behind in the
 /// user's temporary directory (`instruments*.ktrace`, about 1 GB a run), the
 /// one this run added; the time limit bounds both if the app never exits.
+///
+/// xctrace spawns the app suspended and then launches it by its bundle id,
+/// which LaunchServices resolves to any copy it knows of, whatever path xctrace
+/// was handed: this tree's release build, another worktree's. So every other
+/// copy is hidden from LaunchServices while it records ([asideCopies]), the run
+/// is refused unless the process it traced is [app]'s ([tracedApp]), and the
+/// processes of the app it left behind (the suspended one, a copy that never
+/// exits) are killed.
 Future<(String, Map<String, Object>)> runTraced(String app, List<String> flags, double seconds) async {
+  // The trace names the app by the path it was handed: an absolute, resolved one compares.
+  final executable = File(app).resolveSymbolicLinksSync();
+  final bundle = File(executable).parent.parent.parent.path;
   final dir = Directory.systemTemp.createTempSync('run_benchmark_');
   Set<String> recordings() => {
         for (final f in Directory.systemTemp.listSync())
           if (f.uri.pathSegments.last.startsWith('instruments') && f.path.endsWith('.ktrace')) f.path,
       };
   final before = recordings();
+  final running = await appProcesses(app);
+  final aside = await asideCopies(bundle);
   try {
     final trace = '${dir.path}/run.trace', out = '${dir.path}/run.out';
     final r = await Process.run('xcrun', [
       'xctrace', 'record', '--template', 'Metal System Trace', '--time-limit', '${(seconds + 60).round()}s',
-      '--output', trace, '--target-stdout', out, '--launch', '--', app, ...flags,
+      '--output', trace, '--target-stdout', out, '--launch', '--', executable, ...flags,
     ]);
     if (r.exitCode != 0) throw StateError('xctrace record failed: ${r.stdout}${r.stderr}');
+    final toc = await Process.run('xcrun', ['xctrace', 'export', '--input', trace, '--toc']);
+    if (toc.exitCode != 0) throw StateError('xctrace export --toc failed: ${toc.stderr}');
+    final traced = Directory(tracedApp('${toc.stdout}')).resolveSymbolicLinksSync();
+    if (traced != bundle) throw StateError('xctrace traced $traced, not $bundle');
     final table = await Process.run('xcrun', [
       'xctrace', 'export', '--input', trace,
       '--xpath', '/trace-toc/run[@number="1"]/data/table[@schema="metal-gpu-intervals"]',
@@ -186,11 +218,79 @@ Future<(String, Map<String, Object>)> runTraced(String app, List<String> flags, 
     if (table.exitCode != 0) throw StateError('xctrace export failed: ${table.stderr}');
     return (File(out).readAsStringSync(), gpuFromTrace('${table.stdout}', seconds));
   } finally {
+    final left = (await appProcesses(app)).difference(running);
+    if (left.isNotEmpty) await Process.run('kill', ['-9', ...left]);
+    for (final (from, to) in aside) {
+      Directory(to).renameSync(from);
+    }
     dir.deleteSync(recursive: true);
     for (final f in recordings().difference(before)) {
       File(f).deleteSync();
     }
   }
+}
+
+/// The pids of the processes running an executable named as [app]'s, whichever
+/// copy of it they run.
+Future<Set<String>> appProcesses(String app) async {
+  final r = await Process.run('pgrep', ['-x', app.split('/').last]);
+  return const LineSplitter().convert('${r.stdout}').toSet();
+}
+
+const lsregister = '/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister';
+
+/// Hides from LaunchServices every copy of [bundle]'s app but [bundle] itself,
+/// and returns each move (from, to) for the caller to undo. LaunchServices
+/// finds a copy by its bundle id among the ones it registered and the ones
+/// Spotlight indexed, and follows a registered one through a rename: so each
+/// copy is unregistered, then renamed out of its `.app` extension, which makes
+/// it no bundle at all; [bundle] is registered. A copy found already aside is a
+/// traced run that never undid its moves: the script stops and names it.
+Future<List<(String, String)>> asideCopies(String bundle) async {
+  final id = await Process.run('plutil', ['-extract', 'CFBundleIdentifier', 'raw', '$bundle/Contents/Info.plist']);
+  if (id.exitCode != 0) throw StateError('no bundle id in $bundle: ${id.stderr}');
+  final bundleId = '${id.stdout}'.trim();
+  final dump = await Process.run(lsregister, ['-dump']);
+  if (dump.exitCode != 0) throw StateError('lsregister -dump failed: ${dump.stderr}');
+  final indexed = await Process.run('mdfind', ["kMDItemCFBundleIdentifier == '$bundleId'"]);
+  if (indexed.exitCode != 0) throw StateError('mdfind failed: ${indexed.stderr}');
+  // Each record of the dump lists its `path:` before its `identifier:`.
+  final copies = <String>{...const LineSplitter().convert('${indexed.stdout}')};
+  String? path;
+  for (final l in const LineSplitter().convert('${dump.stdout}')) {
+    final p = RegExp(r'^path:\s+(.*?)(?: \(0x[0-9a-f]+\))?$').firstMatch(l);
+    if (p != null) path = p[1];
+    if (path != null && RegExp('^identifier:\\s+${RegExp.escape(bundleId)}\$').hasMatch(l)) copies.add(path);
+  }
+  const suffix = '.run_benchmark_aside';
+  for (final copy in copies) {
+    final aside = copy.endsWith(suffix) ? copy : '$copy$suffix';
+    if (Directory(aside).existsSync()) throw StateError('$aside is left from a traced run that did not finish: move it back');
+  }
+  final moves = [
+    for (final copy in copies)
+      if (Directory(copy).existsSync() && Directory(copy).resolveSymbolicLinksSync() != bundle) (copy, '$copy$suffix'),
+  ];
+  // A copy that LaunchServices does not hold (one Spotlight found) answers
+  // `-u` with -10814: not registered, which is what `-u` is for.
+  for (final (from, _) in moves) {
+    await Process.run(lsregister, ['-u', from]);
+  }
+  final f = await Process.run(lsregister, ['-f', bundle]);
+  if (f.exitCode != 0) throw StateError('lsregister -f $bundle failed: ${f.stderr}');
+  for (final (from, to) in moves) {
+    Directory(from).renameSync(to);
+  }
+  return moves;
+}
+
+/// The app bundle of the process a trace launched, from its table of contents.
+String tracedApp(String toc) {
+  final pid = RegExp(r'<process [^>]*type="launched"[^>]*pid="(\d+)"').firstMatch(toc);
+  if (pid == null) throw StateError('the trace launched no process');
+  final path = RegExp('<process name="[^"]*" pid="${pid[1]}" path="([^"]*)"').firstMatch(toc);
+  if (path == null) throw StateError('the trace lists no path for pid ${pid[1]}');
+  return path[1]!;
 }
 
 /// The app's GPU work over the last [seconds] of an exported
@@ -281,11 +381,13 @@ String keyOf(Map<String, Object?> l) => '${l['scenario']}:${l['radius']}${(l['ex
 
 /// The columns: a label and how to read one run's value, null where the run
 /// did not measure it (the `gpuTrace` ones, taken only with `--trace`; the
-/// step ones, missing from runs recorded before PF6).
+/// step ones, missing from runs recorded before PF6; the view ones, before PF3).
 final columns = <(String, num? Function(Map<String, Object?>))>[
   ('fps', (l) => l['fps'] as num),
   ('hitches', (l) => l['hitches'] as num),
   ('frame p99 ms', (l) => (l['intervalMs'] as Map)['p99'] as num),
+  ('view judder', (l) => (l['view'] as Map?)?['judder'] as num?),
+  ('still frames', (l) => (l['view'] as Map?)?['stillFrames'] as num?),
   ('GPU latency p50 ms', (l) => (l['gpuLatencyMs'] as Map)['p50'] as num),
   ('GPU latency p99 ms', (l) => (l['gpuLatencyMs'] as Map)['p99'] as num),
   ('UI p50 ms', (l) => (l['buildMs'] as Map)['p50'] as num),

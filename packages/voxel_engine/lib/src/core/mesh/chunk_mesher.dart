@@ -179,16 +179,25 @@ class _Surface {
   MeshSurface toSurface() => MeshSurface(v.take(), n.take(), c.take(), l.take(), i.take());
 }
 
-/// Face-culling mesher with baked ambient occlusion, sky + block light,
-/// per-voxel colour noise, liquids (lowered surface, own transparent surface),
-/// cross plants, torches, and the sub-block solids (slab, fence, stairs) built
-/// from axis-aligned boxes lit like cube faces. Works on a volume padded on every
-/// horizontal side, filled from the eight neighbour chunks, so a border face
-/// and its AO corners never guess.
+/// Face-culling, greedy mesher with baked ambient occlusion, sky + block light,
+/// liquids (lowered surface, own transparent surface), cross plants, torches,
+/// and the sub-block solids (slab, fence, stairs) built from axis-aligned boxes
+/// lit like cube faces. Works on a volume padded on every horizontal side,
+/// filled from the eight neighbour chunks, so a border face and its AO corners
+/// never guess.
 ///
 /// The light is not baked into the vertex colour: the colour carries block tint
 /// × face tint × AO, and [MeshSurface.light] carries (sky / 15, block / 15). The
 /// two light volumes (chunk-sized) ride the result.
+///
+/// Cube and liquid faces are merged: coplanar neighbours of the same block,
+/// light, lowered top and AO corners become one quad, across a direction only
+/// where the AO does not change along it, so the interpolated colour is the
+/// one the unit faces had. What made every face different, the per-voxel
+/// colour variation, is not in the colour: a renderer computes it from the
+/// cell with [voxelTint] (voxel_scene's terrain shader does). Only the
+/// [ChunkMeshResult.glow] surface, meant for an unlit material, keeps it baked
+/// and its faces unmerged.
 ///
 /// The padding is the whole 3×3 ring (48×48×128 cells), so the light flood sees
 /// every emitter within reach of this chunk and a torch beside a border lights
@@ -321,12 +330,34 @@ class ChunkMesher {
     _sky = _tSky ??= Uint8List(_padVolume);
     _glow = _tGlow ??= Uint8List(_padVolume);
     _queue = _tQueue ??= Int32List(_padVolume * 2);
+    _faces = _tFaces ??= [for (var f = 0; f < 6; f++) Int32List(_chunkVolume)];
   }
 
   int _aoVerts = 0;
 
-  // The light of the cell last read by [_lightUv]: sky / 15, block / 15.
+  // The light of the cell last read by [_lightUv]: sky / 15, block / 15, and
+  // the two levels.
   double _ls = 1.0, _lb = 0.0;
+  int _lsi = _maxLight, _lbi = 0;
+
+  /// The cube and liquid faces waiting to be merged, one chunk-sized volume
+  /// per face direction indexed like [ChunkSize.index], each cell 0 or a face
+  /// key ([_faceKey]). [_merge] empties them again. Per isolate, like the
+  /// light buffers.
+  static List<Int32List>? _tFaces;
+  List<Int32List> _faces = const [];
+
+  // A face key: block id in bits 0-7, sky level 8-11, block light 12-15, the
+  // four corners' AO (0..3) 16-23, then three flags.
+  static const int _keyLowered = 1 << 24, _keyLiquid = 1 << 25, _keyPresent = 1 << 26;
+
+  // Per face direction: the axis the normal runs along and the two the face
+  // spans, merged along u first (0 = x, 1 = y, 2 = z).
+  static const List<int> _normalAxis = [1, 1, 0, 0, 2, 2];
+  static const List<int> _uAxis = [0, 0, 2, 2, 0, 0];
+  static const List<int> _vAxis = [2, 2, 1, 1, 1, 1];
+  static const List<int> _axisSize = [_sizeX, _sizeY, _sizeZ];
+  static const List<int> _axisStride = [1, _sizeX * _sizeZ, _sizeX];
 
   // Face vertex corners, 4 per face: +Y, -Y, +X, -X, +Z, -Z.
   static const List<int> _faceVerts = [
@@ -506,26 +537,32 @@ class ChunkMesher {
   }
 
   /// The light of the cell a face points into, as the shader reads it, into
-  /// [_ls] (sky) and [_lb] (block), 0..1. Above the volume is open sky.
+  /// [_ls] (sky) and [_lb] (block), 0..1, and as levels 0..15 into [_lsi] and
+  /// [_lbi]. Above the volume is open sky.
   void _lightUv(int x, int y, int z) {
     if (y >= _sizeY) {
-      _ls = 1.0;
-      _lb = 0.0;
+      _lsi = _maxLight;
+      _lbi = 0;
     } else if (y < 0) {
-      _ls = 0.0;
-      _lb = 0.0;
+      _lsi = 0;
+      _lbi = 0;
     } else {
       final c = _p(x, y, z);
-      _ls = _sky[c] / _maxLight;
-      _lb = _glow[c] / _maxLight;
+      _lsi = _sky[c];
+      _lbi = _glow[c];
     }
+    _ls = _lsi / _maxLight;
+    _lb = _lbi / _maxLight;
   }
 
   static int _u32(int v) => v & 0xFFFFFFFF;
 
-  static double _noise(int x, int y, int z, int chunkX, int chunkZ) {
-    var h = _u32((x + chunkX * _sizeX) * 73856093) ^ _u32(y * 19349663) ^ _u32((z + chunkZ * _sizeZ) * 83492791);
-    h = _u32(h);
+  /// The colour variation of the block at world cell ([x], [y], [z]), a factor
+  /// in 0.93..1.07: a hash of the cell in 32-bit unsigned arithmetic, so a
+  /// shader reproduces it exactly (voxel_scene's `terrain.frag` ports it).
+  /// The mesher bakes it into [ChunkMeshResult.glow] only.
+  static double voxelTint(int x, int y, int z) {
+    var h = _u32(x * 73856093) ^ _u32(y * 19349663) ^ _u32(z * 83492791);
     h ^= h >> 13;
     h = _u32(h * 0x5bd1e995);
     h ^= h >> 15;
@@ -535,6 +572,109 @@ class ChunkMesher {
   static int _ao(int side1, int side2, int corner) {
     if (side1 == 1 && side2 == 1) return 0;
     return 3 - (side1 + side2 + corner);
+  }
+
+  /// Whether faces of direction [f] keyed [key] may merge along [axis]: the AO
+  /// of two corners that differ only along it must be equal, and a lowered
+  /// liquid top never stacks up the y axis.
+  static bool _mergesAlong(int f, int key, int axis, int other) {
+    if (axis == 1 && (key & _keyLowered) != 0) return false;
+    final k = f * 12;
+    for (var i = 0; i < 4; i++) {
+      for (var j = i + 1; j < 4; j++) {
+        if (_faceVerts[k + i * 3 + axis] == _faceVerts[k + j * 3 + axis]) continue;
+        if (_faceVerts[k + i * 3 + other] != _faceVerts[k + j * 3 + other]) continue;
+        if (((key >> (16 + 2 * i)) & 3) != ((key >> (16 + 2 * j)) & 3)) return false;
+      }
+    }
+    return true;
+  }
+
+  /// Merges the faces waiting in [_faces] into quads on [solid] and [liquid],
+  /// greedily in each slice: as wide as the row allows along u, then as tall as
+  /// whole rows allow along v. Leaves [_faces] empty.
+  void _merge(_Surface solid, _Surface liquid) {
+    final cell = Int32List(3), extent = Int32List(3);
+    for (var f = 0; f < 6; f++) {
+      final faces = _faces[f];
+      final n = _normalAxis[f], u = _uAxis[f], v = _vAxis[f];
+      final nu = _axisSize[u], nv = _axisSize[v];
+      final su = _axisStride[u], sv = _axisStride[v], sn = _axisStride[n];
+      for (var w = 0; w < _axisSize[n]; w++) {
+        for (var b = 0; b < nv; b++) {
+          for (var a = 0; a < nu; a++) {
+            final at = w * sn + b * sv + a * su;
+            final key = faces[at];
+            if (key == 0) continue;
+            var width = 1;
+            if (_mergesAlong(f, key, u, v)) {
+              while (a + width < nu && faces[at + width * su] == key) {
+                width++;
+              }
+            }
+            var height = 1;
+            if (_mergesAlong(f, key, v, u)) {
+              grow:
+              while (b + height < nv) {
+                final row = at + height * sv;
+                for (var i = 0; i < width; i++) {
+                  if (faces[row + i * su] != key) break grow;
+                }
+                height++;
+              }
+            }
+            for (var j = 0; j < height; j++) {
+              for (var i = 0; i < width; i++) {
+                faces[at + j * sv + i * su] = 0;
+              }
+            }
+            cell[n] = w;
+            cell[u] = a;
+            cell[v] = b;
+            extent[n] = 1;
+            extent[u] = width;
+            extent[v] = height;
+            _mergedQuad((key & _keyLiquid) != 0 ? liquid : solid, f, key, cell, extent);
+          }
+        }
+      }
+    }
+  }
+
+  /// The quad of direction [f] keyed [key] over [extent] cells from [cell]
+  /// (x, y, z), coloured and lit as each of its unit faces was.
+  void _mergedQuad(_Surface s, int f, int key, Int32List cell, Int32List extent) {
+    final id = key & 0xFF;
+    final ls = ((key >> 8) & 15) / _maxLight, lb = ((key >> 12) & 15) / _maxLight;
+    final top = (key & _keyLowered) != 0 ? 0.875 : 1.0;
+    final tint = _faceTint[f];
+    final r = palette[id * 4], g = palette[id * 4 + 1], b = palette[id * 4 + 2], a = palette[id * 4 + 3];
+    final nx = _faceOffsets[f * 3].toDouble(),
+        ny = _faceOffsets[f * 3 + 1].toDouble(),
+        nz = _faceOffsets[f * 3 + 2].toDouble();
+    // A lowered top sits `top` above its cell's floor; nothing merges it up y.
+    final sx = extent[0].toDouble(), sy = extent[1] - 1 + top, sz = extent[2].toDouble();
+    final k = f * 12;
+    final first = s.vertexCount;
+    for (var i = 0; i < 4; i++) {
+      final t = tint * _aoFactor[(key >> (16 + 2 * i)) & 3];
+      s.vertex(
+        cell[0] + _faceVerts[k + i * 3] * sx,
+        cell[1] + _faceVerts[k + i * 3 + 1] * sy,
+        cell[2] + _faceVerts[k + i * 3 + 2] * sz,
+        nx,
+        ny,
+        nz,
+        r * t,
+        g * t,
+        b * t,
+        a,
+        ls,
+        lb,
+      );
+    }
+    final ao0 = (key >> 16) & 3, ao1 = (key >> 18) & 3, ao2 = (key >> 20) & 3, ao3 = (key >> 22) & 3;
+    s.quadIndices(first, ao0 + ao2 < ao1 + ao3);
   }
 
   /// A flat-shaded axis-aligned box from `lo` to `hi` (chunk-local), one
@@ -724,8 +864,7 @@ class ChunkMesher {
           final id = _blocks[_p(x, y, z)];
           if (id == _air) continue;
           final sh = shape[id];
-          final noise = _noise(x, y, z, chunkX, chunkZ);
-          final br = palette[id * 4] * noise, bg = palette[id * 4 + 1] * noise, bb = palette[id * 4 + 2] * noise;
+          final br = palette[id * 4], bg = palette[id * 4 + 1], bb = palette[id * 4 + 2];
           final ba = palette[id * 4 + 3];
           final ox = x.toDouble(), oy = y.toDouble(), oz = z.toDouble();
 
@@ -1047,7 +1186,7 @@ class ChunkMesher {
               // joins; a slope stacks four steps rising toward its high side
               // (the cart interpolates the real line, the steps only read as a
               // ramp).
-              final tr = 0.42 * noise, tg = 0.30 * noise, tb = 0.17 * noise;
+              const tr = 0.42, tg = 0.30, tb = 0.17;
               const b0 = 0.1875, b1 = 0.3125, b2 = 0.6875, b3 = 0.8125, ty = 0.0625, by = 0.125;
               void barsZ(double z0, double z1, double yo) {
                 _subBox(solid, x, y, z, id, cullSame, aos, b0, yo + ty, z0, b1, yo + by, z1, br, bg, bb);
@@ -1208,10 +1347,14 @@ class ChunkMesher {
           }
 
           final isLiquid = sh == _shapeLiquid;
-          final above = _at(x, y + 1, z);
-          final top = isLiquid && above != id ? 0.875 : 1.0;
-          final glows = !isLiquid && id < emission.length && emission[id] >= glowThreshold;
-          final target = isLiquid || ba < 0.99 ? liquid : (glows ? glow : solid);
+          final lowered = isLiquid && _at(x, y + 1, z) != id;
+          final toLiquid = isLiquid || ba < 0.99;
+          final glows = !toLiquid && id < emission.length && emission[id] >= glowThreshold;
+          // A glowing face is drawn unlit, so it keeps the colour variation
+          // baked and stays whole; every other face waits in [_faces].
+          final vary = glows ? voxelTint(x + chunkX * _sizeX, y, z + chunkZ * _sizeZ) : 1.0;
+          final keyed = id | (lowered ? _keyLowered : 0) | (toLiquid ? _keyLiquid : 0) | _keyPresent;
+          final at = ChunkSize.index(x, y, z);
 
           for (var f = 0; f < 6; f++) {
             final oxf = _faceOffsets[f * 3], oyf = _faceOffsets[f * 3 + 1], ozf = _faceOffsets[f * 3 + 2];
@@ -1223,11 +1366,8 @@ class ChunkMesher {
               if (n == id) continue; // water-water, glass-glass
               if (isLiquid && shape[n] == _shapeLiquid) continue;
             }
-            final tint = _faceTint[f];
             _lightUv(ax, ay, az);
-            final ls = _ls, lb = _lb;
             final k = f * 12;
-            var flip = false;
             if (!isLiquid) {
               for (var i = 0; i < 4; i++) {
                 final sx = _faceVerts[k + i * 3] == 0 ? -1 : 1;
@@ -1250,20 +1390,22 @@ class ChunkMesher {
                 aos[i] = _ao(s1, s2, cr);
                 if (aos[i] < 3) _aoVerts++;
               }
-              flip = aos[0] + aos[2] < aos[1] + aos[3];
             } else {
               aos[0] = aos[1] = aos[2] = aos[3] = 3;
             }
-            final first = target.vertexCount;
+            if (!glows) {
+              _faces[f][at] =
+                  keyed | _lsi << 8 | _lbi << 12 | aos[0] << 16 | aos[1] << 18 | aos[2] << 20 | aos[3] << 22;
+              continue;
+            }
+            final tint = _faceTint[f];
+            final first = glow.vertexCount;
             for (var i = 0; i < 4; i++) {
-              final t = tint * _aoFactor[aos[i]];
-              final vx = ox + _faceVerts[k + i * 3];
-              final vy = oy + _faceVerts[k + i * 3 + 1] * top;
-              final vz = oz + _faceVerts[k + i * 3 + 2];
-              target.vertex(
-                vx,
-                vy,
-                vz,
+              final t = tint * _aoFactor[aos[i]] * vary;
+              glow.vertex(
+                ox + _faceVerts[k + i * 3],
+                oy + _faceVerts[k + i * 3 + 1],
+                oz + _faceVerts[k + i * 3 + 2],
                 oxf.toDouble(),
                 oyf.toDouble(),
                 ozf.toDouble(),
@@ -1271,15 +1413,16 @@ class ChunkMesher {
                 bg * t,
                 bb * t,
                 ba,
-                ls,
-                lb,
+                _ls,
+                _lb,
               );
             }
-            target.quadIndices(first, flip);
+            glow.quadIndices(first, aos[0] + aos[2] < aos[1] + aos[3]);
           }
         }
       }
     }
+    _merge(solid, liquid);
     // The chunk's own light volumes (no padding), returned with the meshes.
     final skyOut = Uint8List(_chunkVolume);
     final blockOut = Uint8List(_chunkVolume);

@@ -511,6 +511,63 @@ void main() {
     expect(game.input.digitPressed(), -1, reason: 'and that step drains it');
   });
 
+  test('above 60 fps every frame moves the drawn player by the time it took, and turns the view', () async {
+    final game = await _start(_flat());
+    final p = game.player;
+    await _run(game, 0.5);
+    game.input.hold(VoxelAction.moveForward, true);
+    await _run(game, 0.5);
+    // 120 frames a second: a step every other frame.
+    final drawn = <double>[];
+    for (var i = 0; i < 24; i++) {
+      game.frame(1 / 120);
+      drawn.add(p.drawnPosition.z);
+      final behind = p.drawnPosition.z - p.position.z; // walking toward -z
+      expect(behind, greaterThanOrEqualTo(0.0), reason: 'drawn between the last two steps, never past the last');
+      expect(behind, lessThan(p.spec.walkSpeed / 60 * 1.01), reason: 'at most a step behind');
+    }
+    game.input.hold(VoxelAction.moveForward, false);
+    final moves = [for (var i = 1; i < drawn.length; i++) drawn[i - 1] - drawn[i]];
+    final mean = moves.reduce((a, b) => a + b) / moves.length;
+    expect(mean, greaterThan(0.0));
+    for (final m in moves) {
+      expect(m / mean, inInclusiveRange(0.8, 1.2), reason: 'a frame with no step still moves the drawn player');
+    }
+    expect(p.drawnEye.y - p.drawnPosition.y, closeTo(p.spec.eyeHeight, 1e-6));
+    // The look is the frame's, not the step's: two frames too short for a
+    // step each turn the view.
+    final yaw = p.yaw;
+    game.input.look(-10, 0);
+    game.frame(1 / 480);
+    expect(p.yaw, closeTo(yaw + 10 * game.input.lookSensitivity, 1e-9));
+    game.input.look(-10, 0);
+    game.frame(1 / 480);
+    expect(p.yaw, closeTo(yaw + 20 * game.input.lookSensitivity, 1e-9));
+    game.gameplay = false;
+    game.input.look(-10, 0);
+    game.frame(1 / 480);
+    expect(p.yaw, closeTo(yaw + 20 * game.input.lookSensitivity, 1e-9), reason: 'no look behind a screen');
+  });
+
+  test('a respawn is drawn where the player stands up, not on the way there', () async {
+    final game = await _start(_flat());
+    final p = game.player;
+    await _run(game, 0.5);
+    game.input.hold(VoxelAction.moveForward, true);
+    await _run(game, 1.0);
+    game.input.hold(VoxelAction.moveForward, false);
+    expect(p.position.distanceTo(p.spawnPoint), greaterThan(3.0));
+    p.takeDamage(const Damage(1000, source: 'test'));
+    expect(p.isDead, isTrue);
+    for (var i = 0; i < 2000 && p.isDead; i++) {
+      game.frame(1 / 120);
+    }
+    expect(p.isDead, isFalse);
+    expect(p.drawnPosition.distanceTo(p.spawnPoint), lessThan(1e-4));
+    game.frame(1 / 120);
+    expect(p.drawnPosition.distanceTo(p.spawnPoint), lessThan(0.05));
+  });
+
   test('one press, one arbiter: the step opens and closes the bag, and only it', () async {
     final game = await _start(_flat());
     await _run(game, 0.5);
