@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- `GameWorld.update` rebuilds the chunk regions the streaming changed within the view's
+  frame budget, nearest the focus first (`VoxelChunkView.rebuild`), so a column of chunks
+  entering or leaving the window is drawn over a few frames instead of in one long one;
+  `GameWorld.isIdle` also waits for the regions still to draw.
+
 ## 0.2.0-dev
 
 - **Frames between two steps are drawn between them.** Above 60 fps half the frames ran

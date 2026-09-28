@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+- **Breaking: `VoxelChunkView` draws what changed in `rebuild`, once a frame, within a
+  time budget.** `apply` and `remove` only keep or drop the chunk and mark its region;
+  `rebuild(near, {budgetUsec})` builds the marked regions nearest the chunk `near` first,
+  each once however many of its chunks changed, while the next one's cost, predicted from
+  its vertices by the rates measured so far, fits in `rebuildBudgetUsec` (2 ms); the rest
+  wait for the next call, and the first region of a call is always built. A region left
+  with no chunk drops its node in the same call. A chunk's lit surfaces are packed the
+  first time a rebuild reads them, still once. Before, every apply and removal rebuilt its
+  region at once: the column of chunks a streamer hands over together, and the one that
+  leaves the window, cost one long frame, and a region was rebuilt with each of its chunks
+  in turn. `pendingRegions` counts the regions waiting. A game that drives the view
+  itself must call `rebuild` every frame, or nothing is drawn.
+
 ## 0.2.0-dev
 
 - `NodeBody` keeps two poses of its node, the last step's and the one before it, each a

@@ -151,18 +151,24 @@ class GameWorld implements VoxelEditor {
       ..unloadRadius = value + 2;
   }
 
-  /// Streams the window around [focus] and lands the jobs that finished; once
-  /// a frame.
+  /// Streams the window around [focus], lands the jobs that finished and
+  /// rebuilds, within the view's budget, the regions they changed, the nearest
+  /// first; once a frame.
   void update(Vector3 focus) {
-    _streamer.updateAround(ChunkStreamer.chunkOfXZ(focus.x.floor(), focus.z.floor()));
+    final centre = ChunkStreamer.chunkOfXZ(focus.x.floor(), focus.z.floor());
+    _streamer.updateAround(centre);
     _streamer.update();
+    _view?.rebuild(centre);
   }
 
   /// Advances the liquids by [dt]; once a simulation step.
   void tickFlow(double dt) => flow.tick(this, dt);
 
-  /// Whether nothing is waiting to be generated or meshed.
-  bool get isIdle => _streamer.isIdle;
+  /// Whether nothing is waiting to be generated, meshed or drawn.
+  bool get isIdle {
+    final view = _view;
+    return _streamer.isIdle && (view == null || view.pendingRegions == 0);
+  }
 
   /// How many chunks have a mesh.
   int get meshCount => _streamer.meshCount;
