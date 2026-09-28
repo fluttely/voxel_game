@@ -279,6 +279,84 @@ outward-facing action. Windows and Linux cannot render in release on Flutter 3.4
 (Flutter GPU is switched on from the runner only from 3.47.1); that is recorded in the
 ledger, not in this plan.
 
+### PF3, the design (2026-09-28)
+
+**What is wrong today.** `VoxelGame.frame` runs `FixedStepLoop.advance`, 60 steps a second,
+and everything a frame draws is written by the step: `NodeBody.syncNode` (the player, the
+creatures, drops, projectiles, remote players), `RigInstance.place` (a rig's facing), and
+the player's `yaw` / `pitch`, which `PlayerEntity.tick` takes from `InputMap.takeLook`.
+`ViewCamera.camera` reads them in paint. At 120 Hz half the frames run no step, so the
+view and every body stand still for a frame and move a whole step the next: the world is
+drawn at 60 Hz on a 120 Hz display. The view bob and the third-person orbit advance by
+`game.time`, which moves only in steps, so they stand still with it. `FixedStepLoop.alpha`
+exists and nothing reads it. The benchmark cannot see any of this: its camera is posed from
+`onTick`, inside the step, so it moves at 60 Hz whatever the display does, and fps, hitches
+and frame p99 say when frames were presented, not what they showed. PF3 changes what a
+frame shows, not when it is presented, so those columns hold its cost (the interpolation is
+UI-thread work every frame), not its gain.
+
+**The measurement first, in its own commit.** `FrameStats.addView(eye, forward)`, called by
+`ViewCamera.camera` once a frame, keeps how far the view moved that frame: the angle the
+forward turned plus the eye's travel over 10 m (a point 10 m ahead moves on screen by about
+that angle); `addFrame` takes the frame's `dt`. The report's `view` holds `judder`, the RMS
+over the frames of (the frame's speed ÷ the run's mean speed − 1), 0 for a view that moves
+by exactly the time that passed and ~1 for one that moves every other frame, and
+`stillFrames`, the frames that moved less than a quarter of the mean. The benchmark drives
+the view as a player does: `orbit` and `mobs` turn through `InputMap.look`, fed once a frame
+from a persistent frame callback by the frame's timestamp (a mouse; `playWithoutCapture` so
+that the step reads it), and `fly` places the player by `game.time` (a walk moves in steps),
+not by the wall clock the steps happened to run at. The A/B's before is that commit.
+
+**What keeps the previous state.** `NodeBody` (voxel_scene) holds two poses of its node, the
+one the last step set and the one before it, each a position, a yaw and a pitch (a node's
+scale is its model's business). `syncNode({at, yaw, pitch})` sets this step's pose (`at`
+defaults to `position`; a turn left out keeps its value); `beginStep()` makes the last pose
+the one the frames draw from, and `VoxelGame.step` calls it on every body before anything
+moves; `drawNode(alpha)` writes `from + (to − from)·alpha` into the node (the yaw the short
+way round), once a frame from `VoxelGame.frame`, and skips a body whose two poses are equal
+and already drawn. A body's first `syncNode`, and `syncNode(snap: true)` (a respawn, a
+placement), set both poses, so nothing streaks from the origin or across the map.
+`drawnPosition` is where the node stands this frame. A frame is drawn one step behind the
+simulation, the price of interpolating (16.7 ms), for motion as even as the display.
+
+**Where `alpha` enters.** In `VoxelGame.frame`: after `_loop.advance`, every body is drawn
+at `_loop.alpha` (the player, the mobs, the entities, remote players among them); then the
+hand (`FirstPersonView.update`) and, in paint, the camera read drawn values.
+`VoxelGame.drawnTime`, `time − step · (1 − alpha)`, is the game time a frame shows; between
+two frames it moves by the frame's `dt`. `ViewCamera` advances the view bob and the orbit's
+easing by it instead of `time`, and its eye is `PlayerEntity.drawnEye`. The selection
+outline around a creature follows the creature's drawn box, once a frame
+(`PlayerEntity.drawOutline`); around a block nothing changes.
+
+**The rigs.** A rig's facing moves from `RigInstance.place` (the rig's root) to its owner's
+node: `place` keeps the topple, the scale, the squash and the shake, and the owner passes
+`yaw: rig.yaw` to `syncNode`, so a body turns as smoothly as it moves. The limbs
+(`RigPart`s) stay posed at the step's rate, and so does a death's topple: the rigs cost
+0.12 ms a step on the Mac (PF9's stopwatches), and posing them every frame at 120 Hz would
+double that for a swing of a few degrees a step.
+
+**The look, once a frame, and rule 14.** `VoxelGame.frame`, while `gameplay`, drains the look
+once, before the steps (`input.takeLook(dt)`, handed to `PlayerEntity.look`, which drops it
+while the player is dead or not yet placed); `PlayerEntity.tick` no longer takes it. The
+view turns at the display's rate, a frame's latency instead of a step's, and the steps of
+that frame aim and walk with the newest yaw. The camera's turn is never interpolated, only
+its eye. Rule 14 keeps polling in the fixed step so that one press has one reader; the look
+is not a button but a motion, which the event handlers only add to and one reader drains,
+never inside an event callback. The rule gains that sentence in PF3's commit: the step
+reads the buttons, the frame drains the look. The stick's share is integrated over the
+frame's `dt`, as the mouse's already is over its events.
+
+**What does not change.** The step: 60 Hz, `FixedStepLoop` as it is, nothing paused (rule
+12); the buttons, read by the step alone; the network, which sends the step's pose and yaw;
+a headless game, whose frame draws its nodes too (cheap, and what the tests read).
+
+**Judged by** `view judder` and `still frames` on `orbit:6`, `fly:6` (`fly:12` too on the
+Mac) and `mobs:6`, ~1 and half the frames before at 120 Hz, near 0 after; and by what it
+costs: UI p50 and p99, step p99, frame p99 and hitches. A/B against the measurement commit,
+on the Mac and the phone. Tests: `NodeBody`'s two poses (voxel_scene); in voxel_game, that
+the drawn eye moves by `alpha` between two steps, that a frame with no step still turns the
+view, and that a respawn does not streak.
+
 ## Progress
 
 | ID | Status | Commit | Result |
@@ -307,6 +385,7 @@ ledger, not in this plan.
 | PF13 | packed vertex | this commit | The three lit terrain surfaces draw in a **16-byte vertex** where `MeshGeometry` spent 72: `TerrainGeometry` (voxel_scene), a `Geometry` with its own layout and vertex shaders in the kit's bundle (`TerrainVertex`, and `TerrainDepthVertex` for shadows, prepass and mask), two streams of two `uint32` words unpacked with bit operations: the position in 1/256 m from the region's corner (the depth passes read it alone, 8 B where they read 12), then rgba8 (rgb as its square root), the normal biased by 128 and the two light levels. The glow surface stays in the engine's vertex (its baked colour passes 1.0). A debug run (asserts on) packed the whole `orbit:6` window without a failure; the pixels, release, `orbit` held at its start, cropped to the window: against the 72-B vertex 9.1% differ, **0.04% by more than 2 of 255** and 0.01% by more than 8, where two runs of the old build differ by 1.4% and 0.35%. A/B against `4d2e833`, three rounds alternated, unlocked, `dpr` 2.0 on every line. **Mac, traced** (`docs/perf/pf13_mac120_trace_{4d2e833,packed}.jsonl`): **GPU ms a frame at `orbit:6` 8.90 · 8.92 · 8.87 → 8.91 · 8.94 · 9.00, no change**, 96% busy on both: at `dpr` 2.0 the GPU pays for pixels, not vertex fetch. **Mac, release** (`docs/perf/pf13_mac120_ab_{4d2e833,packed}.jsonl`): `orbit:6` 109.0 → 109.2 fps; **`orbit:12` 84.0 → 93.7 fps** (runs 83.6–84.2 → 87.4–95.6), where 3.7× the faces are drawn; `fly:12` 112.0 → 114.3; **RSS −15% at radius 12** (503 → 426 MB `orbit:12`, 540 → 454 `fly:12`), 300 → 282 at `orbit:6`. **The cost: `fly:12` sim p99 2.33 → 4.12 ms** (runs 2.21–2.33 → 4.08–4.17), step p99 3.39 → 4.15, UI p99 3.97 → 5.70: packing on the UI thread when a region is rebuilt (every chunk of the region is repacked at every apply, sqrt and rounding per channel) costs more than copying floats did. **Galaxy S24, phone preset, in power-saving mode** (`low_power` 1, the display held at 60 Hz on both sides, so fps is capped and not a reference: `docs/perf/pf13_s24_phone_lowpower_ab_{4d2e833,packed}.jsonl`, battery 29–32 °C): encode p50 unchanged (`orbit:6` 4.28 → 4.32, `mobs:6` 6.35 → 6.50; it is draws × passes), GPU latency unchanged, fps 60 on both, **RSS −28 to −43 MB** (`orbit:6` 324 → 295, `fly:6` 366 → 323, `mobs:6` 366 → 338), `fly:6` step p99 4.85 → 4.74. |
 | PF13 | pack once | this commit | **A chunk is packed once, when its mesh arrives, and a region's rebuild moves words.** `PackedSurface.of` packs one chunk's `MeshSurface` in its own frame; `PackedSurface.merge` joins a region's chunks, adding `ox·4096 | oz·4096 << 16` to the `x | z` word and copying `y` and the attribute words as they are; `VoxelChunkView` keeps the three lit surfaces packed (and no longer their floats) and the glow as floats. Bit-identical to the first packer: a whole number of metres is a whole number of 1/256 steps, `(p + ox)` is exact in double, and a region under 256 m never carries between the halves; a test packs random chunks (on and off the mesher's grid, 1 to 15 chunks a side) both ways and compares every word. Done in voxel_scene, not on the worker: the mesher's `MeshSurface` is the engine's API and its tests' and the minecraft example's, and the glow still needs the floats. A/B against `4b621de` (= `7a5dcf6`, PF13's first half, plus sound and docs), three rounds alternated, unlocked, `dpr` 2.0 on every line. **Mac, release** (`docs/perf/pf13b_mac120_ab_{4b621de,packonce}.jsonl`): **`fly:12` step p99 4.17 → 1.96 ms** (runs 4.12–4.45 → 1.89–2.65; 3.39 before PF13), **sim p99 3.77 → 1.90** (3.12–3.84 → 1.90–2.16), **UI p99 5.21 → 3.73** (5.19–5.27 → 3.20–3.94); fps unchanged (`orbit:6` 109.4 → 109.6, `orbit:12` 85.9 → 87.3, `fly:12` 113.5 → 113.2); **RSS −17% at radius 12** (451 → 375 MB `orbit:12`, 478 → 396 `fly:12`), 284 → 271 at `orbit:6`. **With the CPU held busy** (`yes` ×2, `fly:12` only, `docs/perf/pf13b_mac120_busy_ab_{4b621de,packonce}.jsonl`): step p99 4.03 → 2.37 (3.59–4.70 → 2.30–2.62), sim p99 3.35 → 2.08, UI p99 5.02 → 3.67. |
 | PF13 | phone A/B | this commit | **Galaxy S24, phone preset, 120 Hz** (`low_power` 0, `refreshHz` 120 on every line), three sides in rounds A B C, C B A, A B C: `4d2e833` (before PF13), `4b621de` (its first half) and `340843c` (packed once), `docs/perf/pf13_s24_phone120_ab_{4d2e833,4b621de,packonce}.jsonl`, no run lost. The battery climbed from 30.5 to 36.5 °C across the 27 runs, so every side has a cool and a warm run and the spread is wide; medians of three. **`fly:6` step p99 3.80 → 3.96 → 2.68 ms** (runs 2.32–4.00 → 2.82–4.23 → 2.00–3.21), sim p99 2.92 → 2.74 → 2.16, UI p99 10.4 → 6.8 → 7.2; **RSS −53 to −72 MB over PF13** (`orbit:6` 344 → 311 → 291, `fly:6` 377 → 336 → 312, `mobs:6` 378 → 361 → 349). fps within the noise: `orbit:6` 112.2 → 118.3 → 117.2 (the one run at 95 is the last and warmest), `fly:6` 116.9 → 119.2 → 119.5, `mobs:6` 88 → 87 → 85 (79–108 across all); encode p50 unchanged (`orbit:6` 3.84 → 3.89 → 3.93, the first round lower on every side: the clock). On the phone PF13 buys memory and, packed once, a cheaper streaming step; the frame is still the UI thread's and the encode is draws × passes. |
+| PF3 | design | this commit | §PF3, the design: what keeps the previous pose (`NodeBody`'s two), where `alpha` enters (`VoxelGame.frame`, `drawnTime`), the rigs' facing moved to their owner's node, the look drained once a frame and how that sits with rule 14, and the measurement PF3 needs first: no column saw how the view moves, and the benchmark posed its camera inside the step. |
 
 **Where the work stopped (2026-09-28, PF13 done).** Last commit: this one (`docs:`, PF13's
 phone A/B at 120 Hz), over `340843c` (`voxel_scene:`, a chunk packed once, a region's rebuild
