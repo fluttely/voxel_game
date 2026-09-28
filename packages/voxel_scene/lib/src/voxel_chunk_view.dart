@@ -17,7 +17,8 @@ import 'terrain_material.dart';
 /// A region is one draw per surface where a chunk was one each, because
 /// flutter_scene batches only draws of the identical geometry. The price is
 /// that a chunk's mesh or removal rebuilds its region's geometry from the
-/// surfaces of its chunks, which the view keeps.
+/// surfaces of its chunks, which the view keeps: the lit ones packed when the
+/// chunk arrives, so a rebuild moves words and never packs again.
 class VoxelChunkView implements ChunkMeshSink {
   /// A view with an empty [root] named [rootName]. Add [root] to a scene.
   VoxelChunkView({String rootName = 'World', this.regionChunks = 2})
@@ -66,8 +67,9 @@ class VoxelChunkView implements ChunkMeshSink {
   /// Chunks along each side of a region.
   final int regionChunks;
 
-  /// Each meshed chunk's four surfaces: solid, cutout, glow, liquid.
-  final Map<ChunkPos, List<MeshSurface>> _chunks = {};
+  /// Each meshed chunk's surfaces: solid, cutout and liquid packed (null when
+  /// empty), the glow as the engine meshed it.
+  final Map<ChunkPos, _ChunkSurfaces> _chunks = {};
 
   /// Each region's node under [root], keyed by the region's position.
   final Map<ChunkPos, Node> _regions = {};
@@ -92,7 +94,12 @@ class VoxelChunkView implements ChunkMeshSink {
 
   @override
   void apply(ChunkPos pos, ChunkMeshResult surface) {
-    _chunks[pos] = [surface.solid, surface.cutout, surface.glow, surface.liquid];
+    _chunks[pos] = (
+      solid: PackedSurface.of(surface.solid),
+      cutout: PackedSurface.of(surface.cutout),
+      liquid: PackedSurface.of(surface.liquid),
+      glow: surface.glow,
+    );
     _rebuild(regionOf(pos));
   }
 
@@ -104,7 +111,7 @@ class VoxelChunkView implements ChunkMeshSink {
   void _rebuild(ChunkPos region) {
     final old = _regions.remove(region);
     if (old != null) root.remove(old);
-    final members = <(ChunkPos, List<MeshSurface>)>[
+    final members = <(ChunkPos, _ChunkSurfaces)>[
       for (var dx = 0; dx < regionChunks; dx++)
         for (var dz = 0; dz < regionChunks; dz++)
           if (_chunks[(x: region.x * regionChunks + dx, z: region.z * regionChunks + dz)] case final s?)
@@ -117,12 +124,15 @@ class VoxelChunkView implements ChunkMeshSink {
         0,
         region.z * regionChunks * ChunkSize.sizeZ.toDouble(),
       );
-    List<(ChunkPos, MeshSurface)> parts(int i) => [for (final (offset, s) in members) (offset, s[i])];
+    List<(ChunkPos, PackedSurface)> lit(PackedSurface? Function(_ChunkSurfaces) of) => [
+      for (final (offset, s) in members)
+        if (of(s) case final packed?) (offset, packed),
+    ];
     for (final surface in [
-      _mergeLit(parts(0), matSolid),
-      _mergeLit(parts(1), matCutout),
-      _mergeGlow(parts(2)),
-      _mergeLit(parts(3), matLiquid),
+      _mergeLit(lit((s) => s.solid), matSolid),
+      _mergeLit(lit((s) => s.cutout), matCutout),
+      _mergeGlow([for (final (offset, s) in members) (offset, s.glow)]),
+      _mergeLit(lit((s) => s.liquid), matLiquid),
     ]) {
       if (surface != null) node.add(surface);
     }
@@ -137,10 +147,10 @@ class VoxelChunkView implements ChunkMeshSink {
   );
 
   /// One node drawing lit [parts] (each at its chunk's offset in the region, in
-  /// chunks) in the packed terrain vertex on [material], or null when they are
-  /// all empty.
-  Node? _mergeLit(List<(ChunkPos, MeshSurface)> parts, TerrainMaterial material) {
-    final m = PackedSurface.of(parts);
+  /// chunks) in the packed terrain vertex on [material], or null when there are
+  /// none.
+  Node? _mergeLit(List<(ChunkPos, PackedSurface)> parts, TerrainMaterial material) {
+    final m = PackedSurface.merge(parts);
     if (m == null) return null;
     return Node(mesh: Mesh(TerrainGeometry(m, _bounds(m.minY, m.maxY)), material))..shadowStatic = true;
   }
@@ -163,3 +173,6 @@ class VoxelChunkView implements ChunkMeshSink {
     return Node(mesh: Mesh(geometry, matGlow))..shadowStatic = true;
   }
 }
+
+/// A chunk's surfaces as [VoxelChunkView] keeps them between rebuilds.
+typedef _ChunkSurfaces = ({PackedSurface? solid, PackedSurface? cutout, PackedSurface? liquid, MeshSurface glow});

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- `VoxelChunkView` packs a chunk's lit surfaces once, when its mesh arrives, and keeps
+  them packed: a region's rebuild moves each chunk's words by an integer offset instead
+  of packing every chunk's floats again, on the UI thread, at every mesh in the region.
+  The bits are the same as before (`PackedSurface.of` packs one chunk, `merge` moves and
+  joins them), and the view no longer keeps the lit surfaces' floats.
 - The terrain's lit surfaces (solid, cutout, liquid) draw in a packed 16-byte vertex
   where the engine's is 72: a `Geometry` of the kit's with its own vertex shaders
   (`shaders/terrain.vert`, and `terrain_depth.vert` for the shadow cascades, the depth

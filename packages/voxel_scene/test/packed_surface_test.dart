@@ -20,6 +20,59 @@ import 'package:voxel_scene/src/packed_surface.dart';
   );
 }
 
+/// [parts] packed one by one and merged at their offsets, as `VoxelChunkView` does.
+PackedSurface? _pack(List<(ChunkPos, MeshSurface)> parts) => PackedSurface.merge([
+  for (final (offset, s) in parts)
+    if (PackedSurface.of(s) case final packed?) (offset, packed),
+]);
+
+/// PF13's first packer (`7a5dcf6`), which packed a region's floats already moved
+/// by their offsets: packing a chunk once and merging it must land on its bits.
+({Uint32List positions, Uint32List attributes, List<int> indices, double minY, double maxY}) _packMoved(
+  List<(ChunkPos, MeshSurface)> parts,
+) {
+  var vertices = 0, indexCount = 0;
+  for (final (_, s) in parts) {
+    vertices += s.vertexCount;
+    indexCount += s.indices.length;
+  }
+  final positions = Uint32List(vertices * 2), attributes = Uint32List(vertices * 2);
+  final List<int> indices = vertices <= 0x10000 ? Uint16List(indexCount) : Uint32List(indexCount);
+  int fixed(double m) => (m * 256).round();
+  int sqrtUnorm8(double x) => (math.sqrt(x) * 255).round();
+  int snorm8(double x) => (x * 127).round() + 128;
+  int level(double x) => (x * 15).round();
+  var minY = double.infinity, maxY = double.negativeInfinity;
+  var v = 0, k = 0;
+  for (final (offset, s) in parts) {
+    final ox = offset.x * ChunkSize.sizeX, oz = offset.z * ChunkSize.sizeZ;
+    final p = s.positions, n = s.normals, c = s.colors, l = s.light;
+    for (var j = 0; j < s.vertexCount; j++) {
+      final y = p[j * 3 + 1];
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+      positions[(v + j) * 2] = fixed(p[j * 3] + ox) | fixed(p[j * 3 + 2] + oz) << 16;
+      positions[(v + j) * 2 + 1] = fixed(y);
+      attributes[(v + j) * 2] =
+          sqrtUnorm8(c[j * 4]) |
+          sqrtUnorm8(c[j * 4 + 1]) << 8 |
+          sqrtUnorm8(c[j * 4 + 2]) << 16 |
+          (c[j * 4 + 3] * 255).round() << 24;
+      attributes[(v + j) * 2 + 1] =
+          snorm8(n[j * 3]) |
+          snorm8(n[j * 3 + 1]) << 8 |
+          snorm8(n[j * 3 + 2]) << 16 |
+          level(l[j * 2]) << 24 |
+          level(l[j * 2 + 1]) << 28;
+    }
+    for (final i in s.indices) {
+      indices[k++] = i + v;
+    }
+    v += s.vertexCount;
+  }
+  return (positions: positions, attributes: attributes, indices: indices, minY: minY, maxY: maxY);
+}
+
 void main() {
   MeshSurface quad(double y, {double sky = 1.0, double block = 0.0}) => MeshSurface(
     Float32List.fromList([0, y, 0, 1, y, 0, 1, y, 1, 0.28, y + 0.55, 0.9]),
@@ -31,7 +84,7 @@ void main() {
   final empty = MeshSurface(Float32List(0), Float32List(0), Float32List(0), Float32List(0), Int32List(0));
 
   test('a packed surface moves each chunk by its offset and its indices by the vertices before it', () {
-    final m = PackedSurface.of([((x: 0, z: 0), quad(3)), ((x: 0, z: 1), empty), ((x: 1, z: 1), quad(7))])!;
+    final m = _pack([((x: 0, z: 0), quad(3)), ((x: 0, z: 1), empty), ((x: 1, z: 1), quad(7))])!;
     expect(m.vertexCount, 8);
     expect(m.positions, hasLength(16));
     expect(m.attributes, hasLength(16));
@@ -40,12 +93,13 @@ void main() {
     expect(m.indices, isA<Uint16List>());
     expect(m.minY, 3.0);
     expect(m.maxY, closeTo(7.55, 1e-6));
-    expect(PackedSurface.of([((x: 0, z: 0), empty)]), isNull);
+    expect(PackedSurface.of(empty), isNull);
+    expect(PackedSurface.merge([]), isNull);
   });
 
   test('the shader reads back what the mesher wrote, within the packing steps', () {
     final source = quad(127, sky: 11 / 15, block: 4 / 15);
-    final m = PackedSurface.of([((x: 2, z: 3), source)])!;
+    final m = _pack([((x: 2, z: 3), source)])!;
     for (var i = 0; i < 4; i++) {
       final v = _unpack(m, i);
       final at = [source.positions[i * 3] + 32, source.positions[i * 3 + 1], source.positions[i * 3 + 2] + 48];
@@ -69,24 +123,89 @@ void main() {
     final n = 0x10000 + 4;
     final big = MeshSurface(
       Float32List(n * 3),
-      Float32List.fromList([for (var i = 0; i < n; i++) ...[0.0, 1.0, 0.0]]),
+      Float32List.fromList([
+        for (var i = 0; i < n; i++) ...[0.0, 1.0, 0.0],
+      ]),
       Float32List(n * 4),
       Float32List(n * 2),
       Int32List.fromList([0, 1, 2, n - 3, n - 2, n - 1]),
     );
-    final m = PackedSurface.of([((x: 0, z: 0), big)])!;
+    final m = PackedSurface.of(big)!;
     expect(m.indices, isA<Uint32List>());
     expect(m.indices.last, n - 1);
+    final small = PackedSurface.of(quad(1))!;
+    final merged = PackedSurface.merge([((x: 0, z: 0), small), ((x: 1, z: 0), m)])!;
+    expect(merged.indices, isA<Uint32List>(), reason: 'the merge counts every part\'s vertices');
+    expect(merged.indices.last, n + 3);
   });
 
-  test('a vertex outside the 256 m a packed position spans fails', () {
+  test('packing each chunk once and merging lands on the bits of packing the region moved', () {
+    final random = math.Random(13);
+    // Positions on the mesher's grid (whole metres, the 1/16 steps of slabs and plants)
+    // and off it, where rounding to 1/256 m has to agree on either path.
+    double coordinate(int size) => switch (random.nextInt(3)) {
+      0 => random.nextInt(size + 1).toDouble(),
+      1 => random.nextInt(size * 16 + 1) / 16,
+      _ => random.nextDouble() * size,
+    };
+    MeshSurface chunk(int faces) {
+      final n = faces * 4;
+      const axes = [
+        [1.0, 0.0, 0.0],
+        [-1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        [0.0, -1.0, 0.0],
+        [0.0, 0.0, 1.0],
+        [0.0, 0.0, -1.0],
+        [0.7071068, 0.0, 0.7071068],
+        [-0.7071068, 0.0, -0.7071068],
+      ];
+      return MeshSurface(
+        Float32List.fromList([
+          for (var i = 0; i < n; i++) ...[
+            coordinate(ChunkSize.sizeX),
+            coordinate(ChunkSize.sizeY),
+            coordinate(ChunkSize.sizeZ),
+          ],
+        ]),
+        Float32List.fromList([for (var i = 0; i < n; i++) ...axes[random.nextInt(axes.length)]]),
+        Float32List.fromList([for (var i = 0; i < n * 4; i++) random.nextDouble()]),
+        Float32List.fromList([for (var i = 0; i < n * 2; i++) random.nextInt(16) / 15]),
+        Int32List.fromList([
+          for (var f = 0; f < faces; f++) ...[f * 4, f * 4 + 1, f * 4 + 2, f * 4, f * 4 + 2, f * 4 + 3],
+        ]),
+      );
+    }
+
+    for (final regionChunks in [1, 2, 4, 15]) {
+      final parts = [
+        for (var dx = 0; dx < regionChunks; dx++)
+          for (var dz = 0; dz < regionChunks; dz++)
+            if (random.nextInt(4) != 0) ((x: dx, z: dz), chunk(random.nextInt(3) == 0 ? 0 : 1 + random.nextInt(200))),
+      ];
+      final expected = _packMoved(parts);
+      final m = _pack(parts);
+      if (expected.positions.isEmpty) {
+        expect(m, isNull);
+        continue;
+      }
+      expect(m!.positions, expected.positions, reason: 'positions, $regionChunks chunks a side');
+      expect(m.attributes, expected.attributes, reason: 'attributes, $regionChunks chunks a side');
+      expect(m.indices, expected.indices, reason: 'indices, $regionChunks chunks a side');
+      expect(m.indices.runtimeType, expected.indices.runtimeType);
+      expect(m.minY, expected.minY);
+      expect(m.maxY, expected.maxY);
+    }
+  });
+
+  test('a vertex outside its chunk fails', () {
     final far = MeshSurface(
-      Float32List.fromList([256, 0, 0]),
+      Float32List.fromList([ChunkSize.sizeX + 1, 0, 0]),
       Float32List.fromList([0, 1, 0]),
       Float32List.fromList([1, 1, 1, 1]),
       Float32List.fromList([1, 0]),
       Int32List(0),
     );
-    expect(() => PackedSurface.of([((x: 0, z: 0), far)]), throwsA(isA<AssertionError>()));
+    expect(() => PackedSurface.of(far), throwsA(isA<AssertionError>()));
   });
 }
