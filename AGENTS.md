@@ -196,16 +196,23 @@ the suite green, write where the work stopped into the live plan's Progress tabl
 commit, next step by its ID, what was learned that is not in the code), and end the turn
 with that summary. The work continues from the file, not from the conversation.
 
-**Every hand-off names the model for the next session.** Whenever a turn ends with work
-left for a new session — the context budget above, or a prompt written for the next chat —
-the summary (and the Progress table row) says which model to run it on and why, judged by
-what the next step needs, not by what this session ran on:
+**Every hand-off names the model and the effort for the next session.** Whenever a turn
+ends with work left for a new session — the context budget above, or a prompt written for
+the next chat — the summary (and the Progress table row) says what to run it on, written
+`opus 5.5:<effort>` (`opus 5.5:low`, `opus 5.5:high`), and why, judged by what the next
+step needs, not by what this session ran on.
 
-| Next step needs | Model |
+**Only Opus 5.5, from `low` to `max`.** The effort is the one knob: Opus 5.5 at `low` does
+about ten times the work of Sonnet at `high` for the cost, and beats Fable 5.1 at every
+other level. Never name Sonnet, Haiku, Fable or any other model in a hand-off.
+
+| Next step needs | Run it on |
 |:---|:---|
-| Design, a cross-package change, a bug with no known cause, perf investigation, shader or rendering work | **Opus** (the latest) |
-| A step already specified in the plan, mechanical edits across files, tests for code that exists | **Sonnet** (the latest) |
-| Docs, a CHANGELOG, a rename, a checklist run with no judgement in it | **Haiku** (the latest) |
+| Docs, a CHANGELOG, a rename, a checklist run with no judgement in it | `opus 5.5:low` |
+| A step already specified in the plan, mechanical edits across files, tests for code that exists | `opus 5.5:medium` |
+| Design, a cross-package change | `opus 5.5:high` |
+| Perf investigation, shader or rendering work | `opus 5.5:xhigh` |
+| A bug with no known cause, or a step that already failed at a lower effort | `opus 5.5:max` |
 
-When in doubt between two, name the stronger one and say what would let the next step
-drop to the cheaper.
+When in doubt between two, name the higher effort and say what would let the next step
+drop to the lower.

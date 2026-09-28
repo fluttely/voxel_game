@@ -314,9 +314,9 @@ once, when it arrives, and make a region's merge a copy plus an integer offset (
 takes `ox·256 + (oz·256 << 16)`; the attribute words copy as they are), in `VoxelChunkView`
 (the view keeps each chunk's packed surfaces) or, better, on the worker (voxel_engine's mesher
 writing the packed words, so the UI thread only copies); judged by `fly:12`'s sim / step / UI
-p99 on the Mac (release, against this commit) and `fly:6` on the phone, **on Sonnet** (the
+p99 on the Mac (release, against this commit) and `fly:6` on the phone, **on `opus 5.5:medium`** (the
 format, the shaders and the geometry exist and are tested; a mesher change that stays
-bit-identical to `PackedSurface` is a specified edit; Opus if it moves the format). **Then a
+bit-identical to `PackedSurface` is a specified edit; `opus 5.5:high` if it moves the format). **Then a
 phone A/B of PF13 at 120 Hz**: this commit's phone runs were in power-saving mode (60 Hz);
 ask the user to turn it off (`adb shell settings get global low_power` must print 0, and
 every line's `refreshHz` ~120). PF9 only after a trace shows GC in the UI thread; then PF3 →
