@@ -392,23 +392,24 @@ view, and that a respawn does not streak.
 | — | measurement | `0e19bc9` | `FrameStats.addView` and the report's `view` (`judder`, `stillFrames`; `--compare` shows both); the benchmark turns `orbit` and `mobs` through `InputMap.look`, once a frame by the frame's timestamp, with `playWithoutCapture` (a mouse), and moves `fly` by `game.time` (a walk). One run each on the Mac at 120 Hz, `dpr` 2.0, before PF3: **`orbit:6` judder 1.03, 577 still frames of ~1310; `fly:6` 1.00, 720 of ~1450**: the view moves in the 60 Hz steps, every other frame. fps, UI and step as before (`orbit:6` 109 fps, `fly:6` 121). |
 | — | measurement | `9c36cc2` | **The benchmark turns the view by `InputMap.turn`**, a steady rate `takeLook` integrates over its `dt` (a held stick), no longer by `look` fed from a persistent frame callback: that callback runs after paint, so each frame's turn reached the next frame and was weighed against that frame's `dt`. PF3's first probe showed it (`orbit:6` judder 0.46 with 1 still frame, the frames alternating 8.3 and 16.7 ms at ~105 fps, where `fly:6`, not turned, read 0.08). A mouse drained once a frame covers the frame's own interval, as the stick does. |
 | PF3 | interpolation | `37e3190` | As §PF3, the design: `NodeBody`'s two poses (`syncNode` / `beginStep` / `drawNode`, `drawnPosition`), `VoxelGame.frame` drawing every body at the loop's `alpha` and draining the look once a frame, `drawnTime` for the bob and the pull-out, the rigs' facing on their owner's node, the creature outline per frame, rule 14's sentence on the look. One probe run each on the Mac at 120 Hz, `dpr` 2.0, against `9c36cc2`'s (above): **view judder `orbit:6` 1.03 → 0.00, `mobs:6` → 0.00, `fly:6` 1.00 → 0.05, still frames 577 → 0, 720 → 4**; `fly:6`'s four are the run's first two steps, the player held at the origin before the flight starts (√(4/1450) = 0.05), the same on both sides. The A/B follows. |
-| PF3 | phone A/B | this commit | **Galaxy S24, phone preset, 120 Hz** (`low_power` 0, `refreshHz` 120 and unlocked on every line), `9c36cc2` against `37e3190`, three rounds alternated (A B, B A, A B), `docs/perf/pf3_s24_phone120_ab_{9c36cc2,interp}.jsonl`, the battery 29.9–35.7 °C before and 31.1–36.4 after (a call waited for it under 36 °C: at 120 Hz it stayed over 33 for minutes). Medians of three: **view judder `orbit:6` 0.99 → 0.00, `fly:6` 1.00 → 0.05, `mobs:6` 0.79 → 0.00; still frames 687 → 0, 707 → 3, 318 → 0** (`mobs:6` read under 1 before because at ~87 fps more frames run a step; `fly:6`'s three are the flight's start, on both sides). The cost is inside the noise: UI p50 `orbit:6` 4.92 → 4.91, `fly:6` 4.71 → 4.61, `mobs:6` 6.36 → 6.05; UI p99 `orbit:6` 7.97 → 8.43 (runs 7.86–8.93 → 8.39–18.4, the high one the warmest run), `fly:6` 6.94 → 7.32 (6.82–7.21 → 7.15–7.32); step p99 `fly:6` 2.65 → 3.09 (2.45–3.18 → 2.03–3.40), `mobs:6` 8.96 → 8.44; fps and frame p99 unchanged (`orbit:6` 118, `fly:6` 119, `mobs:6` 87 → 90 within 82–93 on both). Two USB drops, no line lost; one `orbit:6` of the before side died in the Adreno driver (`KL-008`) and was rerun. |
+| PF3 | phone A/B | `c87a846` | **Galaxy S24, phone preset, 120 Hz** (`low_power` 0, `refreshHz` 120 and unlocked on every line), `9c36cc2` against `37e3190`, three rounds alternated (A B, B A, A B), `docs/perf/pf3_s24_phone120_ab_{9c36cc2,interp}.jsonl`, the battery 29.9–35.7 °C before and 31.1–36.4 after (a call waited for it under 36 °C: at 120 Hz it stayed over 33 for minutes). Medians of three: **view judder `orbit:6` 0.99 → 0.00, `fly:6` 1.00 → 0.05, `mobs:6` 0.79 → 0.00; still frames 687 → 0, 707 → 3, 318 → 0** (`mobs:6` read under 1 before because at ~87 fps more frames run a step; `fly:6`'s three are the flight's start, on both sides). The cost is inside the noise: UI p50 `orbit:6` 4.92 → 4.91, `fly:6` 4.71 → 4.61, `mobs:6` 6.36 → 6.05; UI p99 `orbit:6` 7.97 → 8.43 (runs 7.86–8.93 → 8.39–18.4, the high one the warmest run), `fly:6` 6.94 → 7.32 (6.82–7.21 → 7.15–7.32); step p99 `fly:6` 2.65 → 3.09 (2.45–3.18 → 2.03–3.40), `mobs:6` 8.96 → 8.44; fps and frame p99 unchanged (`orbit:6` 118, `fly:6` 119, `mobs:6` 87 → 90 within 82–93 on both). Two USB drops, no line lost; one `orbit:6` of the before side died in the Adreno driver (`KL-008`) and was rerun. |
+| PF3 | Mac A/B | this commit | **Mac at 120 Hz, `dpr` 2.0, unlocked on every line**, `9c36cc2` against `37e3190` (its lines say `c87a846`, the same code plus docs), three rounds alternated (`docs/perf/pf3_mac120_ab_{9c36cc2,interp}.jsonl`; one `orbit:6` of the before side ran 52.6 s at 2 fps, its window covered for a while, and is set apart in `…_9c36cc2_occluded.jsonl`, replaced by a fourth run). Medians of three: **view judder `orbit:6` 0.95 → 0.00, `fly:6` 1.00 → 0.05, `fly:12` 0.98 → 0.05, `mobs:6` 0.95 → 0.00; still frames 578 → 0, 719 → 4, 658 → 3, 591 → 0** (`fly`'s are the flight's start). The cost is in the noise: UI p50 `orbit:6` 0.48 → 0.44, `fly:6` 0.48 → 0.48, `fly:12` 0.75 → 0.73, `mobs:6` 1.10 → 1.05; UI p99 `mobs:6` 2.24 → 2.85 (runs 2.24–3.60 → 2.28–3.11), the others lower; step p99 unchanged (`fly:12` 2.56 → 2.51); fps unchanged (109, 120.7, 114.6 → 113.0 inside `fly:12`'s 111.7–116.7, 110). **With the CPU held busy** (`yes` ×2, `mobs:6`, `docs/perf/pf3_mac120_busy_ab_{9c36cc2,interp}.jsonl`): UI p50 1.02 → 1.07 (1.02–1.08 → 1.04–1.16), UI p99 2.23 → 2.27, step p99 1.15 → 1.18: drawing 40 creatures between steps costs hundredths of a millisecond a frame. Seen running: `mobs` held still, the creatures upright and facing where they walk with their facing on the node. **PF3 is done.** |
 
-**Where the work stopped (2026-09-28, PF13 done).** Last commit: this one (`docs:`, PF13's
-phone A/B at 120 Hz), over `340843c` (`voxel_scene:`, a chunk packed once, a region's rebuild
-moving words) and `7a5dcf6` (the packed vertex). PF13 is done on both platforms: the Mac's
-`fly:12` step p99 is 1.96 ms (3.39 before PF13, 4.17 after its first half), RSS −17% at
-radius 12; the phone's `fly:6` step p99 2.68 and RSS −53 to −72 MB. The packing stays on the
-UI thread (one chunk, once, when it arrives); moving it to the worker would change
-voxel_engine's `MeshSurface` / `ChunkMeshResult`, which the engine's tests and the minecraft
-example read, for what is now well under the old cost: not a step unless a trace asks.
-Next step: **PF3, interpolation** (poses and the camera drawn between two steps with the
-loop's `alpha`, the look applied per frame; pacing at >60 Hz), **on `opus 5.5:high`** (a
-design across the loop, the player, the cameras and the rigs, judged by pacing on both
-platforms; `opus 5.5:medium` once its design is written here). PF9 only after a trace shows
-GC in the UI thread; then PF2 → PF4 → PF8 → PF10 → PF11 → PF12. Optional, one `tool:`
-commit: `--compare` warns when the two sides differ in `dpr` or `refreshHz`, as it does for
-`screenLocked`. After PF13 the Mac runs `orbit:6` at ~109 fps (the GPU
+**Where the work stopped (2026-09-28, PF3 done).** Last commit: this one (`docs:`, PF3's
+Mac A/B), over `c87a846` (its phone A/B), `37e3190` (`voxel_scene, voxel_game:`, frames
+between two steps drawn between them), `9c36cc2` (`InputMap.turn`, the benchmark turning the
+view by it) and `0e19bc9` (the `view` column). PF3 is done on both platforms: at 120 Hz the
+view moved in the 60 Hz steps, half the frames showing the frame before's (view judder ~1);
+now judder is 0.00 (0.05 at `fly`, its start) and no frame repeats, for no measurable UI or
+step cost (§PF3, the design; the three PF3 rows in Progress). Not interpolated, by design: a
+rig's limbs and a death's topple (posed a step at a time). Next step: **PF9 only after a
+trace shows GC in the UI thread; otherwise PF2, chunk upload** (the frame budget checked
+before each apply and lowered, 16-bit indices where they fit, bounds computed on the worker;
+judged by UI p99 and hitches in `fly`, `fly:12` on the Mac, `fly:6` on the phone), **on
+`opus 5.5:high`** (it crosses voxel_engine's worker and voxel_scene's upload; `opus
+5.5:medium` once its design is written here). Then PF4 → PF8 → PF10 → PF11 → PF12.
+Optional, one `tool:` commit: `--compare` warns when the two sides differ in `dpr` or
+`refreshHz`, as it does for `screenLocked`. After PF13 the Mac runs `orbit:6` at ~109 fps (the GPU
 8.9 ms a frame at `dpr` 2.0, 96% busy: pixels, not vertices), `orbit:12` at ~94, `fly:12` at
 ~114; before it (after PF15)
 the phone `orbit:6` and `fly:6` at the display's 119, `mobs:6` at 85–94 (encode p50 4.5 ms,
@@ -490,4 +491,11 @@ on the Retina), compare two runs of the same build too, for the noise. (16) at 1
 ~0.7 °C a call of three scenarios (30.5 → 36.5 °C over PF13's nine calls): a driver script
 that waits for the battery under ~33 °C before each call keeps a phone A/B's absolute
 numbers; the Mac's `orbit:12` read 84–95 fps on the same build across days, so compare it
-only within one A/B.
+only within one A/B. (17) macOS stops sending vsync to a benchmark window that is fully covered
+(another app in front): the run stalls at 0% CPU, its line reads far more `seconds` than
+asked and a few fps, or the runner times out after 3 minutes; the Mac must be left alone
+with the window in front, not only unlocked, and a line with `seconds` over 12 is set apart.
+(18) a persistent frame callback runs after paint: anything fed from it reaches the next
+frame, so a scripted turn goes through `InputMap.turn`, a rate `takeLook` integrates. (19)
+at 120 Hz the phone stays over 33 °C for minutes between calls; PF3's driver waited for
+36 °C, both sides within 30–36.
