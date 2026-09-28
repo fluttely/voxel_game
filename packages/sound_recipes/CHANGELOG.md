@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- `MusicScore` + `StockMusic`: background music with no audio files, a loop written as
+  chords and an eighth-note melody (with optional wind and drips) and synthesised like any
+  recipe. Six stock scores: `pastoral`, `arid`, `frozen`, `murky`, `cavern`, `infernal`.
+- `MusicDirector(recipes: ...)`: a mood whose asset the app does not bundle plays its
+  recipe instead, rendered once off the main isolate, so a game can ship placeholder music
+  and drop real files in later. A declared asset that is not bundled and has no recipe
+  now throws instead of logging.
+- `MusicDirector.setGain` applies the gain to the track playing; `isPlaying` and `origin`
+  (`MusicOrigin.asset` / `.recipe`) say what is playing.
+
 ## 0.1.2-dev
 
 - Formatted by `dart format` at the 120 columns the code is written at

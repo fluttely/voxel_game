@@ -1,6 +1,8 @@
+import 'dart:isolate';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_soloud/flutter_soloud.dart';
 
 import 'stock_sounds.dart';
@@ -95,29 +97,65 @@ class SoundBank implements SoundPlayer {
   }
 }
 
+/// Where the music playing comes from.
+enum MusicOrigin {
+  /// An audio file the app bundles.
+  asset,
+
+  /// A recipe, synthesised because the app bundles no file for the mood.
+  recipe,
+}
+
 /// Background music chosen by mood: [tracks] maps a mood to an asset path; a
-/// change of mood crossfades the two over [crossfade] seconds. Needs an
+/// change of mood crossfades the two over [crossfade] seconds. A mood whose
+/// asset the app does not bundle (or that has none) plays its entry in
+/// [recipes] instead, synthesised once off the main isolate, so a game can
+/// ship with placeholder music and drop real files in later. Needs an
 /// initialised [SoundBank] (the audio device).
 class MusicDirector {
-  /// A director over [tracks] at [gain].
-  MusicDirector(this.tracks, {this.gain = 0.45, this.crossfade = 3.0});
+  /// A director over [tracks], falling back to [recipes], at [gain].
+  MusicDirector(this.tracks, {this.recipes = const {}, this.gain = 0.45, this.crossfade = 3.0});
 
   /// Mood to asset path.
   final Map<String, String> tracks;
 
-  /// The music's loudness, linear.
-  double gain;
+  /// Mood to a synthesised track, played when the mood's asset is not bundled.
+  final Map<String, SoundRecipe> recipes;
 
   /// Seconds a change of track fades over.
   final double crossfade;
 
   final Map<String, AudioSource> _loaded = {};
+  Set<String>? _bundled;
   SoundHandle? _active;
   String? _mood;
+  MusicOrigin? _origin;
   int _generation = 0;
 
   /// The mood playing, or null.
   String? get mood => _mood;
+
+  /// Where the track playing comes from; null in silence or before it starts.
+  MusicOrigin? get origin => _origin;
+
+  /// The music's loudness, linear; [setGain] also applies it to the track
+  /// playing.
+  double gain;
+
+  /// Sets [gain] and applies it to the track playing now.
+  void setGain(double value) {
+    gain = value;
+    final h = _active;
+    if (h != null && SoLoud.instance.isInitialized && SoLoud.instance.getIsValidVoiceHandle(h)) {
+      SoLoud.instance.setVolume(h, value);
+    }
+  }
+
+  /// Whether a track is a live voice on the audio device.
+  bool get isPlaying {
+    final h = _active;
+    return h != null && SoLoud.instance.isInitialized && SoLoud.instance.getIsValidVoiceHandle(h);
+  }
 
   /// Plays the track of [mood] (null: silence), fading the old one out.
   Future<void> setMood(String? mood) async {
@@ -133,14 +171,35 @@ class MusicDirector {
       soloud.scheduleStop(old, fade + const Duration(milliseconds: 50));
     }
     _active = null;
-    final path = mood == null ? null : tracks[mood];
-    if (path == null) return;
+    _origin = null;
+    if (mood == null) return;
+    final bundled = _bundled ??= (await AssetManifest.loadFromAssetBundle(rootBundle)).listAssets().toSet();
+    final path = tracks[mood];
+    final recipe = recipes[mood];
+    final MusicOrigin origin;
+    if (path != null && bundled.contains(path)) {
+      origin = MusicOrigin.asset;
+    } else if (recipe != null) {
+      origin = MusicOrigin.recipe;
+    } else if (path == null) {
+      return; // a mood with no music
+    } else {
+      throw StateError('music for $mood: $path is not bundled and there is no recipe for it');
+    }
     try {
-      final source = _loaded[path] ??= await soloud.loadAsset(path, mode: LoadMode.disk);
+      final key = origin == MusicOrigin.asset ? path! : 'recipe:$mood';
+      var source = _loaded[key];
+      if (source == null) {
+        source = origin == MusicOrigin.asset
+            ? await soloud.loadAsset(key, mode: LoadMode.disk)
+            : await soloud.loadMem('$mood.wav', await Isolate.run(() => renderWav(recipe!)));
+        _loaded[key] = source;
+      }
       if (gen != _generation) return; // a newer mood won while this one loaded
       final h = soloud.play(source, volume: 0.0, looping: true);
       soloud.fadeVolume(h, gain, fade);
       _active = h;
+      _origin = origin;
     } catch (e) {
       debugPrint('[sound_recipes] music: $e');
     }
