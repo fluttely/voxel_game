@@ -121,7 +121,7 @@ class FirstPersonView {
     final right = Vector3(math.cos(yaw), 0, -math.sin(yaw));
     final up = right.cross(fwd).normalized();
     final s = math.sin((1.0 - _swing) * math.pi) * (_swing > 0 ? 1.0 : 0.0);
-    final eye = p.eyePosition;
+    final eye = p.drawnEye;
     _hand.position = eye + right * (0.36 - s * 0.12) - up * (0.30 + s * 0.05) + fwd * (0.45 + s * 0.15);
     final basis = Matrix3.columns(right, up, -fwd);
     _hand.rotation = Quaternion.fromRotation(basis) * Quaternion.axisAngle(Vector3(1, 0, 0), 0.35 - s * 1.1);

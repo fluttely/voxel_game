@@ -353,8 +353,14 @@ class VoxelGame {
     return (elevation * 3.0 + 0.15).clamp(0.0, 1.0);
   }
 
-  /// Advances by [dt] seconds of real time: whole fixed steps, the chunk
-  /// streaming, the sky.
+  /// Advances by [dt] seconds of real time: the look, whole fixed steps, the
+  /// chunk streaming, the sky; then draws every body between its last two
+  /// steps, [alpha] of the way.
+  ///
+  /// The look is drained here, once a frame and before the steps, not by a
+  /// step: the view turns at the display's rate and the steps aim with the
+  /// newest yaw. It is a motion the pointer and pad only add to, with this one
+  /// reader; the buttons are the step's alone (see [step]).
   ///
   /// A frame that runs no step does **not** drain the one-shot presses: a tap
   /// or a click set between two frames waits for the step that reads it. The
@@ -365,8 +371,10 @@ class VoxelGame {
     _frameWatch
       ..reset()
       ..start();
+    if (gameplay) player.look(input.takeLook(dt));
     final steps = _loop.advance(dt, step);
     world.update(player.position);
+    _draw(_loop.alpha);
     firstPerson?.update(dt);
     final s = sky;
     if (s != null) {
@@ -378,6 +386,36 @@ class VoxelGame {
   }
 
   final Stopwatch _frameWatch = Stopwatch();
+
+  /// How far this frame is from the last step toward the next, 0..1: the
+  /// bodies are drawn this far between their last two steps' poses.
+  double get alpha => _loop.alpha;
+
+  /// The game [time] a frame shows: a step behind the last one, [alpha] of the
+  /// way to it. Between two frames it moves by the frame's `dt`, so what
+  /// animates by it (the view bob, the camera's pull-out) moves every frame.
+  double get drawnTime => time - _loop.step * (1.0 - _loop.alpha);
+
+  void _draw(double alpha) {
+    player.drawNode(alpha);
+    for (final m in mobs) {
+      m.drawNode(alpha);
+    }
+    for (final e in entities) {
+      e.drawNode(alpha);
+    }
+    player.drawOutline();
+  }
+
+  void _beginStep() {
+    player.beginStep();
+    for (final m in mobs) {
+      m.beginStep();
+    }
+    for (final e in entities) {
+      e.beginStep();
+    }
+  }
 
   /// How the world is drawn: the spec's, or the preset of this platform.
   late final GraphicsSpec graphics =
@@ -398,8 +436,10 @@ class VoxelGame {
   final FrameStats stats = FrameStats();
 
   /// One fixed step of [dt]: the player, the creatures, the items, the
-  /// liquids, spawning, then the spec's systems and hook.
+  /// liquids, spawning, then the spec's systems and hook. Every body's pose
+  /// before it is kept first, for the frames to draw from.
   void step(double dt) {
+    _beginStep();
     // One arbiter for the two buttons every surface shares: the step that
     // drains the one-shots is the only thing that reads them, so one press
     // cannot close a screen here and open another there.

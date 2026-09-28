@@ -21,14 +21,18 @@ class ViewCamera {
   /// Whether the view bobs.
   bool bob = true;
 
-  double _lastTime = -1.0;
+  double? _lastTime;
   final math.Random _jolt = math.Random(7);
 
-  /// This frame's camera for [game]'s player.
+  /// This frame's camera for [game]'s player: its eye where the player is
+  /// drawn this frame, between two steps; its turn the player's own, which the
+  /// look moves every frame. The bob and the pull-out move by the time drawn
+  /// ([VoxelGame.drawnTime]), every frame.
   Camera camera(VoxelGame game) {
     final p = game.player;
-    final dt = _lastTime < 0 ? 0.0 : math.max(0.0, game.time - _lastTime);
-    _lastTime = game.time;
+    final now = game.drawnTime, last = _lastTime;
+    final dt = last == null ? 0.0 : math.max(0.0, now - last);
+    _lastTime = now;
     final yaw = p.yaw, pitch = p.pitch;
     final fwd = p.forward;
     final right = Vector3(math.cos(yaw), 0, -math.sin(yaw));
@@ -51,9 +55,9 @@ class ViewCamera {
     }
     final Vector3 eye;
     if (p.cameraMode == CameraMode.firstPerson) {
-      eye = p.eyePosition + sway;
+      eye = p.drawnEye + sway;
     } else {
-      final pivot = p.position + Vector3(0, 1.5, 0);
+      final pivot = p.drawnPosition + Vector3(0, 1.5, 0);
       final back = -fwd;
       final world = game.world;
       bool clearCell(int x, int y, int z) {

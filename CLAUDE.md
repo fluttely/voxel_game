@@ -101,7 +101,9 @@ Flutter 3.47.1, **but not the web** (worker isolates, TCP sockets and save files
     Gameplay never reads a raw pointer event position.
 14. **Never poll input state inside an event callback.** A handler reads the event it was
     handed; polling belongs in the fixed step and only there. `VoxelGame.step` is the one
-    reader of the buttons every surface shares.
+    reader of the buttons every surface shares. The look is not a button but a motion the
+    handlers only add to: `VoxelGame.frame` drains it, once a frame, before the steps, so
+    the view turns at the display's rate (PF3).
 15. **Never hand-edit a generated artifact** (app 17).
     `packages/voxel_scene/assets/shaders/terrain.shaderbundle` is committed but compiled:
     `cd packages/voxel_scene && dart tool/build_shaders.dart` after editing

@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- `NodeBody` keeps two poses of its node, the last step's and the one before it, each a
+  position, a yaw and a pitch, and draws the node between them: `syncNode({at, yaw,
+  pitch, snap})` sets the step's pose and puts the node there (as before, and now turned
+  too), `beginStep()` makes it the pose the frames draw from, and `drawNode(alpha)` puts
+  the node `alpha` of the way from the one to the other, the yaw the short way round;
+  `drawnPosition` is where it stands. A body's first sync, and one with `snap`, jumps. A
+  game that never calls `drawNode` sees the node where the last sync put it. The node's
+  transform is written whole (translation and rotation, scale 1).
 - `VoxelChunkView` packs a chunk's lit surfaces once, when its mesh arrives, and keeps
   them packed: a region's rebuild moves each chunk's words by an integer offset instead
   of packing every chunk's floats again, on the UI thread, at every mesh in the region.

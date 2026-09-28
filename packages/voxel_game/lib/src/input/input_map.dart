@@ -56,10 +56,10 @@ class InputBindings<A extends Object> {
   final Map<A, TriggerBinding> triggers;
 }
 
-/// Held and just-pressed actions, the wheel and the look motion (mouse and
-/// right stick), read by the simulation once per step and cleared by
-/// [endTick]. Generic over the game's own action type; `VoxelAction` is the
-/// kit's.
+/// Held and just-pressed actions and the wheel, read by the simulation once
+/// per step and cleared by [endTick], and the look motion (mouse and right
+/// stick), drained once a frame by [takeLook]. Generic over the game's own
+/// action type; `VoxelAction` is the kit's.
 ///
 /// Feed it from a widget ([onKey], the pointer callbacks) and [attachDevices];
 /// or drive it from code with [hold] (tests, bots, cutscenes).
