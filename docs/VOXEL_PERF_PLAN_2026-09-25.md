@@ -360,6 +360,70 @@ on the Mac and the phone. Tests: `NodeBody`'s two poses (voxel_scene); in voxel_
 the drawn eye moves by `alpha` between two steps, that a frame with no step still turns the
 view, and that a respawn does not streak.
 
+### PF2, the design (2026-09-28)
+
+**What the row asked for, and what is left of it.** Two of PF2's three items landed with
+other steps: PF14's `MergedSurface` and PF13's `PackedSurface` merge into 16-bit indices
+while a region's vertices fit, and take the region's bounds (its heights) during the copy.
+What is left is where the streaming spends the UI thread, and when.
+
+**Where it goes** (a probe, not committed: stopwatches in `ChunkStreamer.updateAround` and
+`update`, in `VoxelChunkView.apply` and `_rebuild` split into packing, merging and the GPU
+upload; release, Mac at 120 Hz, `dpr` 2.0, 12 s of `fly` on `72e53e9`). **`fly:12`**: 78 ms
+of streaming in 12 s (0.6% of the UI thread), in 52 frames; 300 applies, 250 removals, 485
+region rebuilds. Applying is **40% packing** (31 ms), 34% merging (27), 19% the upload (15);
+merge and upload together 16 ns a vertex. The work comes in **bursts**: the mesh jobs of the
+column that enters the window finish together, so one frame applies up to 15 chunks (4.6
+ms, the run's slowest UI frames), and **once a second the column that leaves is removed in
+one frame**, 25 chunks inside `updateAround`, outside any budget (1.6–2.2 ms). Each apply
+and each removal rebuilds its region at once: a region is rebuilt with 1, 2, 3 then 4
+chunks as they land (143, 138, 132 and 72 of the 485 rebuilds), twice when a leaving column
+takes two of its chunks, and rebuilt with its last chunk only to be emptied the next
+second. `ChunkStreamer.frameBudgetUsec` (7 ms, checked after each apply) never stopped a
+burst. `fly:6`: the same shape, 13 chunks a burst, 44 ms in 12 s. **On the phone** these
+bursts are the hitches: PF3's `fly:6` at 120 Hz has 16–18 hitches in 12 s, UI max 15–18 ms
+and sim max 6–7 ms, about one per burst (12 columns in, ~12 out), where the Mac, four times
+faster, absorbs them (UI max 4–6 ms).
+
+**A region is rebuilt once a frame, inside a budget, nearest first.** `VoxelChunkView.apply`
+keeps the chunk's `ChunkMeshResult` surfaces and marks its region dirty; `remove` drops them
+and marks it dirty; neither builds anything. `VoxelChunkView.rebuild(ChunkPos near,
+{budgetUsec})`, once a frame from `GameWorld.update` after the streamer's, rebuilds the dirty
+regions nearest `near` first (the focus chunk: an edit beside the player before the window's
+edge, a leaving column last), each once however many of its chunks changed, and a region
+left with no chunk drops its node without counting. The budget is checked **before** each
+region: its cost is predicted from its vertices, `pack × the chunks not packed yet +
+merge × all of them`, two rates in µs a vertex measured on the rebuilds already done (a
+running mean), and a region that would pass the budget waits for the next frame; the first
+region of a frame is always built, so the view keeps up whatever it costs.
+`rebuildBudgetUsec` is **2 ms**, a quarter of a 120 Hz frame: the phone's UI p50 at `fly:6`
+is 4.6 ms of the 8.3, and a burst spread over frames delays a chunk by a few frames at the
+fog's edge, where the window loads and unloads. The throughput it leaves is far above what
+flying asks: `fly:12` needs ~25 region rebuilds a second, and 2 ms × 120 frames is 240 ms
+of them a second. **Packing moves into the rebuild**: a chunk is packed the first time a
+rebuild reads it and kept packed, still once, so all of the view's UI-thread work is inside
+the budget, and a remesh that lands before its region is rebuilt is never packed.
+`pendingRegions` counts what waits; `GameWorld.isIdle` waits for it too.
+
+**What does not change.** `ChunkStreamer` hands every finished mesh and every removal to its
+sink as it does; `frameBudgetUsec` stays for the sinks that build in `apply` (the minecraft
+example's reads it), and with this view an apply is bookkeeping. The mesher, the worker's
+messages and `MeshSurface` stay as they are.
+
+**What is left for after the A/B.** Packing on the worker (the words and the bounds made
+where the mesh is, the other half of the row's last item) would take the 40% off the UI
+thread instead of spreading it, but the packed vertex is voxel_scene's and the worker is
+voxel_engine's: it needs a way for a sink to hand the worker a sendable packer. It is done
+only if the A/B still shows streaming in `fly`'s UI p99 or hitches.
+
+**Judged by** hitches, UI p99 and max, sim p99 and max, on `fly:6` on the phone and `fly:12`
+(`fly:6` too) on the Mac, and `fillMs` (the window's first fill goes through the budget too);
+`stepMs` holds the streaming only in frames that ran a step, half of them at 120 Hz. A/B
+against `72e53e9`. Tests (voxel_scene, no GPU: empty surfaces): apply and remove build
+nothing until `rebuild`; four applies to one region build it once; a zero budget builds
+one region a call; the nearest region goes first; a region whose chunks all left is dropped
+in the same call.
+
 ## Progress
 
 | ID | Status | Commit | Result |
@@ -394,6 +458,7 @@ view, and that a respawn does not streak.
 | PF3 | interpolation | `37e3190` | As §PF3, the design: `NodeBody`'s two poses (`syncNode` / `beginStep` / `drawNode`, `drawnPosition`), `VoxelGame.frame` drawing every body at the loop's `alpha` and draining the look once a frame, `drawnTime` for the bob and the pull-out, the rigs' facing on their owner's node, the creature outline per frame, rule 14's sentence on the look. One probe run each on the Mac at 120 Hz, `dpr` 2.0, against `9c36cc2`'s (above): **view judder `orbit:6` 1.03 → 0.00, `mobs:6` → 0.00, `fly:6` 1.00 → 0.05, still frames 577 → 0, 720 → 4**; `fly:6`'s four are the run's first two steps, the player held at the origin before the flight starts (√(4/1450) = 0.05), the same on both sides. The A/B follows. |
 | PF3 | phone A/B | `c87a846` | **Galaxy S24, phone preset, 120 Hz** (`low_power` 0, `refreshHz` 120 and unlocked on every line), `9c36cc2` against `37e3190`, three rounds alternated (A B, B A, A B), `docs/perf/pf3_s24_phone120_ab_{9c36cc2,interp}.jsonl`, the battery 29.9–35.7 °C before and 31.1–36.4 after (a call waited for it under 36 °C: at 120 Hz it stayed over 33 for minutes). Medians of three: **view judder `orbit:6` 0.99 → 0.00, `fly:6` 1.00 → 0.05, `mobs:6` 0.79 → 0.00; still frames 687 → 0, 707 → 3, 318 → 0** (`mobs:6` read under 1 before because at ~87 fps more frames run a step; `fly:6`'s three are the flight's start, on both sides). The cost is inside the noise: UI p50 `orbit:6` 4.92 → 4.91, `fly:6` 4.71 → 4.61, `mobs:6` 6.36 → 6.05; UI p99 `orbit:6` 7.97 → 8.43 (runs 7.86–8.93 → 8.39–18.4, the high one the warmest run), `fly:6` 6.94 → 7.32 (6.82–7.21 → 7.15–7.32); step p99 `fly:6` 2.65 → 3.09 (2.45–3.18 → 2.03–3.40), `mobs:6` 8.96 → 8.44; fps and frame p99 unchanged (`orbit:6` 118, `fly:6` 119, `mobs:6` 87 → 90 within 82–93 on both). Two USB drops, no line lost; one `orbit:6` of the before side died in the Adreno driver (`KL-008`) and was rerun. |
 | PF3 | Mac A/B | this commit | **Mac at 120 Hz, `dpr` 2.0, unlocked on every line**, `9c36cc2` against `37e3190` (its lines say `c87a846`, the same code plus docs), three rounds alternated (`docs/perf/pf3_mac120_ab_{9c36cc2,interp}.jsonl`; one `orbit:6` of the before side ran 52.6 s at 2 fps, its window covered for a while, and is set apart in `…_9c36cc2_occluded.jsonl`, replaced by a fourth run). Medians of three: **view judder `orbit:6` 0.95 → 0.00, `fly:6` 1.00 → 0.05, `fly:12` 0.98 → 0.05, `mobs:6` 0.95 → 0.00; still frames 578 → 0, 719 → 4, 658 → 3, 591 → 0** (`fly`'s are the flight's start). The cost is in the noise: UI p50 `orbit:6` 0.48 → 0.44, `fly:6` 0.48 → 0.48, `fly:12` 0.75 → 0.73, `mobs:6` 1.10 → 1.05; UI p99 `mobs:6` 2.24 → 2.85 (runs 2.24–3.60 → 2.28–3.11), the others lower; step p99 unchanged (`fly:12` 2.56 → 2.51); fps unchanged (109, 120.7, 114.6 → 113.0 inside `fly:12`'s 111.7–116.7, 110). **With the CPU held busy** (`yes` ×2, `mobs:6`, `docs/perf/pf3_mac120_busy_ab_{9c36cc2,interp}.jsonl`): UI p50 1.02 → 1.07 (1.02–1.08 → 1.04–1.16), UI p99 2.23 → 2.27, step p99 1.15 → 1.18: drawing 40 creatures between steps costs hundredths of a millisecond a frame. Seen running: `mobs` held still, the creatures upright and facing where they walk with their facing on the node. **PF3 is done.** |
+| PF2 | design | this commit | §PF2, the design: a probe (stopwatches, not committed; Mac, `fly:12`) put the streaming at 78 ms in 12 s, in bursts: up to 15 applies in one frame (4.6 ms) and the leaving column's 25 removals in one frame, outside the budget, each apply and removal rebuilding its region at once; applying is 40% packing, 34% merging, 19% upload. The phone's `fly:6` hitches (16–18 in 12 s) match the bursts. So: the view rebuilds each dirty region once a frame, nearest the focus first, inside a 2 ms budget checked before each region by a cost predicted from its vertices, and packs a chunk inside the rebuild. |
 
 **Where the work stopped (2026-09-28, PF3 done).** Last commit: this one (`docs:`, PF3's
 Mac A/B), over `c87a846` (its phone A/B), `37e3190` (`voxel_scene, voxel_game:`, frames
