@@ -6,6 +6,14 @@
   frame budget, nearest the focus first (`VoxelChunkView.rebuild`), so a column of chunks
   entering or leaving the window is drawn over a few frames instead of in one long one;
   `GameWorld.isIdle` also waits for the regions still to draw.
+- **Breaking: the HUD is built once, not every frame.** `HudBuilder` is called when
+  `VoxelGameWidget` builds (the game starts, a screen opens or closes), and the HUD sits
+  behind a `RepaintBoundary`, so the scene's repaint every frame no longer repaints it.
+  A piece that shows the game's state watches it through the new `HudSelector`, which
+  checks a value on every tick of the new `VoxelGame.frames` and rebuilds only when it
+  changes; a custom HUD that read the game in its `build` must move those reads into
+  selectors. `DefaultHud` is such a tree: while nothing it shows changes, a frame builds
+  none of it.
 
 ## 0.2.0-dev
 

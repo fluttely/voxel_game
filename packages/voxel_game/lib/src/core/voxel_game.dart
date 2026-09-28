@@ -1,6 +1,6 @@
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart' show TargetPlatform, ValueNotifier, defaultTargetPlatform;
+import 'package:flutter/foundation.dart' show TargetPlatform, ValueListenable, ValueNotifier, defaultTargetPlatform;
 import 'package:flutter_scene/scene.dart';
 import 'package:vector_math/vector_math.dart';
 import 'package:sound_recipes/sound_recipes.dart';
@@ -338,6 +338,11 @@ class VoxelGame {
   /// widget shows it; set it to null to close.
   final ValueNotifier<String?> openScreen = ValueNotifier(null);
 
+  /// The frames drawn so far: moves once at the end of every [frame]. A HUD
+  /// listens to it to check what it shows (`HudSelector`).
+  ValueListenable<int> get frames => _frames;
+  final ValueNotifier<int> _frames = ValueNotifier(0);
+
   /// Every station some recipe names.
   late final Set<String> stations = {
     for (final r in spec.recipes)
@@ -383,6 +388,7 @@ class VoxelGame {
     }
     _frameWatch.stop();
     stats.addFrame(seconds: dt, simMs: _frameWatch.elapsedMicroseconds / 1000.0, steps: steps);
+    _frames.value++;
   }
 
   final Stopwatch _frameWatch = Stopwatch();
@@ -629,6 +635,7 @@ class VoxelGame {
     session?.close();
     world.dispose();
     input.dispose();
+    _frames.dispose();
   }
 
   /// The spec of mob [id].

@@ -30,6 +30,7 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
 
 - `VoxelGameSpec`: blocks, items, recipes, world, player, mobs, sky, sounds, circuits, liquids.
 - `runVoxelGame` / `VoxelGameWidget`: the 3D view, a HUD, the inventory and crafting screen.
+  A HUD of your own is built once; its pieces follow the game through `HudSelector`s.
 - Controls for keyboard and mouse, gamepad and touch; first and third person. A finger on
   the world is a gesture: lift in place to use (or swing), stay put to mine, drag to look —
   and `InputMap.touchMove` / `setTouchHeld` / `touchDigit` take an on-screen stick, button

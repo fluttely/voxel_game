@@ -12,11 +12,15 @@ import 'package:voxel_scene/voxel_scene.dart';
 import '../core/voxel_game.dart';
 import '../spec/voxel_game_spec.dart';
 import 'default_hud.dart';
+import 'hud_selector.dart';
 import 'inventory_screen.dart';
 import '../world/world_save.dart';
 
-/// Builds an overlay over the running game; rebuilt every frame, so keep it
-/// light. It never receives pointer events (they are the game's).
+/// Builds an overlay over the running game. It is called when the widget
+/// builds (the game starts, a screen opens or closes), not every frame: a
+/// piece that shows the game's state watches it through a [HudSelector] (or
+/// listens to [VoxelGame.frames]). It sits behind a [RepaintBoundary] and
+/// never receives pointer events (they are the game's).
 typedef HudBuilder = Widget Function(BuildContext context, VoxelGame game);
 
 /// Loads the renderer and runs [spec] full screen: the one call a game's
@@ -116,7 +120,6 @@ class VoxelGameWidget extends StatefulWidget {
 class _VoxelGameWidgetState extends State<VoxelGameWidget> {
   VoxelGame? _game;
   final FocusNode _focus = FocusNode();
-  final ValueNotifier<int> _frame = ValueNotifier(0);
   bool _disposed = false;
 
   WorldSaves? _saves;
@@ -205,7 +208,6 @@ class _VoxelGameWidgetState extends State<VoxelGameWidget> {
     _game?.openScreen.removeListener(_screenChanged);
     _game?.dispose();
     _focus.dispose();
-    _frame.dispose();
     super.dispose();
   }
 
@@ -232,7 +234,6 @@ class _VoxelGameWidgetState extends State<VoxelGameWidget> {
     }
     game.gameplay = (input.wantCapture || game.playWithoutCapture) && game.openScreen.value == null;
     game.frame(dt);
-    _frame.value++;
   }
 
   @override
@@ -267,12 +268,7 @@ class _VoxelGameWidgetState extends State<VoxelGameWidget> {
           fit: StackFit.expand,
           children: [
             SceneView(game.scene!, cameraBuilder: (elapsed) => game.camera(), onTick: (elapsed, dt) => _tick(game, dt)),
-            IgnorePointer(
-              child: ValueListenableBuilder<int>(
-                valueListenable: _frame,
-                builder: (context, _, _) => (widget.hud ?? DefaultHud.builder)(context, game),
-              ),
-            ),
+            IgnorePointer(child: RepaintBoundary(child: (widget.hud ?? DefaultHud.builder)(context, game))),
             if (game.openScreen.value != null)
               InventoryScreen(game: game, station: game.openScreen.value!, onClose: () => _closeScreen(game)),
           ],
