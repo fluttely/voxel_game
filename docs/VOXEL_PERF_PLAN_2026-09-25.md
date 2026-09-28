@@ -309,7 +309,9 @@ ledger, not in this plan.
 `--trace` traces only the tree's own profile build), over `0634891` (why PF15's traces
 failed), `f9bebd5` (PF15's A/B) and `f60cd42` (PF15: greedy meshing, the tint in the
 shader). Next step: **PF13** (the packed terrain vertex, 8–16 B instead of 72: a custom
-geometry and vertex shader), judged on the Mac by `--trace`'s GPU ms a frame (`orbit:6` is
+geometry and vertex shader), **on Opus** (a vertex shader, a `Geometry` subclass and its
+binding in flutter_scene, judged by GPU traces: design and rendering, not a specified edit),
+judged on the Mac by `--trace`'s GPU ms a frame (`orbit:6` is
 8.8–8.9 ms after PF15 at `dpr` 2.0 against the 8.3 a 120 Hz frame has, the GPU 95–96% busy;
 check every line's `dpr`, note (11)) and on the phone by encode p50, fps and RSS; PF9 only
 after a trace shows GC in the UI thread; then PF3 → PF2 → PF4 → PF8 → PF10 → PF11 → PF12. After PF15 the Mac runs `orbit:6` at ~109 fps, `orbit:12` at ~86, `fly:12` at ~108;
