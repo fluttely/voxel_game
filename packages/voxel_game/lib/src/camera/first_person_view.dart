@@ -55,6 +55,7 @@ class FirstPersonView {
     [(true, 0.10, 0.20, 0.20), (false, 0.80, 0.55, 0.30), (true, 0.55, 0.30, 0.30)],
     [(false, 0.15, 0.55, 0.35), (true, 0.35, 0.85, 0.30), (false, 0.62, 0.05, 0.25)],
   ];
+
   /// The sticks of the crack at [stage] (0 to 3) in a block's unit cell: the
   /// segments of every stage up to it, on all six faces, a stick a segment.
   static List<Aabb3> crackBoxes(int stage) {

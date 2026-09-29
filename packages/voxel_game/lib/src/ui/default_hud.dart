@@ -35,9 +35,8 @@ class DefaultHud extends StatelessWidget {
           child: HudSelector(
             frames: frames,
             select: () => p.hurtFlash,
-            builder: (context, flash) => flash > 0.0
-                ? ColoredBox(color: Colors.red.withValues(alpha: 0.35 * flash))
-                : const SizedBox.shrink(),
+            builder: (context, flash) =>
+                flash > 0.0 ? ColoredBox(color: Colors.red.withValues(alpha: 0.35 * flash)) : const SizedBox.shrink(),
           ),
         ),
         const Center(child: Icon(Icons.add, color: Colors.white70, size: 22)),
@@ -70,7 +69,9 @@ class DefaultHud extends StatelessWidget {
                     children: [
                       for (var i = 0; i < (p.spec.hp / 2).ceil(); i++)
                         Icon(
-                          hp >= (i + 1) * 2 ? Icons.favorite : (hp > i * 2 ? Icons.heart_broken : Icons.favorite_border),
+                          hp >= (i + 1) * 2
+                              ? Icons.favorite
+                              : (hp > i * 2 ? Icons.heart_broken : Icons.favorite_border),
                           color: Colors.redAccent,
                           size: 18,
                         ),

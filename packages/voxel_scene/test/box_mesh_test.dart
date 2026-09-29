@@ -10,10 +10,8 @@ List<double> windings(List<double> positions, List<double> normals, List<int> in
   return [
     for (var i = 0; i < indices.length; i += 3)
       ((at(positions, indices[i + 1]) - at(positions, indices[i])).cross(
-                at(positions, indices[i + 2]) - at(positions, indices[i]),
-              ))
-              .dot(at(normals, indices[i]))
-              .sign,
+        at(positions, indices[i + 2]) - at(positions, indices[i]),
+      )).dot(at(normals, indices[i])).sign,
   ];
 }
 
