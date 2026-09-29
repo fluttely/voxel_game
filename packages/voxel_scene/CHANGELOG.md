@@ -18,6 +18,17 @@
   `mutateLocalTransform`, from a pose shared by every part and body, and allocate nothing:
   before, each part every step built a quaternion and two vectors and went through the
   node's `rotation` and `scale` setters, each of which rebuilt the matrix as a new one.
+- **Breaking: `SelectionOutline` is one mesh, drawn in one draw.** Its twelve sticks were
+  twelve nodes (24 with their mirrors), a `CuboidGeometry` each, so twelve draws, and
+  twelve draws are ~0.3 ms of a phone's colour pass; they are now one `BoxMesh` on the
+  outline's `node`, built the first time a box of that size is shown and kept by size, and
+  `show` moves the node and swaps the mesh only when the size changes. The layout is
+  `stickBoxes(box)` (the twelve boxes, relative to the box's minimum corner), which
+  replaces `stickTransforms` (a position and a scale for each of twelve cubes); `gap`,
+  `thickness`, `depthBias` and the look are unchanged.
+- `BoxMesh` (new): boxes (`Aabb3`) as flat arrays, `arrays`, or one `MeshGeometry`,
+  `geometry`, six faces a box, wound as the chunk mesher winds, so the mesh is drawn
+  through a `MirroredCamera` on a plain node: one draw for them all.
 
 ## 0.2.0-dev
 

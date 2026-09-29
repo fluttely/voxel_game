@@ -15,7 +15,9 @@ and night sky, block models and the selection outline.
   first, within a time budget, so a burst of chunks is drawn over a few frames.
 - `TerrainMaterial`: the terrain shader (lit, fogged, shadowed).
 - `MirroredCamera`: the camera that shows `voxel_engine`'s winding the right way round.
-- `DayNightSky`, `SelectionOutline`, `VoxelModelMesh`, `RigPart`, `NodeBody`.
+- `SelectionOutline`: the edges of the aimed box, one mesh, one draw; `BoxMesh`, boxes as
+  one mesh wound the engine's way, which it is made of.
+- `DayNightSky`, `VoxelModelMesh`, `RigPart`, `NodeBody`.
 
 ## Install
 

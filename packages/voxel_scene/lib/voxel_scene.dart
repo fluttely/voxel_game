@@ -2,6 +2,7 @@
 /// material and its shaders, and the mirrored camera its winding needs.
 library;
 
+export 'src/box_mesh.dart';
 export 'src/day_night_sky.dart';
 export 'src/mirrored_camera.dart';
 export 'src/node_body.dart';
