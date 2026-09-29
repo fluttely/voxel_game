@@ -21,8 +21,11 @@ import '../world/world_save.dart';
 /// Builds an overlay over the running game. It is called when the widget
 /// builds (the game starts, a screen opens or closes), not every frame: a
 /// piece that shows the game's state watches it through a [HudSelector] (or
-/// listens to [VoxelGame.frames]). It sits behind a [RepaintBoundary] and
-/// never receives pointer events (they are the game's).
+/// listens to [VoxelGame.frames]). It sits behind a [RepaintBoundary], and it
+/// is hit-tested like any widget: every pointer also reaches the game's own
+/// `Listener` around it, so a piece that takes a finger for itself calls
+/// `InputMap.claimTouch` as it lands (as [DefaultHud]'s hotbar does), and a
+/// piece that only shows something sits in an [IgnorePointer].
 typedef HudBuilder = Widget Function(BuildContext context, VoxelGame game);
 
 /// Loads the renderer and runs [spec] full screen: the one call a game's
@@ -328,7 +331,7 @@ class _VoxelGameWidgetState extends State<VoxelGameWidget> with SingleTickerProv
           fit: StackFit.expand,
           children: [
             SceneView(game.scene!, cameraBuilder: (elapsed) => game.camera(), onTick: (elapsed, dt) => _tick(game, dt)),
-            IgnorePointer(child: RepaintBoundary(child: (widget.hud ?? DefaultHud.builder)(context, game))),
+            RepaintBoundary(child: (widget.hud ?? DefaultHud.builder)(context, game)),
             if (game.openScreen.value != null)
               InventoryScreen(game: game, station: game.openScreen.value!, onClose: () => _closeScreen(game)),
           ],

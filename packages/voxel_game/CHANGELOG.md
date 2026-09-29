@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- **Breaking: the HUD is hit-tested.** `VoxelGameWidget` no longer wraps the `HudBuilder`'s
+  widget in an `IgnorePointer`, so the default HUD's hotbar can take a finger: a tap on a
+  slot picks it, a hold of `DefaultHud.dropHold` on the slot in hand drops one item, and
+  while the last device was a finger a `⋯` after the last slot opens the bag. Each slot
+  claims the finger that lands on it (`InputMap.claimTouch`), so the world never reads it as
+  a tap; a mouse over the hotbar is still the world's. The hint says "Tap to play" while the
+  last device was a finger. A HUD of your own that drew plain widgets is unaffected (the
+  game's `Listener` sees every pointer either way); one with buttons, `GestureDetector`s or
+  `InkWell`s on it now receives their gestures, so wrap it in `IgnorePointer` to keep the
+  old behaviour.
 - **`InputMap` knows which device spoke last, and which fingers a control took.**
   `InputMap.lastDevice` (the new `InputDevice`: `keyboardMouse`, `gamepad`, `touch`) is
   written by `onKey`, `onPointerDown` and `onPad` from the event each is handed, a pad only

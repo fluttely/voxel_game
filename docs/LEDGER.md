@@ -22,6 +22,7 @@
 - **Cost of leaving it:** the split itself is right (rule 7 — the kit ships a default, the game ships Dawnforge's), but the default has no witness. Rule 18 says a stage is done when it was seen running, and this surface has been seen running once, by whoever last opened the example by hand. A `flutter_scene` upgrade, a shader bundle rebuild or an `InputMap` change can break the kit's only out-of-the-box screen and every test still passes, because the app that would have noticed draws its own.
 - **Found while:** 2026-09-21 — answering why `lib/` imports `voxel_game` in only two files.
 - **Moved:** 2026-09-22 (`VR3`) from `poc_cubeworld/docs/LEDGER.md`, ID kept. Paths rewritten from this folder; the app's files are named as the app's. Kit paths rewritten again on 2026-09-23, when `voxel_game` moved under `packages/`.
+- **Narrowed:** 2026-09-29 (`VT2`, `docs/VOXEL_TOUCH_PLAN_2026-09-29.md`): `DefaultHud` has a witness, `packages/voxel_game/test/default_hud_test.dart`, which mounts it over a headless `VoxelGame` under a `Listener` wired as the widget wires it (a tap picks a slot and is not a tap on the world, a hold drops, a mouse passes through, `⋯` opens the bag, the hint follows the device). `InventoryScreen` (204 lines) and `VoxelGameWidget`'s own wiring (`voxel_game_widget.dart:312-340`: the `Listener`, the capture on the first press, the stack) are still mounted by nothing but the example, so the entry stays open.
 
 ### CL-008 · The decision register still answers questions about packages that no longer exist
 

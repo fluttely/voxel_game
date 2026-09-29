@@ -31,6 +31,9 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
 - `VoxelGameSpec`: blocks, items, recipes, world, player, mobs, sky, sounds, circuits, liquids.
 - `runVoxelGame` / `VoxelGameWidget`: the 3D view, a HUD, the inventory and crafting screen.
   A HUD of your own is built once; its pieces follow the game through `HudSelector`s.
+  The default HUD's hotbar takes a finger: tap a slot to pick it, hold the one in hand to
+  drop one, and `⋯` opens the bag. A HUD is hit-tested like any widget: a piece that takes a
+  finger claims it (`InputMap.claimTouch`), a piece that only shows sits in an `IgnorePointer`.
   A loading screen (`LoadingScreen`, or your own `LoadingBuilder`) covers the game until the
   world around the player has filled and the renderer has compiled what it draws.
 - Controls for keyboard and mouse, gamepad and touch; first and third person. A finger on

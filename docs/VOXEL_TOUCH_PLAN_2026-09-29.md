@@ -19,7 +19,7 @@ Closes `CL-009`, and gives `DefaultHud` the witness `CL-005` asks for (`VT2`).
 | Step | State | Gate |
 |:---|:---|:---|
 | VT1 `InputMap` — the last device, claimed touches, a toggle and a one-shot | **done** 2026-09-29: `InputDevice` + `InputMap.lastDevice` (starts `touch` on Android/iOS), `claimTouch` (the lift also drops any gesture state the finger had), `touchToggle` / `touchHeld` / `touchPress`; `_onPad` became the public `onPad` so a test can hand it a pad event. The plan's `clear` is `releaseKeys` in the code | `input_map_test.dart` covers the four; nothing on screen changes |
-| VT2 `DefaultHud` — a hotbar a finger can use | todo | widget tests mount `DefaultHud` over a `VoxelGame`; a tap on a slot is never also a tap on the world; `CL-005` updated |
+| VT2 `DefaultHud` — a hotbar a finger can use | **done** 2026-09-29: the widget's `IgnorePointer` is gone and `DefaultHud` puts its passive pieces behind its own; each slot is a claiming `Listener` over a `RawGestureDetector` (a touch-only tap, and on the slot in hand a touch-only long press of `DefaultHud.dropHold`, 400 ms, a constant until VT3's spec); a hold on a slot not in hand picks it. `test/default_hud_test.dart` (5 tests) mounts the HUD under a `Listener` wired as the widget wires it | widget tests mount `DefaultHud` over a `VoxelGame`; a tap on a slot is never also a tap on the world; `CL-005` updated |
 | VT3 `TouchControls` + `TouchControlsSpec` | todo | widget tests drive the stick, the rim, jump, sneak and the device switch; `CL-009` closed in the ledger |
 | VT4 Seen on a phone | todo | the owner frees the S24 and plays it; **no benchmark**, just play |
 
