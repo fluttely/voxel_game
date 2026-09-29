@@ -7,6 +7,11 @@
   7. Past that the window's fill time did not fall (on the phone 735 ms with 5 workers,
   728 with 7), each job ran slower (a mesh 10.6 ms at 4 workers, 15.8 at 7), and the extra
   isolates took the cores the UI and raster threads need.
+- `ChunkStreamer` sends a chunk's mesh job when the last generation of its ring lands,
+  no longer at the next `update`: the window's fill was 387 → 350 ms in a prototype
+  (M2 Pro, radius 6), and the ring's copy leaves the frame for the message handler. Only
+  the nine chunks around the one that landed are looked at, so jobs that answer at once
+  (a headless world's) still fill over several updates.
 
 ## 0.2.0-dev
 

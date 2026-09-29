@@ -243,7 +243,8 @@ class ChunkStreamer {
   }
 
   /// Once per frame: hand finished meshes to the sink within the frame budget,
-  /// then dispatch more work.
+  /// then dispatch more work. A mesh whose ring's last generation lands
+  /// between two calls goes out when it lands, not here.
   ///
   /// Throws the error of a job that failed since the last call (a generator or
   /// mesher bug). The failed chunk is dispatched again on a later call.
@@ -290,6 +291,7 @@ class ChunkStreamer {
                 if (jobs != j) return;
                 _applyEdits(n, blocks);
                 _putChunk(n, blocks);
+                _meshAround(n, j);
               })
               .catchError((Object e, StackTrace st) {
                 if (epoch == _genEpoch) _genInflight.remove(n);
@@ -297,23 +299,39 @@ class ChunkStreamer {
               });
         }
       }
-      if (!ringReady) continue;
-      _meshInflight.add(pos);
-      final vols = [for (final o in ring) _chunks[(x: pos.x + o.x, z: pos.z + o.z)]];
-      final epoch = _genEpoch;
-      j
-          .mesh(pos.x, pos.z, vols)
-          .then((surface) {
-            if (epoch != _genEpoch) return;
-            _meshInflight.remove(pos);
-            if (jobs != j) return;
-            _surfaceReady[pos] = surface;
-          })
-          .catchError((Object e, StackTrace st) {
-            if (epoch == _genEpoch) _meshInflight.remove(pos);
-            _jobFailed(e, st);
-          });
+      if (ringReady) _dispatchMesh(pos, j);
     }
+  }
+
+  /// Dispatches the meshes whose ring the generation of [landed] completed:
+  /// only the nine chunks around it, never the pending walk, which would
+  /// dispatch generations too, and jobs that answer at once (a headless
+  /// world's) would then load the whole window from one [update].
+  void _meshAround(ChunkPos landed, ChunkJobs j) {
+    for (final o in ring) {
+      if (_genInflight.length + _meshInflight.length >= maxInflight) return;
+      final pos = (x: landed.x - o.x, z: landed.z - o.z);
+      if (_meshInflight.contains(pos) || _surfaceReady.containsKey(pos) || !_pending.contains(pos)) continue;
+      if (ring.every((r) => _chunks.containsKey((x: pos.x + r.x, z: pos.z + r.z)))) _dispatchMesh(pos, j);
+    }
+  }
+
+  void _dispatchMesh(ChunkPos pos, ChunkJobs j) {
+    _meshInflight.add(pos);
+    final vols = [for (final o in ring) _chunks[(x: pos.x + o.x, z: pos.z + o.z)]];
+    final epoch = _genEpoch;
+    j
+        .mesh(pos.x, pos.z, vols)
+        .then((surface) {
+          if (epoch != _genEpoch) return;
+          _meshInflight.remove(pos);
+          if (jobs != j) return;
+          _surfaceReady[pos] = surface;
+        })
+        .catchError((Object e, StackTrace st) {
+          if (epoch == _genEpoch) _meshInflight.remove(pos);
+          _jobFailed(e, st);
+        });
   }
 
   void _jobFailed(Object e, StackTrace st) {

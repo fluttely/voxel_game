@@ -15,6 +15,7 @@ final _table = VoxelBlockTable(const [
 /// Jobs answered on the calling isolate: stone below y 40, air above.
 class _Jobs implements ChunkJobs {
   final List<(int, int, int)> generated = [];
+  final List<ChunkPos> meshed = [];
 
   /// The next generate job fails with this, once.
   Object? failNext;
@@ -31,8 +32,10 @@ class _Jobs implements ChunkJobs {
   }
 
   @override
-  Future<ChunkMeshResult> mesh(int cx, int cz, List<Uint8List?> ring) =>
-      Future.value(_table.mesher().build(cx, cz, ring));
+  Future<ChunkMeshResult> mesh(int cx, int cz, List<Uint8List?> ring) {
+    meshed.add((x: cx, z: cz));
+    return Future.value(_table.mesher().build(cx, cz, ring));
+  }
 }
 
 class _Sink implements ChunkMeshSink {
@@ -78,6 +81,18 @@ void main() {
     expect(s.loadedChunkCount, 25);
     expect(s.chunksBuilt, 9);
     expect(s.facesEmitted, greaterThan(0));
+  });
+
+  test('a generation that completes a ring sends its mesh at once, and no other generation', () async {
+    s.updateAround((x: 0, z: 0));
+    s.update();
+    expect(jobs.meshed, isEmpty, reason: 'no ring was generated when update dispatched');
+    expect(jobs.generated, hasLength(s.maxInflight), reason: 'the 5x5 ring is one generation over the cap');
+    await Future<void>.delayed(Duration.zero);
+    expect(jobs.meshed, contains((x: 0, z: 0)));
+    expect(jobs.generated, hasLength(s.maxInflight), reason: 'a generation landing dispatches no generation');
+    expect(sink.applied, isEmpty, reason: 'meshes reach the sink in update');
+    expect(s.isIdle, isFalse, reason: 'jobs that answer at once still fill over several updates');
   });
 
   test('nothing dispatches without jobs', () async {
