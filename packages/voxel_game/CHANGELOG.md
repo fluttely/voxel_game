@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **Breaking: a shot's shape is declared, not read from its kind's name.** `ProjectileSpec`
+  takes `thickness` and `length`, the box it is drawn as (only its look; `radius` still
+  hits), defaulting to the arrow's `0.06 × 0.06 × 0.6`; `ProjectileSpec.bolt` sets
+  `0.5 × 0.5`, the cube it had. `ProjectileModel.of` sized the box by `kind == 'arrow'`,
+  so a spear under another name drew a cube and a fireball named `'arrow'` a stick. A
+  spec that relied on a kind other than `'arrow'` drawing a cube of its radius now sets
+  `thickness` and `length` to `radius * 2`.
 - **A loading screen covers the game until it can be shown without a stall.**
   `VoxelGameWidget` runs the game undrawn until the window around the player has filled
   (the new `VoxelGame.filled`: the player stands and `GameWorld.isIdle`), then encodes

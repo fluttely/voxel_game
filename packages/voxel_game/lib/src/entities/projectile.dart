@@ -19,6 +19,8 @@ class ProjectileSpec {
     this.damage = 3.0,
     this.knockback = 4.0,
     this.radius = 0.15,
+    this.thickness = 0.06,
+    this.length = 0.6,
     this.color = 0xC8B090,
     this.glow = false,
     this.life = 6.0,
@@ -34,6 +36,8 @@ class ProjectileSpec {
     gravity: 0.0,
     damage: 4.0,
     radius: 0.25,
+    thickness: 0.5,
+    length: 0.5,
     color: 0x70A0FF,
     glow: true,
   );
@@ -56,6 +60,12 @@ class ProjectileSpec {
   /// How close it must pass to hit a body.
   final double radius;
 
+  /// The width and height of its box, in metres. Only its look: [radius] hits.
+  final double thickness;
+
+  /// The length of its box along its flight, in metres. Only its look.
+  final double length;
+
   /// Its colour, `0xRRGGBB`.
   final int color;
 
@@ -76,11 +86,15 @@ class ProjectileModel {
   /// The model of [spec]'s shots: the same object for every spec of the same
   /// size, colour and glow.
   factory ProjectileModel.of(ProjectileSpec spec) {
-    final size = spec.kind == 'arrow' ? Vector3(0.06, 0.06, 0.6) : Vector3.all(spec.radius * 2);
-    return _built[(size.x, size.y, size.z, spec.color, spec.glow)] ??= ProjectileModel._(size, spec.color, spec.glow);
+    assert(spec.thickness > 0.0 && spec.length > 0.0, 'a shot of no size: ${spec.kind}');
+    return _built[(spec.thickness, spec.length, spec.color, spec.glow)] ??= ProjectileModel._(
+      Vector3(spec.thickness, spec.thickness, spec.length),
+      spec.color,
+      spec.glow,
+    );
   }
 
-  static final Map<(double, double, double, int, bool), ProjectileModel> _built = {};
+  static final Map<(double, double, int, bool), ProjectileModel> _built = {};
 
   /// The box, in metres, its length along -z.
   final Vector3 size;

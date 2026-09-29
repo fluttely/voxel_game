@@ -68,14 +68,15 @@
 - **Found while:** 2026-09-25 — finding why the phone runner lost runs during PF14's A/B.
 - **Seen again:** 2026-09-28, PF3's phone A/B: the same `SIGSEGV` at `0x3f8` in `vkCmdBeginRenderPass` under `InternalFlutterGpu_RenderPass_Begin`, the second run of a call (`orbit:6` after `mobs:6`, `9c36cc2`, no PF3 code), 18 lines and 19 launches that day.
 
+## Closed
+
 ### KL-009 · A shot's shape is chosen by its kind's name
 
 - **Lens:** declarative content / rule 7
 - **Evidence:** `packages/voxel_game/lib/src/entities/projectile.dart:79`: `ProjectileModel.of` sizes the box `0.06 × 0.06 × 0.6` when `spec.kind == 'arrow'` and a cube of the radius otherwise. `kind` is documented as "what a hit reports as the damage source", and `ProjectileSpec` has no field for its shape.
 - **Cost of leaving it:** a game that declares its own long shot (a spear, a dart) under another name draws a cube, and one that names a fireball `'arrow'` draws a stick; the only way to get the arrow's look is to share its damage source. The fix is a size (or shape) field on `ProjectileSpec`, `arrow`'s set to today's box.
 - **Found while:** 2026-09-29 — closing `KL-007`, keying the shared shot model by what builds it.
-
-## Closed
+- **Closed by:** 2026-09-29 — `voxel_game: a shot's shape is declared on its spec`. `ProjectileSpec` gained `thickness` and `length` (the arrow's box by default, the bolt's cube set on `ProjectileSpec.bolt`), and `ProjectileModel.of` keys its models by them; `kind` is only the damage source again. Covered by `test/projectile_model_test.dart`.
 
 ### KL-007 · Every drop and every projectile meshes a geometry of its own
 
