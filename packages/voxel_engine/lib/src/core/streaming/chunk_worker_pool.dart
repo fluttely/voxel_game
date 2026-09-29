@@ -54,9 +54,14 @@ class ChunkWorkerPool implements ChunkJobs {
   /// [workers] defaults to [defaultWorkers].
   ChunkWorkerPool(this.config, {int? workers}) : workers = workers ?? defaultWorkers;
 
-  /// One isolate per core, leaving one for the UI and raster threads. Chunk
-  /// fill time falls almost linearly with workers up to the core count.
-  static int get defaultWorkers => math.max(1, Platform.numberOfProcessors - 1);
+  /// [workersFor] this machine's cores.
+  static int get defaultWorkers => workersFor(Platform.numberOfProcessors);
+
+  /// Two thirds of [cores], at least one: 8 of an M2 Pro's 12, 5 of a
+  /// Snapdragon 8 Gen 3's 8. Past that the fill time does not fall: the
+  /// extra workers land on efficiency cores or share the others, slowing
+  /// every job, and take the cores the UI and raster threads need.
+  static int workersFor(int cores) => math.max(1, cores * 2 ~/ 3);
 
   /// What every worker is built from.
   final ChunkWorkerConfig config;

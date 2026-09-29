@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- `ChunkWorkerPool.defaultWorkers` is two thirds of the cores (`workersFor`, new), no
+  longer all of them but one: 8 on an M2 Pro instead of 11, 5 on a Galaxy S24 instead of
+  7. Past that the window's fill time did not fall (on the phone 735 ms with 5 workers,
+  728 with 7), each job ran slower (a mesh 10.6 ms at 4 workers, 15.8 at 7), and the extra
+  isolates took the cores the UI and raster threads need.
+
 ## 0.2.0-dev
 
 - `ChunkMesher` merges cube and liquid faces greedily: coplanar neighbours of the same
