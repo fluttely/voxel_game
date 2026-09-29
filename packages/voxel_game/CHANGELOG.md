@@ -16,6 +16,12 @@
   none of it.
 - `RigInstance.place` composes the root's pose into its matrix at once and allocates
   nothing, as `RigPart.apply` now does; every creature is placed every step.
+- A networked game sends the block edits of a step together, as one `edits` message at
+  the step's end, no longer a `set` message per cell as each was made: an explosion's
+  ~120 cells cost the host 1.7 ms with 4 peers and 3.3 with 8 (M2 Pro), a message and a
+  write each per peer, against 37 and 50 µs as one. The session now ticks last in
+  `VoxelGame.step`, after the game's systems and `onTick`, so every edit of a step leaves
+  in it. **The wire changed**: a host and a client of different versions cannot talk.
 
 ## 0.2.0-dev
 

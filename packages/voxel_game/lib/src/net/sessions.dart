@@ -9,6 +9,7 @@ import '../core/voxel_game.dart';
 import '../entities/game_entity.dart';
 import '../entities/target.dart';
 import '../mobs/mob.dart';
+import '../world/game_world.dart';
 import '../world/world_save.dart';
 import 'remote_player.dart';
 
@@ -19,12 +20,9 @@ Vector3 _vec(Object? o) {
   return Vector3(l[0], l[1], l[2]);
 }
 
-IVec3 _cell(Object? o) {
-  final l = [for (final e in o! as List<Object?>) (e! as num).toInt()];
-  return IVec3(l[0], l[1], l[2]);
-}
-
-/// A networked game's side of the conversation, ticked with the game.
+/// A networked game's side of the conversation, ticked last in every step of
+/// the game. The block edits of a step leave together at its end, as one
+/// `edits` message (x, y, z and id per edit, in the order they were made).
 abstract class GameSession implements GameSystem {
   /// Stops talking.
   Future<void> close();
@@ -34,10 +32,33 @@ abstract class GameSession implements GameSystem {
 
   /// The other players, by peer.
   final Map<int, RemotePlayer> players = {};
+
+  final List<int> _edits = [];
+
+  void _queueEdit(IVec3 cell, int id) => _edits
+    ..add(cell.x)
+    ..add(cell.y)
+    ..add(cell.z)
+    ..add(id);
+
+  /// Sends the edits queued since the last call as one message, if any.
+  void _sendEdits(void Function(NetMessage message) send) {
+    if (_edits.isEmpty) return;
+    send({'t': 'edits', 'e': _edits});
+    _edits.clear();
+  }
+
+  /// Writes the edits of an `edits` message into [world], in order.
+  static void _storeEdits(GameWorld world, NetMessage m) {
+    final e = m['e']! as List<Object?>;
+    for (var i = 0; i < e.length; i += 4) {
+      world.storeEdit(IVec3(e[i]! as int, e[i + 1]! as int, e[i + 2]! as int), e[i + 3]! as int);
+    }
+  }
 }
 
 /// The authoritative side. Clients join with a hello (the seed and every edit
-/// so far); the host sends every block edit, and 20 times a second the
+/// so far); the host sends each step's block edits, and 20 times a second the
 /// players and the mobs. A client's edits, poses and hits come back to it; a
 /// remote player is a target its mobs hunt, and the damage it takes goes to
 /// its peer.
@@ -81,8 +102,8 @@ class HostSession extends GameSession {
     switch (m['t']) {
       case 'pose':
         puppet?.setPose(_vec(m['p']), (m['yaw']! as num).toDouble(), dead: m['dead'] == true);
-      case 'set':
-        game.world.storeEdit(_cell(m['c']), (m['b']! as num).toInt());
+      case 'edits':
+        GameSession._storeEdits(game.world, m);
       case 'hit':
         final n = (m['n']! as num).toInt();
         for (final mob in game.mobs) {
@@ -105,14 +126,11 @@ class HostSession extends GameSession {
     net.broadcast({'t': 'bye', 'peer': peer.id});
   }
 
-  void _edited(IVec3 cell, int old, int id) => net.broadcast({
-    't': 'set',
-    'c': [cell.x, cell.y, cell.z],
-    'b': id,
-  });
+  void _edited(IVec3 cell, int old, int id) => _queueEdit(cell, id);
 
   @override
   void tick(VoxelGame game, double dt) {
+    _sendEdits(net.broadcast);
     _clock += dt;
     if (_clock < 0.05) return;
     _clock = 0.0;
@@ -163,19 +181,14 @@ class ClientSession extends GameSession {
   double _clock = 0.0;
 
   void _edited(IVec3 cell, int old, int id) {
-    if (_applying) return;
-    connection.send({
-      't': 'set',
-      'c': [cell.x, cell.y, cell.z],
-      'b': id,
-    });
+    if (!_applying) _queueEdit(cell, id);
   }
 
   void _message(NetMessage m) {
     switch (m['t']) {
-      case 'set':
+      case 'edits':
         _applying = true;
-        game.world.storeEdit(_cell(m['c']), (m['b']! as num).toInt());
+        GameSession._storeEdits(game.world, m);
         _applying = false;
       case 'state':
         game.time = (m['time']! as num).toDouble();
@@ -243,6 +256,7 @@ class ClientSession extends GameSession {
 
   @override
   void tick(VoxelGame game, double dt) {
+    _sendEdits(connection.send);
     _clock += dt;
     if (_clock < 0.05) return;
     _clock = 0.0;

@@ -471,7 +471,6 @@ class VoxelGame {
     for (final e in List.of(entities)) {
       e.tick(this, dt);
     }
-    session?.tick(this, dt);
     world.tickFlow(dt);
     final net = signals;
     if (net != null) {
@@ -490,6 +489,8 @@ class VoxelGame {
       s.tick(this, dt);
     }
     spec.onTick?.call(this, dt);
+    // Last, so every edit of this step, whoever made it, leaves in this step.
+    session?.tick(this, dt);
     _prune();
     input.endTick();
   }
