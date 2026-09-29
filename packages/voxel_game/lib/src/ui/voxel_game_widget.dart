@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart' show SchedulerBinding;
+import 'package:flutter/scheduler.dart' show SchedulerBinding, Ticker;
 import 'package:flutter_scene/scene.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sound_recipes/sound_recipes.dart';
@@ -14,6 +14,8 @@ import '../spec/voxel_game_spec.dart';
 import 'default_hud.dart';
 import 'hud_selector.dart';
 import 'inventory_screen.dart';
+import 'loading_screen.dart';
+import 'loading_stage.dart';
 import '../world/world_save.dart';
 
 /// Builds an overlay over the running game. It is called when the widget
@@ -30,6 +32,9 @@ typedef HudBuilder = Widget Function(BuildContext context, VoxelGame game);
 /// void main() => runVoxelGame(myGame);
 /// ```
 ///
+/// A [loading] screen ([LoadingScreen] when null) shows until the window
+/// around the player has filled and the renderer has compiled what it draws.
+///
 /// With [saveSlot] the world is kept in that slot of the app's support
 /// folder (`worlds/<slot>`): loaded when it exists, saved every minute and
 /// when the widget goes away. With [hostPort] others can join the game on
@@ -39,6 +44,7 @@ Future<void> runVoxelGame(
   VoxelGameSpec spec, {
   String title = 'Voxel game',
   HudBuilder? hud,
+  LoadingBuilder? loading,
   String? saveSlot,
   int? hostPort,
   String? join,
@@ -51,7 +57,14 @@ Future<void> runVoxelGame(
       debugShowCheckedModeBanner: false,
       theme: ThemeData.dark(),
       home: Scaffold(
-        body: VoxelGameWidget(spec: spec, hud: hud, saveSlot: saveSlot, hostPort: hostPort, join: join),
+        body: VoxelGameWidget(
+          spec: spec,
+          hud: hud,
+          loading: loading,
+          saveSlot: saveSlot,
+          hostPort: hostPort,
+          join: join,
+        ),
       ),
     ),
   );
@@ -60,15 +73,24 @@ Future<void> runVoxelGame(
 /// A running [VoxelGameSpec]: the 3D view, the controls (keyboard, mouse with
 /// pointer lock, gamepad) and a HUD. Click to play, Escape to free the mouse.
 ///
+/// A loading screen covers the game until it can be shown without a stall
+/// ([LoadingStage]): the game runs undrawn until the window around the player
+/// has filled ([VoxelGame.filled]), then the renderer encodes every chunk and
+/// body once, offscreen (`Scene.warmUp`), so the pipelines Impeller compiles on
+/// first use are compiled behind it. A first run after an install or a build
+/// otherwise stopped its first frames for ~0.6 s (phone) to ~0.8 s (Mac).
+///
 /// Call [loadResources] once before the first one is built (`runVoxelGame`
 /// does).
 class VoxelGameWidget extends StatefulWidget {
-  /// A game of [spec] with [hud] over it ([DefaultHud] when null);
-  /// [onReady] receives the game once it runs.
+  /// A game of [spec] with [hud] over it ([DefaultHud] when null) and
+  /// [loading] before it ([LoadingScreen] when null); [onReady] receives the
+  /// game once it runs.
   const VoxelGameWidget({
     super.key,
     required this.spec,
     this.hud,
+    this.loading,
     this.onReady,
     this.saveSlot,
     this.saves,
@@ -91,7 +113,11 @@ class VoxelGameWidget extends StatefulWidget {
   /// The overlay; the default HUD when null.
   final HudBuilder? hud;
 
-  /// Called once the game has started.
+  /// What shows until the game is; the default loading screen when null.
+  final LoadingBuilder? loading;
+
+  /// Called once the game has started: it runs from then on, behind the
+  /// loading screen until its window has filled.
   final void Function(VoxelGame game)? onReady;
 
   /// The save slot the world lives in, or null for a world never saved.
@@ -117,8 +143,13 @@ class VoxelGameWidget extends StatefulWidget {
   State<VoxelGameWidget> createState() => _VoxelGameWidgetState();
 }
 
-class _VoxelGameWidgetState extends State<VoxelGameWidget> {
+class _VoxelGameWidgetState extends State<VoxelGameWidget> with SingleTickerProviderStateMixin {
   VoxelGame? _game;
+  LoadingStage _stage = LoadingStage.starting;
+
+  // Drives the game in the SceneView's place while the loading screen is up.
+  late final Ticker _loadingTicker;
+  Duration _lastLoadingTick = Duration.zero;
   final FocusNode _focus = FocusNode();
   bool _disposed = false;
 
@@ -131,6 +162,7 @@ class _VoxelGameWidgetState extends State<VoxelGameWidget> {
   @override
   void initState() {
     super.initState();
+    _loadingTicker = createTicker(_loadingTick);
     _start();
   }
 
@@ -158,7 +190,11 @@ class _VoxelGameWidgetState extends State<VoxelGameWidget> {
     SchedulerBinding.instance.addTimingsCallback(game.stats.addTimings);
     game.input.attachDevices();
     game.openScreen.addListener(_screenChanged);
-    setState(() => _game = game);
+    setState(() {
+      _game = game;
+      _stage = LoadingStage.filling;
+    });
+    _loadingTicker.start();
     unawaited(_startAudio(game));
     if (widget.saveSlot != null && join == null) _autosave = Timer.periodic(widget.autosave, (_) => _save());
     widget.onReady?.call(game);
@@ -195,8 +231,34 @@ class _VoxelGameWidgetState extends State<VoxelGameWidget> {
     saves.save(game, slot);
   }
 
+  // The game runs while it loads, undrawn: the world streams around the
+  // player, and the steps run, so a client keeps up with its host.
+  void _loadingTick(Duration elapsed) {
+    final game = _game!;
+    final dt = (elapsed - _lastLoadingTick).inMicroseconds / 1e6;
+    _lastLoadingTick = elapsed;
+    _tick(game, dt);
+    if (_stage == LoadingStage.filling && game.filled) unawaited(_warmUp(game));
+  }
+
+  // Encodes one offscreen frame of every render item, the ones behind the
+  // camera too, so each pipeline the window draws with is compiled here and
+  // not in a frame shown. The loading ticker keeps the game running until the
+  // SceneView takes it over.
+  Future<void> _warmUp(VoxelGame game) async {
+    setState(() => _stage = LoadingStage.warming);
+    // Draw the stage before the compile holds the UI thread.
+    await SchedulerBinding.instance.endOfFrame;
+    if (_disposed) return;
+    await game.scene!.warmUp([RenderView(camera: game.camera())], includeOffscreen: true);
+    if (_disposed) return;
+    _loadingTicker.stop();
+    setState(() => _stage = LoadingStage.playing);
+  }
+
   @override
   void dispose() {
+    _loadingTicker.dispose();
     _autosave?.cancel();
     _moodTimer?.cancel();
     _music?.setMood(null);
@@ -232,20 +294,18 @@ class _VoxelGameWidgetState extends State<VoxelGameWidget> {
       input.captureLost = false;
       input.releaseKeys();
     }
-    game.gameplay = (input.wantCapture || game.playWithoutCapture) && game.openScreen.value == null;
+    game.gameplay =
+        _stage == LoadingStage.playing &&
+        (input.wantCapture || game.playWithoutCapture) &&
+        game.openScreen.value == null;
     game.frame(dt);
   }
 
   @override
   Widget build(BuildContext context) {
-    final game = _game;
-    if (game == null) {
-      return const ColoredBox(
-        color: Color(0xFF0E1420),
-        child: Center(child: Text('Generating the world...')),
-      );
-    }
-    game.fitPixelRatio(MediaQuery.devicePixelRatioOf(context));
+    _game?.fitPixelRatio(MediaQuery.devicePixelRatioOf(context));
+    if (_stage != LoadingStage.playing) return (widget.loading ?? LoadingScreen.builder)(context, _stage, _game);
+    final game = _game!;
     return Focus(
       focusNode: _focus,
       autofocus: true,

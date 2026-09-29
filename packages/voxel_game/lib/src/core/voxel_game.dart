@@ -352,6 +352,12 @@ class VoxelGame {
   /// Whether the player stands in a loaded world yet.
   bool get ready => player.placed;
 
+  /// Whether the player stands in the world and every chunk of the window
+  /// around it is generated, meshed and built ([GameWorld.isIdle]): what
+  /// `VoxelGameWidget` waits for before it shows the game. An edit or a step
+  /// of the window makes it false again until the world catches up.
+  bool get filled => ready && world.isIdle;
+
   /// 0 at night, 1 at noon: how much the sky's light counts.
   double get daylight {
     final elevation = math.sin((timeOfDay - 0.25) * math.pi * 2);

@@ -2,6 +2,18 @@
 
 ## 0.3.0-dev
 
+- **A loading screen covers the game until it can be shown without a stall.**
+  `VoxelGameWidget` runs the game undrawn until the window around the player has filled
+  (the new `VoxelGame.filled`: the player stands and `GameWorld.isIdle`), then encodes
+  every chunk and body once, offscreen, through flutter_scene's `Scene.warmUp`
+  (`includeOffscreen`), so the pipelines Impeller compiles on first use are compiled
+  behind the screen. The game keeps stepping while it loads, with its controls off. A
+  first run after a build (the Mac, `orbit:6`) drew its first frames in encodes of ~650,
+  ~320 and ~570 ms; it now compiles in one ~1.06 s encode before the first frame, which
+  encodes in ~1 ms, and fills ~0.4 s sooner. The screen's stages are the new
+  `LoadingStage`; `VoxelGameWidget(loading:)` and `runVoxelGame(loading:)` take a
+  `LoadingBuilder` in place of the default `LoadingScreen`. `onReady` still fires as the
+  game starts, before the screen goes.
 - `GameWorld.update` rebuilds the chunk regions the streaming changed within the view's
   frame budget, nearest the focus first (`VoxelChunkView.rebuild`), so a column of chunks
   entering or leaving the window is drawn over a few frames instead of in one long one;

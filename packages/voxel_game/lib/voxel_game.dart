@@ -54,6 +54,8 @@ export 'src/ui/default_hud.dart';
 export 'src/ui/hud_selector.dart';
 export 'src/ui/voxel_game_widget.dart';
 export 'src/ui/inventory_screen.dart';
+export 'src/ui/loading_screen.dart';
+export 'src/ui/loading_stage.dart';
 export 'src/world/world_save.dart';
 export 'src/camera/first_person_view.dart';
 export 'src/spec/sound_spec.dart';

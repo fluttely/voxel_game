@@ -79,6 +79,26 @@ void main() {
     expect(peak - 20.0, greaterThan(1.2));
   });
 
+  test('the game is filled once the player stands and the whole window has its meshes', () async {
+    final game = await VoxelGame.startHeadless(_flat());
+    game.spawner.enabled = false;
+    expect(game.filled, isFalse, reason: 'nothing is loaded before the first frame');
+    for (var i = 0; i < 600 && !game.filled; i++) {
+      game.frame(1 / 60);
+      await Future<void>.delayed(Duration.zero);
+    }
+    expect(game.filled, isTrue);
+    expect(game.ready, isTrue);
+    const side = 2 * 2 + 1;
+    expect(game.world.meshCount, greaterThanOrEqualTo(side * side), reason: 'every chunk of the window');
+
+    game.breakBlock(IVec3.floor(game.player.position) - IVec3(0, 1, 0));
+    expect(game.filled, isFalse, reason: 'the edited chunk waits for its new mesh');
+    await _run(game, 0.5);
+    expect(game.filled, isTrue);
+    game.dispose();
+  });
+
   test('a fall of more than four blocks hurts; a creative player never', () async {
     final game = await _start(_flat());
     final p = game.player;
