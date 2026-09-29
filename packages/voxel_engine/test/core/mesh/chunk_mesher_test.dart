@@ -19,6 +19,11 @@ void main() {
     expect(ChunkMesher.shapeIndices, [for (final s in BlockShape.values) s.index]);
   });
 
+  test('fences, ladders and rails keep their geometry (faces and a sum over every vertex)', () {
+    final got = {for (final shape in _subShapes) shape.name: _fingerprint(shape)};
+    expect(got, _subShapeFingerprints);
+  });
+
   test('build takes a ring of nine with the chunk first', () {
     final c = Uint8List(ChunkSize.volume);
     expect(() => _mesher().build(0, 0, [c]), throwsArgumentError);
@@ -177,6 +182,69 @@ void main() {
     expect(r.sky[ChunkSize.index(0, 127, 0)], 15);
     expect(r.faces, 0);
   });
+}
+
+/// The shapes drawn by [ChunkMesher]'s own methods rather than cube faces.
+const _subShapes = [
+  BlockShape.fence,
+  BlockShape.ladder,
+  BlockShape.railNs,
+  BlockShape.railEw,
+  BlockShape.railNe,
+  BlockShape.railNw,
+  BlockShape.railSe,
+  BlockShape.railSw,
+  BlockShape.railSlopeN,
+  BlockShape.railSlopeE,
+  BlockShape.railSlopeS,
+  BlockShape.railSlopeW,
+];
+
+/// [_fingerprint] of each of [_subShapes], taken from the mesher before its
+/// per-shape code left the cell loop (PF9): the move changed no vertex.
+const Map<String, String> _subShapeFingerprints = {
+  'fence': '74 61959.974',
+  'ladder': '106 88417.631',
+  'railNs': '74 61606.488',
+  'railEw': '76 63245.083',
+  'railNe': '100 83574.821',
+  'railNw': '98 81657.503',
+  'railSe': '100 83775.961',
+  'railSw': '98 81872.237',
+  'railSlopeN': '172 144811.021',
+  'railSlopeE': '174 146416.459',
+  'railSlopeS': '172 144839.010',
+  'railSlopeW': '174 146379.118',
+};
+
+/// One [shape] block (id 2) on a floor of cubes (id 1), a cube beside it at
+/// -x and a second [shape] block at +z (a fence joins both, a ladder hangs on
+/// the cube): its solid surface's face count and a weighted sum over every
+/// position, colour and light value.
+String _fingerprint(BlockShape shape) {
+  final mesher = ChunkMesher(
+    palette: Float32List.fromList([0, 0, 0, 0, 0.5, 0.5, 0.5, 1, 0.6, 0.4, 0.2, 1]),
+    shape: Uint8List.fromList([BlockShape.cube.index, BlockShape.cube.index, shape.index]),
+    opaque: Uint8List.fromList([0, 1, 0]),
+    emission: Uint8List.fromList([0, 0, 0]),
+  );
+  final c = Uint8List(ChunkSize.volume);
+  for (var z = 4; z < 12; z++) {
+    for (var x = 4; x < 12; x++) {
+      c[ChunkSize.index(x, 39, z)] = 1;
+    }
+  }
+  c[ChunkSize.index(7, 40, 8)] = 1;
+  c[ChunkSize.index(8, 40, 8)] = 2;
+  c[ChunkSize.index(8, 40, 9)] = 2;
+  final s = mesher.build(0, 0, [c, ...ChunkMesher.noNeighbours]).solid;
+  var sum = 0.0;
+  for (final (weight, values) in [(1.0, s.positions), (3.0, s.colors), (7.0, s.light)]) {
+    for (var i = 0; i < values.length; i++) {
+      sum += values[i] * weight * (i % 5 + 1);
+    }
+  }
+  return '${s.faceCount} ${sum.toStringAsFixed(3)}';
 }
 
 /// Terraced hills of block 1 with pits and overhangs: faces of every

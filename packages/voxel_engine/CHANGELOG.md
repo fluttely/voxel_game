@@ -12,6 +12,11 @@
   (M2 Pro, radius 6), and the ring's copy leaves the frame for the message handler. Only
   the nine chunks around the one that landed are looked at, so jobs that answer at once
   (a headless world's) still fill over several updates.
+- `ChunkMesher.build` no longer allocates on every cell of its loop: the ladder, the
+  rails and the fence drew with closures declared in the loop's body, which captured the
+  cell's variables, so Dart allocated a context for them on every one of a chunk's 32768
+  cells (and boxed the cell's coordinates into it), whatever the cell held. They are
+  methods now; the meshes are the same, vertex for vertex.
 
 ## 0.2.0-dev
 

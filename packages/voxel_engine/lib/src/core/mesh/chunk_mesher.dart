@@ -677,6 +677,162 @@ class ChunkMesher {
     s.quadIndices(first, ao0 + ao2 < ao1 + ao3);
   }
 
+  /// A ladder on cell ([x], [y], [z]): two rails and four rungs lying on the
+  /// wall it hangs from — the first opaque horizontal neighbour, -z when it
+  /// hangs on nothing. `u` runs along that wall, `v` is the depth out of it,
+  /// so one set of boxes serves all four facings.
+  ///
+  /// The shapes drawn by closures live in methods of their own, out of
+  /// [build]'s cell loop: a closure there captures the loop's variables, and
+  /// Dart then allocates their context on every cell, whatever its shape.
+  void _ladder(_Surface solid, int x, int y, int z, double br, double bg, double bb) {
+    final ox = x.toDouble(), oy = y.toDouble(), oz = z.toDouble();
+    _lightUv(x, y, z);
+    final ls = _ls, lb = _lb;
+    final int wall;
+    if (_opaqueAt(x - 1, y, z)) {
+      wall = 0;
+    } else if (_opaqueAt(x + 1, y, z)) {
+      wall = 1;
+    } else if (_opaqueAt(x, y, z + 1)) {
+      wall = 3;
+    } else {
+      wall = 2;
+    }
+    void bar(double u0, double v0, double y0, double u1, double v1, double y1, double r, double g, double b) {
+      final double ax0, az0, ax1, az1;
+      if (wall == 0) {
+        ax0 = v0;
+        ax1 = v1;
+        az0 = u0;
+        az1 = u1;
+      } else if (wall == 1) {
+        ax0 = 1.0 - v1;
+        ax1 = 1.0 - v0;
+        az0 = u0;
+        az1 = u1;
+      } else if (wall == 2) {
+        ax0 = u0;
+        ax1 = u1;
+        az0 = v0;
+        az1 = v1;
+      } else {
+        ax0 = u0;
+        ax1 = u1;
+        az0 = 1.0 - v1;
+        az1 = 1.0 - v0;
+      }
+      _box(solid, ox + ax0, oy + y0, oz + az0, ox + ax1, oy + y1, oz + az1, r, g, b, r, g, b, ls, lb, ls, lb);
+    }
+
+    const s0 = 0.1875, s1 = 0.3125, s2 = 0.6875, s3 = 0.8125, rungInset = 0.005;
+    bar(s0, 0.0, 0.0, s1, 0.09, 1.0, br, bg, bb);
+    bar(s2, 0.0, 0.0, s3, 0.09, 1.0, br, bg, bb);
+    // The rungs stand a little proud of the rails, so a ladder reads as a
+    // ladder from the side too. They stop 0.005 short of the rails' outer
+    // faces: flush ends would share a plane and flicker.
+    final rr = br * 0.78, rg = bg * 0.78, rb = bb * 0.78;
+    for (var i = 0; i < 4; i++) {
+      final ry = 0.125 + i * 0.25;
+      bar(s0 + rungInset, 0.02, ry, s3 - rungInset, 0.12, ry + 0.09, rr, rg, rb);
+    }
+  }
+
+  /// A rail of shape [sh] on cell ([x], [y], [z]): two thin bars over wooden
+  /// ties. A straight runs the bars the whole cell; a curve draws the half of
+  /// each axis it joins; a slope stacks four steps rising toward its high side
+  /// (the cart interpolates the real line, the steps only read as a ramp).
+  void _rail(_Surface solid, int x, int y, int z, int id, int sh, List<int> aos, double br, double bg, double bb) {
+    const cullSame = true;
+    const tr = 0.42, tg = 0.30, tb = 0.17;
+    const b0 = 0.1875, b1 = 0.3125, b2 = 0.6875, b3 = 0.8125, ty = 0.0625, by = 0.125;
+    void barsZ(double z0, double z1, double yo) {
+      _subBox(solid, x, y, z, id, cullSame, aos, b0, yo + ty, z0, b1, yo + by, z1, br, bg, bb);
+      _subBox(solid, x, y, z, id, cullSame, aos, b2, yo + ty, z0, b3, yo + by, z1, br, bg, bb);
+    }
+
+    void barsX(double x0, double x1, double yo) {
+      _subBox(solid, x, y, z, id, cullSame, aos, x0, yo + ty, b0, x1, yo + by, b1, br, bg, bb);
+      _subBox(solid, x, y, z, id, cullSame, aos, x0, yo + ty, b2, x1, yo + by, b3, br, bg, bb);
+    }
+
+    void tieZ(double zc, double yo) =>
+        _subBox(solid, x, y, z, id, cullSame, aos, 0.0625, yo, zc - 0.09375, 0.9375, yo + ty, zc + 0.09375, tr, tg, tb);
+    void tieX(double xc, double yo) =>
+        _subBox(solid, x, y, z, id, cullSame, aos, xc - 0.09375, yo, 0.0625, xc + 0.09375, yo + ty, 0.9375, tr, tg, tb);
+    if (sh == _shapeRailNs) {
+      tieZ(0.22, 0);
+      tieZ(0.78, 0);
+      barsZ(0, 1, 0);
+    } else if (sh == _shapeRailEw) {
+      tieX(0.22, 0);
+      tieX(0.78, 0);
+      barsX(0, 1, 0);
+    } else if (sh == _shapeRailNe) {
+      tieZ(0.22, 0);
+      tieX(0.78, 0);
+      barsZ(0, 0.5, 0);
+      barsX(0.5, 1, 0);
+    } else if (sh == _shapeRailNw) {
+      tieZ(0.22, 0);
+      tieX(0.22, 0);
+      barsZ(0, 0.5, 0);
+      barsX(0, 0.5, 0);
+    } else if (sh == _shapeRailSe) {
+      tieZ(0.78, 0);
+      tieX(0.78, 0);
+      barsZ(0.5, 1, 0);
+      barsX(0.5, 1, 0);
+    } else if (sh == _shapeRailSw) {
+      tieZ(0.78, 0);
+      tieX(0.22, 0);
+      barsZ(0.5, 1, 0);
+      barsX(0, 0.5, 0);
+    } else {
+      // Four steps of a quarter block; step i spans the quarter nearest the
+      // low side + i and sits i/4 higher.
+      for (var i = 0; i < 4; i++) {
+        final lo = i * 0.25, hi = lo + 0.25, yo = i * 0.25;
+        if (sh == _shapeRailSlopeE) {
+          tieX(lo + 0.125, yo);
+          barsX(lo, hi, yo);
+        } else if (sh == _shapeRailSlopeW) {
+          tieX(1.0 - lo - 0.125, yo);
+          barsX(1.0 - hi, 1.0 - lo, yo);
+        } else if (sh == _shapeRailSlopeS) {
+          tieZ(lo + 0.125, yo);
+          barsZ(lo, hi, yo);
+        } else {
+          tieZ(1.0 - lo - 0.125, yo);
+          barsZ(1.0 - hi, 1.0 - lo, yo);
+        }
+      }
+    }
+  }
+
+  /// A fence on cell ([x], [y], [z]): a centre post, then two rails toward
+  /// every horizontal neighbour that is a fence or an opaque block. [_at] reads
+  /// the padded volume, so a neighbour across the chunk border connects too.
+  void _fence(_Surface solid, int x, int y, int z, int id, List<int> aos, double br, double bg, double bb) {
+    const cullSame = true;
+    const p0 = 0.375, p1 = 0.625, r0 = 0.4375, r1 = 0.5625;
+    _subBox(solid, x, y, z, id, cullSame, aos, p0, 0, p0, p1, 1, p1, br, bg, bb);
+    bool joins(int dx, int dz) {
+      final n = _at(x + dx, y, z + dz);
+      return n != _air && (_opaque[n] || shape[n] == _shapeFence);
+    }
+
+    void rails(double lx, double lz, double hx, double hz) {
+      _subBox(solid, x, y, z, id, cullSame, aos, lx, 0.375, lz, hx, 0.5, hz, br, bg, bb);
+      _subBox(solid, x, y, z, id, cullSame, aos, lx, 0.75, lz, hx, 0.875, hz, br, bg, bb);
+    }
+
+    if (joins(1, 0)) rails(p1, r0, 1.0, r1);
+    if (joins(-1, 0)) rails(0.0, r0, p0, r1);
+    if (joins(0, 1)) rails(r0, p1, r1, 1.0);
+    if (joins(0, -1)) rails(r0, 0.0, r1, p0);
+  }
+
   /// A flat-shaded axis-aligned box from `lo` to `hi` (chunk-local), one
   /// colour and one light for the top and one of each for the sides.
   void _box(
@@ -1012,59 +1168,7 @@ class ChunkMesher {
           }
 
           if (sh == _shapeLadder) {
-            // Two rails and four rungs lying on the wall the ladder hangs from
-            // — the first opaque horizontal neighbour, -z when it hangs on
-            // nothing. `u` runs along that wall, `v` is the depth out of it, so
-            // one set of boxes serves all four facings.
-            _lightUv(x, y, z);
-            final ls = _ls, lb = _lb;
-            final int wall;
-            if (_opaqueAt(x - 1, y, z)) {
-              wall = 0;
-            } else if (_opaqueAt(x + 1, y, z)) {
-              wall = 1;
-            } else if (_opaqueAt(x, y, z + 1)) {
-              wall = 3;
-            } else {
-              wall = 2;
-            }
-            void bar(double u0, double v0, double y0, double u1, double v1, double y1, double r, double g, double b) {
-              final double ax0, az0, ax1, az1;
-              if (wall == 0) {
-                ax0 = v0;
-                ax1 = v1;
-                az0 = u0;
-                az1 = u1;
-              } else if (wall == 1) {
-                ax0 = 1.0 - v1;
-                ax1 = 1.0 - v0;
-                az0 = u0;
-                az1 = u1;
-              } else if (wall == 2) {
-                ax0 = u0;
-                ax1 = u1;
-                az0 = v0;
-                az1 = v1;
-              } else {
-                ax0 = u0;
-                ax1 = u1;
-                az0 = 1.0 - v1;
-                az1 = 1.0 - v0;
-              }
-              _box(solid, ox + ax0, oy + y0, oz + az0, ox + ax1, oy + y1, oz + az1, r, g, b, r, g, b, ls, lb, ls, lb);
-            }
-
-            const s0 = 0.1875, s1 = 0.3125, s2 = 0.6875, s3 = 0.8125, rungInset = 0.005;
-            bar(s0, 0.0, 0.0, s1, 0.09, 1.0, br, bg, bb);
-            bar(s2, 0.0, 0.0, s3, 0.09, 1.0, br, bg, bb);
-            // The rungs stand a little proud of the rails, so a ladder reads as
-            // a ladder from the side too. They stop 0.005 short of the rails'
-            // outer faces: flush ends would share a plane and flicker.
-            final rr = br * 0.78, rg = bg * 0.78, rb = bb * 0.78;
-            for (var i = 0; i < 4; i++) {
-              final ry = 0.125 + i * 0.25;
-              bar(s0 + rungInset, 0.02, ry, s3 - rungInset, 0.12, ry + 0.09, rr, rg, rb);
-            }
+            _ladder(solid, x, y, z, br, bg, bb);
             continue;
           }
 
@@ -1181,132 +1285,14 @@ class ChunkMesher {
             // against a neighbour's empty half.
             final cullSame = sh == _shapeSlab || sh == _shapeFence || isRail;
             if (isRail) {
-              // Two thin bars over wooden ties. A straight runs the
-              // bars the whole cell; a curve draws the half of each axis it
-              // joins; a slope stacks four steps rising toward its high side
-              // (the cart interpolates the real line, the steps only read as a
-              // ramp).
-              const tr = 0.42, tg = 0.30, tb = 0.17;
-              const b0 = 0.1875, b1 = 0.3125, b2 = 0.6875, b3 = 0.8125, ty = 0.0625, by = 0.125;
-              void barsZ(double z0, double z1, double yo) {
-                _subBox(solid, x, y, z, id, cullSame, aos, b0, yo + ty, z0, b1, yo + by, z1, br, bg, bb);
-                _subBox(solid, x, y, z, id, cullSame, aos, b2, yo + ty, z0, b3, yo + by, z1, br, bg, bb);
-              }
-
-              void barsX(double x0, double x1, double yo) {
-                _subBox(solid, x, y, z, id, cullSame, aos, x0, yo + ty, b0, x1, yo + by, b1, br, bg, bb);
-                _subBox(solid, x, y, z, id, cullSame, aos, x0, yo + ty, b2, x1, yo + by, b3, br, bg, bb);
-              }
-
-              void tieZ(double zc, double yo) => _subBox(
-                solid,
-                x,
-                y,
-                z,
-                id,
-                cullSame,
-                aos,
-                0.0625,
-                yo,
-                zc - 0.09375,
-                0.9375,
-                yo + ty,
-                zc + 0.09375,
-                tr,
-                tg,
-                tb,
-              );
-              void tieX(double xc, double yo) => _subBox(
-                solid,
-                x,
-                y,
-                z,
-                id,
-                cullSame,
-                aos,
-                xc - 0.09375,
-                yo,
-                0.0625,
-                xc + 0.09375,
-                yo + ty,
-                0.9375,
-                tr,
-                tg,
-                tb,
-              );
-              if (sh == _shapeRailNs) {
-                tieZ(0.22, 0);
-                tieZ(0.78, 0);
-                barsZ(0, 1, 0);
-              } else if (sh == _shapeRailEw) {
-                tieX(0.22, 0);
-                tieX(0.78, 0);
-                barsX(0, 1, 0);
-              } else if (sh == _shapeRailNe) {
-                tieZ(0.22, 0);
-                tieX(0.78, 0);
-                barsZ(0, 0.5, 0);
-                barsX(0.5, 1, 0);
-              } else if (sh == _shapeRailNw) {
-                tieZ(0.22, 0);
-                tieX(0.22, 0);
-                barsZ(0, 0.5, 0);
-                barsX(0, 0.5, 0);
-              } else if (sh == _shapeRailSe) {
-                tieZ(0.78, 0);
-                tieX(0.78, 0);
-                barsZ(0.5, 1, 0);
-                barsX(0.5, 1, 0);
-              } else if (sh == _shapeRailSw) {
-                tieZ(0.78, 0);
-                tieX(0.22, 0);
-                barsZ(0.5, 1, 0);
-                barsX(0, 0.5, 0);
-              } else {
-                // Four steps of a quarter block; step i spans the quarter
-                // nearest the low side + i and sits i/4 higher.
-                for (var i = 0; i < 4; i++) {
-                  final lo = i * 0.25, hi = lo + 0.25, yo = i * 0.25;
-                  if (sh == _shapeRailSlopeE) {
-                    tieX(lo + 0.125, yo);
-                    barsX(lo, hi, yo);
-                  } else if (sh == _shapeRailSlopeW) {
-                    tieX(1.0 - lo - 0.125, yo);
-                    barsX(1.0 - hi, 1.0 - lo, yo);
-                  } else if (sh == _shapeRailSlopeS) {
-                    tieZ(lo + 0.125, yo);
-                    barsZ(lo, hi, yo);
-                  } else {
-                    tieZ(1.0 - lo - 0.125, yo);
-                    barsZ(1.0 - hi, 1.0 - lo, yo);
-                  }
-                }
-              }
+              _rail(solid, x, y, z, id, sh, aos, br, bg, bb);
             } else if (sh == _shapeSlab) {
               _subBox(solid, x, y, z, id, cullSame, aos, 0, 0, 0, 1, 0.5, 1, br, bg, bb);
             } else if (sh == _shapeWire) {
               // A wire, an eighth of a block lying on the floor.
               _subBox(solid, x, y, z, id, cullSame, aos, 0, 0, 0, 1, 0.125, 1, br, bg, bb);
             } else if (sh == _shapeFence) {
-              // Centre post, then two rails toward every horizontal neighbour
-              // that is a fence or an opaque block. _at reads the padded
-              // volume, so a neighbour across the chunk border connects too.
-              const p0 = 0.375, p1 = 0.625, r0 = 0.4375, r1 = 0.5625;
-              _subBox(solid, x, y, z, id, cullSame, aos, p0, 0, p0, p1, 1, p1, br, bg, bb);
-              bool joins(int dx, int dz) {
-                final n = _at(x + dx, y, z + dz);
-                return n != _air && (_opaque[n] || shape[n] == _shapeFence);
-              }
-
-              void rails(double lx, double lz, double hx, double hz) {
-                _subBox(solid, x, y, z, id, cullSame, aos, lx, 0.375, lz, hx, 0.5, hz, br, bg, bb);
-                _subBox(solid, x, y, z, id, cullSame, aos, lx, 0.75, lz, hx, 0.875, hz, br, bg, bb);
-              }
-
-              if (joins(1, 0)) rails(p1, r0, 1.0, r1);
-              if (joins(-1, 0)) rails(0.0, r0, p0, r1);
-              if (joins(0, 1)) rails(r0, p1, r1, 1.0);
-              if (joins(0, -1)) rails(r0, 0.0, r1, p0);
+              _fence(solid, x, y, z, id, aos, br, bg, bb);
             } else {
               // Bottom slab plus a top-half back step; the step's bottom face
               // is inside the block.
