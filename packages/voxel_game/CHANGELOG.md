@@ -14,6 +14,8 @@
   changes; a custom HUD that read the game in its `build` must move those reads into
   selectors. `DefaultHud` is such a tree: while nothing it shows changes, a frame builds
   none of it.
+- `RigInstance.place` composes the root's pose into its matrix at once and allocates
+  nothing, as `RigPart.apply` now does; every creature is placed every step.
 
 ## 0.2.0-dev
 

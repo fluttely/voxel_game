@@ -23,6 +23,27 @@ void main() {
     }
   });
 
+  test('parts posed one after the other each keep their own whole pose', () {
+    final a = RigPart(Node(), Vector3(0, 1, 0))
+      ..rx = 0.4
+      ..ry = -1.1
+      ..rz = 0.2
+      ..offX = 0.1
+      ..sx = 1.5;
+    final b = RigPart(Node(), Vector3(2, 0, -1))
+      ..ry = 2.5
+      ..offZ = -0.3
+      ..sz = 0.5;
+    a.apply();
+    b.apply();
+    final wantA = Matrix4.compose(Vector3(0.1, 1, 0), eulerYXZ(0.4, -1.1, 0.2), Vector3(1.5, 1, 1));
+    final wantB = Matrix4.compose(Vector3(2, 0, -1.3), eulerYXZ(0, 2.5, 0), Vector3(1, 1, 0.5));
+    for (var i = 0; i < 16; i++) {
+      expect(a.node.localTransform.storage[i], closeTo(wantA.storage[i], 1e-6), reason: 'a[$i]');
+      expect(b.node.localTransform.storage[i], closeTo(wantB.storage[i], 1e-6), reason: 'b[$i]');
+    }
+  });
+
   test('a node body pushes its position into its node on sync', () {
     final body = NodeBody()..position = Vector3(3, 4, 5);
     expect(body.node.position, Vector3.zero());

@@ -25,6 +25,9 @@
   its arrays the mesher's own and valid only inside it. `ChunkWorkerPool`'s workers use
   it: they copy the mesh into transferables anyway, so the exact-size copies `build` makes
   (~0.3 MB for a chunk of the example's hills, and 64 KB of light) are no longer made.
+- `eulerYXZInto` (new) writes `eulerYXZ`'s rotation into a quaternion it is given, the
+  product of the three axis rotations worked out by hand; `eulerYXZ` is built on it. A
+  rig part posed every step no longer allocates eight vectors and quaternions for it.
 
 ## 0.2.0-dev
 

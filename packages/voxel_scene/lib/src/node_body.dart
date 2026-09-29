@@ -70,9 +70,18 @@ class NodeBody extends VoxelBody {
 
   bool get _still => _from == _to && _yawFrom == _yawTo && _pitchFrom == _pitchTo;
 
+  // Once a frame for every body drawn between two poses: it allocates
+  // nothing, the turn composed into a quaternion shared by every body.
   void _write(Vector3 at, double yaw, double pitch) {
     if (!identical(at, _drawn)) _drawn.setFrom(at);
-    final turn = yaw == 0.0 && pitch == 0.0 ? Quaternion.identity() : eulerYXZ(pitch, yaw, 0.0);
-    node.mutateLocalTransform((m) => m.setFromTranslationRotation(at, turn));
+    eulerYXZInto(_turn, pitch, yaw, 0.0);
+    _at.setFrom(at);
+    node.mutateLocalTransform(_compose);
   }
+
+  // The pose [_write] composes, shared by every body: the node copies it into
+  // its matrix before [_write] returns.
+  static final Quaternion _turn = Quaternion.identity();
+  static final Vector3 _at = Vector3.zero();
+  static void _compose(Matrix4 m) => m.setFromTranslationRotation(_at, _turn);
 }

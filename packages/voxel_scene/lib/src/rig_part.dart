@@ -44,10 +44,20 @@ class RigPart {
   /// Offset from [base] along z, in metres.
   double offZ = 0;
 
-  /// Writes the pose into [node].
+  /// Writes the pose into [node]'s matrix at once. Every creature poses every
+  /// part every step, so this allocates nothing: the node's own setters
+  /// rebuild its matrix once for each of rotation and scale, and the pose's
+  /// quaternion and vectors were new objects each time.
   void apply() {
-    node.rotation = eulerYXZ(rx, ry, rz);
-    node.position = Vector3(base.x + offX, base.y + offY, base.z + offZ);
-    node.scale = Vector3(sx, sy, sz);
+    eulerYXZInto(_rotation, rx, ry, rz);
+    _translation.setValues(base.x + offX, base.y + offY, base.z + offZ);
+    _scale.setValues(sx, sy, sz);
+    node.mutateLocalTransform(_compose);
   }
+
+  // The pose [apply] composes, shared by every part: the node copies it into
+  // its matrix before [apply] returns.
+  static final Vector3 _translation = Vector3.zero(), _scale = Vector3.zero();
+  static final Quaternion _rotation = Quaternion.identity();
+  static void _compose(Matrix4 m) => m.setFromTranslationRotationScale(_translation, _rotation, _scale);
 }

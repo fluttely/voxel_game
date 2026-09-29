@@ -14,6 +14,10 @@
   leaves the window, cost one long frame, and a region was rebuilt with each of its chunks
   in turn. `pendingRegions` counts the regions waiting. A game that drives the view
   itself must call `rebuild` every frame, or nothing is drawn.
+- `RigPart.apply` and `NodeBody`'s drawn pose write their node's matrix in one
+  `mutateLocalTransform`, from a pose shared by every part and body, and allocate nothing:
+  before, each part every step built a quaternion and two vectors and went through the
+  node's `rotation` and `scale` setters, each of which rebuilt the matrix as a new one.
 
 ## 0.2.0-dev
 

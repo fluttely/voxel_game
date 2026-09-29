@@ -444,11 +444,21 @@ class RigInstance {
   /// Puts the model at the feet [position], [scale] times its fitted size,
   /// toppled by [topple] radians (a death) and shaken sideways by [shake]. It
   /// does not turn it: its owner's node faces [yaw].
+  ///
+  /// Every creature is placed every step, so this allocates nothing: the
+  /// pose is composed into [root]'s matrix at once.
   void place(Vector3 position, {double scale = 1.0, double topple = 0.0, double shake = 0.0}) {
-    root.rotation = topple == 0.0 ? Quaternion.identity() : Quaternion.axisAngle(Vector3(1, 0, 0), topple);
     final ms = scale * model.fit;
     final sq = rig.kind == RigKind.blob ? animator.squash : 1.0;
-    root.scale = Vector3(ms / math.sqrt(sq), ms * sq, ms / math.sqrt(sq));
-    root.position = position + Vector3(shake, 0, 0);
+    eulerYXZInto(_rotation, topple, 0.0, 0.0);
+    _scale.setValues(ms / math.sqrt(sq), ms * sq, ms / math.sqrt(sq));
+    _translation.setValues(position.x + shake, position.y, position.z);
+    root.mutateLocalTransform(_compose);
   }
+
+  // The pose [place] composes, shared by every rig: the root copies it into
+  // its matrix before [place] returns.
+  static final Vector3 _translation = Vector3.zero(), _scale = Vector3.zero();
+  static final Quaternion _rotation = Quaternion.identity();
+  static void _compose(Matrix4 m) => m.setFromTranslationRotationScale(_translation, _rotation, _scale);
 }

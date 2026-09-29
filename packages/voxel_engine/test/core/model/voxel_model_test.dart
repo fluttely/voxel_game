@@ -48,4 +48,21 @@ void main() {
       expect(q.storage[i], closeTo(expected.storage[i], 1e-6));
     }
   });
+
+  test('eulerYXZInto writes the Y-X-Z product into the quaternion it is given, whatever the angles', () {
+    final out = Quaternion.identity();
+    final r = math.Random(7);
+    for (var n = 0; n < 200; n++) {
+      final ax = (r.nextDouble() - 0.5) * 4 * math.pi, ay = (r.nextDouble() - 0.5) * 4 * math.pi;
+      final az = (r.nextDouble() - 0.5) * 4 * math.pi;
+      final expected =
+          Quaternion.axisAngle(Vector3(0, 1, 0), ay) *
+          Quaternion.axisAngle(Vector3(1, 0, 0), ax) *
+          Quaternion.axisAngle(Vector3(0, 0, 1), az);
+      expect(identical(eulerYXZInto(out, ax, ay, az), out), isTrue);
+      for (var i = 0; i < 4; i++) {
+        expect(out.storage[i], closeTo(expected.storage[i], 1e-6), reason: 'angles $ax $ay $az');
+      }
+    }
+  });
 }
