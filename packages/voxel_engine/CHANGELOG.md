@@ -33,6 +33,10 @@
   a host's 20 Hz state of 40 creatures cost it 369 µs with 4 peers and 797 with 8 (M2
   Pro), against 106 and 122 now. `EncodedMessage` (new) is a message encoded once;
   `NetConnection.sendEncoded` (new) sends one to a connection.
+- A `NetConnection` whose peer hangs up while a write is in flight closes (`done`
+  completes, and a `NetHost` drops the peer through `onLeave`), where the write's
+  `SocketException` (`Broken pipe`) used to reach the zone unhandled, which ends a plain
+  Dart process. A message sent that way is lost, as it was.
 
 ## 0.2.0-dev
 

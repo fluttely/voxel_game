@@ -46,13 +46,6 @@
 - **Cost of leaving it:** every session reads a third of its orientation about a repository it is not in, and the commit convention it is handed is conditional on a state that no longer holds, so two sessions can pick two formats. It is also the first thing to settle before standardising releases across the four packages, which is where the instructions are meant to go next.
 - **Found while:** 2026-09-23 — moving `voxel_game` under `packages/`.
 
-### KL-002 · A peer that hangs up surfaces as an unhandled write error on the host
-
-- **Lens:** error handling / transport
-- **Evidence:** `packages/voxel_engine/lib/src/net/connection.dart:71-73`: `send` checks `isClosed` and calls `socket.writeln`. A write to a socket whose peer is gone fails asynchronously (a `Socket` reports write errors through its `done` future), and nothing in `NetConnection` handles it; `:27` handles errors on the read side only. Two `--host --wait-peer` runs of `examples/voxel_game_minecraft` logged `Unhandled Exception: SocketException: Write failed (OS Error: Broken pipe, errno = 32)` and `Connection reset by peer (errno = 54)`, each when the client process exited.
-- **Cost of leaving it:** a Flutter host only logs it and plays on. The engine is meant to run under plain Dart too (`CLAUDE.md` rule 3), and there an unhandled async error in the root zone ends the process, so a dedicated host would crash every time a client quit mid-broadcast. The loss is also invisible to the protocol: `send` returns normally for a message that never left.
-- **Found while:** 2026-09-23 — probing the minecraft example's multiplayer fix (a client joining a hosted playground).
-
 ### KL-004 · Windows and Linux get a drag to look, not a locked mouse
 
 - **Lens:** platform parity / input
@@ -83,6 +76,14 @@
 - **Seen again:** 2026-09-28, PF3's phone A/B: the same `SIGSEGV` at `0x3f8` in `vkCmdBeginRenderPass` under `InternalFlutterGpu_RenderPass_Begin`, the second run of a call (`orbit:6` after `mobs:6`, `9c36cc2`, no PF3 code), 18 lines and 19 launches that day.
 
 ## Closed
+
+### KL-002 · A peer that hangs up surfaces as an unhandled write error on the host
+
+- **Lens:** error handling / transport
+- **Evidence:** `packages/voxel_engine/lib/src/net/connection.dart:71-73`: `send` checks `isClosed` and calls `socket.writeln`. A write to a socket whose peer is gone fails asynchronously (a `Socket` reports write errors through its `done` future), and nothing in `NetConnection` handles it; `:27` handles errors on the read side only. Two `--host --wait-peer` runs of `examples/voxel_game_minecraft` logged `Unhandled Exception: SocketException: Write failed (OS Error: Broken pipe, errno = 32)` and `Connection reset by peer (errno = 54)`, each when the client process exited.
+- **Cost of leaving it:** a Flutter host only logs it and plays on. The engine is meant to run under plain Dart too (`CLAUDE.md` rule 3), and there an unhandled async error in the root zone ends the process, so a dedicated host would crash every time a client quit mid-broadcast. The loss is also invisible to the protocol: `send` returns normally for a message that never left.
+- **Found while:** 2026-09-23 — probing the minecraft example's multiplayer fix (a client joining a hosted playground).
+- **Closed by:** 2026-09-29 — `voxel_engine: a connection whose peer hangs up mid-write closes instead of throwing`. `NetConnection` handles `Socket.done` from its constructor: an error there closes the connection like the read side's end, so `done` completes and `NetHost` drops the peer; `close` no longer awaits `socket.close()`, whose future is that same `done`. Witnessed by `packages/voxel_engine/test/net/net_test.dart`'s third test, which destroys a client's socket, sends it 20 large messages and failed with `Broken pipe` before the change.
 
 ### KL-005 · Windows and Linux builds of the examples cannot render in release
 

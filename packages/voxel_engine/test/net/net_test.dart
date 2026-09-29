@@ -71,4 +71,23 @@ void main() {
     await b.close();
     await host.close();
   });
+
+  test('a peer that hangs up mid-broadcast closes its connection, not the process', () async {
+    final host = await NetHost.bind(port: 0);
+    final joined = Completer<NetPeer>();
+    final left = Completer<int>();
+    host
+      ..onJoin = joined.complete
+      ..onLeave = ((NetPeer peer) => left.complete(peer.id));
+    final client = await connectToHost('127.0.0.1', port: host.port);
+    final peer = await joined.future;
+    client.socket.destroy();
+    final big = EncodedMessage({'t': 'state', 'big': List.filled(200000, 7)});
+    for (var i = 0; i < 20; i++) {
+      peer.connection.sendEncoded(big);
+    }
+    expect(await left.future.timeout(const Duration(seconds: 5)), 2);
+    expect(peer.connection.isClosed, isTrue);
+    await host.close();
+  });
 }
