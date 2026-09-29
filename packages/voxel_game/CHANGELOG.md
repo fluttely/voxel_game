@@ -22,6 +22,9 @@
   write each per peer, against 37 and 50 µs as one. The session now ticks last in
   `VoxelGame.step`, after the game's systems and `onTick`, so every edit of a step leaves
   in it. **The wire changed**: a host and a client of different versions cannot talk.
+- The mining crack is one draw: its sticks were a node and a geometry each, up to 60 draws
+  at its last stage, and each stage is now one `BoxMesh` (voxel_scene) holding its sticks
+  and every earlier stage's, on one node. `FirstPersonView.crackBoxes(stage)` lists them.
 
 ## 0.2.0-dev
 
