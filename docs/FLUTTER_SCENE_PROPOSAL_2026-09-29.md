@@ -2,8 +2,11 @@
 
 > **Status: sent, 2026-09-29**, as one issue with the owner's ok on this text:
 > <https://github.com/bdero/flutter_scene/issues/435> (PF16, `docs/VOXEL_PERF_PLAN_2026-09-25.md`).
-> Everything below the line is the issue as posted. Line numbers are flutter_scene 0.23.0
-> as published on pub.dev.
+> Everything below the line, up to §Follow-up, is the issue as posted. Line numbers are
+> flutter_scene 0.23.0 as published on pub.dev.
+>
+> **§Follow-up** (lead 1 of the PF plan) is a comment on the issue, **drafted 2026-09-29 and
+> not sent**: it goes out only with the owner's ok on its text.
 
 ---
 
@@ -162,3 +165,73 @@ two encodes that compile pipelines. We had this down as a request, until we foun
 
 Thanks for flutter_scene. The numbers above come from A/B runs we can share (JSONL, per
 run) if they help.
+
+---
+
+## Follow-up
+
+A comment on #435, independent of its four sections. Drafted 2026-09-29, not sent.
+
+### Body
+
+One more finding, measured after we filed this. It is separate from the four sections above.
+
+**`TransientArena` drops and re-creates its 256 KB blocks every time the GPU queue drains,
+and each new block lands straight in old space.**
+
+On the S24, our UI isolate's old space grew by ~2.4 MB/s with an orbiting camera and ~5 MB/s
+with 40 creatures, and none of it was promotion. Between two collections it grew in whole
+256 kB steps. So we counted what `TransientArena` makes and drops, in a copy of 0.23.0 with a
+counter and a timeline instant in `_acquireBlock` and in the shrink.
+
+What happens:
+
+- Each block stages its data in a `ByteData(256 * 1024)` (`render/frame_transients.dart:242`,
+  `:420`). With its header, that is just over the VM's 256 KB limit for a new-space object.
+  So every new block is allocated straight into old space, and only a mark-sweep frees it.
+- Every submission seals the open blocks (`:427`), so an arena opens one block per pass that
+  submits. In our scene that is 2 uniform blocks and 1 instance block a frame, or 3 and 2
+  with the creatures.
+- A sealed block comes back only when the GPU is done with it, so the pool needs
+  blocks-per-frame × frames-in-flight. On the Mac, which is GPU-bound, that is 7–8 frames.
+- `beginFrame` keeps only the last frame's count plus one of the finished blocks
+  (`:289-302`). Each time the queue drains, the extra blocks are dropped. Each time it fills
+  again, new ones are made. At the start of a frame we saw either 0–2 or 12–16 uniform blocks
+  in flight, rarely anything between.
+
+Mac (M2 Pro, 120 Hz, Retina), profile build, one timeline per run over ~14 s:
+
+| Scene | Old space, direct growth | Blocks the arenas made | Old-gen collections | Concurrent mark + sweep |
+|:--|--:|--:|--:|--:|
+| Orbiting camera | 69–76 MB | 277–302 (69–76 MB) | 40–45 | 15–18 ms/s |
+| 40 creatures | 93–98 MB | 366–392 (92–98 MB) | 55–61 | 24–28 ms/s |
+
+The direct growth and the new blocks agree to the MB. On the S24 these collections finish
+20–29 times in 12 s. With the orbiting camera, 6–7 of those pauses land inside a frame, up to
+4.5–5.9 ms. With the creatures it is 17–18, up to 2.3–2.9 ms.
+
+**What we tried**, in our copy: drop a finished block only after 120 frames unused (a
+`lastUsedFrame` per block, set in `_acquireBlock`), instead of counting by class. The pool
+fills to the queue's depth in the first second and then stays there.
+
+- **Blocks made in a 12 s release run:** 239–340 → 0–18, none dropped.
+- **Traced (~14 s):** old-gen collections 40–61 → 10–12, and concurrent mark + sweep
+  4–5 ms/s.
+- **RSS:** unchanged, 246–253 MB.
+- **Frame metrics on the Mac:** unchanged, because it is GPU-bound. With the creatures, the
+  stock encode p50 was bimodal (0.72–0.89 ms in three runs, 1.49–1.63 in three) and the
+  patched one read 0.70–0.83 every time. That is suggestive, and we are not claiming it.
+
+We have not A/B'd this on the phone yet.
+
+**Suggestions.** Either one ends the churn:
+
+- **Shrink by age, not by the last frame's count.** Drop a finished block only after N frames
+  unused, so the pool follows the queue's depth instead of shedding it whenever the queue
+  drains. This is the version we measured.
+- **Take the staging out of the block.** A block needs its CPU staging only while it is
+  open, since `_seal` uploads it (`:427`). An arena could reuse one or two staging buffers
+  across seals and pool only the device buffers. That keeps the Dart heap out of it even if
+  the device pool still churns.
+
+Happy to send either as a PR.
