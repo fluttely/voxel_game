@@ -9,7 +9,6 @@ import '../core/voxel_game.dart';
 import '../entities/game_entity.dart';
 import '../entities/target.dart';
 import '../mobs/mob.dart';
-import '../world/game_world.dart';
 import '../world/world_save.dart';
 import 'remote_player.dart';
 
@@ -48,11 +47,11 @@ abstract class GameSession implements GameSystem {
     _edits.clear();
   }
 
-  /// Writes the edits of an `edits` message into [world], in order.
-  static void _storeEdits(GameWorld world, NetMessage m) {
+  /// Calls [edit] with each edit of an `edits` message, in order.
+  static void _forEachEdit(NetMessage m, void Function(IVec3 cell, int id) edit) {
     final e = m['e']! as List<Object?>;
     for (var i = 0; i < e.length; i += 4) {
-      world.storeEdit(IVec3(e[i]! as int, e[i + 1]! as int, e[i + 2]! as int), e[i + 3]! as int);
+      edit(IVec3(e[i]! as int, e[i + 1]! as int, e[i + 2]! as int), e[i + 3]! as int);
     }
   }
 }
@@ -103,7 +102,7 @@ class HostSession extends GameSession {
       case 'pose':
         puppet?.setPose(_vec(m['p']), (m['yaw']! as num).toDouble(), dead: m['dead'] == true);
       case 'edits':
-        GameSession._storeEdits(game.world, m);
+        GameSession._forEachEdit(m, _storeClientEdit);
       case 'hit':
         final n = (m['n']! as num).toInt();
         for (final mob in game.mobs) {
@@ -127,6 +126,16 @@ class HostSession extends GameSession {
   }
 
   void _edited(IVec3 cell, int old, int id) => _queueEdit(cell, id);
+
+  /// Stores a client's edit. Where the host has the chunk, the write runs the
+  /// listeners and [_edited] passes it on; where it has not, the edit is only
+  /// recorded for when the chunk generates, so it is passed on here, or the
+  /// other clients would never hear of it.
+  void _storeClientEdit(IVec3 cell, int id) {
+    final loaded = game.world.isLoaded(cell);
+    game.world.storeEdit(cell, id);
+    if (!loaded) _queueEdit(cell, id);
+  }
 
   @override
   void tick(VoxelGame game, double dt) {
@@ -188,7 +197,7 @@ class ClientSession extends GameSession {
     switch (m['t']) {
       case 'edits':
         _applying = true;
-        GameSession._storeEdits(game.world, m);
+        GameSession._forEachEdit(m, game.world.storeEdit);
         _applying = false;
       case 'state':
         game.time = (m['time']! as num).toDouble();

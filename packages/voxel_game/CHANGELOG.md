@@ -16,6 +16,10 @@
   `LoadingStage`; `VoxelGameWidget(loading:)` and `runVoxelGame(loading:)` take a
   `LoadingBuilder` in place of the default `LoadingScreen`. `onReady` still fires as the
   game starts, before the screen goes.
+- A host passes on a client's block edit that lands where the host has not loaded the
+  world. It stored such an edit for when the chunk generates but told no one, so two
+  clients far from the host each kept their own blocks until they joined again; now the
+  edit leaves with the step's other edits, like one the host could write.
 
 ## 0.3.0-dev
 

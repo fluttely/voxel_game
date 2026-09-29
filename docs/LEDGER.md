@@ -53,13 +53,6 @@
 - **Cost of leaving it:** a Flutter host only logs it and plays on. The engine is meant to run under plain Dart too (`CLAUDE.md` rule 3), and there an unhandled async error in the root zone ends the process, so a dedicated host would crash every time a client quit mid-broadcast. The loss is also invisible to the protocol: `send` returns normally for a message that never left.
 - **Found while:** 2026-09-23 — probing the minecraft example's multiplayer fix (a client joining a hosted playground).
 
-### KL-003 · The kit's host keeps a far client's edit but never passes it on
-
-- **Lens:** replication / correctness
-- **Evidence:** `packages/voxel_game/lib/src/net/sessions.dart:83-84`: a client's `set` goes through `GameWorld.storeEdit` (`packages/voxel_game/lib/src/world/game_world.dart:186-192`). When the host has not loaded the chunk, that call records the edit through the streamer and does not run the listeners, and `_edited` (`sessions.dart:101`, registered at `:51`) is the only thing that broadcasts. The other clients are never told, and a client that joins later gets the edit only because the hello carries the whole delta.
-- **Cost of leaving it:** with two clients far from the host, one of them breaks or places a block and the other never sees it until it rejoins; its world disagrees with the host's, collision included. The example app had the same gap and closes it by broadcasting explicitly when the host stores an edit it could not write (`examples/voxel_game_minecraft/lib/src/game/net.dart`, `_onBlockRequest`).
-- **Found while:** 2026-09-23 — fixing the example's lost edits in unloaded chunks.
-
 ### KL-004 · Windows and Linux get a drag to look, not a locked mouse
 
 - **Lens:** platform parity / input
@@ -98,3 +91,11 @@
 - **Cost of leaving it:** the runners added on 2026-09-24 build, launch and draw nothing in release; `KL-004`'s look-by-drag is moot until they draw. The fix is two lines per runner, but only after the Flutter upgrade, and the bundle must be rebuilt then too (`CLAUDE.md` rule 15).
 - **Found while:** 2026-09-25 — `PF0`, deciding which platforms the benchmark can measure.
 - **Closed by:** 2026-09-25 — Flutter 3.47.5 on this machine (the shader bundle rebuilt byte for byte the same), and `voxel_game example: the Windows and Linux runners turn Flutter GPU on`, which adds the call to both runners and has the kit require Flutter 3.47.1. The minecraft example's runners (`examples/voxel_game_minecraft/`) got the same two lines in `examples/voxel_game_minecraft: the Windows and Linux runners turn Flutter GPU on`, after this entry wrongly said that example lived in another repository.
+
+### KL-003 · The kit's host keeps a far client's edit but never passes it on
+
+- **Lens:** replication / correctness
+- **Evidence:** `packages/voxel_game/lib/src/net/sessions.dart:83-84`: a client's `set` goes through `GameWorld.storeEdit` (`packages/voxel_game/lib/src/world/game_world.dart:186-192`). When the host has not loaded the chunk, that call records the edit through the streamer and does not run the listeners, and `_edited` (`sessions.dart:101`, registered at `:51`) is the only thing that broadcasts. The other clients are never told, and a client that joins later gets the edit only because the hello carries the whole delta.
+- **Cost of leaving it:** with two clients far from the host, one of them breaks or places a block and the other never sees it until it rejoins; its world disagrees with the host's, collision included. The example app had the same gap and closes it by broadcasting explicitly when the host stores an edit it could not write (`examples/voxel_game_minecraft/lib/src/game/net.dart`, `_onBlockRequest`).
+- **Found while:** 2026-09-23 — fixing the example's lost edits in unloaded chunks.
+- **Closed by:** 2026-09-29 — `voxel_game: a host passes on a client's edit where it has not loaded the world`. `HostSession` stores a client's edit through `_storeClientEdit`, which queues it for the step's `edits` message when the cell's chunk was not loaded (a loaded one still reaches the queue through `_edited`). `GameWorld.storeEdit` still runs no listener for an unloaded cell, since `SignalNetwork.touch`, the other listener (`packages/voxel_engine/lib/src/signals/signal_network.dart:127`), needs the cell's old block and reads its six neighbours, and neither is known where the chunk is not loaded. Witnessed by `net_game_test.dart`'s third test: two clients 300 blocks from the host, one edits, the other sees it.

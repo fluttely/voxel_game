@@ -126,4 +126,33 @@ void main() {
     await client.session!.close();
     await session.close();
   });
+
+  test("a client's edit where the host has not loaded the world reaches the other clients", () async {
+    final host = await VoxelGame.startHeadless(_spec);
+    host.spawner.enabled = false;
+    await _run([host], 1.0);
+    final session = await host.host(port: 0);
+    final a = await VoxelGame.joinGame(_spec, '127.0.0.1', port: session.net.port, headless: true);
+    final b = await VoxelGame.joinGame(_spec, '127.0.0.1', port: session.net.port, headless: true);
+    await _run([host, a, b], 2.0);
+    expect(a.ready && b.ready, isTrue);
+
+    // Both clients walk far from the host, out of the host's loaded world.
+    final far = host.player.position + Vector3(300, 0, 0);
+    a.player.position = far.clone();
+    b.player.position = far.clone();
+    await _run([host, a, b], 2.0);
+    final cell = IVec3.floor(a.player.position) + const IVec3(0, 2, 2);
+    expect(host.world.isLoaded(cell), isFalse, reason: 'the edit must land where the host has no chunk');
+    expect(b.world.isLoaded(cell), isTrue);
+
+    a.world.setBlockNamed(cell, 'planks');
+    await _run([host, a, b], 0.5);
+    expect(b.world.blockNameAt(cell), 'planks', reason: 'the host passes on an edit it could only store');
+    expect(a.world.blockNameAt(cell), 'planks');
+
+    await a.session!.close();
+    await b.session!.close();
+    await session.close();
+  });
 }
