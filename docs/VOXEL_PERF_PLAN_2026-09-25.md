@@ -271,7 +271,7 @@ moves the UI thread or the GPU, on the phone.
 | PF7 | Mob bodies: one geometry per rig part per species, shadows only near, no animation far or off screen | voxel_game, voxel_scene | GPU and encode in `mobs` |
 | PF8 | Worker pool: sized for the device; the neighbour ring sent without a copy | voxel_engine | fill ms, UI p99 |
 | PF9 | Per-step garbage: `VoxelBody`, raycasts, rig parts, list copies | voxel_engine, voxel_game, voxel_scene | sim p99 |
-| PF10 | Audio: recipes synthesised off the UI isolate | sound_recipes, voxel_game | UI p99 at start |
+| PF10 | Audio: recipes synthesised off the UI isolate | sound_recipes, voxel_game | UI p99 at start; fill ms (`SoundBank.init` holds the UI isolate for the fill's first ~100 ms on the Mac, 250–400 on the phone: PF8's probe) |
 | PF11 | Net: one encoding per broadcast, edits batched per step | voxel_engine, voxel_game | host UI with peers |
 | PF12 | Selection outline: one mesh instead of twelve | voxel_scene | encode |
 | PF13 | Packed terrain vertex: a custom geometry and vertex shader, 8–16 B a vertex instead of 72 | voxel_engine, voxel_scene | GPU, RSS |
@@ -476,6 +476,86 @@ when a frame gets cheaper, PF7). A/B against `2b7a1d6` on the Mac and the phone.
 `HudSelector` builds once for ticks that select the same value and again when it changes;
 `VoxelGame.frames` moves once a frame.
 
+### PF8, the design (2026-09-28)
+
+**What is wrong today** (the PF8 probe row in Progress). `ChunkWorkerPool.defaultWorkers` is
+one isolate per core but one, 11 on the M2 Pro (8 performance and 4 efficiency cores) and 7
+on the Galaxy S24 (one prime, five performance, two efficiency), and neither machine fills
+faster past ~8 and ~4: the extra workers only slow the others and hold ~4 MB of mesher
+buffers each. `ChunkStreamer._dispatch` runs once a frame, inside `update`, so a mesh whose
+ring's last generation lands waits for the next frame (p50 3 ms, p99 ~85 ms on the Mac, whose
+fill presents a frame every ~20 ms), and the nine volumes it sends are copied by
+`SendPort.send` inside that frame: 288 KB, p99 0.9–1.6 ms on the phone, where the frames in
+which meshes land read p99 7.3–8.3 ms of work against 5.8 for the others. Isolates of one
+group share one heap, so that copy is also 288 KB of new garbage on the UI isolate per mesh
+(~48 MB over `orbit:6`'s 169 meshes, ~3.7 MB a second in `fly:6`), and the VM collects the
+group's heap with every isolate in it stopped: whether the p99 is the copy or a collection
+(which the workers' own allocations trigger too) the probe could not say.
+
+**(1) The pool is two thirds of the cores.** `defaultWorkers` becomes
+`max(1, Platform.numberOfProcessors * 2 ~/ 3)`: 8 on the Mac (its performance cores), 5 on
+the S24, 2 on a four-core phone. The probe's fill at those sizes is within 1% of today's on
+the phone (735 against 728 ms; a mesh job cost 10.6 ms at 4 workers and 15.8 at 7) and 5%
+on the Mac (402 against 383), which (3) is expected to win back; the freed cores go to the UI and raster
+threads, and each worker less is its isolate and mesher buffers less in RSS.
+`ChunkWorkerPool(workers:)` still overrides it. No API moves.
+
+**(2) The ring without a copy: volumes in native memory, the API unchanged.** The pool's
+`generate` returns its volume in native memory: the worker copies the generator's list into
+a block it allocates (`malloc` from `package:ffi`, a new dependency of voxel_engine, pure
+Dart; `dart:ffi` alone has no allocator on Windows) and replies with its address; the UI
+isolate wraps it as a `Uint8List` (`Pointer.asTypedList` with `malloc.nativeFree` as its
+finalizer, so the memory lives as long as the list) and records the address in a static
+`Expando<int>` keyed by that list. `mesh` sends the nine addresses (0 for a missing
+neighbour), the worker reads them through `asTypedList` without a finalizer, and the pool
+holds the ring's lists by job id until the reply lands or the worker exits, so no volume is
+freed while a worker reads it; `dispose` keeps them until each killed worker's exit arrives
+(`kill` stops a worker at its next check, not at once). So `ChunkJobs.mesh` keeps its
+`List<Uint8List?>` and no game changes: the streamer, its edits and its queries read the same
+lists, and a volume the pool did not allocate (none of the streamer's: every one comes from
+its jobs' `generate`) fails the job with an `ArgumentError` (rule 5). The expando is per
+isolate, not per pool, so a pool that replaces another (`GameWorld.start` again) meshes the
+volumes the first one generated. An edit written while a worker reads the volume is a byte,
+read whole, old or new; the job saw either the old blocks, which the copy guaranteed, or
+the new ones, and an edit that matters to the chunk being meshed already queues it in
+`_remeshAgain`, whose next job reads it after a `send`, which orders it.
+
+**(3) A mesh goes out when its ring's last generation lands.** In the generation's `then`,
+after `_putChunk`, the streamer dispatches the mesh of each of the nine chunks whose ring
+holds the one that landed, if it is pending, not in flight or waiting for the sink, its
+ring complete, and `maxInflight` allows: never the whole pending walk, which would dispatch
+new generations too, and a headless world (`_LocalJobs` answers by `Future.value`, so a
+`then` runs in the same call's microtasks) would then load its whole window in one
+`update`. A mesh landing dispatches nothing; `update` still dispatches what is left (the
+capped, the remeshes). The probe's prototype of it took the Mac's fill 387 → 350 ms
+(`fly:12` 1000 → 925). It also moves most of the rings' sends out of the frame, into the
+message handler between frames, where `simMs` and the UI thread's `buildDuration` no longer
+see them but a late frame still would (hitches, frame p99).
+
+**Built in the order (1), (3), (2).** (1) and (3) are a line each and their evidence is the
+fill; (2) is the one that crosses the isolate boundary in raw memory, and (3) takes part of
+its cost out of the frame first. So (2) is built only if, after (1) and (3), the phone's
+frames in which meshes land still read over the others by more than the spread (the probe
+re-applied on that tree), and it is kept only if its A/B lowers them: if they stay, the
+tail is the group's collections, not the copy, and it belongs to PF9. One commit each.
+
+**Judged by** fill ms (`orbit:6`, `fly:6`, and `fly:12` on the Mac), UI p99, sim p99 and
+max, hitches and frame p99 in `fly` (the sends (3) moves between frames), RSS for (1), and,
+for (2), the landed frames' p99 and the send's from the probe. One A/B for (1) and (3) with
+three sides in rounds A B C, C B A, A B C: `3cfa2b9`, (1), (1) + (3), on the Mac (`orbit:6`,
+`fly:6`, `fly:12`) and the phone (`orbit:6`, `fly:6`), and the busy-CPU run on both
+(`fly:6`, `yes` ×2 on the Mac, ×4 on the phone). Tests: the default is two thirds of the
+cores; a landed generation dispatches the meshes its ring completes and no generation, and
+a headless window still needs more than one `update` to fill; (2)'s: a pool's volumes are
+native and its mesh equals the local mesher's, a volume from elsewhere fails the job, a
+ring outlives a `dispose` until its worker exits.
+
+**What does not change.** `ChunkJobs`, `ChunkMeshResult` (the reply's surfaces and light
+volumes already cross as `TransferableTypedData`, materialized without a copy), the
+streamer's cap (24 in flight) and the pool's queue (the probe's `--depth` bought nothing),
+and the ~100 ms (Mac) to 250–400 ms (phone) `SoundBank.init` holds the UI isolate at the
+start of every fill, which is PF10's.
+
 ## Progress
 
 | ID | Status | Commit | Result |
@@ -518,8 +598,9 @@ when a frame gets cheaper, PF7). A/B against `2b7a1d6` on the Mac and the phone.
 | PF4 | HUD | this commit | As §PF4, the design: `VoxelGame.frames` ticks at the end of every frame; `HudSelector` rebuilds a piece when the value it selects changes; `DefaultHud` is a tree of them (the hurt flash, the mining bar, the hearts, each hotbar slot, the held item's name, "click to play", "You died"); `HudBuilder` is called when `VoxelGameWidget` builds, and the HUD sits behind a `RepaintBoundary`. Seen running: the HUD of `orbit` held still is the same as before (a pixel diff of the hotbar: 0.07% of its pixels differ by more than 8 of 255, the water moving behind it). **Galaxy S24, phone preset, 120 Hz** (`low_power` 0, `refreshHz` 120, `dpr` 2.81 and unlocked on every line), `2b7a1d6` against this commit (its lines say `b7126ca+dirty`), three rounds alternated, `docs/perf/pf4_s24_phone120_ab_{2b7a1d6,hud}.jsonl`, no line lost, the battery 28.9–32.3 °C before and 30.0–32.8 after. Medians of three: **raster p50 `orbit:6` 3.78 → 1.46 ms, `fly:6` 3.72 → 1.44, `mobs:6` 2.81 → 1.11** (runs 2.59–3.92 → 1.46–1.48, 3.62–3.77 → 1.41–1.46, 2.72–2.85 → 1.09–1.22), raster p99 5.04 → 1.99, 7.42 → 4.43, 7.70 → 4.84: the raster thread no longer composites a new HUD picture every frame; **UI p50 `fly:6` 4.72 → 4.21** (4.63–4.76 → 4.19–4.33), `orbit:6` 5.05 → 4.57 (4.49–5.14 → 4.47–4.60), `mobs:6` 6.03 → 5.89 (the ranges overlap); UI p99 `fly:6` 6.84 → 6.11 (6.71–7.00 → 5.94–6.41), `orbit:6` 8.63 → 8.11 (overlap); **RSS −30 MB** (`orbit:6` 333 → 304, `fly:6` 315 → 281, `mobs:6` 296 → 263, the last two without overlap); hitches `fly:6` 11 → 8, `orbit:6` 35 → 29; encode p50 unchanged (4.00 → 4.03, 3.63 → 3.64, 4.47 → 4.68); fps unchanged (`orbit:6` 118 → 119, `fly:6` 120, `mobs:6` 91 → 92 inside 81–95 on both). `mobs:6` step p99 read 8.91 → 9.82 with no step code changed: **with the CPU held busy** (`yes` ×4, `mobs:6`, the battery 32.7–34.0 °C on both sides, `docs/perf/pf4_s24_phone120_busy_ab_{2b7a1d6,hud}.jsonl`) step p99 is 4.30 → 4.08 (3.62–6.33 → 3.71–4.35), UI p50 3.07 → 2.89 (3.06–3.40 → 2.85–3.07), raster p50 1.51 → 0.58, 120 fps on both: the clock again, as in PF7. The Mac A/B follows. |
 | PF4 | Mac A/B | this commit | **Mac at 120 Hz, `dpr` 2.0, unlocked, every run 12 s**, `2b7a1d6` against `c8c11c8` (its lines say `f40b14b`, the same code plus the runner), three rounds alternated (`docs/perf/pf4_mac120_ab_{2b7a1d6,hud}.jsonl`). Medians of three: **fps `orbit:6` 109.0 → 111.5** (108.9–109.2 → 110.8–111.6), **`mobs:6` 109.5 → 112.6** (109.3–109.7 → 112.0–112.6), `fly:6` 120.8 → 121.0; hitches up with them (148 → 177, 149 → 171: more frames shown), `fly:6` 4 → 0; **raster p99 `fly:6` 8.81 → 1.60 ms** (8.73–9.42 → 1.46–1.72), raster p50 `fly:6` 0.56 → 0.24; GPU latency p50 21 → 49 ms at `orbit:6` and 27 → 60 at `mobs:6`, the pattern §Baseline at 120 Hz saw with the HUD's blur removed (fps up, the queue fuller): the GPU-bound Mac draws the HUD's layer cheaper when it is the same one every frame. Unloaded, the UI thread read slower where it read faster on the phone: UI p50 `mobs:6` 1.03 → 2.04, `fly:6` 0.42 → 0.65 (`orbit:6` 0.42 → 0.34), encode p50 0.76 → 1.56 and 0.31 → 0.53, step p99 1.31 → 2.81 and `orbit:6` 0.04 → 0.15, with no step or encode code changed. **With the CPU held busy** (`yes` ×2, `mobs:6`, `docs/perf/pf4_mac120_busy_ab_{2b7a1d6,hud}.jsonl`) it is the other way, and no run overlaps: **UI p50 1.05 → 0.95** (1.04–1.05 → 0.94–0.96), UI p99 2.13 → 1.95, encode p50 0.77 → 0.75, step p99 1.17 → 1.13, fps 109.9 → 112.6. So the unloaded rise is the clock (PF7): with less work a frame, the CPU runs slower. **PF4 is done.** |
 | PF8 | probe | this commit (numbers; the probe is not committed) | **Where the fill goes, and what the view pays when a mesh lands.** Stopwatches on `3cfa2b9` (a worktree; its diff kept outside the tree as `/tmp/voxel_pf8_probe.patch`): each job's dispatch, start and end on its worker (`Timeline.now`, one clock for every isolate), the reply's arrival, the `SendPort.send` and the materialize on the UI isolate; each frame's streaming, rebuild and whole work; the `SoundBank.init` span; `--workers=N` overrides the pool's size. Raw lines: `docs/perf/pf8_probe_{mac120,s24_phone120}_*.jsonl` (their own format, not the runner's). **Mac** (`dpr` 2.0, 120 Hz, Mac left alone), fill of `orbit:6`, medians of three, by workers: **11 (the default) 383 ms, 8 402, 6 436, 4 480, 2 700**; the workers are busy 40% of 11 × the fill. A job-by-job timeline (20 ms buckets) says why: (a) **the first ~100 ms are lost on the UI isolate**: 24 generations go out at 20 ms, then no frame and no dispatch until ~120 ms, the span `SoundBank.init` holds it (0 → 112–281 ms; `renderWav` itself 6 ms: `SoLoud.init` and the `loadMem`s), which is PF10's; (b) in the steady part **only ~7.5 jobs compute at once**, with 30–50 waiting, and that holds with the queue kept in the pool and at most two jobs a worker (a prototype, `--depth=2`), so the Mac's throughput saturates near its eight performance cores, not at 11. Two prototypes of the pipeline: dispatching a mesh when the last generation of its ring lands (`--eager`, today it waits for the next frame's `update`: ring-ready → dispatch p50 3 ms, p99 ~85 ms) takes the fill **387 → 350 ms** (`fly:12` 1000 → 925); the pool's queue adds nothing measurable; `maxInflight` 48 is worse (the queues grow). **Galaxy S24** (phone preset, 120 Hz, `low_power` 0, 29–32 °C), fill of `orbit:6` by workers: **7 (the default) 728 ms, 6 731, 5 735, 4 768, 3 838, 2 1035**, and a mesh job costs **10.6 ms with 4 workers, 15.8 with 7** (7.8 with 2): past four the extra workers only slow the others (the little cores, and the big ones shared), the same fill for 3.8 s of CPU instead of 2.4. **The ring's copy is the phone's UI cost when a mesh goes out**: `SendPort.send` of the nine volumes (288 KB) p50 40–90 µs, **p99 0.9–1.6 ms, max ~2 ms**, inside the frame (the dispatch runs in `update`); in `fly:6` the frames where meshes land read p99 7.3–8.3 ms against 5.8 for the rest (rebuild p99 ~1.1 ms of it), UI p99 6.1–6.3 overall; on the Mac the same send is p50 ~20 µs, max 0.2–0.6 ms. The phone's frames with a worker computing are not slower (p50 3.0 against 4.0 ms, the clock again), and its UI max of ~14.5 ms falls in frames with no worker job at all (PF9's lead, not the pool's). |
+| PF8 | design | this commit | §PF8, the design: (1) the pool is two thirds of the cores (Mac 8, S24 5); (2) the ring sent as nine addresses of volumes the pool's `generate` allocated in native memory, found by a static `Expando`, so `ChunkJobs.mesh` keeps its type and no API breaks, the pool holding each ring until its reply or its worker's exit; (3) a mesh dispatched when its ring's last generation lands, only the meshes around that chunk. Built (1), (3), then (2) only if the phone's frames in which meshes land still read over the others; one A/B of three sides for (1) and (3) against `3cfa2b9`. |
 
-**Where the work stopped (2026-09-28, PF8 probed, not designed).** Last commit: this one (`docs:`, PF8's probe, the Progress row above), over `3cfa2b9` (`docs:`, PF4's Mac A/B), `f40b14b` (`tool:`, `--compare` warns when the sides differ in `dpr` or `refreshHz`), `c8c11c8` (`voxel_game:`, PF4) and `b7126ca` (§PF4, the design). PF2, PF3 and PF4 are done; PF4 is a **break in voxel_game's API** (a custom HUD watches through `HudSelector` / `game.frames`) under `## Unreleased` with PF2's break in voxel_scene: 0.2.0-dev is on pub.dev, the next release is 0.3.0-dev. **What the probe says PF8 is** (the PF8 probe row): (1) **the pool's size**: past ~4 workers on the phone and ~8 on the Mac the fill does not move, and on the phone each extra worker slows the rest (a mesh job 10.6 → 15.8 ms from 4 to 7 workers, 2.4 → 3.8 s of CPU for the same fill, and ~4 MB of mesher buffers a worker); a rule near two thirds of the cores (phone 5, Mac 8) keeps the fill within 1–5% and frees a core for the UI and raster threads; (2) **the ring's copy**: the only UI-thread cost of the pool worth a step, ~1–2 ms at p99 on the phone inside the frame that dispatches the mesh; sending it without a copy means chunk volumes in native memory (`dart:ffi`, a `Pointer<Uint8>` the worker reads by address, freed by a finalizer, the pool keeping the ring's lists alive until the reply), which changes `ChunkJobs.mesh`'s ring type (an API break in voxel_engine, under `## Unreleased`); whether its p99 is the copy or a GC the 288 KB allocation triggers in the isolate group's shared heap is open, and the A/B answers it; an edit landing while a worker reads the volume is what `_remeshAgain` already remeshes; (3) **a mesh dispatched when its ring's last generation lands**, not at the next frame, −10% fill on the Mac (it also moves the ring's send out of the frame); the headless `_LocalJobs` and the tests answer by `Future.value`, so it must dispatch only the meshes around the chunk that landed, never the whole pending walk, or a headless world loads in one call. Not PF8's: the first ~100 ms of the Mac's fill (250–400 ms on the phone) are `SoundBank.init` holding the UI isolate — **PF10**, whose row gains the fill; and the pool's queue (`--depth`) is dropped: it bought nothing. **Next step: write §PF8, the design** (the three items above, in that order of evidence, each judged by fill ms, UI p99 and the landed frames' p99 on the phone, RSS for the size; `docs:` commit + a "design" row), then implement and A/B against `3cfa2b9` on the Mac and the phone, with the busy-CPU run on both. **On `opus 5.5:high`**: the native-memory ring crosses the isolate boundary and changes voxel_engine's API; if the design drops the ring (only the size and the eager dispatch left), it falls to `opus 5.5:medium`. Then PF10 → PF11 → PF12. After PF13 the Mac runs `orbit:6` at ~109 fps (the GPU 8.9 ms a frame at `dpr` 2.0, 96% busy: pixels, not vertices), `orbit:12` at ~94, `fly:12` at 104–113 (GPU-bound, it wanders); the phone `orbit:6` and `fly:6` at the display's 119, `mobs:6` at 85–94: on the phone the frame is the UI thread's and the encode is draws × passes (PF12's outline, `KL-007`'s drops), not vertices. `KL-008` (the driver crash in the first two
+**Where the work stopped (2026-09-28, PF8 designed).** Last commit: this one (`docs:`, §PF8, the design, and its Progress row), over `ad4164d` (`docs:`, PF8's probe), `3cfa2b9` (`docs:`, PF4's Mac A/B), `f40b14b` (`tool:`, `--compare` warns when the sides differ in `dpr` or `refreshHz`) and `c8c11c8` (`voxel_game:`, PF4). PF2, PF3 and PF4 are done; PF4 is a **break in voxel_game's API** (a custom HUD watches through `HudSelector` / `game.frames`) under `## Unreleased` with PF2's break in voxel_scene: 0.2.0-dev is on pub.dev, the next release is 0.3.0-dev. **What PF8 is** (§PF8, the design): (1) `defaultWorkers` two thirds of the cores; (3) a mesh dispatched from the generation's `then` when its ring completes, only the nine around the chunk that landed; (2) the ring without a copy, native volumes found by an `Expando`, **no API break**, built only if the phone's landed frames still read over the rest after (1) and (3). **Next step: implement (1), then (3)**, a `voxel_engine:` commit each with its CHANGELOG line under `## Unreleased` and tests, then one A/B of three sides (`3cfa2b9`, (1), (1) + (3)) on the Mac and the phone with the busy-CPU run, then the probe on (1) + (3) to decide (2). **On `opus 5.5:medium`** for (1) and (3) and their A/B (specified here, a line each, the method known); (2), if the probe asks for it, on `opus 5.5:high` (raw memory across isolates, the dispose's lifetime). The probe's patch applies to `3cfa2b9` only: re-applying it on (1) + (3) means porting its streamer and pool hunks. Then PF10 (its row now names the fill: `SoundBank.init` holds the UI isolate at its start) → PF11 → PF12. After PF13 the Mac runs `orbit:6` at ~109 fps (the GPU 8.9 ms a frame at `dpr` 2.0, 96% busy: pixels, not vertices), `orbit:12` at ~94, `fly:12` at 104–113 (GPU-bound, it wanders); the phone `orbit:6` and `fly:6` at the display's 119, `mobs:6` at 85–94: on the phone the frame is the UI thread's and the encode is draws × passes (PF12's outline, `KL-007`'s drops), not vertices. `KL-008` (the driver crash in the first two
 seconds) did not come back in PF15's 25 phone launches; if a run dies, the runner prints the exit
 reason and the crash log, and the tombstone is in `adb shell dumpsys dropbox --print
 SYSTEM_TOMBSTONE`. **The phone's CPU clock is a closed lead:** four busy
