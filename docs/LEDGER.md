@@ -39,13 +39,6 @@
 - **Found while:** 2026-09-21 — closing `CL-003`, checking what did *not* rise with the input map.
 - **Moved:** 2026-09-22 (`VR3`) from `poc_cubeworld/docs/LEDGER.md`, ID kept. Paths rewritten from this folder; the app's files are named as the app's. Kit paths rewritten again on 2026-09-23, when `voxel_game` moved under `packages/`.
 
-### KL-001 · The agent instructions still describe a folder inside Dawnforge
-
-- **Lens:** docs / AI context
-- **Evidence:** `CLAUDE.md:4-13` (and `AGENTS.md`, the same file) say the folder may "still be `poc_cubeworld/packages/voxel_game/` inside the Dawnforge repository", that Claude Code "also loads the app's `CLAUDE.md` and the 2D track's", and `:165-167` tell commits to follow that repository's `poc(voxel)` prefix. The folder is the root of `github.com/fluttely/voxel_game` (`git remote -v`), whose history starts at `9e55c57`; none of those files is loaded any more, and rules still cite their numbers there (`app 17`, `app 20`, `app 21`) as the source.
-- **Cost of leaving it:** every session reads a third of its orientation about a repository it is not in, and the commit convention it is handed is conditional on a state that no longer holds, so two sessions can pick two formats. It is also the first thing to settle before standardising releases across the four packages, which is where the instructions are meant to go next.
-- **Found while:** 2026-09-23 — moving `voxel_game` under `packages/`.
-
 ### KL-004 · Windows and Linux get a drag to look, not a locked mouse
 
 - **Lens:** platform parity / input
@@ -69,6 +62,14 @@
 - **Seen again:** 2026-09-28, PF3's phone A/B: the same `SIGSEGV` at `0x3f8` in `vkCmdBeginRenderPass` under `InternalFlutterGpu_RenderPass_Begin`, the second run of a call (`orbit:6` after `mobs:6`, `9c36cc2`, no PF3 code), 18 lines and 19 launches that day.
 
 ## Closed
+
+### KL-001 · The agent instructions still describe a folder inside Dawnforge
+
+- **Lens:** docs / AI context
+- **Evidence:** `CLAUDE.md:4-13` (and `AGENTS.md`, the same file) say the folder may "still be `poc_cubeworld/packages/voxel_game/` inside the Dawnforge repository", that Claude Code "also loads the app's `CLAUDE.md` and the 2D track's", and `:165-167` tell commits to follow that repository's `poc(voxel)` prefix. The folder is the root of `github.com/fluttely/voxel_game` (`git remote -v`), whose history starts at `9e55c57`; none of those files is loaded any more, and rules still cite their numbers there (`app 17`, `app 20`, `app 21`) as the source.
+- **Cost of leaving it:** every session reads a third of its orientation about a repository it is not in, and the commit convention it is handed is conditional on a state that no longer holds, so two sessions can pick two formats. It is also the first thing to settle before standardising releases across the four packages, which is where the instructions are meant to go next.
+- **Found while:** 2026-09-23 — moving `voxel_game` under `packages/`.
+- **Closed by:** 2026-09-29 — `docs: the agent instructions describe this repository, not a folder inside Dawnforge`. The header now says the file governs `github.com/fluttely/voxel_game` and that paths are written from its root; the `app 17` / `app 20` / `app 21` citations are gone from rules 15–17, and the commit convention drops the `poc(voxel)` clause for one sentence on `docs:` subjects, the form the history already uses. `CLAUDE.md` and `AGENTS.md` stay identical. The ledger's own header keeps its account of the `CL-` IDs, which is history, not an instruction.
 
 ### KL-009 · A shot's shape is chosen by its kind's name
 

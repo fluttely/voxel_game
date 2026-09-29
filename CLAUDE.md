@@ -1,16 +1,8 @@
 # voxel_game — the voxel kit — Developer & AI Instructions
 
-> **This file governs everything under this folder**: the pub workspace at the root and
-> the four packages under `packages/`. Every path below is written from this
-> folder, so the file reads the same whether the folder is still
-> `poc_cubeworld/packages/voxel_game/` inside the Dawnforge repository or the root of a
-> repository of its own.
->
-> While it still lives inside `poc_cubeworld/`, Claude Code also loads the app's
-> `CLAUDE.md` and the 2D track's above it. **Neither governs this folder**: the app's
-> rules are about the app (the POC that the kit was extracted from and that consumes it),
-> the 2D one is another product. Where a rule below descends from the app's, its number
-> there is named in parentheses (`app 17`).
+> **This file governs the whole repository** (`github.com/fluttely/voxel_game`): the pub
+> workspace at the root and the four packages under `packages/`. Every path below is
+> written from the root.
 >
 > Chat in **Português Brasileiro**. Code, comments, commits, docs in **English**.
 
@@ -55,7 +47,7 @@ Flutter 3.47.1, **but not the web** (worker isolates, TCP sockets and save files
 | Pre-publish checklist, release order, the version graph | `PUBLISHING.md` |
 | Publishing (or dry-running) one of the four | `tool/publish_package.sh <package> [--dry-run]` |
 | How the packages were extracted (VP, VK) and consolidated (VC) | `docs/VOXEL_PACKAGES_PLAN_2026-09-14.md` · `docs/VOXEL_KIT_PLAN_2026-09-18.md` · `docs/VOXEL_CONSOLIDATION_PLAN_2026-09-19.md` |
-| How this folder got its shape (VR; the move of `voxel_game` under `packages/` came after it, 2026-09-23) | `docs/VOXEL_RELAYOUT_PLAN_2026-09-21.md` |
+| How this repository got its shape (VR; the move of `voxel_game` under `packages/` came after it, 2026-09-23) | `docs/VOXEL_RELAYOUT_PLAN_2026-09-21.md` |
 | Architecture ledger (rule 17) | `docs/LEDGER.md` |
 | The frame-rate plan, its method and its baseline (PF) | `docs/VOXEL_PERF_PLAN_2026-09-25.md` · `docs/perf/` |
 | Measuring the frame rate | `dart tool/run_benchmark.dart` · `packages/voxel_game/example/lib/benchmark.dart` |
@@ -104,16 +96,16 @@ Flutter 3.47.1, **but not the web** (worker isolates, TCP sockets and save files
     reader of the buttons every surface shares. The look is not a button but a motion the
     handlers only add to: `VoxelGame.frame` drains it, once a frame, before the steps, so
     the view turns at the display's rate (PF3).
-15. **Never hand-edit a generated artifact** (app 17).
+15. **Never hand-edit a generated artifact**.
     `packages/voxel_scene/assets/shaders/terrain.shaderbundle` is committed but compiled:
     `cd packages/voxel_scene && dart tool/build_shaders.dart` after editing
     `shaders/*.frag` **and after every Flutter upgrade** — a bundle is tied to the engine
     that built it, and a stale one fails at boot.
-16. **Every automation is a script, named for the job** (app 20), runnable standalone from
+16. **Every automation is a script, named for the job**, runnable standalone from
     its package's root (the repository's own, from the root), `--dry-run`/`--check` when it writes something committed. Today
     there are three: `packages/voxel_scene/tool/build_shaders.dart`,
-    `tool/publish_package.sh` and `tool/run_benchmark.dart` (both from this folder's root).
-17. **Record an architectural observation, do not fix it mid-task** (app 21). A structural
+    `tool/publish_package.sh` and `tool/run_benchmark.dart` (both from the root).
+17. **Record an architectural observation, do not fix it mid-task**. A structural
     problem found while doing something else goes to `docs/LEDGER.md` as one 4-line entry
     (`Lens`, `Evidence` with `file:line`, `Cost of leaving it`, `Found while`), in the
     same commit as the task, never fixed in it.
@@ -126,7 +118,7 @@ Flutter 3.47.1, **but not the web** (worker isolates, TCP sockets and save files
    (another session may be in this tree), `docs/LEDGER.md`, and the Progress table of any
    live plan in `docs/`.
 2. **Implement ONE concern** — one commit, one subject.
-3. **Run the whole suite from this folder, inline.** Never in the background; wait for the
+3. **Run the whole suite from the root, inline.** Never in the background; wait for the
    exit code:
 
    ```bash
@@ -188,9 +180,9 @@ voxel_engine: the mesher keeps light across chunk borders
 voxel_game, voxel_scene: SkySpec takes a moon
 ```
 
-The subject names the package(s) touched and says what changed; the body says why. While
-this folder still lives inside the Dawnforge repository, that repository's history
-prefixes kit commits with `poc(voxel)` and a plan step (`VR3`) — follow it there.
+The subject names the package(s) touched and says what changed; the body says why. A
+commit that touches no package's code (the ledger, a plan, these instructions) says
+`docs:`.
 
 - **Versions move only at a release**, in the order `PUBLISHING.md` gives. No bump per
   commit.
