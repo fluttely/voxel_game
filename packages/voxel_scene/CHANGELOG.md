@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.0-dev
 
 - **Breaking: `VoxelChunkView` draws what changed in `rebuild`, once a frame, within a
   time budget.** `apply` and `remove` only keep or drop the chunk and mark its region;

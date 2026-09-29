@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.0-dev
 
 - `ChunkWorkerPool.defaultWorkers` is two thirds of the cores (`workersFor`, new), no
   longer all of them but one: 8 on an M2 Pro instead of 11, 5 on a Galaxy S24 instead of

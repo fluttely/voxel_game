@@ -3,11 +3,11 @@
 All four packages are on pub.dev. `0.1.0-dev` went out on 2026-09-23, `0.1.1-dev` on
 2026-09-25 (Windows and Linux runners, the phone graphics preset, the frame measurements)
 and `0.1.2-dev` after it (the frame-rate work of the PF plan, the fixes that give every
-package its 160 pub points). `0.2.0-dev` is the next release, with the four moving
-together: frames drawn between two steps, the greedy mesher, the packed terrain vertex and
-recipe music. It breaks the API (`MeshSurface.colors`, `RigInstance.place`, the bundle
-`TerrainMaterial.loadLibrary` requires), and below 1.0 a break moves the minor: a caret
-range such as `^0.1.2-dev` stops before `0.2.0`, so nobody on it is upgraded into the break. Each package is under the MIT license, with
+package its 160 pub points). `0.2.0-dev` followed, the four moving together: frames drawn between two steps, the greedy mesher, the packed terrain vertex and
+recipe music. It broke the API (`MeshSurface.colors`, `RigInstance.place`, the bundle
+`TerrainMaterial.loadLibrary` requires). `0.3.0-dev` is the next release, again with the four together: it breaks the API
+once more (`VoxelChunkView` draws what changed in `rebuild`), and below 1.0 a break moves the minor: a caret
+range such as `^0.2.0-dev` stops before `0.3.0`, so nobody on it is upgraded into the break. Each package is under the MIT license, with
 its metadata and real version ranges (`docs/VOXEL_RELAYOUT_PLAN_2026-09-21.md`, VR4). They resolve
 each other through the pub workspace declared in the root `pubspec.yaml`, which is
 not a package: all four live under `packages/`. The reasoning behind the four-package split is in

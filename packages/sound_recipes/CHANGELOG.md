@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.0-dev
+
+- No change of its own: released with the other three, which move together.
+
 ## 0.2.0-dev
 
 - `MusicScore` + `StockMusic`: background music with no audio files, a loop written as
