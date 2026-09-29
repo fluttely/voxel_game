@@ -14,8 +14,10 @@
 // iOS, which cannot pass arguments, takes the same flags in one define:
 // `--dart-define=BENCH="--scenario=orbit --radius=6"`. A phone runs in
 // landscape and full screen, the way the game is played.
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:math' as math;
 import 'dart:ui' show PlatformDispatcher;
 
@@ -65,13 +67,13 @@ Future<void> main(List<String> args) async {
 /// One benchmark run: [scenario] at [radius] chunks, measured for [seconds],
 /// drawn with [graphics].
 class Bench {
-  Bench(this.scenario, this.radius, this.seconds, this.graphics);
+  Bench(this.scenario, this.radius, this.seconds, this.graphics, {this.peers = 0, this.edits = 0});
 
   /// Reads `--scenario=`, `--radius=`, `--seconds=` and the look: `--graphics=`
   /// (`desktop` or `phone`, the base), then `--scale=`, `--max-ratio=`,
   /// `--aa=` (an `AntiAliasingMode`), `--shadows=` (`off`, or
-  /// `cascades:resolution:distance`) and `--sun-step=` over it. The rest is the
-  /// runner's.
+  /// `cascades:resolution:distance`) and `--sun-step=` over it; then the
+  /// network's load, `--peers=` and `--edits=`. The rest is the runner's.
   factory Bench.parse(List<String> args) {
     String? arg(String name) =>
         args.where((a) => a.startsWith('--$name=')).map((a) => a.substring(name.length + 3)).lastOrNull;
@@ -107,11 +109,17 @@ class Bench {
               sunStepDegrees: double.parse(sunStep),
             ),
     );
+    final scenario = Scenario.values.byName(arg('scenario') ?? 'orbit');
+    if (scenario == Scenario.fly && arg('edits') != null) {
+      throw ArgumentError('--edits edits cells near the spawn, which fly leaves behind');
+    }
     return Bench(
-      Scenario.values.byName(arg('scenario') ?? 'orbit'),
+      scenario,
       int.parse(arg('radius') ?? '6'),
       double.parse(arg('seconds') ?? '12'),
       graphics,
+      peers: int.parse(arg('peers') ?? '0'),
+      edits: int.parse(arg('edits') ?? '0'),
     );
   }
 
@@ -119,6 +127,16 @@ class Bench {
   final int radius;
   final double seconds;
   final GraphicsSpec graphics;
+
+  /// Scripted peers joined to the game, hosted once the window fills: each
+  /// drains what the host sends and sends its pose [Bench.poseHz] times a
+  /// second. 0 plays alone.
+  final int peers;
+
+  /// Cells edited in one step, every second of the recording: a cube of
+  /// leaves near the spawn, set and cleared in turn, as an explosion edits
+  /// a crater in one step. 0 edits nothing.
+  final int edits;
 
   /// Seconds after the window fills before the recording starts.
   static const double settle = 2.0;
@@ -131,6 +149,13 @@ class Bench {
 
   /// The window must fill within this, or the run fails.
   static const double fillTimeout = 90.0;
+
+  /// The peers must all have joined within this after the window fills, or
+  /// the run fails.
+  static const double joinTimeout = 10.0;
+
+  /// A scripted peer's poses a second, as a client's session sends them.
+  static const int poseHz = 20;
 
   late final VoxelGameSpec spec = example.game.copyWith(
     renderDistance: radius,
@@ -147,6 +172,8 @@ class Bench {
   Vector3? _origin;
   Map<String, Object>? _world;
   double _measuredFrom = 0.0;
+  int _bursts = 0;
+  IVec3? _burstAt;
 
   void ready(VoxelGame game) {
     game.spawner.enabled = false;
@@ -169,12 +196,18 @@ class Bench {
           _fillMs = _now * 1000.0;
           _world = {'chunks': game.world.meshCount, 'faces': game.world.facesEmitted, 'meshes': game.world.chunksBuilt};
           if (scenario == Scenario.mobs) _spawnMobs(game, origin);
+          if (peers > 0) unawaited(_host(game));
           _enter(_Phase.settling);
         } else if (_now > fillTimeout) {
           _report('[bench] the window did not fill in ${fillTimeout}s (${game.world.meshCount}/$window)');
           exit(1);
         }
       case _Phase.settling:
+        if (game.remotePlayers.length < peers) {
+          if (_now - _phaseStart < joinTimeout) return;
+          _report('[bench] $peers peers did not join in ${joinTimeout}s (${game.remotePlayers.length})');
+          exit(1);
+        }
         if (_now - _phaseStart >= settle) {
           game.stats.startRecording();
           _measuredFrom = game.time;
@@ -183,6 +216,7 @@ class Bench {
           _enter(_Phase.measuring);
         }
       case _Phase.measuring:
+        if (edits > 0 && game.time - _measuredFrom >= _bursts + 1.0) _burst(game, origin);
         if (_now - _phaseStart >= seconds) _finish(game);
     }
   }
@@ -229,6 +263,43 @@ class Bench {
     }
   }
 
+  /// Hosts [game] on a free loopback port and starts [peers] scripted peers
+  /// on an isolate of their own, so they take a core and not the UI thread.
+  Future<void> _host(VoxelGame game) async {
+    final session = await game.host(port: 0);
+    await Isolate.spawn(_runPeers, (session.net.port, peers));
+  }
+
+  /// Edits [edits] cells in this step: the cells of a cube of leaves (not
+  /// opaque, no light, so only its own chunk remeshes) inside the chunk
+  /// two chunks east of [origin], over the highest ground under it the first
+  /// time; set on odd bursts, cleared on even ones.
+  void _burst(VoxelGame game, Vector3 origin) {
+    _bursts += 1;
+    final side = math.pow(edits, 1 / 3).ceil();
+    assert(side <= 14, 'a burst of $edits cells does not fit inside one chunk');
+    final at = _burstAt ??= () {
+      final x0 = (origin.x.floor() >> 4 << 4) + 32 + 1, z0 = (origin.z.floor() >> 4 << 4) + 1;
+      var y0 = 0;
+      for (var z = z0; z < z0 + side; z++) {
+        for (var x = x0; x < x0 + side; x++) {
+          y0 = math.max(y0, game.world.groundHeight(x, z) + 1);
+        }
+      }
+      return IVec3(x0, y0, z0);
+    }();
+    final (x0, y0, z0) = (at.x, at.y, at.z);
+    final id = _bursts.isOdd ? game.blocks.indexOf('leaves') : BlockRegistry.air;
+    var n = 0;
+    for (var y = y0; n < edits; y++) {
+      for (var z = z0; z < z0 + side && n < edits; z++) {
+        for (var x = x0; x < x0 + side && n < edits; x++, n++) {
+          if (!game.world.setBlock(IVec3(x, y, z), id)) throw StateError('burst $_bursts: ($x, $y, $z) did not change');
+        }
+      }
+    }
+  }
+
   void _finish(VoxelGame game) {
     final report = game.stats.stopRecording();
     final display = PlatformDispatcher.instance.displays.first;
@@ -253,6 +324,9 @@ class Bench {
       'fillMs': _fillMs!.round(),
       ...?_world,
       'mobs': game.mobs.length,
+      if (peers > 0) 'peers': game.remotePlayers.length,
+      if (edits > 0) 'edits': edits,
+      if (edits > 0) 'bursts': _bursts,
       ...report.toJson(1000.0 / display.refreshRate),
       'maxRssMb': (ProcessInfo.maxRss / (1 << 20)).round(),
     };
@@ -262,6 +336,29 @@ class Bench {
 }
 
 enum _Phase { filling, settling, measuring }
+
+/// [Bench.peers] scripted peers of the host at the loopback's [port]: each
+/// joins, drains what the host sends, and sends its pose [Bench.poseHz] times a
+/// second, walking a circle of 4 m around the spawn.
+Future<void> _runPeers((int, int) args) async {
+  final (port, count) = args;
+  for (var i = 0; i < count; i++) {
+    final joined = await joinHost('127.0.0.1', port: port);
+    final c = joined.connection..listen((_) {});
+    final spawn = joined.spawn, phase = i * 2 * math.pi / count;
+    var t = 0.0;
+    Timer.periodic(const Duration(microseconds: 1000000 ~/ Bench.poseHz), (_) {
+      t += 1 / Bench.poseHz;
+      final a = phase + t * 0.5;
+      c.send({
+        't': 'pose',
+        'p': [spawn.x + math.cos(a) * 4, spawn.y, spawn.z + math.sin(a) * 4],
+        'yaw': a,
+        'dead': false,
+      });
+    });
+  }
+}
 
 /// Prints [line] where the runner reads it: a desktop runner reads the process's
 /// stdout, which a release build's `print` does not reach; adb reads logcat, which
