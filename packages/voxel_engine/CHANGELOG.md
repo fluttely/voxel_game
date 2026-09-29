@@ -21,6 +21,10 @@
   build allocated 4 × 216 KB of growable arrays, and again each time one doubled, all of
   it garbage once the result was copied out. A result's arrays are exact-size copies
   now, which outlive the next build as before.
+- `ChunkMesher.buildWith` (new) meshes like `build` and hands the result to a callback,
+  its arrays the mesher's own and valid only inside it. `ChunkWorkerPool`'s workers use
+  it: they copy the mesh into transferables anyway, so the exact-size copies `build` makes
+  (~0.3 MB for a chunk of the example's hills, and 64 KB of light) are no longer made.
 
 ## 0.2.0-dev
 

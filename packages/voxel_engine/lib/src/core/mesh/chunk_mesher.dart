@@ -107,6 +107,9 @@ class _F32 {
   /// A copy of what was added, which outlives the next [clear].
   Float32List take() => _d.sublist(0, length);
 
+  /// What was added, in place: valid until the next [add] or [clear].
+  Float32List view() => Float32List.sublistView(_d, 0, length);
+
   /// Empties the list and keeps its storage.
   void clear() => length = 0;
 }
@@ -125,6 +128,9 @@ class _I32 {
 
   /// A copy of what was added, which outlives the next [clear].
   Int32List take() => _d.sublist(0, length);
+
+  /// What was added, in place: valid until the next [add] or [clear].
+  Int32List view() => Int32List.sublistView(_d, 0, length);
 
   /// Empties the list and keeps its storage.
   void clear() => length = 0;
@@ -184,7 +190,10 @@ class _Surface {
     }
   }
 
-  MeshSurface toSurface() => MeshSurface(v.take(), n.take(), c.take(), l.take(), i.take());
+  /// A surface of copies ([copy]) or of views of this one's arrays.
+  MeshSurface toSurface({required bool copy}) => copy
+      ? MeshSurface(v.take(), n.take(), c.take(), l.take(), i.take())
+      : MeshSurface(v.view(), n.view(), c.view(), l.view(), i.view());
 
   /// Empties the surface and keeps its storage, grown to the largest chunk it
   /// held, for the next [ChunkMesher.build].
@@ -1020,7 +1029,19 @@ class ChunkMesher {
   /// Meshes chunk ([chunkX], [chunkZ]). [ring] is the chunk volume and its eight
   /// neighbours in [ChunkStreamer.ring] order (c, nx, px, nz, pz, nxnz, pxnz,
   /// nxpz, pxpz); a missing neighbour is null and reads as air.
-  ChunkMeshResult build(int chunkX, int chunkZ, List<Uint8List?> ring) {
+  ChunkMeshResult build(int chunkX, int chunkZ, List<Uint8List?> ring) => _build(chunkX, chunkZ, ring, copy: true);
+
+  /// Meshes chunk ([chunkX], [chunkZ]) as [build] does and hands the result to
+  /// [use], whose value it returns. That result's arrays are the mesher's own,
+  /// valid only inside [use]: read or copy them there. A worker that sends the
+  /// mesh away copies it anyway, and so allocates no copy of its own.
+  T buildWith<T>(int chunkX, int chunkZ, List<Uint8List?> ring, T Function(ChunkMeshResult result) use) =>
+      use(_build(chunkX, chunkZ, ring, copy: false));
+
+  // The chunk's light volumes handed out by [buildWith].
+  final Uint8List _skyView = Uint8List(_chunkVolume), _blockView = Uint8List(_chunkVolume);
+
+  ChunkMeshResult _build(int chunkX, int chunkZ, List<Uint8List?> ring, {required bool copy}) {
     if (ring.length != 9) throw ArgumentError.value(ring.length, 'ring', 'a chunk and its eight neighbours');
     final c = ring[0];
     if (c == null) throw ArgumentError.notNull('ring[0]');
@@ -1432,8 +1453,8 @@ class ChunkMesher {
     }
     _merge(solid, liquid);
     // The chunk's own light volumes (no padding), returned with the meshes.
-    final skyOut = Uint8List(_chunkVolume);
-    final blockOut = Uint8List(_chunkVolume);
+    final skyOut = copy ? Uint8List(_chunkVolume) : _skyView;
+    final blockOut = copy ? Uint8List(_chunkVolume) : _blockView;
     for (var y = 0; y < _sizeY; y++) {
       for (var z = 0; z < _sizeZ; z++) {
         final dst = ChunkSize.index(0, y, z), src = _p(0, y, z);
@@ -1443,10 +1464,10 @@ class ChunkMesher {
     }
     watch.stop();
     return ChunkMeshResult(
-      solid.toSurface(),
-      liquid.toSurface(),
-      cutout.toSurface(),
-      glow.toSurface(),
+      solid.toSurface(copy: copy),
+      liquid.toSurface(copy: copy),
+      cutout.toSurface(copy: copy),
+      glow.toSurface(copy: copy),
       sky: skyOut,
       block: blockOut,
       aoVerts: _aoVerts,

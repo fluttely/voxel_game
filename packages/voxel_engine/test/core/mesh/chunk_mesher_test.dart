@@ -41,6 +41,36 @@ void main() {
     );
   });
 
+  test('buildWith hands its callback the mesh build returns, and returns what the callback does', () {
+    final hills = _hills();
+    final built = _build(hills);
+    final mesher = _mesher();
+    final seen = mesher.buildWith(0, 0, [hills, ...ChunkMesher.noNeighbours], (r) {
+      final s = r.solid;
+      return [
+        s.positions.toList(),
+        s.normals.toList(),
+        s.colors.toList(),
+        s.light.toList(),
+        s.indices.toList(),
+        r.liquid.faceCount,
+        r.sky.toList(),
+        r.block.toList(),
+      ];
+    });
+    final s = built.solid;
+    expect(seen, [
+      s.positions,
+      s.normals,
+      s.colors,
+      s.light,
+      s.indices,
+      built.liquid.faceCount,
+      built.sky,
+      built.block,
+    ]);
+  });
+
   test('build takes a ring of nine with the chunk first', () {
     final c = Uint8List(ChunkSize.volume);
     expect(() => _mesher().build(0, 0, [c]), throwsArgumentError);

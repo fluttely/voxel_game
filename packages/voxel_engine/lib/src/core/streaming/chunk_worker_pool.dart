@@ -238,7 +238,6 @@ Object? _run(ChunkGenerator generator, ChunkMesher mesher, List<Object?> list) {
   }
   if (kind != 'mesh') throw ArgumentError.value(kind, 'kind', 'unknown chunk job');
   final ring = (list[4] as List<Object?>).cast<Uint8List?>();
-  final r = mesher.build(list[2] as int, list[3] as int, ring);
   List<Object?> pack(MeshSurface s) => [
     TransferableTypedData.fromList([s.positions]),
     TransferableTypedData.fromList([s.normals]),
@@ -246,14 +245,20 @@ Object? _run(ChunkGenerator generator, ChunkMesher mesher, List<Object?> list) {
     TransferableTypedData.fromList([s.light]),
     TransferableTypedData.fromList([s.indices]),
   ];
-  return [
-    ...pack(r.solid),
-    ...pack(r.liquid),
-    ...pack(r.cutout),
-    ...pack(r.glow),
-    TransferableTypedData.fromList([r.sky]),
-    TransferableTypedData.fromList([r.block]),
-    r.aoVerts,
-    r.ms,
-  ];
+  // The transferables copy the mesher's arrays: the result needs no copy of its own.
+  return mesher.buildWith(
+    list[2] as int,
+    list[3] as int,
+    ring,
+    (r) => [
+      ...pack(r.solid),
+      ...pack(r.liquid),
+      ...pack(r.cutout),
+      ...pack(r.glow),
+      TransferableTypedData.fromList([r.sky]),
+      TransferableTypedData.fromList([r.block]),
+      r.aoVerts,
+      r.ms,
+    ],
+  );
 }
