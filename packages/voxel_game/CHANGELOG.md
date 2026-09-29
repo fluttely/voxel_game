@@ -10,7 +10,9 @@
   behind the screen. The game keeps stepping while it loads, with its controls off. A
   first run after a build (the Mac, `orbit:6`) drew its first frames in encodes of ~650,
   ~320 and ~570 ms; it now compiles in one ~1.06 s encode before the first frame, which
-  encodes in ~1 ms, and fills ~0.4 s sooner. The screen's stages are the new
+  encodes in ~1 ms, and fills ~0.4 s sooner; on a Galaxy S24 (a fresh install) the
+  encodes of ~330 and ~255 ms become one of ~0.55 s behind the screen, and a warm start
+  fills ~0.1 s sooner, the scene no longer drawn while it fills. The screen's stages are the new
   `LoadingStage`; `VoxelGameWidget(loading:)` and `runVoxelGame(loading:)` take a
   `LoadingBuilder` in place of the default `LoadingScreen`. `onReady` still fires as the
   game starts, before the screen goes.

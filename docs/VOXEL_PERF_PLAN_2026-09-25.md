@@ -979,10 +979,17 @@ the first frame shown 1.3 ms and none over 20 ms after it, fill 1306–1339 ms (
 benchmark's fill check lands a frame after the kit's, so it holds the warm-up). Warm, the
 warm-up costs 4 ms and the fill is unchanged (231–281 against 279–302 ms). The Mac's cache
 is the bundle id's, shared by every build of the example: a cold A/B clears it before each
-cold run, or the first side warms the second. Not measured on the phone. Warmed is what the
+cold run, or the first side warms the second. **Galaxy S24, phone preset, 120 Hz**
+(30.4–32.3 °C), each cold run a fresh install (`adb uninstall`, `install`), then a warm
+run, sides alternated, two a side, the same probe: before, cold, the first frames shown
+encode in 326 + 259 and 331 + 251 ms (PF10's two), fill 994–1001 ms; after, cold, one
+warm-up encode of 550–557 ms behind the screen, the first frame shown 8.4–8.9 ms and none
+over 20 ms after it, fill 1024–1147 ms (the warm-up inside it, as on the Mac). Warm, the
+warm-up costs 19–21 ms and the fill is shorter, 473–498 against 586–595 ms: the scene is
+no longer drawn while the window fills. Warmed is what the
 filled window holds: a pipeline first used later (a creature's rig, a drop, water not in
 the window, where its pipeline differs) still compiles in the frame that first draws it. **Next**: lead (1) is a perf
 investigation (`opus 5.5:xhigh`); the 0.3.0-dev release by `PUBLISHING.md` is a checklist
 (`opus 5.5:low`: the versions moved in `34d7a6e`, pub.dev still has 0.2.0-dev, and this
-step's CHANGELOG line is under `## 0.3.0-dev`); a phone check of the cold start (a fresh install, `am start`, the same
-probe) would confirm the phone's ~0.6 s moved too (`opus 5.5:medium`).
+step's CHANGELOG line is under `## 0.3.0-dev`). The phone's check is done (the paragraph's
+Galaxy S24 runs; its driver, `phone_cold.py`, stayed in the session's scratchpad).
