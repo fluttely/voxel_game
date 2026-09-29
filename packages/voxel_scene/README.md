@@ -4,23 +4,26 @@ Draws `voxel_engine` worlds with [flutter_scene](https://pub.dev/packages/flutte
 chunks drawn a region at a time, a terrain material with its own shaders, a day
 and night sky, block models and the selection outline.
 
-> **Status: 0.2.0-dev**, beta. The API can still change.
+> **Status: 0.3.0-dev**, beta. The API can still change.
 
 ## Features
 
 - `VoxelChunkView`: a `ChunkMeshSink` that draws chunks in regions (2 × 2 by
   default), one geometry per surface a region, so the terrain costs few draws, and
   its lit surfaces in a packed 16-byte vertex (the engine's is 72) with a vertex
-  shader of its own.
+  shader of its own. It rebuilds the regions that changed once a frame, nearest
+  first, within a time budget, so a burst of chunks is drawn over a few frames.
 - `TerrainMaterial`: the terrain shader (lit, fogged, shadowed).
 - `MirroredCamera`: the camera that shows `voxel_engine`'s winding the right way round.
-- `DayNightSky`, `SelectionOutline`, `VoxelModelMesh`, `RigPart`, `NodeBody`.
+- `SelectionOutline`: the edges of the aimed box, one mesh, one draw; `BoxMesh`, boxes as
+  one mesh wound the engine's way, which it is made of.
+- `DayNightSky`, `VoxelModelMesh`, `RigPart`, `NodeBody`.
 
 ## Install
 
 ```yaml
 dependencies:
-  voxel_scene: ^0.2.0-dev
+  voxel_scene: ^0.3.0-dev
 ```
 
 Dart SDK `^3.13.0`.
@@ -65,12 +68,17 @@ Dart SDK `^3.13.0`.
    streamer.updateAround(ChunkStreamer.chunkOfXZ(0, 0));
    ```
 
-4. **Show it** with a `MirroredCamera`, calling `streamer.update()` every tick.
+4. **Show it** with a `MirroredCamera`, calling `streamer.update()` and then
+   `view.rebuild(centre)` every tick: the streamer hands the view its meshes, and the
+   view draws the regions they changed, nearest `centre` first, within its budget.
 
    ```dart
    SceneView(scene,
        cameraBuilder: (elapsed) => MirroredCamera(position: eye, target: target),
-       onTick: (elapsed, dt) => streamer.update());
+       onTick: (elapsed, dt) {
+         streamer.update();
+         view.rebuild(ChunkStreamer.chunkOfXZ(0, 0));
+       });
    ```
 
 5. **Shadows:** give the `SunLight` `shadowCasterFaces: MirroredCamera.shadowCasterFaces`.

@@ -54,9 +54,14 @@ class ChunkWorkerPool implements ChunkJobs {
   /// [workers] defaults to [defaultWorkers].
   ChunkWorkerPool(this.config, {int? workers}) : workers = workers ?? defaultWorkers;
 
-  /// One isolate per core, leaving one for the UI and raster threads. Chunk
-  /// fill time falls almost linearly with workers up to the core count.
-  static int get defaultWorkers => math.max(1, Platform.numberOfProcessors - 1);
+  /// [workersFor] this machine's cores.
+  static int get defaultWorkers => workersFor(Platform.numberOfProcessors);
+
+  /// Two thirds of [cores], at least one: 8 of an M2 Pro's 12, 5 of a
+  /// Snapdragon 8 Gen 3's 8. Past that the fill time does not fall: the
+  /// extra workers land on efficiency cores or share the others, slowing
+  /// every job, and take the cores the UI and raster threads need.
+  static int workersFor(int cores) => math.max(1, cores * 2 ~/ 3);
 
   /// What every worker is built from.
   final ChunkWorkerConfig config;
@@ -233,7 +238,6 @@ Object? _run(ChunkGenerator generator, ChunkMesher mesher, List<Object?> list) {
   }
   if (kind != 'mesh') throw ArgumentError.value(kind, 'kind', 'unknown chunk job');
   final ring = (list[4] as List<Object?>).cast<Uint8List?>();
-  final r = mesher.build(list[2] as int, list[3] as int, ring);
   List<Object?> pack(MeshSurface s) => [
     TransferableTypedData.fromList([s.positions]),
     TransferableTypedData.fromList([s.normals]),
@@ -241,14 +245,20 @@ Object? _run(ChunkGenerator generator, ChunkMesher mesher, List<Object?> list) {
     TransferableTypedData.fromList([s.light]),
     TransferableTypedData.fromList([s.indices]),
   ];
-  return [
-    ...pack(r.solid),
-    ...pack(r.liquid),
-    ...pack(r.cutout),
-    ...pack(r.glow),
-    TransferableTypedData.fromList([r.sky]),
-    TransferableTypedData.fromList([r.block]),
-    r.aoVerts,
-    r.ms,
-  ];
+  // The transferables copy the mesher's arrays: the result needs no copy of its own.
+  return mesher.buildWith(
+    list[2] as int,
+    list[3] as int,
+    ring,
+    (r) => [
+      ...pack(r.solid),
+      ...pack(r.liquid),
+      ...pack(r.cutout),
+      ...pack(r.glow),
+      TransferableTypedData.fromList([r.sky]),
+      TransferableTypedData.fromList([r.block]),
+      r.aoVerts,
+      r.ms,
+    ],
+  );
 }

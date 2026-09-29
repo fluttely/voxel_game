@@ -1,9 +1,18 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 /// A message: a JSON object whose `t` names its type.
 typedef NetMessage = Map<String, Object?>;
+
+/// A [NetMessage] encoded once for the wire: its JSON line, newline included,
+/// in UTF-8. One encoding goes to any number of connections
+/// ([NetConnection.sendEncoded]), which only read it.
+extension type EncodedMessage._(Uint8List bytes) {
+  /// Encodes [message].
+  EncodedMessage(NetMessage message) : this._(utf8.encode('${jsonEncode(message)}\n'));
+}
 
 /// One end of a TCP connection carrying [NetMessage]s, one JSON object a
 /// line. TCP is a stream, so a message of any size arrives whole and in
@@ -72,9 +81,13 @@ class NetConnection {
   bool get isClosed => _done.isCompleted;
 
   /// Sends [message] (of type `message['t']`).
-  void send(NetMessage message) {
+  void send(NetMessage message) => sendEncoded(EncodedMessage(message));
+
+  /// Sends a message already encoded, in one write: the same [message] can go
+  /// to every connection without encoding it again.
+  void sendEncoded(EncodedMessage message) {
     if (isClosed) return;
-    socket.writeln(jsonEncode(message));
+    socket.add(message.bytes);
   }
 
   void _close() {

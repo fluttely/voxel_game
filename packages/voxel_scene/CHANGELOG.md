@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.3.0-dev
+
+- **Breaking: `VoxelChunkView` draws what changed in `rebuild`, once a frame, within a
+  time budget.** `apply` and `remove` only keep or drop the chunk and mark its region;
+  `rebuild(near, {budgetUsec})` builds the marked regions nearest the chunk `near` first,
+  each once however many of its chunks changed, while the next one's cost, predicted from
+  its vertices by the rates measured so far, fits in `rebuildBudgetUsec` (2 ms); the rest
+  wait for the next call, and the first region of a call is always built. A region left
+  with no chunk drops its node in the same call. A chunk's lit surfaces are packed the
+  first time a rebuild reads them, still once. Before, every apply and removal rebuilt its
+  region at once: the column of chunks a streamer hands over together, and the one that
+  leaves the window, cost one long frame, and a region was rebuilt with each of its chunks
+  in turn. `pendingRegions` counts the regions waiting. A game that drives the view
+  itself must call `rebuild` every frame, or nothing is drawn.
+- `RigPart.apply` and `NodeBody`'s drawn pose write their node's matrix in one
+  `mutateLocalTransform`, from a pose shared by every part and body, and allocate nothing:
+  before, each part every step built a quaternion and two vectors and went through the
+  node's `rotation` and `scale` setters, each of which rebuilt the matrix as a new one.
+- **Breaking: `SelectionOutline` is one mesh, drawn in one draw.** Its twelve sticks were
+  twelve nodes (24 with their mirrors), a `CuboidGeometry` each, so twelve draws, and
+  twelve draws are ~0.3 ms of a phone's colour pass; they are now one `BoxMesh` on the
+  outline's `node`, built the first time a box of that size is shown and kept by size, and
+  `show` moves the node and swaps the mesh only when the size changes. The layout is
+  `stickBoxes(box)` (the twelve boxes, relative to the box's minimum corner), which
+  replaces `stickTransforms` (a position and a scale for each of twelve cubes); `gap`,
+  `thickness`, `depthBias` and the look are unchanged.
+- `BoxMesh` (new): boxes (`Aabb3`) as flat arrays, `arrays`, or one `MeshGeometry`,
+  `geometry`, six faces a box, wound as the chunk mesher winds, so the mesh is drawn
+  through a `MirroredCamera` on a plain node: one draw for them all.
+
 ## 0.2.0-dev
 
 - `NodeBody` keeps two poses of its node, the last step's and the one before it, each a

@@ -9,7 +9,7 @@ multiplayer.
 It is the kit over `voxel_engine`, `voxel_scene` and `sound_recipes`, and it
 re-exports what a game needs, so a game imports only this library.
 
-> **Status: 0.2.0-dev**, beta. The API can still change.
+> **Status: 0.3.0-dev**, beta. The API can still change.
 
 ## The four packages
 
@@ -30,6 +30,7 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
 
 - `VoxelGameSpec`: blocks, items, recipes, world, player, mobs, sky, sounds, circuits, liquids.
 - `runVoxelGame` / `VoxelGameWidget`: the 3D view, a HUD, the inventory and crafting screen.
+  A HUD of your own is built once; its pieces follow the game through `HudSelector`s.
 - Controls for keyboard and mouse, gamepad and touch; first and third person. A finger on
   the world is a gesture: lift in place to use (or swing), stay put to mine, drag to look —
   and `InputMap.touchMove` / `setTouchHeld` / `touchDigit` take an on-screen stick, button
@@ -49,7 +50,7 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
 
 ```yaml
 dependencies:
-  voxel_game: ^0.2.0-dev
+  voxel_game: ^0.3.0-dev
 ```
 
 To work against a checkout of the repository instead, override all four packages by
@@ -86,7 +87,10 @@ Dart SDK `^3.13.0`.
   (`flutter_scene` itself runs on the web; the kit does not.)
 
 - For multiplayer on macOS, add the `com.apple.security.network.server` and
-  `com.apple.security.network.client` entitlements.
+  `com.apple.security.network.client` entitlements. On Android, add
+  `<uses-permission android:name="android.permission.INTERNET"/>` to
+  `android/app/src/main/AndroidManifest.xml`: Flutter's template grants it only to debug
+  and profile builds, so a release build cannot host or join.
 
 ## Usage
 

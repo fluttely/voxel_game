@@ -38,4 +38,37 @@ void main() {
     expect(peer.connection.isClosed, isTrue, reason: "the host releases a leaver's socket");
     await host.close();
   });
+
+  test('a broadcast is encoded once and reaches every peer but the one excepted, whole', () async {
+    final host = await NetHost.bind(port: 0);
+    final joined = StreamController<NetPeer>();
+    host.onJoin = joined.add;
+    final peersJoined = StreamIterator(joined.stream);
+    final a = await connectToHost('127.0.0.1', port: host.port);
+    await peersJoined.moveNext();
+    final b = await connectToHost('127.0.0.1', port: host.port);
+    await peersJoined.moveNext();
+    final bId = peersJoined.current.id;
+    final big = {'t': 'state', 'big': List.generate(20000, (i) => i)};
+    final gotA = a.next(), gotB = b.next();
+    host.broadcast(big);
+    for (final m in [await gotA, await gotB]) {
+      expect(m, big, reason: 'the one encoding arrives whole at both');
+    }
+    final onlyA = a.next();
+    host.broadcast({'t': 'not-b'}, except: bId);
+    host.broadcast({'t': 'all'});
+    expect((await onlyA)['t'], 'not-b');
+    expect((await b.next())['t'], 'all', reason: 'the excepted peer skips it and gets the next');
+    final encoded = EncodedMessage({'t': 'x', 'n': 1});
+    for (final p in host.peers.values) {
+      p.connection.sendEncoded(encoded);
+    }
+    expect(await a.next(), {'t': 'all'});
+    expect(await a.next(), {'t': 'x', 'n': 1});
+    expect(await b.next(), {'t': 'x', 'n': 1});
+    await a.close();
+    await b.close();
+    await host.close();
+  });
 }

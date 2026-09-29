@@ -4,11 +4,18 @@ import 'package:vector_math/vector_math.dart';
 
 /// The rotation of Euler angles applied Y, then X, then Z (yaw, pitch, roll):
 /// the order an animated part is posed in.
-Quaternion eulerYXZ(double x, double y, double z) {
-  final qy = Quaternion.axisAngle(Vector3(0, 1, 0), y);
-  final qx = Quaternion.axisAngle(Vector3(1, 0, 0), x);
-  final qz = Quaternion.axisAngle(Vector3(0, 0, 1), z);
-  return qy * qx * qz;
+Quaternion eulerYXZ(double x, double y, double z) => eulerYXZInto(Quaternion.identity(), x, y, z);
+
+/// [eulerYXZ] written into [out], which it returns: the product of the three
+/// axis rotations worked out by hand, so posing a part every step allocates
+/// nothing.
+Quaternion eulerYXZInto(Quaternion out, double x, double y, double z) {
+  final sx = math.sin(x * 0.5), cx = math.cos(x * 0.5);
+  final sy = math.sin(y * 0.5), cy = math.cos(y * 0.5);
+  final sz = math.sin(z * 0.5), cz = math.cos(z * 0.5);
+  // qy * qx, then that times qz.
+  final ax = cy * sx, ay = sy * cx, az = -sy * sx, aw = cy * cx;
+  return out..setValues(ax * cz + ay * sz, ay * cz - ax * sz, aw * sz + az * cz, aw * cz - az * sz);
 }
 
 /// [from] moved toward [to] by [t] along the shorter way round the circle, in

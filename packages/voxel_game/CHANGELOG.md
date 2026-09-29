@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.3.0-dev
+
+- `GameWorld.update` rebuilds the chunk regions the streaming changed within the view's
+  frame budget, nearest the focus first (`VoxelChunkView.rebuild`), so a column of chunks
+  entering or leaving the window is drawn over a few frames instead of in one long one;
+  `GameWorld.isIdle` also waits for the regions still to draw.
+- **Breaking: the HUD is built once, not every frame.** `HudBuilder` is called when
+  `VoxelGameWidget` builds (the game starts, a screen opens or closes), and the HUD sits
+  behind a `RepaintBoundary`, so the scene's repaint every frame no longer repaints it.
+  A piece that shows the game's state watches it through the new `HudSelector`, which
+  checks a value on every tick of the new `VoxelGame.frames` and rebuilds only when it
+  changes; a custom HUD that read the game in its `build` must move those reads into
+  selectors. `DefaultHud` is such a tree: while nothing it shows changes, a frame builds
+  none of it.
+- `RigInstance.place` composes the root's pose into its matrix at once and allocates
+  nothing, as `RigPart.apply` now does; every creature is placed every step.
+- A networked game sends the block edits of a step together, as one `edits` message at
+  the step's end, no longer a `set` message per cell as each was made: an explosion's
+  ~120 cells cost the host 1.7 ms with 4 peers and 3.3 with 8 (M2 Pro), a message and a
+  write each per peer, against 37 and 50 µs as one. The session now ticks last in
+  `VoxelGame.step`, after the game's systems and `onTick`, so every edit of a step leaves
+  in it. **The wire changed**: a host and a client of different versions cannot talk.
+- The mining crack is one draw: its sticks were a node and a geometry each, up to 60 draws
+  at its last stage, and each stage is now one `BoxMesh` (voxel_scene) holding its sticks
+  and every earlier stage's, on one node. `FirstPersonView.crackBoxes(stage)` lists them.
+
 ## 0.2.0-dev
 
 - **Frames between two steps are drawn between them.** Above 60 fps half the frames ran

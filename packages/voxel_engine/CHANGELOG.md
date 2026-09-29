@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.3.0-dev
+
+- `ChunkWorkerPool.defaultWorkers` is two thirds of the cores (`workersFor`, new), no
+  longer all of them but one: 8 on an M2 Pro instead of 11, 5 on a Galaxy S24 instead of
+  7. Past that the window's fill time did not fall (on the phone 735 ms with 5 workers,
+  728 with 7), each job ran slower (a mesh 10.6 ms at 4 workers, 15.8 at 7), and the extra
+  isolates took the cores the UI and raster threads need.
+- `ChunkStreamer` sends a chunk's mesh job when the last generation of its ring lands,
+  no longer at the next `update`: the window's fill was 387 → 350 ms in a prototype
+  (M2 Pro, radius 6), and the ring's copy leaves the frame for the message handler. Only
+  the nine chunks around the one that landed are looked at, so jobs that answer at once
+  (a headless world's) still fill over several updates.
+- `ChunkMesher.build` no longer allocates on every cell of its loop: the ladder, the
+  rails and the fence drew with closures declared in the loop's body, which captured the
+  cell's variables, so Dart allocated a context for them on every one of a chunk's 32768
+  cells (and boxed the cell's coordinates into it), whatever the cell held. They are
+  methods now; the meshes are the same, vertex for vertex.
+- `ChunkMesher` keeps the four surfaces it fills from one `build` to the next: each
+  build allocated 4 × 216 KB of growable arrays, and again each time one doubled, all of
+  it garbage once the result was copied out. A result's arrays are exact-size copies
+  now, which outlive the next build as before.
+- `ChunkMesher.buildWith` (new) meshes like `build` and hands the result to a callback,
+  its arrays the mesher's own and valid only inside it. `ChunkWorkerPool`'s workers use
+  it: they copy the mesh into transferables anyway, so the exact-size copies `build` makes
+  (~0.3 MB for a chunk of the example's hills, and 64 KB of light) are no longer made.
+- `eulerYXZInto` (new) writes `eulerYXZ`'s rotation into a quaternion it is given, the
+  product of the three axis rotations worked out by hand; `eulerYXZ` is built on it. A
+  rig part posed every step no longer allocates eight vectors and quaternions for it.
+- `NetHost.broadcast` encodes its message once for every peer, no longer once per peer,
+  and each send is one write, no longer two (`writeln` wrote the line, then the newline):
+  a host's 20 Hz state of 40 creatures cost it 369 µs with 4 peers and 797 with 8 (M2
+  Pro), against 106 and 122 now. `EncodedMessage` (new) is a message encoded once;
+  `NetConnection.sendEncoded` (new) sends one to a connection.
+
 ## 0.2.0-dev
 
 - `ChunkMesher` merges cube and liquid faces greedily: coplanar neighbours of the same

@@ -103,6 +103,15 @@ void main() {
     }
   });
 
+  test('the default pool is two thirds of the cores, at least one', () {
+    expect(
+      [
+        for (final cores in [1, 2, 3, 4, 8, 12, 16]) ChunkWorkerPool.workersFor(cores),
+      ],
+      [1, 1, 2, 2, 5, 8, 10],
+    );
+  });
+
   test('a generator factory that throws makes start throw instead of hanging', () async {
     final broken = ChunkWorkerPool(ChunkWorkerConfig(generator: _brokenFactory, table: _table), workers: 1);
     await expectLater(broken.start(), throwsA(isA<RemoteError>()));

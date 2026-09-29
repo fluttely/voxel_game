@@ -24,35 +24,16 @@ class FirstPersonView {
     _hand.add(_held);
     game.scene!.add(_hand);
     // The crack is drawn from opaque sticks, as the outline is: a blended
-    // darkening box never reaches the screen in flutter_scene 0.23. Each stage
-    // adds its own jagged segments on all six faces.
+    // darkening box never reaches the screen in flutter_scene 0.23. A stage's
+    // mesh holds its sticks and every earlier stage's, so a crack is one draw.
     final mat = UnlitMaterial()
       ..baseColorFactor = Vector4(0.10, 0.09, 0.08, 1)
       ..vertexColorWeight = 0.0
       ..depthBias = 0.02;
     for (var stage = 0; stage < _crackSegments.length; stage++) {
-      final group = Node()..visible = false;
-      for (var axis = 0; axis < 3; axis++) {
-        for (final side in const [0.0, 1.0]) {
-          final a1 = (axis + 1) % 3, a2 = (axis + 2) % 3;
-          for (final (alongU, u, v, len) in _crackSegments[stage]) {
-            final size = Vector3.all(0.0);
-            size[axis] = 0.012;
-            size[alongU ? a1 : a2] = len;
-            size[alongU ? a2 : a1] = 0.045;
-            final at = Vector3.zero();
-            at[axis] = side == 0.0 ? -0.004 : 1.004;
-            at[a1] = alongU ? u + len / 2 : u;
-            at[a2] = alongU ? v : v + len / 2;
-            group.add(
-              MirroredCamera.primitiveNode(Mesh(CuboidGeometry(size), mat), castsShadows: false)..position = at,
-            );
-          }
-        }
-      }
-      _cracks.add(group);
-      game.scene!.add(group);
+      _cracks.add(Mesh(BoxMesh.geometry(crackBoxes(stage)), mat));
     }
+    game.scene!.add(_crack);
   }
 
   /// The game shown.
@@ -60,7 +41,11 @@ class FirstPersonView {
 
   final Node _hand = Node()..castsShadows = false;
   final Node _held = Node()..castsShadows = false;
-  final List<Node> _cracks = [];
+  final Node _crack = Node()
+    ..visible = false
+    ..castsShadows = false;
+  final List<Mesh> _cracks = [];
+  int _crackStage = -1;
 
   /// Per stage, the segments it adds on each face: along the face's first
   /// axis or its second, from (u, v), this long (face coordinates 0..1).
@@ -70,6 +55,31 @@ class FirstPersonView {
     [(true, 0.10, 0.20, 0.20), (false, 0.80, 0.55, 0.30), (true, 0.55, 0.30, 0.30)],
     [(false, 0.15, 0.55, 0.35), (true, 0.35, 0.85, 0.30), (false, 0.62, 0.05, 0.25)],
   ];
+  /// The sticks of the crack at [stage] (0 to 3) in a block's unit cell: the
+  /// segments of every stage up to it, on all six faces, a stick a segment.
+  static List<Aabb3> crackBoxes(int stage) {
+    final out = <Aabb3>[];
+    for (var s = 0; s <= stage; s++) {
+      for (var axis = 0; axis < 3; axis++) {
+        for (final side in const [0.0, 1.0]) {
+          final a1 = (axis + 1) % 3, a2 = (axis + 2) % 3;
+          for (final (alongU, u, v, len) in _crackSegments[s]) {
+            final half = Vector3.zero();
+            half[axis] = 0.006;
+            half[alongU ? a1 : a2] = len / 2;
+            half[alongU ? a2 : a1] = 0.0225;
+            final at = Vector3.zero();
+            at[axis] = side == 0.0 ? -0.004 : 1.004;
+            at[a1] = alongU ? u + len / 2 : u;
+            at[a2] = alongU ? v : v + len / 2;
+            out.add(Aabb3.centerAndHalfExtents(at, half));
+          }
+        }
+      }
+    }
+    return out;
+  }
+
   final Map<String, Node> _models = {};
   String _heldId = '';
   double _swing = 0.0;
@@ -134,11 +144,11 @@ class FirstPersonView {
     final p = game.player;
     final hit = p.aimedBlock;
     final stage = p.mineProgress <= 0.0 || hit == null ? -1 : (p.mineProgress * 4.0).toInt().clamp(0, 3);
-    for (var i = 0; i < _cracks.length; i++) {
-      _cracks[i].visible = i <= stage;
-      if (hit != null && i <= stage) {
-        _cracks[i].position = Vector3(hit.block.x.toDouble(), hit.block.y.toDouble(), hit.block.z.toDouble());
-      }
-    }
+    _crack.visible = stage >= 0;
+    if (stage < 0) return;
+    _crack.position = Vector3(hit!.block.x.toDouble(), hit.block.y.toDouble(), hit.block.z.toDouble());
+    if (stage == _crackStage) return;
+    _crackStage = stage;
+    _crack.mesh = _cracks[stage];
   }
 }

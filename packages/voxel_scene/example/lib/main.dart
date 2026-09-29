@@ -156,6 +156,7 @@ class _HillsViewState extends State<HillsView> {
     final pool = _pool;
     if (pool == null) return;
     _streamer.update();
+    _view.rebuild(ChunkStreamer.chunkOfXZ(_target.x.floor(), _target.z.floor()));
     _statsClock += dt;
     if (_statsClock >= 0.5) {
       _statsClock = 0.0;

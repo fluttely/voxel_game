@@ -495,6 +495,15 @@ void main() {
     );
   });
 
+  test('frames moves once a frame, whether or not the frame ran a step', () async {
+    final game = await _start(_flat());
+    final before = game.frames.value;
+    game.frame(1 / 240);
+    game.frame(1 / 240);
+    game.frame(1 / 60);
+    expect(game.frames.value, before + 3);
+  });
+
   test('a press waits for the step that reads it, however fast the frames come', () async {
     final game = await _start(_flat());
     await _run(game, 0.5);

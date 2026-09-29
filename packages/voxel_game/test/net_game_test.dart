@@ -88,4 +88,42 @@ void main() {
     expect(host.remotePlayers, isEmpty, reason: 'a client that leaves is gone');
     await session.close();
   });
+
+  test("a step's edits leave together, as one message, in the order they were made", () async {
+    final host = await VoxelGame.startHeadless(_spec);
+    host.spawner.enabled = false;
+    await _run([host], 1.0);
+    final session = await host.host(port: 0);
+    final client = await VoxelGame.joinGame(_spec, '127.0.0.1', port: session.net.port, headless: true);
+    final watcher = await joinHost('127.0.0.1', port: session.net.port);
+    final heard = <Map<String, Object?>>[];
+    watcher.connection.listen(heard.add);
+    await _run([host, client], 2.0);
+    expect(client.ready, isTrue);
+
+    // A burst between two steps, as a client's edits arrive: 50 cells, the
+    // first one edited twice.
+    final corner = IVec3.floor(host.player.position) + const IVec3(-5, 3, 5);
+    final cells = [for (var i = 0; i < 50; i++) corner + IVec3(i % 10, i ~/ 10, 0)];
+    for (final c in cells) {
+      host.world.setBlockNamed(c, 'planks');
+    }
+    host.world.setBlockNamed(cells.first, 'stone');
+    await _run([host, client], 0.5);
+
+    final edits = heard.where((m) => m['t'] == 'edits').toList();
+    expect(edits, hasLength(1), reason: 'one message for the burst, not one per cell');
+    final e = edits.single['e']! as List<Object?>;
+    expect(e, hasLength(51 * 4));
+    final stone = host.blocks.indexOf('stone');
+    expect(e.sublist(e.length - 4), [cells.first.x, cells.first.y, cells.first.z, stone]);
+    expect(client.world.blockNameAt(cells.first), 'stone', reason: 'a cell edited twice ends as the last edit');
+    for (final c in cells.skip(1)) {
+      expect(client.world.blockNameAt(c), 'planks');
+    }
+
+    await watcher.connection.close();
+    await client.session!.close();
+    await session.close();
+  });
 }
