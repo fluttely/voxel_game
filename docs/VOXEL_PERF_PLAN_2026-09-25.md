@@ -989,7 +989,6 @@ warm-up costs 19–21 ms and the fill is shorter, 473–498 against 586–595 ms
 no longer drawn while the window fills. Warmed is what the
 filled window holds: a pipeline first used later (a creature's rig, a drop, water not in
 the window, where its pipeline differs) still compiles in the frame that first draws it. **Next**: lead (1) is a perf
-investigation (`opus 5.5:xhigh`); the 0.3.0-dev release by `PUBLISHING.md` is a checklist
-(`opus 5.5:low`: the versions moved in `34d7a6e`, pub.dev still has 0.2.0-dev, and this
-step's CHANGELOG line is under `## 0.3.0-dev`). The phone's check is done (the paragraph's
+investigation (`opus 5.5:xhigh`); 0.3.0-dev is released as `dev` stood at `34d7a6e`, without this step,
+whose CHANGELOG line is under `## Unreleased` for the next version. The phone's check is done (the paragraph's
 Galaxy S24 runs; its driver, `phone_cold.py`, stayed in the session's scratchpad).

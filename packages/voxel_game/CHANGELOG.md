@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.3.0-dev
+## Unreleased
 
 - **A loading screen covers the game until it can be shown without a stall.**
   `VoxelGameWidget` runs the game undrawn until the window around the player has filled
@@ -16,6 +16,9 @@
   `LoadingStage`; `VoxelGameWidget(loading:)` and `runVoxelGame(loading:)` take a
   `LoadingBuilder` in place of the default `LoadingScreen`. `onReady` still fires as the
   game starts, before the screen goes.
+
+## 0.3.0-dev
+
 - `GameWorld.update` rebuilds the chunk regions the streaming changed within the view's
   frame budget, nearest the focus first (`VoxelChunkView.rebuild`), so a column of chunks
   entering or leaving the window is drawn over a few frames instead of in one long one;
