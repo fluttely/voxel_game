@@ -24,6 +24,23 @@ void main() {
     expect(got, _subShapeFingerprints);
   });
 
+  test('a result outlives the next build of its mesher, which meshes as a fresh one does', () {
+    final mesher = _mesher();
+    final hills = _hills();
+    final first = mesher.build(0, 0, [hills, ...ChunkMesher.noNeighbours]).solid;
+    final kept = [first.positions.toList(), first.colors.toList(), first.indices.toList()];
+    final lone = Uint8List(ChunkSize.volume)..[ChunkSize.index(8, 40, 8)] = 1;
+    final second = mesher.build(0, 0, [lone, ...ChunkMesher.noNeighbours]).solid;
+    expect([first.positions, first.colors, first.indices], kept);
+    expect(second.faceCount, 6);
+    final again = mesher.build(0, 0, [hills, ...ChunkMesher.noNeighbours]).solid;
+    final fresh = _build(hills).solid;
+    expect(
+      [again.positions, again.normals, again.colors, again.light, again.indices],
+      [fresh.positions, fresh.normals, fresh.colors, fresh.light, fresh.indices],
+    );
+  });
+
   test('build takes a ring of nine with the chunk first', () {
     final c = Uint8List(ChunkSize.volume);
     expect(() => _mesher().build(0, 0, [c]), throwsArgumentError);

@@ -17,6 +17,10 @@
   cell's variables, so Dart allocated a context for them on every one of a chunk's 32768
   cells (and boxed the cell's coordinates into it), whatever the cell held. They are
   methods now; the meshes are the same, vertex for vertex.
+- `ChunkMesher` keeps the four surfaces it fills from one `build` to the next: each
+  build allocated 4 × 216 KB of growable arrays, and again each time one doubled, all of
+  it garbage once the result was copied out. A result's arrays are exact-size copies
+  now, which outlive the next build as before.
 
 ## 0.2.0-dev
 

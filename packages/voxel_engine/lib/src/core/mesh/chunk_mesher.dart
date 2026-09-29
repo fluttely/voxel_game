@@ -104,7 +104,11 @@ class _F32 {
     add(c);
   }
 
-  Float32List take() => Float32List.sublistView(_d, 0, length);
+  /// A copy of what was added, which outlives the next [clear].
+  Float32List take() => _d.sublist(0, length);
+
+  /// Empties the list and keeps its storage.
+  void clear() => length = 0;
 }
 
 class _I32 {
@@ -119,7 +123,11 @@ class _I32 {
     _d[length++] = v;
   }
 
-  Int32List take() => Int32List.sublistView(_d, 0, length);
+  /// A copy of what was added, which outlives the next [clear].
+  Int32List take() => _d.sublist(0, length);
+
+  /// Empties the list and keeps its storage.
+  void clear() => length = 0;
 }
 
 class _Surface {
@@ -177,6 +185,16 @@ class _Surface {
   }
 
   MeshSurface toSurface() => MeshSurface(v.take(), n.take(), c.take(), l.take(), i.take());
+
+  /// Empties the surface and keeps its storage, grown to the largest chunk it
+  /// held, for the next [ChunkMesher.build].
+  void clear() {
+    v.clear();
+    n.clear();
+    c.clear();
+    l.clear();
+    i.clear();
+  }
 }
 
 /// Face-culling, greedy mesher with baked ambient occlusion, sky + block light,
@@ -334,6 +352,10 @@ class ChunkMesher {
   }
 
   int _aoVerts = 0;
+
+  // The four surfaces [build] fills, kept from one build to the next so a
+  // mesh job allocates only the exact copies its result holds.
+  final _Surface _solidOut = _Surface(), _liquidOut = _Surface(), _cutoutOut = _Surface(), _glowOut = _Surface();
 
   // The light of the cell last read by [_lightUv]: sky / 15, block / 15, and
   // the two levels.
@@ -1008,10 +1030,10 @@ class ChunkMesher {
     _fill(c, ring[1], ring[2], ring[3], ring[4], ring[5], ring[6], ring[7], ring[8]);
     _computeLight();
 
-    final solid = _Surface();
-    final liquid = _Surface();
-    final cutout = _Surface();
-    final glow = _Surface(); // strong emitters, drawn unlit
+    final solid = _solidOut..clear();
+    final liquid = _liquidOut..clear();
+    final cutout = _cutoutOut..clear();
+    final glow = _glowOut..clear(); // strong emitters, drawn unlit
     final aos = List<int>.filled(4, 0);
 
     for (var y = 0; y < _sizeY; y++) {
