@@ -5,8 +5,10 @@
 > Everything below the line, up to §Follow-up, is the issue as posted. Line numbers are
 > flutter_scene 0.23.0 as published on pub.dev.
 >
-> **§Follow-up** (lead 1 of the PF plan) is a comment on the issue, **drafted 2026-09-29 and
-> not sent**: it goes out only with the owner's ok on its text.
+> **§Follow-up** (lead 1 of the PF plan) is a comment on the issue, **sent 2026-09-29** with
+> the owner's ok, after the phone's A/B and traces were added:
+> <https://github.com/bdero/flutter_scene/issues/435#issuecomment-5898536445>. Its body is the
+> comment as posted.
 
 ---
 
@@ -170,7 +172,7 @@ run) if they help.
 
 ## Follow-up
 
-A comment on #435, independent of its four sections. Drafted 2026-09-29, not sent.
+A comment on #435, independent of its four sections. Sent 2026-09-29 (link above).
 
 ### Body
 
@@ -206,23 +208,34 @@ Mac (M2 Pro, 120 Hz, Retina), profile build, one timeline per run over ~14 s:
 | Orbiting camera | 69–76 MB | 277–302 (69–76 MB) | 40–45 | 15–18 ms/s |
 | 40 creatures | 93–98 MB | 366–392 (92–98 MB) | 55–61 | 24–28 ms/s |
 
-The direct growth and the new blocks agree to the MB. On the S24 these collections finish
-20–29 times in 12 s. With the orbiting camera, 6–7 of those pauses land inside a frame, up to
-4.5–5.9 ms. With the creatures it is 17–18, up to 2.3–2.9 ms.
+The direct growth and the new blocks agree to the MB.
+
+**On the S24** (Adreno 750, 120 Hz), profile, the last 12 s of each timeline, the same thing
+happens. The orbiting camera makes 151–154 blocks, and 23–24 old-gen collections follow. 6–11
+of their pauses land inside a frame, up to 4.1–4.7 ms, and concurrent marking costs 40–43
+ms/s. With the creatures it is 285 blocks, 38 collections (15 in a frame, up to 3.3 ms) and
+58 ms/s of marking.
 
 **What we tried**, in our copy: drop a finished block only after 120 frames unused (a
 `lastUsedFrame` per block, set in `_acquireBlock`), instead of counting by class. The pool
 fills to the queue's depth in the first second and then stays there.
 
-- **Blocks made in a 12 s release run:** 239–340 → 0–18, none dropped.
-- **Traced (~14 s):** old-gen collections 40–61 → 10–12, and concurrent mark + sweep
-  4–5 ms/s.
-- **RSS:** unchanged, 246–253 MB.
-- **Frame metrics on the Mac:** unchanged, because it is GPU-bound. With the creatures, the
-  stock encode p50 was bimodal (0.72–0.89 ms in three runs, 1.49–1.63 in three) and the
-  patched one read 0.70–0.83 every time. That is suggestive, and we are not claiming it.
+- **Blocks made in a 12 s release run:** 239–340 → 0–18 on the Mac and 187–301 → 0–4 on
+  the S24, none dropped.
+- **Old-gen collections:** 40–61 → 10–12 on the Mac (traced over ~14 s), and none at all on
+  the S24. Concurrent marking goes to 4–5 ms/s on the Mac and to 0 on the S24.
+- **RSS:** the same on the Mac, 3–4 MB more on the S24 (the pool kept at the queue's depth).
+- **Release, S24, orbiting:** 113.5–117.0 → 117.1–118.8 fps, hitches 48–91 → 23–43 (three
+  runs a side, alternated). With the creatures, everything is inside the spread. The Mac is
+  GPU-bound and does not move.
 
-We have not A/B'd this on the phone yet.
+**On the phone, the pauses move rather than vanish.** Each old-gen collection also emptied
+new space, so the scavenges left over were small and ran at idle. Without the old-gen
+collections, new space fills to its 16 MB and is scavenged because it is full, inside a
+frame, at 4.6–6.6 ms each. With the orbiting camera, the collector's time inside frames goes
+from 21–34 ms to 36–43 ms in 12 s. With the creatures it goes from 27 to 36 ms. Frames over
+8.3 ms stay the same. So this fix saves the marking CPU and the mark-sweep pauses. What is
+left on the phone is new-space garbage, ~18 MB/s while orbiting, which is section 2 above.
 
 **Suggestions.** Either one ends the churn:
 
@@ -234,4 +247,5 @@ We have not A/B'd this on the phone yet.
   across seals and pool only the device buffers. That keeps the Dart heap out of it even if
   the device pool still churns.
 
-Happy to send either as a PR.
+Neither one lowers the phone's pause time by itself; that comes from cutting the per-draw
+allocation in section 2. Happy to send either as a PR.
