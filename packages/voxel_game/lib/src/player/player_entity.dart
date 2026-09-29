@@ -9,6 +9,7 @@ import 'package:voxel_scene/voxel_scene.dart';
 
 import '../core/voxel_game.dart';
 import '../entities/target.dart';
+import '../input/input_map.dart';
 import '../input/voxel_action.dart';
 import '../mobs/mob.dart';
 import '../mobs/rig.dart';
@@ -249,9 +250,11 @@ class PlayerEntity extends NodeBody implements Target {
 
   void _walk(double dt, bool gameplay) {
     final input = _game.input;
-    final x = gameplay ? input.axis(VoxelAction.moveLeft, VoxelAction.moveRight, stick: _leftX) : 0.0;
+    final x = gameplay
+        ? input.axis(VoxelAction.moveLeft, VoxelAction.moveRight, stick: _leftX, touch: TouchAxis.x)
+        : 0.0;
     final y = gameplay
-        ? input.axis(VoxelAction.moveForward, VoxelAction.moveBack, stick: _leftY, invertStick: true)
+        ? input.axis(VoxelAction.moveForward, VoxelAction.moveBack, stick: _leftY, invertStick: true, touch: TouchAxis.y)
         : 0.0;
     var wish = flatForward * -y + right * x;
     if (wish.length > 1.0) wish = wish.normalized();

@@ -32,14 +32,6 @@
 - **Found while:** 2026-09-21 — answering why `lib/` imports `voxel_game` in only two files.
 - **Moved:** 2026-09-22 (`VR3`) from `poc_cubeworld/docs/LEDGER.md`, ID kept. Paths rewritten from this folder; the app's files are named as the app's.
 
-### CL-009 · The kit reads a finger and draws no thumb
-
-- **Lens:** kit API / rule 13
-- **Evidence:** `CL-003` moved the gesture half of the touch scheme into `InputMap` — a finger on the world mines, uses and looks, and `touchMove` / `setTouchHeld` / `touchDigit` accept an on-screen stick, button and slot. Nothing in the kit calls those three. `packages/voxel_game/lib/src/ui/default_hud.dart` (108 lines) is a `CustomPainter`'s worth of bars and a hotbar, and `voxel_game_widget.dart:249-259` stacks exactly three children over the world — the HUD inside an `IgnorePointer`, and the inventory screen. The controls that do call them are the app's: its `lib/src/ui/touch_controls.dart` (368 lines, in `poc_cubeworld/`), and they are positioned against the app's own HUD geometry (`:86` and `:142` both measure `Hud.hotbarSlotRect`, the app's `lib/src/ui/hud.dart:56`), which is why they did not rise with the rest.
-- **Cost of leaving it:** the half that rose is the half that is hard — the tap-versus-hold-versus-drag rule, tuned against a real device once. The half left behind is the visible one, so the kit now *reads* a phone without *looking* like it can be played on one: a game built on `voxel_game` gets mining and looking from a finger and no way to walk, jump or open its bag. The gap is also the wrong shape for a first-time reader, who will conclude touch is unfinished rather than half-delegated. Closing it means the kit's HUD has to publish its hotbar geometry (the one thing the app's layer needs), which is the same conversation as `CL-005` — the kit's default HUD is witnessed by nothing but an example — so the two should be answered together, and by a layout the kit owns rather than a copy of Dawnforge's.
-- **Found while:** 2026-09-21 — closing `CL-003`, checking what did *not* rise with the input map.
-- **Moved:** 2026-09-22 (`VR3`) from `poc_cubeworld/docs/LEDGER.md`, ID kept. Paths rewritten from this folder; the app's files are named as the app's. Kit paths rewritten again on 2026-09-23, when `voxel_game` moved under `packages/`.
-
 ### KL-004 · Windows and Linux get a drag to look, not a locked mouse
 
 - **Lens:** platform parity / input
@@ -62,7 +54,30 @@
 - **Found while:** 2026-09-25 — finding why the phone runner lost runs during PF14's A/B.
 - **Seen again:** 2026-09-28, PF3's phone A/B: the same `SIGSEGV` at `0x3f8` in `vkCmdBeginRenderPass` under `InternalFlutterGpu_RenderPass_Begin`, the second run of a call (`orbit:6` after `mobs:6`, `9c36cc2`, no PF3 code), 18 lines and 19 launches that day.
 
+### KL-010 · `VoxelGameSpec.copyWith` cannot clear a nullable field
+
+- **Lens:** kit API / spec
+- **Evidence:** `packages/voxel_game/lib/src/spec/voxel_game_spec.dart:152-163`: every field goes through `x ?? this.x`, so `copyWith(touchControls: null)` (or `signals: null`, `graphics: null`, `onTick: null`) returns the spec unchanged. `touchControls` is the first nullable field whose null means something a game would switch to ("I draw my own"); `test/default_hud_test.dart` has to rebuild a spec from `blocks` and `world` to get one.
+- **Cost of leaving it:** `copyWith` is documented as how a game varies a spec ("with a hook of a test's"), and it silently ignores the one change a game with its own touch layer needs; nothing fails, the kit's controls just stay on screen. The usual fixes are a sentinel default or a `Value<T>?` wrapper for the nullable fields.
+- **Found while:** 2026-09-29 — `VT3`, testing `DefaultHud` under `touchControls: null`.
+
+### KL-011 · The kit never says what a tap on the world means
+
+- **Lens:** input parity / rule 13
+- **Evidence:** `packages/voxel_game/lib/src/input/input_map.dart:178`: `touchTapPrimary` is "written by the game every time it re-aims", true to swing, false to use, and nothing in the kit writes it; `PlayerEntity._updateAim` (`packages/voxel_game/lib/src/player/player_entity.dart:328`) finds `aimedMob` every step and stops there. The app sets it from its player (`examples/voxel_game_minecraft/lib/src/player/player.dart:540`, `mob != null && !isAiming`).
+- **Cost of leaving it:** on a phone a tap on a creature places or uses instead of hitting it, and the only way to hit is a hold, which the kit reads as mining; a mouse's left click has no finger equivalent aimed at a mob. With `VT3` the phone is now playable, so this is the first thing a player on it will run into. The fix is one line in `_updateAim` (`input.touchTapPrimary = aimedMob != null`), with a test.
+- **Found while:** 2026-09-29 — `VT3`, checking what the player reads from a finger.
+
 ## Closed
+
+### CL-009 · The kit reads a finger and draws no thumb
+
+- **Lens:** kit API / rule 13
+- **Evidence:** `CL-003` moved the gesture half of the touch scheme into `InputMap` — a finger on the world mines, uses and looks, and `touchMove` / `setTouchHeld` / `touchDigit` accept an on-screen stick, button and slot. Nothing in the kit calls those three. `packages/voxel_game/lib/src/ui/default_hud.dart` (108 lines) is a `CustomPainter`'s worth of bars and a hotbar, and `voxel_game_widget.dart:249-259` stacks exactly three children over the world — the HUD inside an `IgnorePointer`, and the inventory screen. The controls that do call them are the app's: its `lib/src/ui/touch_controls.dart` (368 lines, in `poc_cubeworld/`), and they are positioned against the app's own HUD geometry (`:86` and `:142` both measure `Hud.hotbarSlotRect`, the app's `lib/src/ui/hud.dart:56`), which is why they did not rise with the rest.
+- **Cost of leaving it:** the half that rose is the half that is hard — the tap-versus-hold-versus-drag rule, tuned against a real device once. The half left behind is the visible one, so the kit now *reads* a phone without *looking* like it can be played on one: a game built on `voxel_game` gets mining and looking from a finger and no way to walk, jump or open its bag. The gap is also the wrong shape for a first-time reader, who will conclude touch is unfinished rather than half-delegated. Closing it means the kit's HUD has to publish its hotbar geometry (the one thing the app's layer needs), which is the same conversation as `CL-005` — the kit's default HUD is witnessed by nothing but an example — so the two should be answered together, and by a layout the kit owns rather than a copy of Dawnforge's.
+- **Found while:** 2026-09-21 — closing `CL-003`, checking what did *not* rise with the input map.
+- **Moved:** 2026-09-22 (`VR3`) from `poc_cubeworld/docs/LEDGER.md`, ID kept. Paths rewritten from this folder; the app's files are named as the app's. Kit paths rewritten again on 2026-09-23, when `voxel_game` moved under `packages/`.
+- **Closed by:** 2026-09-29 — `voxel_game: a phone gets a stick, jump, sneak, view and pause (VT3)`, the last of `docs/VOXEL_TOUCH_PLAN_2026-09-29.md`'s code steps. `TouchControls` (`packages/voxel_game/lib/src/ui/touch_controls.dart`) is the kit's own layout, declared by `TouchControlsSpec` on `VoxelGameSpec` and shown while `InputMap.lastDevice` is a finger (`VT1`); the hotbar takes its own taps in `DefaultHud` (`VT2`), so the kit publishes no hotbar geometry (`VTD1`), which is the part of this entry's proposed fix the owner turned down. Every control claims its finger (`InputMap.claimTouch`) instead of the world's `Listener` moving. Closing it turned up that `PlayerEntity` never read the stick (`touchMove`), fixed in the same commit. Seen only in widget tests so far; `VT4` is the phone.
 
 ### KL-001 · The agent instructions still describe a folder inside Dawnforge
 

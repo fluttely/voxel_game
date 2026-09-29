@@ -12,6 +12,7 @@ import 'graphics_spec.dart';
 import 'signal_spec.dart';
 import 'sky_spec.dart';
 import 'sound_spec.dart';
+import 'touch_controls_spec.dart';
 
 /// A whole game, declared: its blocks, items and recipes, how its world is
 /// generated, its player, its mobs and its sky. [VoxelGameWidget] (or
@@ -42,6 +43,7 @@ class VoxelGameSpec {
     this.seed = 1,
     this.renderDistance = 6,
     this.graphics,
+    this.touchControls = TouchControlsSpec.standard,
     this.mining = const MiningRules(),
     this.liquids = const {},
     this.systems = const [],
@@ -89,6 +91,11 @@ class VoxelGameSpec {
   /// and [GraphicsSpec.desktop] everywhere else.
   final GraphicsSpec? graphics;
 
+  /// The controls a finger plays with, shown while the last device was a
+  /// finger; null for a game that draws its own (the default HUD's hotbar then
+  /// takes no finger either).
+  final TouchControlsSpec? touchControls;
+
   /// How long blocks take to break.
   final MiningRules mining;
 
@@ -125,6 +132,7 @@ class VoxelGameSpec {
     int? seed,
     int? renderDistance,
     GraphicsSpec? graphics,
+    TouchControlsSpec? touchControls,
     MiningRules? mining,
     Map<String, LiquidSpec>? liquids,
     List<GameSystem>? systems,
@@ -145,6 +153,7 @@ class VoxelGameSpec {
     seed: seed ?? this.seed,
     renderDistance: renderDistance ?? this.renderDistance,
     graphics: graphics ?? this.graphics,
+    touchControls: touchControls ?? this.touchControls,
     mining: mining ?? this.mining,
     liquids: liquids ?? this.liquids,
     systems: systems ?? this.systems,

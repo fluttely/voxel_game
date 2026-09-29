@@ -23,9 +23,9 @@ const _spec = VoxelGameSpec(
 /// it: one `Listener` around the world and the HUD, feeding the input map
 /// every pointer that lands anywhere in it.
 void main() {
-  Future<VoxelGame> start(WidgetTester tester) async {
+  Future<VoxelGame> start(WidgetTester tester, [VoxelGameSpec spec = _spec]) async {
     final game = (await tester.runAsync(() async {
-      final game = await VoxelGame.startHeadless(_spec);
+      final game = await VoxelGame.startHeadless(spec);
       game.spawner.enabled = false;
       for (var i = 0; i < 600 && !game.ready; i++) {
         game.frame(1 / 60);
@@ -45,7 +45,10 @@ void main() {
           onPointerMove: input.onPointerMove,
           child: Stack(
             fit: StackFit.expand,
-            children: [const ColoredBox(color: Colors.black), DefaultHud(game)],
+            children: [
+              const ColoredBox(color: Colors.black),
+              DefaultHud(game),
+            ],
           ),
         ),
       ),
@@ -59,8 +62,7 @@ void main() {
     await tester.pump();
   }
 
-  Finder slot(int i) =>
-      find.descendant(of: find.byType(DefaultHud), matching: find.byType(RawGestureDetector)).at(i);
+  Finder slot(int i) => find.descendant(of: find.byType(DefaultHud), matching: find.byType(RawGestureDetector)).at(i);
 
   testWidgets('a tap on a slot picks it, and is not also a tap on the world', (tester) async {
     final game = await start(tester);
@@ -119,6 +121,15 @@ void main() {
     expect(input.justPressed(VoxelAction.use), isFalse);
     await step(tester, game);
     expect(game.openScreen.value, '');
+    game.dispose();
+  });
+
+  testWidgets('a game with no touch controls gets a hotbar that takes no finger', (tester) async {
+    final game = await start(tester, VoxelGameSpec(blocks: _spec.blocks, world: _spec.world, touchControls: null));
+    game.input.lastDevice = InputDevice.touch;
+    await step(tester, game);
+    expect(find.byIcon(Icons.more_horiz), findsNothing);
+    expect(find.descendant(of: find.byType(DefaultHud), matching: find.byType(RawGestureDetector)), findsNothing);
     game.dispose();
   });
 

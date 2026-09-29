@@ -56,6 +56,24 @@ Future<void> _run(VoxelGame game, double seconds) async {
 }
 
 void main() {
+  test('the on-screen stick walks and, pushed to the rim, runs', () async {
+    final game = await _start(_flat());
+    final p = game.player;
+    await _run(game, 0.5);
+    final start = p.position.clone();
+    game.input.touchMove(0.0, -1.0);
+    await _run(game, 1.0);
+    final walked = ((p.position - start)..y = 0).length;
+    expect(p.position.z, lessThan(start.z), reason: 'up on the stick is forward');
+    game.input.setTouchHeld(VoxelAction.sprint, true);
+    final from = p.position.clone();
+    await _run(game, 1.0);
+    game.input
+      ..touchMove(0.0, 0.0)
+      ..setTouchHeld(VoxelAction.sprint, false);
+    expect(((p.position - from)..y = 0).length, greaterThan(walked), reason: 'a second of running outruns one of walking');
+  });
+
   test('the player stands on the ground, walks forward and jumps', () async {
     final game = await _start(_flat());
     final p = game.player;

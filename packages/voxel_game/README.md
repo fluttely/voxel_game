@@ -37,9 +37,15 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
   A loading screen (`LoadingScreen`, or your own `LoadingBuilder`) covers the game until the
   world around the player has filled and the renderer has compiled what it draws.
 - Controls for keyboard and mouse, gamepad and touch; first and third person. A finger on
-  the world is a gesture: lift in place to use (or swing), stay put to mine, drag to look —
-  and `InputMap.touchMove` / `setTouchHeld` / `touchDigit` take an on-screen stick, button
-  or hotbar slot, which the game reads as the same actions a key presses.
+  the world is a gesture: lift in place to use (or swing), stay put to mine, drag to look.
+  A phone also gets `TouchControls`: a floating stick in the lower-left zone (pushed to the
+  rim it runs), jump and a sneak switch at the bottom right, the view and pause at the top
+  right. They show only while the last device was a finger (`InputMap.lastDevice`), so a
+  keyboard or a pad takes them off the screen and a touch puts them back. Lay them out with
+  `VoxelGameSpec.touchControls` (a `TouchControlsSpec`), or set it to null for a game that
+  draws its own; `TouchControls` is public, and `InputMap.touchMove` / `setTouchHeld` /
+  `touchToggle` / `touchPress` / `touchDigit` / `claimTouch` are what any control writes,
+  read by the game as the same actions a key presses.
 - `MobSpec` with a `Rig` (humanoid, quadruped, bird, blob), a `Gait` and a brain of goals:
   `Wander`, `Hunt`, `MeleeAttack`, `RangedAttack`, `FleeWhenHurt`, `Explode`, `LookAtPlayer`, or `Behavior.custom`.
 - `Goal` / `GoalSelector`: the same goal system for your own creature classes.

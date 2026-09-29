@@ -2,9 +2,24 @@
 
 ## Unreleased
 
+- **A phone gets controls it can see.** `TouchControls` draws a floating stick in the
+  lower-left zone (centred where the thumb lands; pushed past `sprintAt` of its reach it
+  also holds sprint), jump and sneak at the bottom right, the view and pause at the top
+  right, inside the safe area. It shows only while `InputMap.lastDevice` is a finger, the
+  game is in `gameplay` and no screen is open. Every control claims its finger, so it is
+  never also a look, a dig or a tap on the world. `VoxelGameWidget` mounts it between the
+  world and the HUD. It is declared by the new `VoxelGameSpec.touchControls`, a
+  `TouchControlsSpec` (`stickRadius`, `stickZoneWidth` / `stickZoneHeight`, `sprintAt`,
+  `buttonSize`, `sneakToggles`, `dropHold`), `TouchControlsSpec.standard` by default; null
+  for a game that draws its own, which also takes the finger off the default HUD's hotbar.
+- The player walks by the on-screen stick: `PlayerEntity` read the left stick and the keys
+  but not `InputMap.touchMove`, so a stick drawn by any game moved nothing.
+- A screen opening lets go of every held input (`InputMap.releaseKeys`), as that method's
+  documentation said it did: a switched-on sneak, a finger's jump and the stick no longer
+  survive the bag.
 - **Breaking: the HUD is hit-tested.** `VoxelGameWidget` no longer wraps the `HudBuilder`'s
   widget in an `IgnorePointer`, so the default HUD's hotbar can take a finger: a tap on a
-  slot picks it, a hold of `DefaultHud.dropHold` on the slot in hand drops one item, and
+  slot picks it, a hold of `TouchControlsSpec.dropHold` on the slot in hand drops one item, and
   while the last device was a finger a `⋯` after the last slot opens the bag. Each slot
   claims the finger that lands on it (`InputMap.claimTouch`), so the world never reads it as
   a tap; a mouse over the hotbar is still the world's. The hint says "Tap to play" while the

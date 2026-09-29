@@ -16,6 +16,7 @@ import 'hud_selector.dart';
 import 'inventory_screen.dart';
 import 'loading_screen.dart';
 import 'loading_stage.dart';
+import 'touch_controls.dart';
 import '../world/world_save.dart';
 
 /// Builds an overlay over the running game. It is called when the widget
@@ -280,9 +281,14 @@ class _VoxelGameWidgetState extends State<VoxelGameWidget> with SingleTickerProv
     final game = _game;
     if (game == null) return;
     // The screen is the arbiter of the pointer: opening frees it, closing
-    // takes it back, whoever asked for the change.
+    // takes it back, whoever asked for the change. Opening also lets go of
+    // everything held: an on-screen button taken off the screen gets no
+    // lift, and a switched-on sneak would still be on when the player came
+    // back.
     if (game.openScreen.value != null) {
-      game.input.release();
+      game.input
+        ..release()
+        ..releaseKeys();
     } else {
       game.input.capture();
     }
@@ -331,6 +337,9 @@ class _VoxelGameWidgetState extends State<VoxelGameWidget> with SingleTickerProv
           fit: StackFit.expand,
           children: [
             SceneView(game.scene!, cameraBuilder: (elapsed) => game.camera(), onTick: (elapsed, dt) => _tick(game, dt)),
+            // Under the HUD, so where the hotbar and the stick's zone overlap
+            // on a narrow screen, the slot wins.
+            if (widget.spec.touchControls case final touch?) TouchControls(game, touch),
             RepaintBoundary(child: (widget.hud ?? DefaultHud.builder)(context, game)),
             if (game.openScreen.value != null)
               InventoryScreen(game: game, station: game.openScreen.value!, onClose: () => _closeScreen(game)),

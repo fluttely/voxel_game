@@ -13,9 +13,10 @@ import 'hud_selector.dart';
 /// It is built once; each piece that changes is a [HudSelector] on
 /// [VoxelGame.frames], rebuilt only when the value it reads changes.
 ///
-/// **The hotbar is a finger's too.** A tap on a slot picks it; a hold on the
-/// slot in hand drops one of what it holds, after [dropHold]; and while the
-/// last device was a finger, a `⋯` after the last slot opens the bag. Each
+/// **The hotbar is a finger's too**, unless the game declared no
+/// `VoxelGameSpec.touchControls`. A tap on a slot picks it; a hold on the slot
+/// in hand drops one of what it holds, after the spec's `dropHold`; and while
+/// the last device was a finger, a `⋯` after the last slot opens the bag. Each
 /// slot claims the finger that lands on it (`InputMap.claimTouch`), so that
 /// finger is never also a tap on the world. A mouse over the hotbar is still
 /// the world's: only a touch picks a slot. Every other piece is behind an
@@ -30,9 +31,6 @@ class DefaultHud extends StatelessWidget {
   /// The game shown.
   final VoxelGame game;
 
-  /// How long a finger stays on the slot in hand before it drops one item.
-  static const Duration dropHold = Duration(milliseconds: 400);
-
   static const _shadow = [Shadow(offset: Offset(1, 1), blurRadius: 2)];
 
   static Color _color(double r, double g, double b) =>
@@ -43,6 +41,8 @@ class DefaultHud extends StatelessWidget {
     final p = game.player;
     final inv = p.inventory;
     final frames = game.frames;
+    final touch = game.spec.touchControls;
+    assert(touch == null || touch.dropHold > Duration.zero, 'TouchControlsSpec.dropHold must be positive');
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -138,25 +138,32 @@ class DefaultHud extends StatelessWidget {
                       HudSelector(
                         frames: frames,
                         select: () => (id: inv.idAt(i), count: inv.countAt(i), selected: i == p.selectedSlot),
-                        builder: (context, slot) => _touchable(
-                          onTap: () => game.input.touchDigit(i),
-                          onHold: slot.selected ? () => game.input.touchPress(VoxelAction.drop) : null,
-                          child: _slot(slot.id, slot.count, selected: slot.selected),
-                        ),
+                        builder: (context, slot) {
+                          final face = _slot(slot.id, slot.count, selected: slot.selected);
+                          if (touch == null) return face;
+                          return _touchable(
+                            onTap: () => game.input.touchDigit(i),
+                            onHold: slot.selected
+                                ? (after: touch.dropHold, run: () => game.input.touchPress(VoxelAction.drop))
+                                : null,
+                            child: face,
+                          );
+                        },
                       ),
-                    HudSelector(
-                      frames: frames,
-                      select: () => game.input.lastDevice == InputDevice.touch,
-                      builder: (context, touch) => touch
-                          ? _touchable(
-                              onTap: () => game.input.touchPress(VoxelAction.inventory),
-                              child: _box(
-                                selected: false,
-                                child: const Icon(Icons.more_horiz, color: Colors.white, size: 24),
-                              ),
-                            )
-                          : const SizedBox.shrink(),
-                    ),
+                    if (touch != null)
+                      HudSelector(
+                        frames: frames,
+                        select: () => game.input.lastDevice == InputDevice.touch,
+                        builder: (context, fingers) => fingers
+                            ? _touchable(
+                                onTap: () => game.input.touchPress(VoxelAction.inventory),
+                                child: _box(
+                                  selected: false,
+                                  child: const Icon(Icons.more_horiz, color: Colors.white, size: 24),
+                                ),
+                              )
+                            : const SizedBox.shrink(),
+                      ),
                   ],
                 ),
                 IgnorePointer(
@@ -176,10 +183,15 @@ class DefaultHud extends StatelessWidget {
     );
   }
 
-  /// [child] answering a finger: [onTap] on a tap, [onHold] once the finger
-  /// has stayed [dropHold] (when given). The finger is claimed as it lands, so
-  /// the world never reads it; a mouse passes through to the world.
-  Widget _touchable({required VoidCallback onTap, VoidCallback? onHold, required Widget child}) {
+  /// [child] answering a finger: [onTap] on a tap, and [onHold]'s `run` once
+  /// the finger has stayed its `after` (when given). The finger is claimed as
+  /// it lands, so the world never reads it; a mouse passes through to the
+  /// world.
+  Widget _touchable({
+    required VoidCallback onTap,
+    ({Duration after, VoidCallback run})? onHold,
+    required Widget child,
+  }) {
     const touch = {PointerDeviceKind.touch};
     return Listener(
       behavior: HitTestBehavior.opaque,
@@ -195,8 +207,8 @@ class DefaultHud extends StatelessWidget {
           ),
           if (onHold != null)
             LongPressGestureRecognizer: GestureRecognizerFactoryWithHandlers<LongPressGestureRecognizer>(
-              () => LongPressGestureRecognizer(duration: dropHold, supportedDevices: touch),
-              (r) => r.onLongPress = onHold,
+              () => LongPressGestureRecognizer(duration: onHold.after, supportedDevices: touch),
+              (r) => r.onLongPress = onHold.run,
             ),
         },
         child: child,
