@@ -151,6 +151,26 @@ Tests ship with the code. The API is a spec, not a draft. A package test runs wi
 screen and without a world (the engine's do not even need Flutter). Never delete a test to
 make the suite green.
 
+### Benchmarks — only when the owner asks
+
+The Mac and the Galaxy S24 are the owner's working machines all day, and a benchmark takes
+both over: a Mac run needs the window in front and the Mac left alone, a phone run
+installs, launches and heats the phone. So **no benchmark runs unless the owner asked for
+one in this session**, in one of two ways:
+
+- a task the owner opened as **performance work** (a perf plan step, an A/B they
+  requested); the PF plan is done, so today there is none;
+- an **explicit request** to measure — typically numbers for a post or before a major
+  release.
+
+Without one of those, nothing that drives either device for measurement: no
+`tool/run_benchmark.dart` (Mac or `--android`), no A/B, no `FLUTTER_SCENE_PROFILE` or
+probe build, no pixel diff, no `adb install`/`am start` of a benchmark. A change that
+touches the frame (a draw cut, a cheaper step) is judged by its tests and by reading the
+code, and ships without numbers; a session that thinks numbers are needed **proposes** the
+run and waits. A hand-off never names a benchmark as the next step unless the owner asked
+for it. This does not cover step 4's `flutter run -d macos` to see a visual change once.
+
 ### Documentation obligation
 
 In the **same commit** as the code:
