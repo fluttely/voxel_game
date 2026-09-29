@@ -67,13 +67,14 @@ Future<void> main(List<String> args) async {
 /// One benchmark run: [scenario] at [radius] chunks, measured for [seconds],
 /// drawn with [graphics].
 class Bench {
-  Bench(this.scenario, this.radius, this.seconds, this.graphics, {this.peers = 0, this.edits = 0});
+  Bench(this.scenario, this.radius, this.seconds, this.graphics, {this.peers = 0, this.edits = 0, this.aim = false});
 
   /// Reads `--scenario=`, `--radius=`, `--seconds=` and the look: `--graphics=`
   /// (`desktop` or `phone`, the base), then `--scale=`, `--max-ratio=`,
   /// `--aa=` (an `AntiAliasingMode`), `--shadows=` (`off`, or
   /// `cascades:resolution:distance`) and `--sun-step=` over it; then the
-  /// network's load, `--peers=` and `--edits=`. The rest is the runner's.
+  /// network's load, `--peers=` and `--edits=`; then `--aim`. The rest is the
+  /// runner's.
   factory Bench.parse(List<String> args) {
     String? arg(String name) =>
         args.where((a) => a.startsWith('--$name=')).map((a) => a.substring(name.length + 3)).lastOrNull;
@@ -120,6 +121,7 @@ class Bench {
       graphics,
       peers: int.parse(arg('peers') ?? '0'),
       edits: int.parse(arg('edits') ?? '0'),
+      aim: args.contains('--aim'),
     );
   }
 
@@ -137,6 +139,16 @@ class Bench {
   /// leaves near the spawn, set and cleared in turn, as an explosion edits
   /// a crater in one step. 0 edits nothing.
   final int edits;
+
+  /// Whether the crosshair rests on a block the whole recording, so the
+  /// selection outline is drawn: the player's reach is [aimReach], far enough
+  /// for the look to meet the terrain from the hover's height and pitch, across
+  /// valleys and water. The line gains `aimed`, the share of the recorded steps
+  /// whose outline was shown.
+  final bool aim;
+
+  /// The player's reach under [aim], metres.
+  static const double aimReach = 160.0;
 
   /// Seconds after the window fills before the recording starts.
   static const double settle = 2.0;
@@ -161,7 +173,11 @@ class Bench {
     renderDistance: radius,
     graphics: graphics,
     // Creative: the hunters of the mobs run cannot end it by killing the player.
-    player: PlayerSpec(creative: true, startingItems: example.game.player.startingItems),
+    player: PlayerSpec(
+      creative: true,
+      startingItems: example.game.player.startingItems,
+      reach: aim ? aimReach : example.game.player.reach,
+    ),
     onTick: _tick,
   );
 
@@ -173,6 +189,8 @@ class Bench {
   Map<String, Object>? _world;
   double _measuredFrom = 0.0;
   int _bursts = 0;
+  int _steps = 0;
+  int _aimedSteps = 0;
   IVec3? _burstAt;
 
   void ready(VoxelGame game) {
@@ -216,6 +234,8 @@ class Bench {
           _enter(_Phase.measuring);
         }
       case _Phase.measuring:
+        _steps += 1;
+        if (game.player.outline!.visible) _aimedSteps += 1;
         if (edits > 0 && game.time - _measuredFrom >= _bursts + 1.0) _burst(game, origin);
         if (_now - _phaseStart >= seconds) _finish(game);
     }
@@ -327,6 +347,7 @@ class Bench {
       if (peers > 0) 'peers': game.remotePlayers.length,
       if (edits > 0) 'edits': edits,
       if (edits > 0) 'bursts': _bursts,
+      if (aim) 'aimed': double.parse((_aimedSteps / _steps).toStringAsFixed(3)),
       ...report.toJson(1000.0 / display.refreshRate),
       'maxRssMb': (ProcessInfo.maxRss / (1 << 20)).round(),
     };
