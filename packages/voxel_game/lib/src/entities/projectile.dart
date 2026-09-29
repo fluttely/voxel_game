@@ -66,6 +66,43 @@ class ProjectileSpec {
   final double life;
 }
 
+/// The look of a shot, built once ([of]): its geometry and its material, made
+/// the first time one is drawn. flutter_scene batches only draws sharing both,
+/// so every shot of one size and colour hangs its own node on these two and is
+/// drawn once a pass, instanced, instead of once a shot.
+class ProjectileModel {
+  ProjectileModel._(this.size, this.color, this.glow);
+
+  /// The model of [spec]'s shots: the same object for every spec of the same
+  /// size, colour and glow.
+  factory ProjectileModel.of(ProjectileSpec spec) {
+    final size = spec.kind == 'arrow' ? Vector3(0.06, 0.06, 0.6) : Vector3.all(spec.radius * 2);
+    return _built[(size.x, size.y, size.z, spec.color, spec.glow)] ??= ProjectileModel._(size, spec.color, spec.glow);
+  }
+
+  static final Map<(double, double, double, int, bool), ProjectileModel> _built = {};
+
+  /// The box, in metres, its length along -z.
+  final Vector3 size;
+
+  /// Its colour, `0xRRGGBB`.
+  final int color;
+
+  /// Drawn unlit, bright.
+  final bool glow;
+
+  /// The box, one for every shot of this model.
+  late final Geometry geometry = CuboidGeometry(size);
+
+  /// The material, one for every shot of this model.
+  late final Material material = _material();
+
+  Material _material() {
+    final c = Vector4(((color >> 16) & 0xFF) / 255.0, ((color >> 8) & 0xFF) / 255.0, (color & 0xFF) / 255.0, 1);
+    return glow ? (UnlitMaterial()..baseColorFactor = c) : (PhysicallyBasedMaterial()..baseColorFactor = c);
+  }
+}
+
 /// A shot in flight: swept each step against bodies (any [Target] but its
 /// owner) and blocks, so a fast one cannot pass through a thin thing.
 class Projectile extends GameEntity {
@@ -89,13 +126,8 @@ class Projectile extends GameEntity {
   void attached(VoxelGame game) {
     setup(game.world, spec.radius, spec.radius * 2);
     if (game.headless) return;
-    final c = spec.color;
-    final color = Vector4(((c >> 16) & 0xFF) / 255.0, ((c >> 8) & 0xFF) / 255.0, (c & 0xFF) / 255.0, 1);
-    final Material mat = spec.glow
-        ? (UnlitMaterial()..baseColorFactor = color)
-        : (PhysicallyBasedMaterial()..baseColorFactor = color);
-    final size = spec.kind == 'arrow' ? Vector3(0.06, 0.06, 0.6) : Vector3.all(spec.radius * 2);
-    node.add(MirroredCamera.primitiveNode(Mesh(CuboidGeometry(size), mat), castsShadows: false));
+    final model = ProjectileModel.of(spec);
+    node.add(MirroredCamera.primitiveNode(Mesh(model.geometry, model.material), castsShadows: false));
     _face(velocity.normalized());
   }
 

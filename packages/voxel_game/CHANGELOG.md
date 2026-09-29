@@ -16,6 +16,12 @@
   `LoadingStage`; `VoxelGameWidget(loading:)` and `runVoxelGame(loading:)` take a
   `LoadingBuilder` in place of the default `LoadingScreen`. `onReady` still fires as the
   game starts, before the screen goes.
+- Drops and shots share their meshes, as the creatures' parts do: `PickupModel.of(r, g, b)`
+  builds a drop's cube once a colour, and `ProjectileModel.of(spec)` a shot's box and
+  material once a size, colour and glow, so flutter_scene draws a floor of mined blocks
+  or a volley of arrows once a pass, instanced, instead of once a drop or a shot. It
+  batches only draws sharing both a geometry and a material, and each drop and each shot
+  made its own.
 - A host passes on a client's block edit that lands where the host has not loaded the
   world. It stored such an edit for when the chunk generates but told no one, so two
   clients far from the host each kept their own blocks until they joined again; now the

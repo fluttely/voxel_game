@@ -60,13 +60,6 @@
 - **Cost of leaving it:** the app that plays the kit hardest is not a witness of a kit change until the change is published, so a regression in the tree reaches it only after a release. It is also why the frame-rate plan (`docs/VOXEL_PERF_PLAN_2026-09-25.md`) measures the kit's own example instead.
 - **Found while:** 2026-09-25 — `PF0`, choosing the game to benchmark.
 
-### KL-007 · Every drop and every projectile meshes a geometry of its own
-
-- **Lens:** rendering / draw batching
-- **Evidence:** `packages/voxel_game/lib/src/entities/item_pickup.dart:50` builds a `VoxelModelMesh.node` for each drop from the item's colour, and `packages/voxel_game/lib/src/entities/projectile.dart:98` a `CuboidGeometry(size)` for each shot. flutter_scene 0.23 batches only render items with the identical geometry and material (`render/instance_batching.dart`, `opaqueBatchEnd` / `depthBatchEnd`), so each of them is a draw of its own in the colour pass and, being a moving caster, in every shadow cascade each frame. That is what the creatures' rigs cost before PF7 (`e770ef0`): 260 parts, 6.1 ms of the phone's shadow pass.
-- **Cost of leaving it:** a mined-out room or a skeleton volley puts dozens of identical cubes on screen, each drawn once a pass; on the phone that is the encode PF7 just won back from the creatures. The fix is the rigs' one: a geometry per item kind and per projectile size, made once and shared.
-- **Found while:** 2026-09-25 — PF7, sharing the creatures' meshes.
-
 ### KL-008 · The example crashes in the Adreno driver in its first two seconds, now and then
 
 - **Lens:** platform stability / rendering
@@ -75,7 +68,22 @@
 - **Found while:** 2026-09-25 — finding why the phone runner lost runs during PF14's A/B.
 - **Seen again:** 2026-09-28, PF3's phone A/B: the same `SIGSEGV` at `0x3f8` in `vkCmdBeginRenderPass` under `InternalFlutterGpu_RenderPass_Begin`, the second run of a call (`orbit:6` after `mobs:6`, `9c36cc2`, no PF3 code), 18 lines and 19 launches that day.
 
+### KL-009 · A shot's shape is chosen by its kind's name
+
+- **Lens:** declarative content / rule 7
+- **Evidence:** `packages/voxel_game/lib/src/entities/projectile.dart:79`: `ProjectileModel.of` sizes the box `0.06 × 0.06 × 0.6` when `spec.kind == 'arrow'` and a cube of the radius otherwise. `kind` is documented as "what a hit reports as the damage source", and `ProjectileSpec` has no field for its shape.
+- **Cost of leaving it:** a game that declares its own long shot (a spear, a dart) under another name draws a cube, and one that names a fireball `'arrow'` draws a stick; the only way to get the arrow's look is to share its damage source. The fix is a size (or shape) field on `ProjectileSpec`, `arrow`'s set to today's box.
+- **Found while:** 2026-09-29 — closing `KL-007`, keying the shared shot model by what builds it.
+
 ## Closed
+
+### KL-007 · Every drop and every projectile meshes a geometry of its own
+
+- **Lens:** rendering / draw batching
+- **Evidence:** `packages/voxel_game/lib/src/entities/item_pickup.dart:50` builds a `VoxelModelMesh.node` for each drop from the item's colour, and `packages/voxel_game/lib/src/entities/projectile.dart:98` a `CuboidGeometry(size)` for each shot. flutter_scene 0.23 batches only render items with the identical geometry and material (`render/instance_batching.dart`, `opaqueBatchEnd` / `depthBatchEnd`), so each of them is a draw of its own in the colour pass and, being a moving caster, in every shadow cascade each frame. That is what the creatures' rigs cost before PF7 (`e770ef0`): 260 parts, 6.1 ms of the phone's shadow pass.
+- **Cost of leaving it:** a mined-out room or a skeleton volley puts dozens of identical cubes on screen, each drawn once a pass; on the phone that is the encode PF7 just won back from the creatures. The fix is the rigs' one: a geometry per item kind and per projectile size, made once and shared.
+- **Found while:** 2026-09-25 — PF7, sharing the creatures' meshes.
+- **Closed by:** 2026-09-29 — `voxel_game: drops and shots share their meshes`. `PickupModel.of(r, g, b)` builds a drop's cube once a colour and `ProjectileModel.of(spec)` a shot's `CuboidGeometry` and material once a size, colour and glow; each drop and each shot hangs its own node on them, as `RigInstance` does on `RigModel`. flutter_scene's batching compares both with `identical`, so the shot needed its material shared as well as its box. The drops' voxels were already the same for one colour (`VoxelModel.box`'s jitter hashes the position), so nothing changes on screen. Judged by reading the code and `test/pickup_model_test.dart` / `test/projectile_model_test.dart`, without numbers (no benchmark was asked for). Shots do not cast shadows (`castsShadows: false`), so their saving is in the colour pass only.
 
 ### KL-002 · A peer that hangs up surfaces as an unhandled write error on the host
 
