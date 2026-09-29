@@ -1,4 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Hosting and joining a game (VoxelGame.host / joinGame) open sockets. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="voxel_game_example"
         android:name="${applicationName}"

@@ -87,7 +87,10 @@ Dart SDK `^3.13.0`.
   (`flutter_scene` itself runs on the web; the kit does not.)
 
 - For multiplayer on macOS, add the `com.apple.security.network.server` and
-  `com.apple.security.network.client` entitlements.
+  `com.apple.security.network.client` entitlements. On Android, add
+  `<uses-permission android:name="android.permission.INTERNET"/>` to
+  `android/app/src/main/AndroidManifest.xml`: Flutter's template grants it only to debug
+  and profile builds, so a release build cannot host or join.
 
 ## Usage
 
