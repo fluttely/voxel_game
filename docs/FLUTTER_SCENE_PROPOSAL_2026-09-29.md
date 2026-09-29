@@ -1,9 +1,9 @@
 # flutter_scene upstream proposal (PF16) — draft, 2026-09-29
 
-> **Status: draft, not sent.** It goes to <https://github.com/bdero/flutter_scene/issues> only
-> with the owner's explicit ok on this text (PF16, `docs/VOXEL_PERF_PLAN_2026-09-25.md`).
-> Everything below the line is the issue as it would be posted; the four sections can
-> also go as four issues. Line numbers are flutter_scene 0.23.0 as published on pub.dev.
+> **Status: sent, 2026-09-29**, as one issue with the owner's ok on this text:
+> <https://github.com/bdero/flutter_scene/issues/435> (PF16, `docs/VOXEL_PERF_PLAN_2026-09-25.md`).
+> Everything below the line is the issue as posted. Line numbers are flutter_scene 0.23.0
+> as published on pub.dev.
 
 ---
 
