@@ -1,7 +1,9 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:gamepads/gamepads.dart';
 import 'package:voxel_game/voxel_game.dart';
 
 /// The input map read by a finger. A touch reports itself as the primary
@@ -163,6 +165,135 @@ void main() {
       expect(input.down(VoxelAction.sprint), isFalse);
       expect(input.down(VoxelAction.moveForward), isFalse);
       expect(input.axis(VoxelAction.moveForward, VoxelAction.moveBack, touch: TouchAxis.y), 0.0);
+      input.dispose();
+    });
+
+    test('a switch stays on across steps, and a screen opening turns it off', () {
+      final input = map();
+      input.touchToggle(VoxelAction.sneak);
+      expect(input.touchHeld(VoxelAction.sneak), isTrue);
+      expect(input.justPressed(VoxelAction.sneak), isTrue);
+      for (var i = 0; i < 3; i++) {
+        input.endTick();
+      }
+      expect(input.down(VoxelAction.sneak), isTrue, reason: 'no finger holds it, the switch does');
+      expect(input.justPressed(VoxelAction.sneak), isFalse);
+      input.touchToggle(VoxelAction.sneak);
+      expect(input.down(VoxelAction.sneak), isFalse);
+      input.touchToggle(VoxelAction.sneak);
+      input.releaseKeys();
+      expect(input.touchHeld(VoxelAction.sneak), isFalse);
+      expect(input.down(VoxelAction.sneak), isFalse);
+      input.dispose();
+    });
+
+    test('a one-shot is seen by exactly one step, and never held', () {
+      final input = map();
+      input.touchPress(VoxelAction.drop);
+      expect(input.justPressed(VoxelAction.drop), isTrue);
+      expect(input.down(VoxelAction.drop), isFalse);
+      expect(input.touchHeld(VoxelAction.drop), isFalse);
+      input.endTick();
+      expect(input.justPressed(VoxelAction.drop), isFalse);
+      input.dispose();
+    });
+
+    test('a finger a control claimed neither looks, mines nor taps', () async {
+      final input = map()..wantCapture = true;
+      // A tap on the control.
+      input.claimTouch(1);
+      input.onPointerDown(touchDown(1));
+      input.onPointerUp(touchUp(1));
+      expect(input.justPressed(VoxelAction.use), isFalse);
+      expect(input.justPressed(VoxelAction.attack), isFalse);
+      // A hold, then a drag off it.
+      input.claimTouch(2);
+      input.onPointerDown(touchDown(2));
+      await Future<void>.delayed(input.mineDelay * 2);
+      expect(input.down(VoxelAction.attack), isFalse);
+      input.onPointerMove(touchMove(2, const Offset(460, 300), const Offset(60, 0)));
+      expect(input.takeLook(0.0), Offset.zero);
+      input.onPointerUp(touchUp(2, const Offset(460, 300)));
+      expect(input.justPressed(VoxelAction.use), isFalse);
+      // The claim ends with the lift: the same pointer id on the world is the
+      // world's again.
+      input.onPointerDown(touchDown(1));
+      input.onPointerUp(touchUp(1));
+      expect(input.justPressed(VoxelAction.use), isTrue);
+      input.dispose();
+    });
+
+    test('a claim a cancel ended is forgotten too', () {
+      final input = map();
+      input.claimTouch(1);
+      input.onPointerDown(touchDown(1));
+      input.onPointerCancel(
+        PointerCancelEvent(pointer: 1, kind: PointerDeviceKind.touch, position: const Offset(400, 300)),
+      );
+      input.onPointerDown(touchDown(1));
+      input.onPointerUp(touchUp(1));
+      expect(input.justPressed(VoxelAction.use), isTrue);
+      input.dispose();
+    });
+  });
+
+  group('the last device', () {
+    NormalizedGamepadEvent pad({GamepadButton? button, GamepadAxis? axis, required double value}) =>
+        NormalizedGamepadEvent(
+          gamepadId: 'pad',
+          timestamp: 0,
+          button: button,
+          axis: axis,
+          value: value,
+          rawEvent: GamepadEvent(gamepadId: 'pad', timestamp: 0, type: KeyType.button, key: 'k', value: value),
+        );
+
+    test('each device takes it with the event it was handed', () {
+      final input = map()..lastDevice = InputDevice.keyboardMouse;
+      input.onPointerDown(touchDown(1));
+      expect(input.lastDevice, InputDevice.touch);
+      input.onKey(
+        FocusNode(),
+        const KeyDownEvent(
+          physicalKey: PhysicalKeyboardKey.keyW,
+          logicalKey: LogicalKeyboardKey.keyW,
+          timeStamp: Duration.zero,
+        ),
+      );
+      expect(input.lastDevice, InputDevice.keyboardMouse);
+      input.onPad(pad(button: GamepadButton.a, value: 1.0));
+      expect(input.lastDevice, InputDevice.gamepad);
+      input.onPointerDown(PointerDownEvent(pointer: 2, kind: PointerDeviceKind.mouse, buttons: kPrimaryMouseButton));
+      expect(input.lastDevice, InputDevice.keyboardMouse);
+      input.onPad(pad(axis: GamepadAxis.leftStickX, value: 0.8));
+      expect(input.lastDevice, InputDevice.gamepad);
+      // A finger that lands on a control is still a finger.
+      input.claimTouch(3);
+      input.onPointerDown(touchDown(3));
+      expect(input.lastDevice, InputDevice.touch);
+      input.dispose();
+    });
+
+    test('a phone starts in touch, a desktop on the keys', () {
+      for (final (platform, device) in [
+        (TargetPlatform.android, InputDevice.touch),
+        (TargetPlatform.iOS, InputDevice.touch),
+        (TargetPlatform.macOS, InputDevice.keyboardMouse),
+        (TargetPlatform.windows, InputDevice.keyboardMouse),
+      ]) {
+        debugDefaultTargetPlatformOverride = platform;
+        final input = map();
+        expect(input.lastDevice, device, reason: '$platform');
+        input.dispose();
+      }
+      debugDefaultTargetPlatformOverride = null;
+    });
+
+    test('a resting pad does not take it', () {
+      final input = map()..lastDevice = InputDevice.touch;
+      input.onPad(pad(axis: GamepadAxis.leftStickX, value: input.deadzone * 0.5));
+      input.onPad(pad(button: GamepadButton.a, value: 0.0));
+      expect(input.lastDevice, InputDevice.touch);
       input.dispose();
     });
   });

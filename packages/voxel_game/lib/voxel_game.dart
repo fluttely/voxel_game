@@ -32,6 +32,7 @@ export 'src/entities/game_entity.dart';
 export 'src/entities/item_pickup.dart';
 export 'src/entities/projectile.dart';
 export 'src/entities/target.dart';
+export 'src/input/input_device.dart';
 export 'src/input/input_map.dart';
 export 'src/input/voxel_action.dart';
 export 'src/loop/fixed_step_loop.dart';

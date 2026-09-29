@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **`InputMap` knows which device spoke last, and which fingers a control took.**
+  `InputMap.lastDevice` (the new `InputDevice`: `keyboardMouse`, `gamepad`, `touch`) is
+  written by `onKey`, `onPointerDown` and `onPad` from the event each is handed, a pad only
+  on a press or a stick past the dead zone; it starts as `touch` on Android and iOS. An
+  on-screen control calls `claimTouch(pointer)` from its own `onPointerDown`, and the map
+  then reads that finger as no look, no dig and no tap until it lifts. `touchToggle(action)`
+  holds an action from one tap to the next (sneak) and `touchHeld(action)` reads it back;
+  `touchPress(action)` presses a one-shot for a single step. The pad handler is public as
+  `onPad`, so a game can feed a pad source of its own. Nothing on screen changes yet.
 - **Breaking: a shot's shape is declared, not read from its kind's name.** `ProjectileSpec`
   takes `thickness` and `length`, the box it is drawn as (only its look; `radius` still
   hits), defaulting to the arrow's `0.06 × 0.06 × 0.6`; `ProjectileSpec.bolt` sets
