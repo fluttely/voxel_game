@@ -28,6 +28,11 @@
 - `eulerYXZInto` (new) writes `eulerYXZ`'s rotation into a quaternion it is given, the
   product of the three axis rotations worked out by hand; `eulerYXZ` is built on it. A
   rig part posed every step no longer allocates eight vectors and quaternions for it.
+- `NetHost.broadcast` encodes its message once for every peer, no longer once per peer,
+  and each send is one write, no longer two (`writeln` wrote the line, then the newline):
+  a host's 20 Hz state of 40 creatures cost it 369 µs with 4 peers and 797 with 8 (M2
+  Pro), against 106 and 122 now. `EncodedMessage` (new) is a message encoded once;
+  `NetConnection.sendEncoded` (new) sends one to a connection.
 
 ## 0.2.0-dev
 

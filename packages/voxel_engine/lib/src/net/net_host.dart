@@ -58,10 +58,12 @@ class NetHost {
   /// A client left.
   void Function(NetPeer peer)? onLeave;
 
-  /// Sends [message] to every peer but [except].
+  /// Sends [message] to every peer but [except], encoded once for all.
   void broadcast(NetMessage message, {int? except}) {
+    if (peers.isEmpty) return;
+    final encoded = EncodedMessage(message);
     for (final p in peers.values) {
-      if (p.id != except) p.send(message);
+      if (p.id != except) p.connection.sendEncoded(encoded);
     }
   }
 
