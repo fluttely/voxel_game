@@ -24,7 +24,7 @@ Found by reading, not by running: four read-only sweeps of the app against `pack
 
 | Step | State | Gate |
 |:---|:---|:---|
-| VA0 This plan, and the owner's answers to §Open decisions | **plan written** 2026-09-30; decisions open | the owner answers VAD1–VAD5 |
+| VA0 This plan, and the owner's answers to §Decisions | **done** 2026-09-30: the owner took every recommendation (VAD1–VAD5 settled). Next: VA1 on `opus 5.5:high` | the owner answers VAD1–VAD5 |
 | VA1 Survival on `PlayerEntity` | todo | hunger, food, regen, starvation, XP, armor from worn items and status effects on the player, all `PlayerSpec` / `ItemType` fields; the example eats and wears |
 | VA2 Blocks that do things | todo | falling blocks, doors, buckets, crops, chests (a container with a saved inventory), facing blocks — each a `BlockType` / `ItemType` field |
 | VA3 Screens as a state machine | todo | `openScreen` becomes a typed screen (bag, container, pause, death, a game's own), pause and death screens in the kit, a respawn button instead of the timer |
@@ -258,15 +258,17 @@ test.
 
 ---
 
-## Open decisions (the owner's)
+## Decisions
 
-| ID | Question | Recommended |
+Settled by the owner on 2026-09-30, each as recommended. Do not re-litigate them.
+
+| ID | Question | Settled |
 |:---|:---|:---|
 | VAD1 | Is the end state the app on `VoxelGame` (VA-Z), its copies deleted? | **Yes.** Until then every duplicate above is paid twice, and the app does not witness the kit's gameplay, only its lower pieces |
 | VAD2 | The actions: does `VoxelAction` grow, or do the kit's widgets take a game's own action enum (`InputMap<A>`)? | **`VoxelAction` grows**, one action per kit feature that reads it (glide, fly, interact); a game's own (the app's abilities, journal) stay a game's through a `GameSystem` reading its own binding. Generic widgets over `A` would make every kit widget take a mapping for little gain |
-| VAD3 | Survival's scope: hunger, XP, armor, effects in the kit; stamina, mana, classes, talents, dodge the app's? | **That split.** The first four are Minecraft's own; the rest is an RPG layer the app chose |
-| VAD4 | Does `runVoxelGame` show a title and a world list (VA8), or does a game opt in? | **Opt in** (`runVoxelGame(spec, menu: TitleSpec(...))`): today's one-line game still drops straight into its world |
-| VAD5 | Order: survival and screens first (VA1–VA8), then the world (VA9–VA12), then creatures and net (VA13–VA17)? | **Yes.** VA1–VA4 change what the example plays like the most, and VA3 is what VA6–VA8 mount on |
+| VAD3 | Survival's scope | **Hunger, XP, armor and status effects are the kit's**; stamina, mana, classes, talents and the dodge stay the app's. The first four are Minecraft's own; the rest is an RPG layer the app chose |
+| VAD4 | Does `runVoxelGame` show a title and a world list (VA8), or does a game opt in? | **A game opts in** (`runVoxelGame(spec, menu: TitleSpec(...))`): today's one-line game still drops straight into its world |
+| VAD5 | Order | **Survival and screens first (VA1–VA8), then the world (VA9–VA12), then creatures and net (VA13–VA17), then VA-Z.** VA1–VA4 change what the example plays like the most, and VA3 is what VA6–VA8 mount on |
 
 ## Out of scope
 
