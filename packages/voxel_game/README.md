@@ -100,6 +100,13 @@ Dart SDK `^3.13.0`.
   saves are files, through `dart:isolate` and `dart:io`, which a browser does not have.
   (`flutter_scene` itself runs on the web; the kit does not.)
 
+- **Landscape on a phone.** `runVoxelGame` locks a phone or tablet to the two landscape
+  orientations; declare the same in the runners so the launch screen is not upright:
+  `android:screenOrientation="sensorLandscape"` on the activity in
+  `android/app/src/main/AndroidManifest.xml`, and in `ios/Runner/Info.plist` only
+  `UIInterfaceOrientationLandscapeLeft` / `Right` under both
+  `UISupportedInterfaceOrientations` keys, with `<key>UIRequiresFullScreen</key><true/>`.
+
 - For multiplayer on macOS, add the `com.apple.security.network.server` and
   `com.apple.security.network.client` entitlements. On Android, add
   `<uses-permission android:name="android.permission.INTERNET"/>` to

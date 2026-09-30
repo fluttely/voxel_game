@@ -12,7 +12,9 @@ Every runner turns on Flutter GPU, which `flutter_scene` draws through
 (`macos/Runner/Info.plist`, `ios/Runner/Info.plist`,
 `android/app/src/main/AndroidManifest.xml`, `windows/runner/main.cpp`,
 `linux/runner/my_application.cc`); the Windows and Linux settings need Flutter 3.47.1 or
-later. There is no web runner: the kit does not run in a browser (see its README).
+later. A phone plays it in landscape, either way round, never upright: the Android and
+iOS runners say so as well as `runVoxelGame`. There is no web runner: the kit does not
+run in a browser (see its README).
 
 Click to play. WASD move, Space jump, Shift run, Ctrl sneak, mouse look, left button
 mine or hit, right button place, 1-9 or the wheel pick a hotbar slot, V first or third

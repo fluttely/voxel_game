@@ -21,7 +21,8 @@ Closes `CL-009`, and gives `DefaultHud` the witness `CL-005` asks for (`VT2`).
 | VT1 `InputMap` — the last device, claimed touches, a toggle and a one-shot | **done** 2026-09-29: `InputDevice` + `InputMap.lastDevice` (starts `touch` on Android/iOS), `claimTouch` (the lift also drops any gesture state the finger had), `touchToggle` / `touchHeld` / `touchPress`; `_onPad` became the public `onPad` so a test can hand it a pad event. The plan's `clear` is `releaseKeys` in the code | `input_map_test.dart` covers the four; nothing on screen changes |
 | VT2 `DefaultHud` — a hotbar a finger can use | **done** 2026-09-29: the widget's `IgnorePointer` is gone and `DefaultHud` puts its passive pieces behind its own; each slot is a claiming `Listener` over a `RawGestureDetector` (a touch-only tap, and on the slot in hand a touch-only long press of `DefaultHud.dropHold`, 400 ms, a constant until VT3's spec); a hold on a slot not in hand picks it. `test/default_hud_test.dart` (5 tests) mounts the HUD under a `Listener` wired as the widget wires it | widget tests mount `DefaultHud` over a `VoxelGame`; a tap on a slot is never also a tap on the world; `CL-005` updated |
 | VT3 `TouchControls` + `TouchControlsSpec` | **done** 2026-09-29: the layer hides itself (a `HudSelector` inside `TouchControls`, so a game that mounts it gets the same rule); a control taken off the screen under a finger still hears that finger's moves and lift, so every handler checks `mounted`. Found on the way and fixed, since the step does nothing without them: `PlayerEntity._walk` never passed `touch:` to `axis`, and a screen opening never called `releaseKeys` (the plan assumed both). `test/touch_controls_test.dart` (6), a stick walk in `game_test.dart`, and `DefaultHud` with `touchControls: null`. Recorded, not fixed: `KL-010`, `KL-011` | widget tests drive the stick, the rim, jump, sneak and the device switch; `CL-009` closed in the ledger |
-| VT4 Seen on a phone | todo | the owner frees the S24 and plays it; **no benchmark**, just play |
+| VT4 Seen on a phone | **done** 2026-09-30: the owner played the example on the phone and liked it; one finding, the game started upright (`VT5`) | the owner frees the S24 and plays it; **no benchmark**, just play |
+| VT5 Never upright | **done** 2026-09-30: `runVoxelGame` asks for landscape either way round and the immersive-sticky system UI; the example's `AndroidManifest.xml` (`sensorLandscape`) and `Info.plist` (landscape only, `UIRequiresFullScreen`) say it from the launch screen on (`VTD8`) | the example opens landscape on the phone, turns between the two landscapes, and never upright |
 
 Run every step on `opus 5.5:high` (a kit API that a game reads, and a pointer route that is
 easy to get subtly wrong). VT4 needs no model: it is the owner holding the phone.
@@ -91,6 +92,7 @@ Landscape; everything inside `MediaQuery.paddingOf` (notch, punch-hole, gesture 
 | VTD5 | **Stack order: world → `TouchControls` → HUD → screen.** | The HUD's hotbar sits above the stick's zone, so where the two overlap on a narrow phone, the slot wins, without either knowing the other's size. The HUD's passive pieces stay `IgnorePointer`, so the zone under them still takes the thumb. |
 | VTD6 | **Touch mode is the last device that spoke.** `InputMap.lastDevice` (a new `InputDevice` enum: `keyboardMouse`, `gamepad`, `touch`), written by `onPointerDown` from `e.kind`, by `onKey`, and by `_onPad`. The controls and the hint read it through a `HudSelector`. | A Mac never sees the controls; a tablet with a keyboard switches on its own. Each handler writes from the event it was handed (rule 14). |
 | VTD7 | **`TouchControlsSpec` on `VoxelGameSpec`**, `touchControls: TouchControlsSpec.standard` by default, `null` for a game that draws its own. `TouchControls` is public, so a game can put it over its own HUD. | Rule 7: the stick's radius, `sprintAt`, button size, `sneakToggles`, `dropHold` are fields, not constants in a widget. |
+| VTD8 | **Never upright.** (Owner, 2026-09-30.) `runVoxelGame` locks a phone or tablet to the two landscapes; a game's runners declare the same so the launch screen agrees. | The HUD, the stick's zone and the view are laid out for a wide viewport; the example's runners came from Flutter's template, which allows portrait, so VT4 opened the game upright. |
 
 ## Steps
 
@@ -160,7 +162,6 @@ measured. What looks wrong becomes a `VT5` row here.
 
 - The app's own `touch_controls.dart` (in `poc_cubeworld/`, another repository): it keeps
   its layout; it can move onto `TouchControls` whenever it wants.
-- Portrait: the example and the benchmark run landscape; a portrait layout is a later
-  `TouchControlsSpec`, not a branch in the widget.
+- Portrait: never (`VTD8`). There is no portrait layout to plan.
 - `KL-004` (Windows and Linux get a drag instead of a locked mouse) is a mouse matter and
   stays open.

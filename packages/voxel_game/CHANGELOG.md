@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **A phone plays in landscape, never upright.** `runVoxelGame` locks a phone or tablet to
+  the two landscape orientations and hides the status and navigation bars until a swipe
+  (`SystemUiMode.immersiveSticky`). The example's runners say the same from the launch
+  screen on: `android:screenOrientation="sensorLandscape"` in its `AndroidManifest.xml`,
+  landscape only (and `UIRequiresFullScreen`) in its `Info.plist`. A game that mounts
+  `VoxelGameWidget` itself sets its own orientation.
 - `MeasuredScene`, the scene the game renders, is a voxel_scene `ResizeSafeScene`: the
   frame drawn at a new size (a phone turning to landscape, a window resized, a new render
   scale) draws the sun's static shadows without their cache, so no cached tile begins a

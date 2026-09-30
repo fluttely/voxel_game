@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart' show SchedulerBinding, Ticker;
+import 'package:flutter/services.dart' show DeviceOrientation, SystemChrome, SystemUiMode;
 import 'package:flutter_scene/scene.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sound_recipes/sound_recipes.dart';
@@ -27,6 +28,14 @@ import '../world/world_save.dart';
 /// A [loading] screen ([LoadingScreen] when null) shows until the window
 /// around the player has filled and the renderer has compiled what it draws.
 ///
+/// A phone or tablet plays it in landscape, either way round, and never
+/// upright: the HUD, the touch controls and the 3D view are laid out for a
+/// wide viewport. The status and navigation bars hide and come back on a
+/// swipe. A game's runners should say the same, so the launch screen does
+/// not show upright before `main` runs (the example's `AndroidManifest.xml`
+/// and `Info.plist`). A desktop window is sized by its window manager and
+/// ignores both.
+///
 /// With [saveSlot] the world is kept in that slot of the app's support
 /// folder (`worlds/<slot>`): loaded when it exists, saved every minute and
 /// when the widget goes away. With [hostPort] others can join the game on
@@ -42,6 +51,8 @@ Future<void> runVoxelGame(
   String? join,
 }) async {
   WidgetsFlutterBinding.ensureInitialized();
+  await SystemChrome.setPreferredOrientations([DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
+  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   await VoxelGameWidget.loadResources();
   runApp(
     MaterialApp(
