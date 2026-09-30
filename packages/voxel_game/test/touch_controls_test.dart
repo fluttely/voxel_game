@@ -19,32 +19,26 @@ const _spec = VoxelGameSpec(
   ),
 );
 
-/// The kit's touch controls over a running game, under one `Listener` that
-/// feeds the input map every pointer, as `VoxelGameWidget` wires them. The
-/// test surface is 800 × 600: the stick's zone is the lower-left 320 × 420.
+/// The kit's touch controls over a running game, on the `GameSurface`
+/// `VoxelGameWidget` shows (with no HUD), whose one `Listener` feeds the input
+/// map every pointer. The test surface is 800 × 600: the stick's zone is the
+/// lower-left 320 × 420.
 void main() {
   const spec = TouchControlsSpec.standard;
 
   Future<VoxelGame> start(WidgetTester tester) async {
     final game = (await tester.runAsync(() => VoxelGame.startHeadless(_spec)))!;
     game.spawner.enabled = false;
-    final input = game.input
+    game.input
       ..wantCapture = true
       ..lastDevice = InputDevice.touch;
     await tester.pumpWidget(
       MaterialApp(
-        home: Listener(
-          onPointerDown: input.onPointerDown,
-          onPointerUp: input.onPointerUp,
-          onPointerCancel: input.onPointerCancel,
-          onPointerMove: input.onPointerMove,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              const ColoredBox(color: Colors.black),
-              TouchControls(game, spec),
-            ],
-          ),
+        home: GameSurface(
+          game: game,
+          world: const ColoredBox(color: Colors.black),
+          hud: (context, game) => const SizedBox.shrink(),
+          touchControls: spec,
         ),
       ),
     );

@@ -53,6 +53,7 @@ export 'src/spec/touch_controls_spec.dart';
 export 'src/spec/voxel_game_spec.dart';
 export 'src/world/game_world.dart';
 export 'src/ui/default_hud.dart';
+export 'src/ui/game_surface.dart';
 export 'src/ui/hud_selector.dart';
 export 'src/ui/voxel_game_widget.dart';
 export 'src/ui/inventory_screen.dart';

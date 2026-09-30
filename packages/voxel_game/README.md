@@ -36,6 +36,9 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
   finger claims it (`InputMap.claimTouch`), a piece that only shows sits in an `IgnorePointer`.
   A loading screen (`LoadingScreen`, or your own `LoadingBuilder`) covers the game until the
   world around the player has filled and the renderer has compiled what it draws.
+  Once loaded, the widget shows a `GameSurface`: the world, the touch controls, the HUD and
+  the open screen under the one `Listener` that feeds the input. It is public, so a test (or
+  a game that draws the world its own way) can mount the kit's wiring over any widget.
 - Controls for keyboard and mouse, gamepad and touch; first and third person. A finger on
   the world is a gesture: lift in place to use (or swing), stay put to mine, drag to look.
   A phone also gets `TouchControls`: a floating stick in the lower-left zone (pushed to the

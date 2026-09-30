@@ -30,6 +30,14 @@
 - The bag opens under a `VoxelGameWidget` with no `Scaffold` above it: `InventoryScreen`'s
   panel is its own `Material`, so its recipe tiles no longer fail to build ("No Material
   widget found") in a game that mounts the widget straight under its app.
+- `GameSurface`: what `VoxelGameWidget` shows once the game has loaded, the world under
+  the touch controls, the HUD and the open screen, inside the one `Listener` and `Focus`
+  that feed the input map; it takes the pointer on the first press, keeps a press on an open
+  screen from the world, and frees the pointer and every held input when a screen opens.
+  `world` is any widget, so the kit's own wiring can be mounted in a widget test, and its
+  tests now mount it instead of a copy. `HudBuilder` moved into its file (still exported
+  from `package:voxel_game/voxel_game.dart`). A screen opened before the game has loaded
+  no longer frees or takes the pointer; the surface arbitrates only while it is shown.
 - **Breaking: the HUD is hit-tested.** `VoxelGameWidget` no longer wraps the `HudBuilder`'s
   widget in an `IgnorePointer`, so the default HUD's hotbar can take a finger: a tap on a
   slot picks it, a hold of `TouchControlsSpec.dropHold` on the slot in hand drops one item, and

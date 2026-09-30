@@ -12,22 +12,10 @@ import 'package:voxel_scene/voxel_scene.dart';
 import '../core/voxel_game.dart';
 import '../spec/voxel_game_spec.dart';
 import 'default_hud.dart';
-import 'hud_selector.dart';
-import 'inventory_screen.dart';
+import 'game_surface.dart';
 import 'loading_screen.dart';
 import 'loading_stage.dart';
-import 'touch_controls.dart';
 import '../world/world_save.dart';
-
-/// Builds an overlay over the running game. It is called when the widget
-/// builds (the game starts, a screen opens or closes), not every frame: a
-/// piece that shows the game's state watches it through a [HudSelector] (or
-/// listens to [VoxelGame.frames]). It sits behind a [RepaintBoundary], and it
-/// is hit-tested like any widget: every pointer also reaches the game's own
-/// `Listener` around it, so a piece that takes a finger for itself calls
-/// `InputMap.claimTouch` as it lands (as [DefaultHud]'s hotbar does), and a
-/// piece that only shows something sits in an [IgnorePointer].
-typedef HudBuilder = Widget Function(BuildContext context, VoxelGame game);
 
 /// Loads the renderer and runs [spec] full screen: the one call a game's
 /// `main` needs.
@@ -154,7 +142,6 @@ class _VoxelGameWidgetState extends State<VoxelGameWidget> with SingleTickerProv
   // Drives the game in the SceneView's place while the loading screen is up.
   late final Ticker _loadingTicker;
   Duration _lastLoadingTick = Duration.zero;
-  final FocusNode _focus = FocusNode();
   bool _disposed = false;
 
   WorldSaves? _saves;
@@ -193,7 +180,6 @@ class _VoxelGameWidgetState extends State<VoxelGameWidget> with SingleTickerProv
     }
     SchedulerBinding.instance.addTimingsCallback(game.stats.addTimings);
     game.input.attachDevices();
-    game.openScreen.addListener(_screenChanged);
     setState(() {
       _game = game;
       _stage = LoadingStage.filling;
@@ -271,31 +257,9 @@ class _VoxelGameWidgetState extends State<VoxelGameWidget> with SingleTickerProv
     _disposed = true;
     final game = _game;
     if (game != null) SchedulerBinding.instance.removeTimingsCallback(game.stats.addTimings);
-    _game?.openScreen.removeListener(_screenChanged);
     _game?.dispose();
-    _focus.dispose();
     super.dispose();
   }
-
-  void _screenChanged() {
-    final game = _game;
-    if (game == null) return;
-    // The screen is the arbiter of the pointer: opening frees it, closing
-    // takes it back, whoever asked for the change. Opening also lets go of
-    // everything held: an on-screen button taken off the screen gets no
-    // lift, and a switched-on sneak would still be on when the player came
-    // back.
-    if (game.openScreen.value != null) {
-      game.input
-        ..release()
-        ..releaseKeys();
-    } else {
-      game.input.capture();
-    }
-    setState(() {});
-  }
-
-  void _closeScreen(VoxelGame game) => game.openScreen.value = null;
 
   void _tick(VoxelGame game, double dt) {
     final input = game.input;
@@ -315,37 +279,15 @@ class _VoxelGameWidgetState extends State<VoxelGameWidget> with SingleTickerProv
     _game?.fitPixelRatio(MediaQuery.devicePixelRatioOf(context));
     if (_stage != LoadingStage.playing) return (widget.loading ?? LoadingScreen.builder)(context, _stage, _game);
     final game = _game!;
-    return Focus(
-      focusNode: _focus,
-      autofocus: true,
-      onKeyEvent: game.input.onKey,
-      child: Listener(
-        onPointerDown: (e) {
-          _focus.requestFocus();
-          if (game.openScreen.value != null) return;
-          if (!game.input.wantCapture) {
-            game.input.capture();
-            return;
-          }
-          game.input.onPointerDown(e);
-        },
-        onPointerUp: game.input.onPointerUp,
-        onPointerCancel: game.input.onPointerCancel,
-        onPointerMove: game.input.onPointerMove,
-        onPointerSignal: game.input.onPointerSignal,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            SceneView(game.scene!, cameraBuilder: (elapsed) => game.camera(), onTick: (elapsed, dt) => _tick(game, dt)),
-            // Under the HUD, so where the hotbar and the stick's zone overlap
-            // on a narrow screen, the slot wins.
-            if (widget.spec.touchControls case final touch?) TouchControls(game, touch),
-            RepaintBoundary(child: (widget.hud ?? DefaultHud.builder)(context, game)),
-            if (game.openScreen.value != null)
-              InventoryScreen(game: game, station: game.openScreen.value!, onClose: () => _closeScreen(game)),
-          ],
-        ),
+    return GameSurface(
+      game: game,
+      world: SceneView(
+        game.scene!,
+        cameraBuilder: (elapsed) => game.camera(),
+        onTick: (elapsed, dt) => _tick(game, dt),
       ),
+      hud: widget.hud,
+      touchControls: widget.spec.touchControls,
     );
   }
 }

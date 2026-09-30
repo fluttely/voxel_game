@@ -15,15 +15,6 @@
 
 ## Open
 
-### CL-005 · The kit's whole top half is exercised only by an example nothing runs
-
-- **Lens:** testing / kit surface
-- **Evidence:** `DefaultHud` (108 lines), the kit's `InventoryScreen` (181) and `VoxelGameWidget` (`packages/voxel_game/lib/src/ui/voxel_game_widget.dart:256,260`, which wires both) are reachable from exactly one place: `packages/voxel_game/example/lib/main.dart:4`, a one-line app. `packages/voxel_game/test/` holds three files (`game_test.dart`, `goal_test.dart`, `net_game_test.dart`) and none of them mounts a widget. The app the kit was extracted from never touches them — the app's `lib/src/ui/game_view.dart:128` (in `poc_cubeworld/`) builds its own `InventoryScreen` (352 lines) and its own HUD (809).
-- **Cost of leaving it:** the split itself is right (rule 7 — the kit ships a default, the game ships Dawnforge's), but the default has no witness. Rule 18 says a stage is done when it was seen running, and this surface has been seen running once, by whoever last opened the example by hand. A `flutter_scene` upgrade, a shader bundle rebuild or an `InputMap` change can break the kit's only out-of-the-box screen and every test still passes, because the app that would have noticed draws its own.
-- **Found while:** 2026-09-21 — answering why `lib/` imports `voxel_game` in only two files.
-- **Moved:** 2026-09-22 (`VR3`) from `poc_cubeworld/docs/LEDGER.md`, ID kept. Paths rewritten from this folder; the app's files are named as the app's. Kit paths rewritten again on 2026-09-23, when `voxel_game` moved under `packages/`.
-- **Narrowed:** 2026-09-29 (`VT2`, `docs/VOXEL_TOUCH_PLAN_2026-09-29.md`): `DefaultHud` has a witness, `packages/voxel_game/test/default_hud_test.dart`, which mounts it over a headless `VoxelGame` under a `Listener` wired as the widget wires it (a tap picks a slot and is not a tap on the world, a hold drops, a mouse passes through, `⋯` opens the bag, the hint follows the device). `InventoryScreen` (204 lines) and `VoxelGameWidget`'s own wiring (`voxel_game_widget.dart:312-340`: the `Listener`, the capture on the first press, the stack) are still mounted by nothing but the example, so the entry stays open.
-
 ### CL-008 · The decision register still answers questions about packages that no longer exist
 
 - **Lens:** docs / stale SSOT
@@ -55,6 +46,16 @@
 - **Seen again:** 2026-09-28, PF3's phone A/B: the same `SIGSEGV` at `0x3f8` in `vkCmdBeginRenderPass` under `InternalFlutterGpu_RenderPass_Begin`, the second run of a call (`orbit:6` after `mobs:6`, `9c36cc2`, no PF3 code), 18 lines and 19 launches that day.
 
 ## Closed
+
+### CL-005 · The kit's whole top half is exercised only by an example nothing runs
+
+- **Lens:** testing / kit surface
+- **Evidence:** `DefaultHud` (108 lines), the kit's `InventoryScreen` (181) and `VoxelGameWidget` (`packages/voxel_game/lib/src/ui/voxel_game_widget.dart:256,260`, which wires both) are reachable from exactly one place: `packages/voxel_game/example/lib/main.dart:4`, a one-line app. `packages/voxel_game/test/` holds three files (`game_test.dart`, `goal_test.dart`, `net_game_test.dart`) and none of them mounts a widget. The app the kit was extracted from never touches them — the app's `lib/src/ui/game_view.dart:128` (in `poc_cubeworld/`) builds its own `InventoryScreen` (352 lines) and its own HUD (809).
+- **Cost of leaving it:** the split itself is right (rule 7 — the kit ships a default, the game ships Dawnforge's), but the default has no witness. Rule 18 says a stage is done when it was seen running, and this surface has been seen running once, by whoever last opened the example by hand. A `flutter_scene` upgrade, a shader bundle rebuild or an `InputMap` change can break the kit's only out-of-the-box screen and every test still passes, because the app that would have noticed draws its own.
+- **Found while:** 2026-09-21 — answering why `lib/` imports `voxel_game` in only two files.
+- **Moved:** 2026-09-22 (`VR3`) from `poc_cubeworld/docs/LEDGER.md`, ID kept. Paths rewritten from this folder; the app's files are named as the app's. Kit paths rewritten again on 2026-09-23, when `voxel_game` moved under `packages/`.
+- **Narrowed:** 2026-09-29 (`VT2`, `docs/VOXEL_TOUCH_PLAN_2026-09-29.md`): `DefaultHud` has a witness, `packages/voxel_game/test/default_hud_test.dart`, which mounts it over a headless `VoxelGame` under a `Listener` wired as the widget wires it (a tap picks a slot and is not a tap on the world, a hold drops, a mouse passes through, `⋯` opens the bag, the hint follows the device). `InventoryScreen` (204 lines) and `VoxelGameWidget`'s own wiring (`voxel_game_widget.dart:312-340`: the `Listener`, the capture on the first press, the stack) are still mounted by nothing but the example, so the entry stays open.
+- **Closed by:** 2026-09-29 — `voxel_game: the bag draws without a Scaffold above it` and `voxel_game: the widget's wiring is a GameSurface a test can mount`. `test/inventory_screen_test.dart` mounts `InventoryScreen` (the cursor, the right-click half, the stack handed back on close, crafting) and on its first run found that its recipe tiles failed to build under any widget without a `Scaffold` above it, fixed in the first commit. The second moves `VoxelGameWidget`'s loaded body (the `Focus`, the `Listener`, the capture on the first press, the screen's arbitration, the stack) into `GameSurface` (`packages/voxel_game/lib/src/ui/game_surface.dart`), which takes the world as any widget; `test/game_surface_test.dart` mounts it over a box, and `default_hud_test.dart` and `touch_controls_test.dart` mount it instead of the `Listener` they copied. What stays unwitnessed is what needs Flutter GPU: the `SceneView`, the loading ticker and `warmUp`, seen only by running the example.
 
 ### KL-010 · `VoxelGameSpec.copyWith` cannot clear a nullable field
 

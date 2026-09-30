@@ -19,8 +19,8 @@ const _spec = VoxelGameSpec(
   ),
 );
 
-/// The kit's HUD over a running game, wired the way `VoxelGameWidget` wires
-/// it: one `Listener` around the world and the HUD, feeding the input map
+/// The kit's HUD over a running game, on the `GameSurface` `VoxelGameWidget`
+/// shows: one `Listener` around the world and the HUD, feeding the input map
 /// every pointer that lands anywhere in it.
 void main() {
   Future<VoxelGame> start(WidgetTester tester, [VoxelGameSpec spec = _spec]) async {
@@ -35,21 +35,11 @@ void main() {
     }))!;
     expect(game.ready, isTrue);
     game.input.wantCapture = true;
-    final input = game.input;
     await tester.pumpWidget(
       MaterialApp(
-        home: Listener(
-          onPointerDown: input.onPointerDown,
-          onPointerUp: input.onPointerUp,
-          onPointerCancel: input.onPointerCancel,
-          onPointerMove: input.onPointerMove,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              const ColoredBox(color: Colors.black),
-              DefaultHud(game),
-            ],
-          ),
+        home: GameSurface(
+          game: game,
+          world: const ColoredBox(color: Colors.black),
         ),
       ),
     );
