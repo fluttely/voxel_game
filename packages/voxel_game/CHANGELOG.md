@@ -13,7 +13,19 @@
     against a wall becomes its `onWall` form.
   - `VoxelGame.breakBlock` rolls a block's `loot` when it has one, instead of its `drop`;
     `VoxelGameSpec.buildItems` refuses loot naming an item that does not exist.
-  - `VoxelGameSpec.onBlockPlaced` names the block placed, the wall form when it was one.
+  - `VoxelGameSpec.onBlockPlaced` names the block placed, the wall form or the facing
+    variant when it was one.
+  - A block with a `facing` is placed as the variant the player looks toward (stairs
+    climb away from them) or along (a door spans across their way).
+  - A `tall` block is placed into the cell above as well, when that cell is free, and its
+    halves go together: breaking one takes the other with no second drop. The halves pair
+    from the bottom of a run of the block's family (itself, what a use or a
+    `SignalSpec.doors` entry turns it into), so two doors stacked stay two doors, and a
+    signal swinging a door keeps both halves (`BlockRules.lowerHalf`).
+  - A press of use on a block with a `usedInto` turns it (both halves of a tall one) into
+    that block, unless the player sneaks; holding use does not flap it. A block that would
+    turn solid around a body stays as it is (`BlockRules.use`, `VoxelGame.bodyIn`, which
+    the player's placing now shares).
 - **Survival on the player (VA1).** Each piece is off until the spec declares it, so a game
   that declares none plays as before.
   - `PlayerSpec.hunger`, a `HungerSpec` (new): the bar empties by `secondsPerPoint`, heals

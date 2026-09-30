@@ -599,9 +599,10 @@ class PlayerEntity extends NodeBody implements Target {
     if (spec.creative) _attackCooldown = 0.2;
   }
 
-  /// Uses a lever or a station under the crosshair, else eats or puts on the
-  /// item in hand ([pressed] only: holding the button does not eat a stack),
-  /// else places its block.
+  /// Uses a lever, a station or a block that turns (a door) under the
+  /// crosshair, else eats or puts on the item in hand, else places its block.
+  /// What turns, is eaten or put on is used on a [pressed] only: holding the
+  /// button does not flap a door or eat a stack.
   void _use({required bool pressed}) {
     final hit = aimedBlock;
     // A lever or a button is used, not built against.
@@ -616,6 +617,12 @@ class PlayerEntity extends NodeBody implements Target {
       final aimed = _game.world.blockNameAt(hit.block);
       if (_game.stations.contains(aimed) && !_game.input.down(VoxelAction.sneak)) {
         _game.openScreen.value = aimed;
+        return;
+      }
+      // A door is opened, not built against, unless the player sneaks.
+      if (_game.world.blocks[_game.world.getBlock(hit.block)].usedInto != null &&
+          !_game.input.down(VoxelAction.sneak)) {
+        if (pressed && _game.blockRules.use(hit.block)) _swingArm();
         return;
       }
     }
@@ -633,11 +640,20 @@ class PlayerEntity extends NodeBody implements Target {
     var id = world.blocks.indexOf(item.block!);
     final wall = world.blocks[id].onWall;
     if (wall != null && hit.normal.y == 0) id = world.blocks.indexOf(wall);
+    final facing = world.blocks[id].facing;
+    if (facing != null) id = world.blocks.indexOf(facing.toward(flatForward.x, flatForward.z));
+    final type = world.blocks[id];
+    final cells = [cell, if (type.tall) cell + IVec3.up];
     // Never where it would not stand, nor into a body: the player's own, or a
-    // creature's.
+    // creature's. A tall block needs the cell above as well.
     if (!_game.blockRules.stands(cell, id)) return;
-    if (world.blocks[id].solid && _bodiesIn(cell)) return;
-    if (!world.setBlock(cell, id)) return;
+    for (final c in cells.skip(1)) {
+      if (!world.isLoaded(c) || !world.blocks.isReplaceable(world.getBlock(c))) return;
+    }
+    if (type.solid && cells.any(_game.bodyIn)) return;
+    for (final c in cells) {
+      if (!world.setBlock(c, id)) return;
+    }
     _swingArm();
     _game.playSound(
       'place_${_game.soundFamily(id)}',
@@ -651,17 +667,6 @@ class PlayerEntity extends NodeBody implements Target {
   void _swingArm() {
     rig?.swing();
     _game.firstPerson?.swing();
-  }
-
-  bool _bodiesIn(IVec3 cell) {
-    bool overlaps(VoxelBody b) =>
-        b.position.x + b.halfWidth > cell.x &&
-        b.position.x - b.halfWidth < cell.x + 1 &&
-        b.position.z + b.halfWidth > cell.z &&
-        b.position.z - b.halfWidth < cell.z + 1 &&
-        b.position.y + b.height > cell.y &&
-        b.position.y < cell.y + 1;
-    return overlaps(this) || _game.mobs.any((m) => !m.isDead && overlaps(m));
   }
 
   void _dropHeld() {

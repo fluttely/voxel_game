@@ -545,6 +545,19 @@ class VoxelGame {
     }
   }
 
+  /// Whether a body (the player's, a living creature's) stands in [cell]:
+  /// where no solid block may go.
+  bool bodyIn(IVec3 cell) {
+    bool overlaps(VoxelBody b) =>
+        b.position.x + b.halfWidth > cell.x &&
+        b.position.x - b.halfWidth < cell.x + 1 &&
+        b.position.z + b.halfWidth > cell.z &&
+        b.position.z - b.halfWidth < cell.z + 1 &&
+        b.position.y + b.height > cell.y &&
+        b.position.y < cell.y + 1;
+    return overlaps(player) || mobs.any((m) => !m.isDead && overlaps(m));
+  }
+
   /// Adds [entity] to the world.
   T add<T extends GameEntity>(T entity) {
     if (entity is Mob) {

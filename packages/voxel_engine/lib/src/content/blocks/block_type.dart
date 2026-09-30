@@ -1,6 +1,7 @@
 import 'package:voxel_engine/core.dart';
 
 import '../loot/loot_table.dart';
+import 'facing.dart';
 import 'support.dart';
 
 /// One block of a game, named by string. The engine sees it through the
@@ -30,6 +31,9 @@ class BlockType {
     this.support,
     this.onWall,
     this.loot,
+    this.facing,
+    this.tall = false,
+    this.usedInto,
   }) : r = ((color >> 16) & 0xFF) / 255.0,
        g = ((color >> 8) & 0xFF) / 255.0,
        b = (color & 0xFF) / 255.0,
@@ -62,6 +66,9 @@ class BlockType {
     this.support,
     this.onWall,
     this.loot,
+    this.facing,
+    this.tall = false,
+    this.usedInto,
   }) : opaque = opaque ?? (solid && alpha >= 1.0 && shape == BlockShape.cube);
 
   /// A liquid of [kind] (default: its own id). A source ([source] true) feeds
@@ -92,7 +99,10 @@ class BlockType {
        falls = false,
        support = null,
        onWall = null,
-       loot = null;
+       loot = null,
+       facing = null,
+       tall = false,
+       usedInto = null;
 
   /// The id: what saves, recipes and world specs name it by.
   final String id;
@@ -165,4 +175,17 @@ class BlockType {
   /// The block placed instead when a player puts this one against a wall
   /// (a torch becomes a wall torch), or null to place this one there too.
   final String? onWall;
+
+  /// The variants a player's placing chooses from by the way they look
+  /// (stairs, a door), or null for a block placed as it is. Its item places
+  /// this block, which is one of the variants.
+  final Facing? facing;
+
+  /// Two cells high (a door): placed into the cell above as well, broken and
+  /// used as one. Both halves are this block.
+  final bool tall;
+
+  /// The block a player's use turns it into (a door opens, and its open
+  /// state's [usedInto] closes it), or null for a block that is not used.
+  final String? usedInto;
 }

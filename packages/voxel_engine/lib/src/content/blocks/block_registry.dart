@@ -8,7 +8,8 @@ import 'block_type.dart';
 class BlockRegistry<T extends BlockType> {
   /// [types] with air first; at most 256. Throws [ArgumentError] on a
   /// duplicate id, an air that is not id 0, or a block that names one that
-  /// does not exist (what it leans on, its wall form).
+  /// does not exist (what it leans on, its wall form, its facing variants,
+  /// what a use turns it into).
   BlockRegistry(List<T> types) : types = List<T>.unmodifiable(types) {
     if (types.isEmpty || types.first.solid || types.first.shape != BlockShape.cube) {
       throw ArgumentError('block 0 must be air (not solid, a cube shape)');
@@ -27,6 +28,10 @@ class BlockRegistry<T extends BlockType> {
       }
 
       known(t.onWall, 'its wall form');
+      known(t.usedInto, 'what a use turns it into');
+      for (final v in t.facing?.variants ?? const <String>[]) {
+        known(v, 'a facing variant');
+      }
       for (final on in t.support?.on ?? const <String>{}) {
         known(on, 'what it stands on');
       }

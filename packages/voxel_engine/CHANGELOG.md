@@ -6,8 +6,12 @@
   gravel), `support` (a `Support`, new: `Support.below`, on any solid block or on the ones
   named in `on`, or `Support.side`, an opaque block on one of the four sides), `onWall` (the
   block placed instead against a wall: a torch's wall torch) and `loot` (a `LootTable`
-  rolled for its drops instead of `drop`). `BlockRegistry.stands` answers whether a block
-  would stay at a cell, and the registry refuses a row naming a block that does not exist.
+  rolled for its drops instead of `drop`), `facing` (a `Facing`, new: `Facing.compass`,
+  four variants by the side the placer looks toward, or `Facing.axis`, two by the axis they
+  look along), `tall` (two cells, both halves this block) and `usedInto` (the block a use
+  turns it into: a door opens, its open state closes). `BlockRegistry.stands` answers
+  whether a block would stay at a cell, and the registry refuses a row naming a block that
+  does not exist.
 - `ItemType.food` (a `Food`: hunger it fills, health it gives back, an effect it starts for
   some seconds at some power, an item it leaves behind) and `ItemType.armor` (an `Armor`: the
   slot it is worn in and the points it is worth), both new, both null for an item that is

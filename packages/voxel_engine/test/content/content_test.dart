@@ -87,6 +87,27 @@ void main() {
       );
     });
 
+    test('a facing picks the variant the placer looks toward, or along', () {
+      const stairs = Facing.compass(north: 'n', east: 'e', south: 's', west: 'w');
+      expect(stairs.toward(0, -1), 'n', reason: 'north is -Z');
+      expect(stairs.toward(0.9, 0.2), 'e');
+      expect(stairs.toward(-0.1, 0.8), 's');
+      expect(stairs.toward(-0.7, -0.3), 'w');
+      const door = Facing.axis(x: 'door_x', z: 'door_z');
+      expect(door.toward(-0.9, 0.1), 'door_x');
+      expect(door.toward(0.1, 0.9), 'door_z');
+      expect(stairs.variants, ['n', 'e', 's', 'w']);
+      expect(door.variants, ['door_x', 'door_z']);
+      expect(
+        () => BlockRegistry(const [
+          BlockType('air', color: 0, solid: false),
+          BlockType('door_z', color: 0, facing: door),
+        ]),
+        throwsArgumentError,
+        reason: 'door_x does not exist',
+      );
+    });
+
     test('a block stands where what it leans on is', () {
       final r = BlockRegistry(const [
         BlockType('air', color: 0, solid: false),

@@ -33,9 +33,70 @@ const _blocks = [
     loot: LootTable([LootEntry('melon_slice', 3, 3, 1.0), LootEntry('seeds', 1, 1, 1.0)]),
   ),
   BlockType.liquid('water', color: 0x3366CC),
+  // A door: two high, across the way the player looks, opened and closed by use.
+  BlockType(
+    'door_z',
+    color: 0x9A7040,
+    shape: BlockShape.panelZ,
+    opaque: false,
+    drop: 'door',
+    tall: true,
+    support: Support.below(),
+    facing: Facing.axis(x: 'door_x', z: 'door_z'),
+    usedInto: 'door_z_open',
+  ),
+  BlockType(
+    'door_x',
+    color: 0x9A7040,
+    shape: BlockShape.panelX,
+    opaque: false,
+    drop: 'door',
+    tall: true,
+    support: Support.below(),
+    facing: Facing.axis(x: 'door_x', z: 'door_z'),
+    usedInto: 'door_x_open',
+  ),
+  BlockType(
+    'door_z_open',
+    color: 0x9A7040,
+    shape: BlockShape.panelX,
+    solid: false,
+    drop: 'door',
+    tall: true,
+    support: Support.below(),
+    usedInto: 'door_z',
+  ),
+  BlockType(
+    'door_x_open',
+    color: 0x9A7040,
+    shape: BlockShape.panelZ,
+    solid: false,
+    drop: 'door',
+    tall: true,
+    support: Support.below(),
+    usedInto: 'door_x',
+  ),
+  BlockType(
+    'stairs_n',
+    color: 0xB08850,
+    shape: BlockShape.stairsN,
+    facing: Facing.compass(north: 'stairs_n', east: 'stairs_e', south: 'stairs_s', west: 'stairs_w'),
+  ),
+  BlockType('stairs_e', color: 0xB08850, shape: BlockShape.stairsE, drop: 'stairs_n'),
+  BlockType('stairs_s', color: 0xB08850, shape: BlockShape.stairsS, drop: 'stairs_n'),
+  BlockType('stairs_w', color: 0xB08850, shape: BlockShape.stairsW, drop: 'stairs_n'),
+  // An iron door: tall, turned by a signal only.
+  BlockType('iron_door', color: 0xCCCCCC, shape: BlockShape.panelZ, opaque: false, tall: true),
+  BlockType('iron_door_open', color: 0xCCCCCC, shape: BlockShape.panelX, solid: false, tall: true),
+  BlockType('wire', color: 0x600000, shape: BlockShape.wire, solid: false),
+  BlockType('wire_lit', color: 0xFF0000, shape: BlockShape.wire, solid: false),
 ];
 
-const _items = [ItemType('melon_slice', color: 0xE04040), ItemType('seeds', color: 0x99BB44)];
+const _items = [
+  ItemType('melon_slice', color: 0xE04040),
+  ItemType('seeds', color: 0x99BB44),
+  ItemType('door', color: 0x9A7040, block: 'door_z', stack: 16),
+];
 
 /// Level grass at y 20 (its top at 20), no caves, no trees, always day.
 const _spec = VoxelGameSpec(
@@ -90,10 +151,11 @@ void _stand(VoxelGame game, int x, int z, {double pitch = 0.0}) {
     ..pitch = pitch;
 }
 
-/// A press of use, and the step that reads it.
+/// A press of use, and the steps that read it: a frame of one step's length
+/// does not always run one.
 Future<void> _use(VoxelGame game) async {
   game.input.tap(VoxelAction.use);
-  await _run(game, 1 / 60);
+  await _run(game, 0.05);
 }
 
 void main() {
@@ -180,5 +242,105 @@ void main() {
       world: WorldGenSpec(biomes: [Biome('plains', top: 'melon')]),
     );
     expect(() => bad.buildItems(bad.buildBlocks()), throwsArgumentError);
+  });
+
+  test('a door goes up two high, across the way the player looks, and a use turns both halves', () async {
+    final game = await _start();
+    final w = game.world, p = game.player;
+    _hold(p, 'door', 2);
+    // Aimed at the top of the grass two cells ahead.
+    _stand(game, 0, 0, pitch: -0.68);
+    await _use(game);
+    expect(w.blockNameAt(const IVec3(0, 20, -2)), 'door_z', reason: 'looking along z, the panel spans x');
+    expect(w.blockNameAt(const IVec3(0, 21, -2)), 'door_z');
+    expect(p.inventory.countOf('door'), 1);
+
+    // Looking level, the upper half is under the crosshair: a press opens both.
+    _stand(game, 0, 0);
+    await _run(game, 0.3);
+    await _use(game);
+    expect(w.blockNameAt(const IVec3(0, 20, -2)), 'door_z_open');
+    expect(w.blockNameAt(const IVec3(0, 21, -2)), 'door_z_open');
+    // Holding use turns it once, as it goes down: no flapping, no building
+    // against it.
+    game.input.hold(VoxelAction.use, true);
+    await _run(game, 0.6);
+    game.input.hold(VoxelAction.use, false);
+    expect(w.blockNameAt(const IVec3(0, 20, -2)), 'door_z');
+    expect(w.blockNameAt(const IVec3(0, 21, -2)), 'door_z');
+    expect(w.blockNameAt(const IVec3(0, 21, -1)), 'air');
+    expect(p.inventory.countOf('door'), 1);
+
+    // Looking along x, the panel spans z.
+    game.player
+      ..position = Vector3(4.5, 20.0, 0.5)
+      ..yaw = -1.5707963
+      ..pitch = -0.68;
+    _hold(p, 'door', 1);
+    await _run(game, 0.3);
+    await _use(game);
+    expect(w.blockNameAt(const IVec3(6, 20, 0)), 'door_x');
+    expect(w.blockNameAt(const IVec3(6, 21, 0)), 'door_x');
+  });
+
+  test('a door does not close on a body standing in it', () async {
+    final game = await _start();
+    final w = game.world;
+    w.setBlockNamed(const IVec3(0, 20, 0), 'door_z_open');
+    w.setBlockNamed(const IVec3(0, 21, 0), 'door_z_open');
+    _stand(game, 0, 0);
+    expect(game.blockRules.use(const IVec3(0, 21, 0)), isTrue, reason: 'the use is spent on the door');
+    expect(w.blockNameAt(const IVec3(0, 20, 0)), 'door_z_open');
+    _stand(game, 3, 3);
+    expect(game.blockRules.use(const IVec3(0, 21, 0)), isTrue);
+    expect(w.blockNameAt(const IVec3(0, 20, 0)), 'door_z');
+    expect(w.blockNameAt(const IVec3(0, 21, 0)), 'door_z');
+  });
+
+  test('breaking one half of a door takes the other, and stacked doors pair from the bottom', () async {
+    final game = await _start();
+    final w = game.world;
+    for (var y = 20; y < 24; y++) {
+      w.setBlockNamed(IVec3(8, y, 8), 'door_z');
+    }
+    game.breakBlock(const IVec3(8, 22, 8));
+    expect(w.blockNameAt(const IVec3(8, 23, 8)), 'air', reason: 'the upper door went whole');
+    expect(w.blockNameAt(const IVec3(8, 21, 8)), 'door_z', reason: 'the lower door stays');
+    expect(_dropped(game, 'door'), 1, reason: 'one door, not one per half');
+
+    game.breakBlock(const IVec3(8, 21, 8));
+    expect(w.blockNameAt(const IVec3(8, 20, 8)), 'air');
+    expect(_dropped(game, 'door'), 2);
+  });
+
+  test('a door turned by a signal keeps both halves', () async {
+    final game = await _start(
+      spec: _spec.copyWith(
+        signals: () => const SignalSpec(wire: ('wire', 'wire_lit'), doors: {'iron_door': 'iron_door_open'}),
+      ),
+    );
+    final w = game.world;
+    w.setBlockNamed(const IVec3(8, 20, 8), 'iron_door');
+    w.setBlockNamed(const IVec3(8, 21, 8), 'iron_door');
+    w.setBlockNamed(const IVec3(8, 20, 8), 'iron_door_open');
+    w.setBlockNamed(const IVec3(8, 21, 8), 'iron_door_open');
+    expect(w.blockNameAt(const IVec3(8, 20, 8)), 'iron_door_open');
+    expect(w.blockNameAt(const IVec3(8, 21, 8)), 'iron_door_open');
+    expect(game.blockRules.use(const IVec3(8, 20, 8)), isFalse, reason: 'an iron door has no use');
+  });
+
+  test('stairs climb away from the player who places them', () async {
+    final game = await _start();
+    final w = game.world, p = game.player;
+    _hold(p, 'stairs_n', 2);
+    _stand(game, 0, 0, pitch: -0.68);
+    await _use(game);
+    expect(w.blockNameAt(const IVec3(0, 20, -2)), 'stairs_n');
+    game.player
+      ..position = Vector3(4.5, 20.0, 0.5)
+      ..yaw = -1.5707963;
+    await _run(game, 0.3);
+    await _use(game);
+    expect(w.blockNameAt(const IVec3(6, 20, 0)), 'stairs_e');
   });
 }
