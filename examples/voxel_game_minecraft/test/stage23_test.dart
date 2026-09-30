@@ -99,7 +99,7 @@ void main() {
     final w = VoxelWorld(seedValue: 42, loadRadius: 1);
     final c = Uint8List(VoxelWorld.volume);
     c.fillRange(0, c.length, Blocks.indexOf('stone'));
-    w.chunks[(x: 0, z: 0)] = c;
+    w.putChunk((x: 0, z: 0), c);
     final body = VoxelBody()..setup(w, 0.3, 1.8);
     body.position = Vector3(8.5, 20.2, 8.5);
     body.noclip = true;

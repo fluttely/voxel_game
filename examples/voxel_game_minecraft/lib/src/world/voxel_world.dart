@@ -53,6 +53,9 @@ class VoxelWorld implements VoxelEditor {
   set maxInflight(int value) => _streamer.maxInflight = value;
 
   Map<ChunkPos, Uint8List> get chunks => _streamer.chunks;
+
+  /// Stores a volume built by hand (a test's floor); [chunks] is read-only.
+  void putChunk(ChunkPos pos, Uint8List blocks) => _streamer.putChunk(pos, blocks);
   int get chunksBuilt => _streamer.chunksBuilt;
   int get facesEmitted => _streamer.facesEmitted;
   double get meshMsTotal => _streamer.meshMsTotal;
@@ -136,11 +139,19 @@ class VoxelWorld implements VoxelEditor {
   static ChunkPos chunkOfXZ(int x, int z) => ChunkStreamer.chunkOfXZ(x, z);
   static int index(int x, int y, int z) => ChunkSize.index(x, y, z);
 
-  bool get isIdle => _streamer.isIdle;
+  /// Nothing waiting to be generated, meshed or drawn.
+  bool get isIdle => _streamer.isIdle && _view.pendingRegions == 0;
   int get loadedChunkCount => _streamer.loadedChunkCount;
   int get pendingCount => _streamer.pendingCount;
 
-  void updateAround(Vector3 worldPosition) => _streamer.updateAround(chunkOfVec(worldPosition));
+  /// The chunk the window was last centred on: [update] draws the regions
+  /// nearest it first.
+  ChunkPos _near = (x: 0, z: 0);
+
+  void updateAround(Vector3 worldPosition) {
+    _near = chunkOfVec(worldPosition);
+    _streamer.updateAround(_near);
+  }
 
   void refresh() => _streamer.refresh();
 
@@ -151,9 +162,13 @@ class VoxelWorld implements VoxelEditor {
   /// Stage 24: a smaller render distance takes effect at once.
   void trimWindow() => _streamer.trimWindow();
 
-  /// Once per frame: upload finished surfaces within the frame budget, then
-  /// dispatch more work.
-  void update() => _streamer.update();
+  /// Once per frame: land finished jobs, dispatch more work, then draw the
+  /// regions they changed within the view's budget, the nearest first. The view
+  /// draws nothing a frame does not rebuild (voxel_scene 0.3.0-dev).
+  void update() {
+    _streamer.update();
+    _view.rebuild(_near);
+  }
 
   // --- block access -------------------------------------------------------------
 

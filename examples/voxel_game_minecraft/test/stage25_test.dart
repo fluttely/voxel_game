@@ -57,7 +57,7 @@ void main() {
 
   test('another peer\'s edit is never dropped: a loaded cell is written and heard, an unloaded one waits for its chunk', () {
     final w = VoxelWorld(seedValue: 42, loadRadius: 1);
-    w.chunks[(x: 0, z: 0)] = Uint8List(VoxelWorld.volume);
+    w.putChunk((x: 0, z: 0), Uint8List(VoxelWorld.volume));
     final heard = <IVec3>[];
     w.onBlockChanged = (b, old, id) => heard.add(b);
     final glass = Blocks.indexOf('glass');
@@ -117,7 +117,7 @@ void main() {
     for (var i = 0; i < 16 * 16 * floorY; i++) {
       c[i] = Blocks.indexOf('stone');
     }
-    w.chunks[(x: 0, z: 0)] = c;
+    w.putChunk((x: 0, z: 0), c);
     const centre = IVec3(8, floorY, 8);
     for (var dx = -3; dx < 4; dx++) {
       for (var dz = -3; dz < 4; dz++) {

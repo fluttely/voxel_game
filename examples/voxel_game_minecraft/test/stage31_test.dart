@@ -159,7 +159,7 @@ void main() {
       final w = VoxelWorld(seedValue: 42, loadRadius: 1);
       final c = floorChunk();
       carve(c);
-      w.chunks[(x: 0, z: 0)] = c;
+      w.putChunk((x: 0, z: 0), c);
       return w;
     }
 

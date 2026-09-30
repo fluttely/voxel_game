@@ -30,7 +30,7 @@ void main() {
     for (var i = 0; i < 16 * 16 * floorY; i++) {
       c[i] = id('stone');
     }
-    w.chunks[(x: 0, z: 0)] = c;
+    w.putChunk((x: 0, z: 0), c);
     return w;
   }
 
@@ -223,7 +223,7 @@ void main() {
     expect(w.dimension, 1);
     expect(w.chunks, isEmpty);
     expect(w.generator.dimension, TerrainGenerator.dimUnderworld);
-    w.chunks[(x: 0, z: 0)] = Uint8List(VoxelWorld.volume);
+    w.putChunk((x: 0, z: 0), Uint8List(VoxelWorld.volume));
     w.setBlock(const IVec3(3, 40, 3), id('obsidian'));
     w.storeEdit(0, const IVec3(4, floorY, 4), id('portal')); // an overworld edit while in the underworld
     expect(w.editCountIn(0), 3);

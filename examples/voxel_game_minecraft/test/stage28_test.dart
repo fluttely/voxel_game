@@ -27,7 +27,7 @@ void main() {
     for (var i = 0; i < 16 * 16 * floorY; i++) {
       c[i] = id('stone');
     }
-    w.chunks[(x: 0, z: 0)] = c;
+    w.putChunk((x: 0, z: 0), c);
     return w;
   }
 

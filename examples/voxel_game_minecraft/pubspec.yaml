@@ -16,16 +16,24 @@ dependencies:
   hooks: ^2.2.0
   path_provider: ^2.1.6
   pointer_lock: ^0.4.1
-  sound_recipes: ^0.1.1-dev
+  sound_recipes: ^0.3.0-dev
   vector_math: ^2.4.2
-  voxel_engine: ^0.1.1-dev
-  voxel_game: ^0.1.1-dev
-  voxel_scene: ^0.1.1-dev
+  voxel_engine: ^0.3.0-dev
+  voxel_game: ^0.3.0-dev
+  voxel_scene: ^0.3.0-dev
 
-# The music falls back to sound_recipes' StockMusic, which is not published yet.
+# The kit from this tree, never pub.dev's: this app witnesses a kit change before it is
+# published (KL-006). Overrides, not path dependencies, because the kit's packages depend
+# on each other as hosted; the ranges above say which kit this app is written against.
 dependency_overrides:
   sound_recipes:
     path: ../../packages/sound_recipes
+  voxel_engine:
+    path: ../../packages/voxel_engine
+  voxel_game:
+    path: ../../packages/voxel_game
+  voxel_scene:
+    path: ../../packages/voxel_scene
 
 dev_dependencies:
   flutter_test:

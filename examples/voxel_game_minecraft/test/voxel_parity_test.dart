@@ -11,6 +11,12 @@
 // nothing. Both chunks generate byte for byte as they did at s16 — what moved is two
 // arrays of chunk (0,0)'s solid mesh, because a tree in the ring around it lost a block
 // at the border. Everything else, including the whole of (5,-3), is untouched.
+//
+// Re-pinned at KL-006 (2026-09-30), when this app first resolved the kit from its tree:
+// voxel_engine 0.2.0-dev merges cube and liquid faces greedily and no longer bakes the
+// per-block tint into `colors`, so the solid and liquid surfaces and the cutout's colours
+// hash differently. The chunks, their light, the cutout's geometry and the edit delta hash
+// as they did at s17.
 import 'dart:typed_data';
 
 import 'package:voxel_game_minecraft/src/core/blocks.dart';
@@ -30,23 +36,23 @@ int _fnv(TypedData data) {
   return h;
 }
 
-/// Pinned at POC `b57cf2a2` (2026-09-14), overworld re-pinned at s16. An empty surface
+/// Pinned at POC `b57cf2a2` (2026-09-14), overworld re-pinned at s16, meshes at KL-006. An empty surface
 /// hashes to 0x811c9dc5.
 const Map<String, int> _expected = {
   'gen 0,0': 0x3214e21d,
-  'mesh 0,0 solid positions': 0xc71122b5,
-  'mesh 0,0 solid normals': 0xdaac9e45,
-  'mesh 0,0 solid colors': 0x4074935e,
-  'mesh 0,0 solid light': 0x8d7a6255,
-  'mesh 0,0 solid indices': 0x03fde051,
-  'mesh 0,0 liquid positions': 0x45520479,
-  'mesh 0,0 liquid normals': 0x2ea0e105,
-  'mesh 0,0 liquid colors': 0xdf49b56d,
-  'mesh 0,0 liquid light': 0xcc57e505,
-  'mesh 0,0 liquid indices': 0x080f2e6d,
+  'mesh 0,0 solid positions': 0x4c369a0d,
+  'mesh 0,0 solid normals': 0xb17c8d05,
+  'mesh 0,0 solid colors': 0x474b2ed6,
+  'mesh 0,0 solid light': 0x61a0ee35,
+  'mesh 0,0 solid indices': 0x0a8a3469,
+  'mesh 0,0 liquid positions': 0xed91cdd5,
+  'mesh 0,0 liquid normals': 0xab510fa5,
+  'mesh 0,0 liquid colors': 0x3fdefae5,
+  'mesh 0,0 liquid light': 0xccd48c85,
+  'mesh 0,0 liquid indices': 0x2c327f47,
   'mesh 0,0 cutout positions': 0xc411f129,
   'mesh 0,0 cutout normals': 0x86926245,
-  'mesh 0,0 cutout colors': 0x68e92f6d,
+  'mesh 0,0 cutout colors': 0xc79bd52d,
   'mesh 0,0 cutout light': 0xf1347d65,
   'mesh 0,0 cutout indices': 0x60d0b305,
   'mesh 0,0 glow positions': 0x811c9dc5,
@@ -57,16 +63,16 @@ const Map<String, int> _expected = {
   'mesh 0,0 sky': 0x4817c9a5,
   'mesh 0,0 block': 0x150f42d5,
   'gen 5,-3': 0x8ade407b,
-  'mesh 5,-3 solid positions': 0xb57fc8a5,
-  'mesh 5,-3 solid normals': 0x51be5765,
-  'mesh 5,-3 solid colors': 0x198b2979,
-  'mesh 5,-3 solid light': 0x023a73bd,
-  'mesh 5,-3 solid indices': 0x2b19f41b,
-  'mesh 5,-3 liquid positions': 0xe12b8c5d,
-  'mesh 5,-3 liquid normals': 0x2c797dc5,
-  'mesh 5,-3 liquid colors': 0x0e9371a5,
-  'mesh 5,-3 liquid light': 0x3769ddc5,
-  'mesh 5,-3 liquid indices': 0xa52b60c5,
+  'mesh 5,-3 solid positions': 0x39e9eb3d,
+  'mesh 5,-3 solid normals': 0x2fb0c965,
+  'mesh 5,-3 solid colors': 0x6229c827,
+  'mesh 5,-3 solid light': 0x2170125d,
+  'mesh 5,-3 solid indices': 0xe7fb6d53,
+  'mesh 5,-3 liquid positions': 0xd2d69d9d,
+  'mesh 5,-3 liquid normals': 0xa318c1a5,
+  'mesh 5,-3 liquid colors': 0x1559f3a5,
+  'mesh 5,-3 liquid light': 0x48d23b05,
+  'mesh 5,-3 liquid indices': 0xcee572c7,
   'mesh 5,-3 cutout positions': 0x811c9dc5,
   'mesh 5,-3 cutout normals': 0x811c9dc5,
   'mesh 5,-3 cutout colors': 0x811c9dc5,
@@ -113,8 +119,8 @@ void main() {
     actual['gen underworld 0,0'] = _fnv(gen.generateIn(0, 0, 1));
 
     final world = VoxelWorld(seedValue: 42)..flowEnabled = false;
-    world.chunks[(x: 0, z: 0)] = Uint8List(VoxelWorld.volume);
-    world.chunks[(x: -1, z: 2)] = Uint8List(VoxelWorld.volume);
+    world.putChunk((x: 0, z: 0), Uint8List(VoxelWorld.volume));
+    world.putChunk((x: -1, z: 2), Uint8List(VoxelWorld.volume));
     world.setBlock(const IVec3(3, 40, 7), Blocks.indexOf('stone'));
     world.setBlock(const IVec3(15, 64, 0), Blocks.indexOf('lamp'));
     world.setBlock(const IVec3(-9, 12, 40), Blocks.indexOf('oak_planks'));

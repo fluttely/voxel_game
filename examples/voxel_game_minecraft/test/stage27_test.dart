@@ -8,6 +8,8 @@ import 'package:voxel_game_minecraft/src/world/terrain_generator.dart';
 import 'package:voxel_game_minecraft/src/world/voxel_world.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'surface_area.dart';
+
 /// Stage 27's headless proofs (Godot `--stage27` covers the rest in the app):
 /// the appended circuit blocks, power through wires into lamps, doors, pistons
 /// and TNT, the button timer, the wire's reach and the staircase rule, the WIRE
@@ -23,7 +25,7 @@ void main() {
     for (var i = 0; i < 16 * 16 * floorY; i++) {
       c[i] = id('stone');
     }
-    w.chunks[(x: 0, z: 0)] = c;
+    w.putChunk((x: 0, z: 0), c);
     return w;
   }
 
@@ -235,12 +237,13 @@ void main() {
 
     // Floating in air: six faces, nothing culled.
     expect(mesh((c) => c[cell(8, 40, 8)] = id('wire_off')).solid.faceCount, 6);
-    // On stone: the bottom face meets an opaque block and is culled.
-    final bare = mesh(floor).solid.faceCount;
-    expect(mesh((c) {
+    // On stone: the bottom face meets an opaque block and is culled, so the wire adds
+    // its top and four 1/8-high sides. By area: the mesher merges the floor's faces.
+    final bare = surfaceArea(mesh(floor).solid);
+    expect(surfaceArea(mesh((c) {
       floor(c);
       c[cell(8, 40, 8)] = id('wire_on');
-    }).solid.faceCount, bare + 5);
+    }).solid), bare + 1 + 4 / 8);
     final lamp = mesh((c) => c[cell(8, 40, 8)] = id('redstone_lamp_on'));
     expect([lamp.glow.faceCount, lamp.solid.faceCount, lamp.faces], [6, 0, 6]);
     final dark = mesh((c) => c[cell(8, 40, 8)] = id('redstone_lamp_off'));

@@ -8,6 +8,8 @@ import 'package:voxel_game_minecraft/src/core/species.dart';
 import 'package:voxel_game_minecraft/src/world/terrain_generator.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'surface_area.dart';
+
 void main() {
   test('block table is byte-sized and air is zero', () {
     expect(Blocks.count <= 256, isTrue);
@@ -68,8 +70,9 @@ void main() {
     final mesher = ChunkMesher(palette: Blocks.palette(), shape: Blocks.shapes(), opaque: Blocks.opaqueTable(), emission: Blocks.emission());
     final r = mesher.build(0, 0, [c, ...ChunkMesher.noNeighbours]);
     expect(r.cutout.faceCount, 4);
-    // top faces + the four open sides (neighbours are air when the ring is missing)
-    expect(r.solid.faceCount, 16 * 16 + 4 * 16 * 40);
+    // the top + the four open sides (neighbours are air when the ring is missing),
+    // in square blocks: the mesher merges coplanar faces
+    expect(surfaceArea(r.solid), 16 * 16 + 4 * 16 * 40);
   });
 
   test('slab, fence and stairs mesh as sub-block boxes', () {

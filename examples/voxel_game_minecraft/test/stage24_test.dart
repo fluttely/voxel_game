@@ -121,7 +121,7 @@ void main() {
     final w = VoxelWorld(seedValue: 42, loadRadius: 8);
     for (var x = -9; x <= 9; x++) {
       for (var z = -9; z <= 9; z++) {
-        w.chunks[(x: x, z: z)] = Uint8List(1);
+        w.putChunk((x: x, z: z), Uint8List(VoxelWorld.volume));
       }
     }
     w.updateAround(Vector3(8, 60, 8)); // centre chunk (0, 0)

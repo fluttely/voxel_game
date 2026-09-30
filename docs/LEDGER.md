@@ -22,13 +22,6 @@
 - **Cost of leaving it:** the kit says it targets every platform Flutter supports, but a first-person game on two of the three desktops plays like a touch screen with a mouse. Nothing tells a game author about it: `pointerLockSupported` is public, but the README never mentions it.
 - **Found while:** 2026-09-24 — adding Windows and Linux runners to the examples, for the launch post.
 
-### KL-006 · The minecraft example measures the published kit, not this tree
-
-- **Lens:** testing / witness
-- **Evidence:** `examples/voxel_game_minecraft/pubspec.lock` resolves `voxel_engine`, `voxel_scene` and `voxel_game` as `hosted` (pub.dev, with a `sha256`), and there is no `pubspec_overrides.yaml` beside it. Its `tool/perf_loop.sh` and its probe flags therefore run whatever 0.1.0-dev pub.dev holds. Its `CLAUDE.md` still describes itself as `poc_cubeworld/` with the kit under `packages/voxel_game/`.
-- **Cost of leaving it:** the app that plays the kit hardest is not a witness of a kit change until the change is published, so a regression in the tree reaches it only after a release. It is also why the frame-rate plan (`docs/VOXEL_PERF_PLAN_2026-09-25.md`) measures the kit's own example instead.
-- **Found while:** 2026-09-25 — `PF0`, choosing the game to benchmark.
-
 ### KL-008 · The example crashes in the Adreno driver in its first two seconds, now and then
 
 - **Lens:** platform stability / rendering
@@ -37,7 +30,22 @@
 - **Found while:** 2026-09-25 — finding why the phone runner lost runs during PF14's A/B.
 - **Seen again:** 2026-09-28, PF3's phone A/B: the same `SIGSEGV` at `0x3f8` in `vkCmdBeginRenderPass` under `InternalFlutterGpu_RenderPass_Begin`, the second run of a call (`orbit:6` after `mobs:6`, `9c36cc2`, no PF3 code), 18 lines and 19 launches that day.
 
+### KL-012 · The minecraft example's instructions describe it as a folder of Dawnforge
+
+- **Lens:** docs / AI context
+- **Evidence:** `examples/voxel_game_minecraft/CLAUDE.md:3-13` says it governs `poc_cubeworld/` "except `packages/voxel_game/`", that the kit lives "in `packages/voxel_game/`" with "its own workspace", and that `../CLAUDE.md` is the 2D track's; its map (`:45-58`) points at `packages/voxel_game/PUBLISHING.md` and the kit's plans under `packages/voxel_game/docs/`. `AGENTS.md` beside it has drifted from it (`0.1.0-dev` against `0.1.0`, three lines). `README.md:3-5` places it on a branch of the Dawnforge repository and links the kit at `packages/voxel_game/`, which from this folder does not exist.
+- **Cost of leaving it:** a session opened in the example reads that the kit is a sibling folder it is not, that `../CLAUDE.md` (this repository's) is the 2D track's and must be ignored, and follows a map whose kit paths all miss; it is `KL-001` again, one folder down.
+- **Found while:** 2026-09-30 — closing `KL-006`, whose evidence named the stale `CLAUDE.md`.
+
 ## Closed
+
+### KL-006 · The minecraft example measures the published kit, not this tree
+
+- **Lens:** testing / witness
+- **Evidence:** `examples/voxel_game_minecraft/pubspec.lock` resolves `voxel_engine`, `voxel_scene` and `voxel_game` as `hosted` (pub.dev, with a `sha256`), and there is no `pubspec_overrides.yaml` beside it. Its `tool/perf_loop.sh` and its probe flags therefore run whatever 0.1.0-dev pub.dev holds. Its `CLAUDE.md` still describes itself as `poc_cubeworld/` with the kit under `packages/voxel_game/`.
+- **Cost of leaving it:** the app that plays the kit hardest is not a witness of a kit change until the change is published, so a regression in the tree reaches it only after a release. It is also why the frame-rate plan (`docs/VOXEL_PERF_PLAN_2026-09-25.md`) measures the kit's own example instead.
+- **Found while:** 2026-09-25 — `PF0`, choosing the game to benchmark.
+- **Closed by:** 2026-09-30 — `voxel_engine: ChunkStreamer.putChunk stores a volume built by hand` and `examples: voxel_game_minecraft resolves the kit from this tree`. The app's `pubspec.yaml` overrides all four packages by path (the kit's packages depend on each other as hosted, so path dependencies alone do not resolve outside the workspace) and asks for `^0.3.0-dev`. Resolving the tree found what the entry predicted, three kit changes the app had never met: `ChunkStreamer.chunks` read-only since PF5 (33 tests built their floor by writing into it; the engine commit adds `putChunk`), the greedy mesher of 0.2.0-dev (two face counts now measure area, `test/surface_area.dart`, and `voxel_parity_test.dart` re-pinned its mesh hashes, the chunks, light and edit delta unchanged), and `VoxelChunkView.rebuild` of 0.3.0-dev, which the app's `VoxelWorld` never called, so it drew **no terrain at all** (seen with `--screenshot`, seed 1337; its `update` now rebuilds around the last centre and `isIdle` waits for the regions). 196 tests green against the tree, the same screenshot as against pub.dev's 0.1.1-dev. The stale `CLAUDE.md` half of the evidence is `KL-012`.
 
 ### CL-008 · The decision register still answers questions about packages that no longer exist
 

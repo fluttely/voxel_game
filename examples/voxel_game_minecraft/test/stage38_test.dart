@@ -48,7 +48,7 @@ void main() {
     for (var i = 0; i < 16 * 16 * floorY; i++) {
       c[i] = Blocks.indexOf('stone');
     }
-    w.chunks[(x: 0, z: 0)] = c;
+    w.putChunk((x: 0, z: 0), c);
     for (var z = 0; z < 16; z++) {
       w.setBlock(IVec3(8, floorY, z), Blocks.indexOf('oak_fence'));
     }
