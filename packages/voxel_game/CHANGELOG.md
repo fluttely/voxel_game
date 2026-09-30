@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- **Blocks that do things (VA2).** Each is a field of a block's row, so a game that
+  declares none plays as before.
+  - `BlockRules` (new, `VoxelGame.blockRules`) answers every block change of the world: a
+    block that `falls` drops to where it lands, through air, plants and liquids, and the
+    column above it follows; a block whose `support` is gone breaks and drops, so a torch
+    goes with its floor and a wall torch with its wall. Only the authority runs it; a client
+    receives the edits it made from the host.
+  - A player places nothing where it would not stand (`BlockRules.stands`), and a block put
+    against a wall becomes its `onWall` form.
+  - `VoxelGame.breakBlock` rolls a block's `loot` when it has one, instead of its `drop`;
+    `VoxelGameSpec.buildItems` refuses loot naming an item that does not exist.
+  - `VoxelGameSpec.onBlockPlaced` names the block placed, the wall form when it was one.
 - **Survival on the player (VA1).** Each piece is off until the spec declares it, so a game
   that declares none plays as before.
   - `PlayerSpec.hunger`, a `HungerSpec` (new): the bar empties by `secondsPerPoint`, heals

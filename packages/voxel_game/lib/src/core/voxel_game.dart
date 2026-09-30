@@ -30,6 +30,7 @@ import '../player/player_entity.dart';
 import '../spec/graphics_spec.dart';
 import '../spec/signal_spec.dart';
 import '../spec/voxel_game_spec.dart';
+import '../world/block_rules.dart';
 import '../world/game_world.dart';
 import '../world/world_save.dart';
 
@@ -53,12 +54,14 @@ class VoxelGame {
       StatusEffects(spec.buildEffects()),
     );
     spawner = MobSpawner(this);
+    blockRules = BlockRules(this);
     if (!authority) {
       // A client: the host runs the liquids, the circuits and the spawning.
       world.flow.enabled = false;
       spawner.enabled = false;
       return;
     }
+    blockRules.attach();
     final s = spec.signals;
     if (s != null) {
       final net = signals = SignalNetwork(world, _signalRules(s));
@@ -269,6 +272,10 @@ class VoxelGame {
 
   /// Natural spawning.
   late final MobSpawner spawner;
+
+  /// What blocks do on their own: fall, drop off what held them. It listens
+  /// to the world only where this game is the [authority].
+  late final BlockRules blockRules;
 
   /// The living creatures.
   final List<Mob> mobs = [];
@@ -590,16 +597,25 @@ class VoxelGame {
   }
 
   /// Breaks the block at [cell]: air in its place, and its drop on the ground
-  /// when [dropFor] (the tool held, or null for the hand) earns one.
+  /// when [dropFor] (the tool held, or null for the hand) earns one: its
+  /// `loot` rolled, or else its `drop`.
   void breakBlock(IVec3 cell, {ItemType? dropFor, bool drop = true, bool byPlayer = false}) {
     final id = world.getBlock(cell);
     if (id == BlockRegistry.air || blocks[id].isLiquid) return;
     final type = blocks[id];
     if (!world.setBlock(cell, BlockRegistry.air)) return;
-    playSound('break_${soundFamily(id)}', at: Vector3(cell.x + 0.5, cell.y + 0.5, cell.z + 0.5), volumeDb: -4.0);
-    final item = blocks.dropOf(id);
-    if (drop && item.isNotEmpty && items.has(item) && spec.mining.drops(type, dropFor)) {
-      dropItem(item, 1, Vector3(cell.x + 0.5, cell.y + 0.3, cell.z + 0.5));
+    final centre = Vector3(cell.x + 0.5, cell.y + 0.3, cell.z + 0.5);
+    playSound('break_${soundFamily(id)}', at: centre, volumeDb: -4.0);
+    if (drop && spec.mining.drops(type, dropFor)) {
+      final loot = type.loot;
+      if (loot != null) {
+        for (final s in loot.roll(random)) {
+          dropItem(s.id, s.count, centre);
+        }
+      } else {
+        final item = blocks.dropOf(id);
+        if (item.isNotEmpty && items.has(item)) dropItem(item, 1, centre);
+      }
     }
     if (byPlayer) spec.onBlockBroken?.call(this, type.id, cell);
   }

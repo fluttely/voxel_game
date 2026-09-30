@@ -68,6 +68,51 @@ void main() {
         throwsArgumentError,
       );
     });
+
+    test('refuses a block that leans on, or turns into, a block that does not exist', () {
+      const air = BlockType('air', color: 0, solid: false);
+      expect(
+        () => BlockRegistry(const [
+          air,
+          BlockType('torch', color: 0, solid: false, onWall: 'wall_torch'),
+        ]),
+        throwsArgumentError,
+      );
+      expect(
+        () => BlockRegistry(const [
+          air,
+          BlockType('wheat', color: 0, solid: false, support: Support.below(on: {'farmland'})),
+        ]),
+        throwsArgumentError,
+      );
+    });
+
+    test('a block stands where what it leans on is', () {
+      final r = BlockRegistry(const [
+        BlockType('air', color: 0, solid: false),
+        BlockType('stone', color: 0x808080),
+        BlockType('glass', color: 0xCCEEFF, alpha: 0.3),
+        BlockType('farmland', color: 0x664422),
+        BlockType('torch', color: 0xFFD070, solid: false, support: Support.below()),
+        BlockType('ladder', color: 0x996633, solid: false, support: Support.side()),
+        BlockType('wheat', color: 0x99BB44, solid: false, support: Support.below(on: {'farmland'})),
+      ]);
+      final w = _Cells(r.table);
+      const at = IVec3(0, 5, 0);
+      int id(String name) => r.indexOf(name);
+      expect(r.stands(w, at, id('stone')), isTrue, reason: 'a block with no support stands anywhere');
+      expect(r.stands(w, at, id('torch')), isFalse);
+      w.cells[at + IVec3.down] = id('glass');
+      expect(r.stands(w, at, id('torch')), isTrue, reason: 'any solid block below will do');
+      expect(r.stands(w, at, id('wheat')), isFalse, reason: 'wheat stands on farmland only');
+      w.cells[at + IVec3.down] = id('farmland');
+      expect(r.stands(w, at, id('wheat')), isTrue);
+      expect(r.stands(w, at, id('ladder')), isFalse, reason: 'the floor is not a wall');
+      w.cells[at + IVec3.right] = id('glass');
+      expect(r.stands(w, at, id('ladder')), isFalse, reason: 'a wall must be opaque');
+      w.cells[at + IVec3.back] = id('stone');
+      expect(r.stands(w, at, id('ladder')), isTrue);
+    });
   });
 
   group('items and mining', () {
@@ -223,4 +268,17 @@ void main() {
       expect(() => e.apply('nope', 1), throwsArgumentError);
     });
   });
+}
+
+/// A few cells by hand, air everywhere else.
+class _Cells implements VoxelQuery {
+  _Cells(this.table);
+
+  @override
+  final VoxelBlockTable table;
+
+  final Map<IVec3, int> cells = {};
+
+  @override
+  int getBlockXYZ(int x, int y, int z) => cells[IVec3(x, y, z)] ?? 0;
 }

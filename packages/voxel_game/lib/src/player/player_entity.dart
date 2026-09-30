@@ -630,8 +630,12 @@ class PlayerEntity extends NodeBody implements Target {
     final cell = hit.block + hit.normal;
     final world = _game.world;
     if (!world.isLoaded(cell) || !world.blocks.isReplaceable(world.getBlock(cell))) return;
-    final id = world.blocks.indexOf(item.block!);
-    // Never into a body: the player's own, or a creature's.
+    var id = world.blocks.indexOf(item.block!);
+    final wall = world.blocks[id].onWall;
+    if (wall != null && hit.normal.y == 0) id = world.blocks.indexOf(wall);
+    // Never where it would not stand, nor into a body: the player's own, or a
+    // creature's.
+    if (!_game.blockRules.stands(cell, id)) return;
     if (world.blocks[id].solid && _bodiesIn(cell)) return;
     if (!world.setBlock(cell, id)) return;
     _swingArm();
@@ -641,7 +645,7 @@ class PlayerEntity extends NodeBody implements Target {
       volumeDb: -4.0,
     );
     if (!spec.creative) inventory.remove(item.id, 1);
-    _game.spec.onBlockPlaced?.call(_game, item.block!, cell);
+    _game.spec.onBlockPlaced?.call(_game, world.blocks.idOf(id), cell);
   }
 
   void _swingArm() {

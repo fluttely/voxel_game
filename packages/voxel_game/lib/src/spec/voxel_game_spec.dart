@@ -184,12 +184,18 @@ class VoxelGameSpec {
 
   /// The item registry: an item per holdable block, then [items] (replacing a
   /// block's item of the same id). Throws [ArgumentError] for a food whose
-  /// effect is not in [effects] or which leaves an unknown item, and for
-  /// armour worn in a slot the player does not have.
+  /// effect is not in [effects] or which leaves an unknown item, for armour
+  /// worn in a slot the player does not have, and for a block whose loot
+  /// names an unknown item.
   ItemRegistry<ItemType> buildItems(BlockRegistry<BlockType> registry) {
     final byId = <String, ItemType>{for (final i in ItemRegistry.forBlocks(registry)) i.id: i};
     for (final i in items) {
       byId[i.id] = i;
+    }
+    for (final b in registry.types) {
+      for (final e in b.loot?.entries ?? const <LootEntry>[]) {
+        if (!byId.containsKey(e.item)) throw ArgumentError.value(e.item, b.id, 'the block drops an item that does not exist');
+      }
     }
     final effectIds = {for (final e in effects) e.id};
     for (final i in byId.values) {

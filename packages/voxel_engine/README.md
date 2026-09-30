@@ -87,7 +87,10 @@ sockets, through `dart:isolate` and `dart:io`, which a browser does not have.
 ### content — blocks, items and what the player carries
 
 1. **Declare blocks.** Air first; the order numbers them for the engine, and
-   `blocks.table` is the `VoxelBlockTable` step 1 above asked for.
+   `blocks.table` is the `VoxelBlockTable` step 1 above asked for. A row also says what the
+   block does, for a game to act on: it `falls`, it needs a `support` (`Support.below`,
+   `Support.side`; `blocks.stands` answers whether it would stay), it has an `onWall` form,
+   it drops a rolled `loot`.
 
    ```dart
    final blocks = BlockRegistry(const [
