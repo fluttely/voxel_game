@@ -410,10 +410,17 @@ From `poc_cubeworld/`: `flutter analyze` (zero errors; zero issues in `packages/
 
 ## Decision register
 
+> **`VKD1` is superseded** by the consolidation (`VC1`/`VC2`,
+> `docs/VOXEL_CONSOLIDATION_PLAN_2026-09-19.md`): the five pure packages are one,
+> `voxel_engine`, and the current rule is `CLAUDE.md` rule 4 — a package earns its place by
+> an optional heavy dependency, never by being a different subject. Do not re-split a
+> subject on the authority of the row below. `VKD4`'s decision (copy the noise) still
+> holds; only the package it names is gone.
+
 | ID | Question | Decision | Why |
 |:---|:---|:---|:---|
-| `VKD1` | One big kit package, or several? | **Five packages, the kit on top** | A game that only wants the world (a builder, a viewer) takes `voxel_worldgen` + `voxel_scene` without player or mobs; the pure packages stay testable with `dart test` |
+| `VKD1` | One big kit package, or several? | ~~**Five packages, the kit on top**~~ *Superseded 2026-09-19 by `VC1`: four packages, the five pure ones folded into `voxel_engine` (rule 4)* | A game that only wants the world (a builder, a viewer) takes `voxel_worldgen` + `voxel_scene` without player or mobs; the pure packages stay testable with `dart test` |
 | `VKD2` | Bonfire-style inheritance (`SimpleEnemy` → subclasses) or composition? | **Composition: behaviour and locomotion lists** | The POC's `Mob` shows where inheritance plus flags ends: one 1,543-line class. A list is declared in one line and extended by one class |
 | `VKD3` | Blocks addressed by string or by number? | **String at the API, number in the engine** | A game author writes `'stone'`; the engine keeps its byte grid. The registry is the only place the two meet |
-| `VKD4` | Noise: depend on `flutter_scene` or copy? | **Copy into `voxel_worldgen`** | `flutter_scene` pulls Flutter into a pure package; the file is MIT and self-contained by design |
+| `VKD4` | Noise: depend on `flutter_scene` or copy? | **Copy into `voxel_worldgen`** *(still a copy; it lives in `packages/voxel_engine/lib/src/worldgen/noise/` since `VC1`)* | `flutter_scene` pulls Flutter into a pure package; the file is MIT and self-contained by design |
 | `VKD5` | Does the kit replace the POC's code before it exists? | **No — the kit grows first (VK4), the POC moves onto it after (VK5)** | Rewriting `Player`/`Mob` onto an API still being designed would move the target twice |

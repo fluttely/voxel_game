@@ -15,14 +15,6 @@
 
 ## Open
 
-### CL-008 · The decision register still answers questions about packages that no longer exist
-
-- **Lens:** docs / stale SSOT
-- **Evidence:** `docs/VOXEL_KIT_PLAN_2026-09-18.md:415` (`VKD1`) records the decision as "**Five packages**, the kit on top" and justifies it with "a game that only wants the world takes `voxel_worldgen` + `voxel_scene`"; `:418` (`VKD4`) says the noise is copied "into `voxel_worldgen`". `VC1` (`8a2b9853`) folded `voxel_worldgen` and four others into `voxel_engine` and `VC2` (`e349d46e`) renamed `voxel_audio`, so both decisions cite packages that were deleted two days later. `docs/VOXEL_CONSOLIDATION_PLAN_2026-09-19.md` records the new answer but does not mark the old one superseded, and `VKD1` is the entry a reader reaches first, since it is the register's first row.
-- **Cost of leaving it:** a decision register is consulted precisely when somebody is about to re-litigate a settled question — `CLAUDE.md` rule 4 (the app's and this folder's) ("a new package earns its place by an optional heavy dependency, never by being a different subject") is the *current* answer and it contradicts `VKD1` as written. The failure mode is a future session splitting a subject back out on the authority of the register, which is doing exactly what it was built to prevent.
-- **Found while:** 2026-09-21 — answering why `lib/` imports `voxel_game` in only two files.
-- **Moved:** 2026-09-22 (`VR3`) from `poc_cubeworld/docs/LEDGER.md`, ID kept. Paths rewritten from this folder; the app's files are named as the app's.
-
 ### KL-004 · Windows and Linux get a drag to look, not a locked mouse
 
 - **Lens:** platform parity / input
@@ -46,6 +38,15 @@
 - **Seen again:** 2026-09-28, PF3's phone A/B: the same `SIGSEGV` at `0x3f8` in `vkCmdBeginRenderPass` under `InternalFlutterGpu_RenderPass_Begin`, the second run of a call (`orbit:6` after `mobs:6`, `9c36cc2`, no PF3 code), 18 lines and 19 launches that day.
 
 ## Closed
+
+### CL-008 · The decision register still answers questions about packages that no longer exist
+
+- **Lens:** docs / stale SSOT
+- **Evidence:** `docs/VOXEL_KIT_PLAN_2026-09-18.md:415` (`VKD1`) records the decision as "**Five packages**, the kit on top" and justifies it with "a game that only wants the world takes `voxel_worldgen` + `voxel_scene`"; `:418` (`VKD4`) says the noise is copied "into `voxel_worldgen`". `VC1` (`8a2b9853`) folded `voxel_worldgen` and four others into `voxel_engine` and `VC2` (`e349d46e`) renamed `voxel_audio`, so both decisions cite packages that were deleted two days later. `docs/VOXEL_CONSOLIDATION_PLAN_2026-09-19.md` records the new answer but does not mark the old one superseded, and `VKD1` is the entry a reader reaches first, since it is the register's first row.
+- **Cost of leaving it:** a decision register is consulted precisely when somebody is about to re-litigate a settled question — `CLAUDE.md` rule 4 (the app's and this folder's) ("a new package earns its place by an optional heavy dependency, never by being a different subject") is the *current* answer and it contradicts `VKD1` as written. The failure mode is a future session splitting a subject back out on the authority of the register, which is doing exactly what it was built to prevent.
+- **Found while:** 2026-09-21 — answering why `lib/` imports `voxel_game` in only two files.
+- **Moved:** 2026-09-22 (`VR3`) from `poc_cubeworld/docs/LEDGER.md`, ID kept. Paths rewritten from this folder; the app's files are named as the app's.
+- **Closed by:** 2026-09-29 — `docs: the kit plan's register says VKD1 was superseded`. The register opens with a note that `VKD1` is superseded by `VC1`/`VC2` and that rule 4 is the current answer; the row is struck through with the superseding step named. `VKD4`'s decision (copy the noise) still holds, and its row now says where the copy lives (`packages/voxel_engine/lib/src/worldgen/noise/`).
 
 ### CL-005 · The kit's whole top half is exercised only by an example nothing runs
 
