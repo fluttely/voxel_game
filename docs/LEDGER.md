@@ -61,14 +61,15 @@
 - **Cost of leaving it:** `copyWith` is documented as how a game varies a spec ("with a hook of a test's"), and it silently ignores the one change a game with its own touch layer needs; nothing fails, the kit's controls just stay on screen. The usual fixes are a sentinel default or a `Value<T>?` wrapper for the nullable fields.
 - **Found while:** 2026-09-29 — `VT3`, testing `DefaultHud` under `touchControls: null`.
 
+## Closed
+
 ### KL-011 · The kit never says what a tap on the world means
 
 - **Lens:** input parity / rule 13
 - **Evidence:** `packages/voxel_game/lib/src/input/input_map.dart:178`: `touchTapPrimary` is "written by the game every time it re-aims", true to swing, false to use, and nothing in the kit writes it; `PlayerEntity._updateAim` (`packages/voxel_game/lib/src/player/player_entity.dart:328`) finds `aimedMob` every step and stops there. The app sets it from its player (`examples/voxel_game_minecraft/lib/src/player/player.dart:540`, `mob != null && !isAiming`).
 - **Cost of leaving it:** on a phone a tap on a creature places or uses instead of hitting it, and the only way to hit is a hold, which the kit reads as mining; a mouse's left click has no finger equivalent aimed at a mob. With `VT3` the phone is now playable, so this is the first thing a player on it will run into. The fix is one line in `_updateAim` (`input.touchTapPrimary = aimedMob != null`), with a test.
 - **Found while:** 2026-09-29 — `VT3`, checking what the player reads from a finger.
-
-## Closed
+- **Closed by:** 2026-09-29 — `voxel_game: a finger's tap on a creature hits it`. `PlayerEntity._updateAim` writes `input.touchTapPrimary = aimedMob != null` every step, and `InputMap.touchTapPrimary`'s documentation names who writes it. The app's `!isAiming` clause has no kit counterpart (the kit's player draws no bow). Covered by a tap in `test/game_test.dart` that hurts a cow in reach and, turned away, stops meaning a swing.
 
 ### CL-009 · The kit reads a finger and draws no thumb
 

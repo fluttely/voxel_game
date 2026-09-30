@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:math' as math;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vector_math/vector_math.dart';
 import 'package:voxel_game/voxel_game.dart';
@@ -237,6 +238,28 @@ void main() {
     await _run(game, 2.0);
     expect(p.inventory.countOf('dirt'), greaterThanOrEqualTo(2));
     expect(game.mobs, isEmpty, reason: 'a dead mob leaves the world');
+  });
+
+  test('a finger\'s tap swings at a creature in reach, and uses anything else', () async {
+    const cow = MobSpec('cow', hp: 10, brain: []);
+    final game = await _start(_flat(mobs: const [cow]));
+    final p = game.player;
+    final m = game.spawnMob('cow', p.position + Vector3(0, 0, -2));
+    final to = m.centre() - p.eyePosition;
+    p.yaw = -Vector3(0, 0, -1).angleToSigned(Vector3(to.x, 0, to.z).normalized(), Vector3(0, 1, 0));
+    p.pitch = 0.0;
+    await _run(game, 0.1);
+    expect(p.aimedMob, same(m));
+    expect(game.input.touchTapPrimary, isTrue);
+    game.input
+      ..onPointerDown(const PointerDownEvent(pointer: 1, kind: PointerDeviceKind.touch))
+      ..onPointerUp(const PointerUpEvent(pointer: 1, kind: PointerDeviceKind.touch));
+    await _run(game, 0.1);
+    expect(m.hp, lessThan(10), reason: 'the tap was the primary button, a swing');
+    p.yaw += math.pi;
+    await _run(game, 0.1);
+    expect(p.aimedMob, isNull);
+    expect(game.input.touchTapPrimary, isFalse, reason: 'with no creature aimed, a tap uses');
   });
 
   test('a hunter that cannot reach its target plans on a timer, not every step', () async {

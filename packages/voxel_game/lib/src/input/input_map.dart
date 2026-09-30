@@ -170,7 +170,8 @@ class InputMap<A extends Object> {
   /// window): a game opens its pause menu on it.
   bool captureLost = false;
 
-  /// What a tap on the world means, written by the game every time it re-aims:
+  /// What a tap on the world means, written every step by whatever aims
+  /// (`PlayerEntity`, true while a creature is in reach under the crosshair):
   /// true presses the primary mouse button (the swing at whatever the
   /// crosshair is nearest to), false presses the secondary (place, open, use).
   /// It is the mouse's own split, and the reason a phone needs no separate

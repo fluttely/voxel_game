@@ -14,6 +14,10 @@
   for a game that draws its own, which also takes the finger off the default HUD's hotbar.
 - The player walks by the on-screen stick: `PlayerEntity` read the left stick and the keys
   but not `InputMap.touchMove`, so a stick drawn by any game moved nothing.
+- A finger's tap on a creature hits it. `PlayerEntity` now writes
+  `InputMap.touchTapPrimary` every step (true while a creature in reach is under the
+  crosshair), which nothing in the kit wrote before, so a tap always pressed the secondary
+  button and a phone could only hit by holding, which mines.
 - A screen opening lets go of every held input (`InputMap.releaseKeys`), as that method's
   documentation said it did: a switched-on sneak, a finger's jump and the stick no longer
   survive the bag.

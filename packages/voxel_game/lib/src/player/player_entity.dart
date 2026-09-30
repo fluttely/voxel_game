@@ -341,6 +341,9 @@ class PlayerEntity extends NodeBody implements Target {
     final block = hit != null && hit.distance <= mobD;
     aimedBlock = block ? hit : null;
     aimedMob = block ? null : mob;
+    // A finger's tap swings at a creature in reach and uses anything else, as
+    // a mouse's two buttons would.
+    _game.input.touchTapPrimary = aimedMob != null;
     final o = outline;
     if (o == null) return;
     if (block) {
