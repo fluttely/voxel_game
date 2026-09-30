@@ -273,8 +273,9 @@ class VoxelGame {
   /// Natural spawning.
   late final MobSpawner spawner;
 
-  /// What blocks do on their own: fall, drop off what held them. It listens
-  /// to the world only where this game is the [authority].
+  /// What blocks do on their own: fall, drop off what held them, grow. It
+  /// listens to the world, and grows the crops, only where this game is the
+  /// [authority].
   late final BlockRules blockRules;
 
   /// The living creatures.
@@ -486,6 +487,7 @@ class VoxelGame {
       e.tick(this, dt);
     }
     world.tickFlow(dt);
+    if (authority) blockRules.tick(dt);
     final net = signals;
     if (net != null) {
       if (_plates.isNotEmpty) {

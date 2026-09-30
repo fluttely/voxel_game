@@ -25,13 +25,14 @@ class SavedWorld {
 }
 
 /// Saved worlds under one [directory], a folder per slot holding `edits.bin`
-/// (the edited cells, `EditDeltaCodec`) and `game.json` (the clock and the
-/// player: where, looking where, health, hunger, experience, the effects on
-/// them, the bag, what they wear, the spawn point).
+/// (the edited cells, `EditDeltaCodec`) and `game.json` (the clock, the
+/// crops growing, and the player: where, looking where, health, hunger,
+/// experience, the effects on them, the bag, what they wear, the spawn point).
 ///
-/// `game.json` is version 2. A version 1 save, from before the player had
-/// hunger, experience, effects and armour, still loads: its player stands up
-/// fed, at level 0, wearing nothing.
+/// `game.json` is version 3. Older saves still load, each a branch on its
+/// version: a version 1 save, from before the player had hunger, experience,
+/// effects and armour, stands its player up fed, at level 0, wearing nothing;
+/// a version 1 or 2 save, from before crops grew, has none growing.
 class WorldSaves {
   /// Saves under [directory].
   WorldSaves(this.directory);
@@ -40,7 +41,7 @@ class WorldSaves {
   final Directory directory;
 
   /// The version of `game.json` [save] writes.
-  static const stateVersion = 2;
+  static const stateVersion = 3;
 
   /// The edit file's layout: magic `VXK1`, version 1, one dimension.
   static const EditDeltaCodec codec = EditDeltaCodec(magic: 0x314B5856, version: 1, dimensions: 1);
@@ -75,6 +76,9 @@ class WorldSaves {
       'seed': game.world.generator.seed,
       'time': game.time,
       'timeOfDay': game.timeOfDay,
+      'growing': [
+        for (final e in game.blockRules.growing.entries) [e.key.x, e.key.y, e.key.z, e.value],
+      ],
       'player': {
         'pos': [p.position.x, p.position.y, p.position.z],
         'spawn': [p.spawnPoint.x, p.spawnPoint.y, p.spawnPoint.z],
@@ -106,14 +110,18 @@ class WorldSaves {
     return SavedWorld(seed, decoded?.edits ?? <int, Map<ChunkPos, Map<int, int>>>{}, state);
   }
 
-  /// Puts [saved]'s clock and player back into [game] (its edits are handed
-  /// to the world before it streams: see `VoxelGame.start`).
+  /// Puts [saved]'s clock, crops and player back into [game] (its edits are
+  /// handed to the world before it streams: see `VoxelGame.start`).
   static void restore(VoxelGame game, SavedWorld saved) {
     final s = saved.state;
     game.time = (s['time']! as num).toDouble();
     game.timeOfDay = (s['timeOfDay']! as num).toDouble();
     final p = s['player'] as Map<String, Object?>?;
     if (p == null) return; // a network hello carries the world, not a player
+    final version = (s['version']! as num).toInt();
+    if (version < 1 || version > stateVersion) {
+      throw StateError('game.json version $version: this kit reads 1 to $stateVersion');
+    }
     Vector3 v(Object? o) {
       final l = [for (final e in o! as List<Object?>) (e! as num).toDouble()];
       return Vector3(l[0], l[1], l[2]);
@@ -127,9 +135,18 @@ class WorldSaves {
       ..selectedSlot = (p['slot']! as num).toInt()
       ..cameraMode = CameraMode.values.byName(p['view']! as String);
     game.player.inventory.fromJson(p['inventory']! as List<Object?>, known: game.items.has);
-    final version = (s['version']! as num).toInt();
-    if (version == 1) return;
-    if (version != stateVersion) throw StateError('game.json version $version: this kit reads 1 and $stateVersion');
+    if (version >= 2) _restoreSurvival(game, p);
+    if (version >= 3) {
+      final growing = <IVec3, double>{};
+      for (final e in s['growing']! as List<Object?>) {
+        final n = [for (final v in e! as List<Object?>) v! as num];
+        growing[IVec3(n[0].toInt(), n[1].toInt(), n[2].toInt())] = n[3].toDouble();
+      }
+      game.blockRules.restoreGrowing(growing);
+    }
+  }
+
+  static void _restoreSurvival(VoxelGame game, Map<String, Object?> p) {
     game.player
       ..hunger = (p['hunger']! as num).toDouble()
       ..xp = (p['xp']! as num).toInt()

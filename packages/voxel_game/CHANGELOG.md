@@ -31,6 +31,15 @@
     block, where the world's flow spreads it. One of a stack changes: the last in the hand,
     else into the bag. `VoxelGameSpec.buildItems` refuses a bucket of a liquid kind there
     is not, pouring what is not a liquid source, or becoming an unknown item.
+  - A press of use with a tool on a block whose `turnsWith` names that tool's kind turns
+    the block (a hoe tills grass into farmland) and wears the tool.
+  - A block that `grows`, once set in the world, counts the seconds its cell has at least
+    `Growth.minLight` (sky or block light), looked at once a second
+    (`BlockRules.growPeriod`), and becomes its next stage when they reach
+    `Growth.seconds`. What the world generated does not grow. `BlockRules.growing` holds
+    each crop's seconds.
+  - **`game.json` is version 3**: it keeps the crops growing (`growing`). Version 1 and 2
+    saves still load, with none growing.
 - **Survival on the player (VA1).** Each piece is off until the spec declares it, so a game
   that declares none plays as before.
   - `PlayerSpec.hunger`, a `HungerSpec` (new): the bar empties by `secondsPerPoint`, heals

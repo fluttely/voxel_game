@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:vector_math/vector_math.dart';
 import 'package:voxel_engine/content.dart';
 import 'package:voxel_engine/core.dart';
@@ -6,10 +8,11 @@ import '../core/voxel_game.dart';
 
 /// What blocks do, by their rows: a block that `falls` drops to where it
 /// lands, one that loses its `support` breaks and drops, the two halves of a
-/// `tall` block go together, and a block with a `usedInto` turns into it when
-/// a player uses it. It runs on every block change of the world (a player's,
-/// a creature's, a blast's, its own), so what it does cascades: the sand above
-/// falling sand falls next, and a torch on that sand drops.
+/// `tall` block go together, a block with a `usedInto` turns into it when a
+/// player uses it, and a crop placed in the world `grows` stage by stage
+/// while it has light. It runs on every block change of the world (a
+/// player's, a creature's, a blast's, its own), so what it does cascades: the
+/// sand above falling sand falls next, and a torch on that sand drops.
 ///
 /// Only the authority runs the changes (a lone game, the host); a client
 /// receives the ones it made with the host's other edits.
@@ -39,6 +42,49 @@ class BlockRules {
   late final List<int> _family;
 
   bool _unpairing = false;
+
+  final Map<IVec3, double> _growing = {};
+  double _growClock = 0.0;
+
+  /// How often the crops are looked at, in seconds.
+  static const growPeriod = 1.0;
+
+  /// The crops placed in the world since it was generated, each with the
+  /// seconds of light it has had toward its next stage: what a save keeps.
+  /// A crop the world generated does not grow.
+  Map<IVec3, double> get growing => Map.unmodifiable(_growing);
+
+  /// Puts back what [growing] held (a save read back).
+  void restoreGrowing(Map<IVec3, double> growing) => _growing
+    ..clear()
+    ..addAll(growing);
+
+  /// Advances the crops by [dt]; once a step, on the authority. Every
+  /// [growPeriod] seconds each one whose chunk is loaded and whose cell has
+  /// its light counts that time toward its stage, and a stage served becomes
+  /// the next.
+  void tick(double dt) {
+    _growClock += dt;
+    if (_growClock < growPeriod) return;
+    final lit = _growClock;
+    _growClock = 0.0;
+    for (final cell in _growing.keys.toList()) {
+      if (!game.world.isLoaded(cell)) continue;
+      final growth = _blocks[game.world.getBlock(cell)].grows;
+      if (growth == null) {
+        _growing.remove(cell);
+        continue;
+      }
+      final light = game.world.lightAt(cell);
+      if (math.max(light.sky, light.block) < growth.minLight) continue;
+      final had = _growing[cell]! + lit;
+      if (had < growth.seconds) {
+        _growing[cell] = had;
+      } else {
+        game.world.setBlockNamed(cell, growth.into);
+      }
+    }
+  }
 
   BlockRegistry<BlockType> get _blocks => game.blocks;
 
@@ -81,6 +127,11 @@ class BlockRules {
   }
 
   void _changed(IVec3 cell, int old, int id) {
+    if (_blocks[id].grows != null) {
+      _growing[cell] = 0.0;
+    } else {
+      _growing.remove(cell);
+    }
     if (_blocks[old].tall && _family[old] != _family[id] && !_unpairing) _unpair(cell, old);
     if (_blocks[id].falls) _fall(cell, id);
     final above = cell + IVec3.up;

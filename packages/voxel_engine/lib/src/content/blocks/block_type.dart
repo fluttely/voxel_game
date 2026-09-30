@@ -2,6 +2,7 @@ import 'package:voxel_engine/core.dart';
 
 import '../loot/loot_table.dart';
 import 'facing.dart';
+import 'growth.dart';
 import 'support.dart';
 
 /// One block of a game, named by string. The engine sees it through the
@@ -34,6 +35,8 @@ class BlockType {
     this.facing,
     this.tall = false,
     this.usedInto,
+    this.grows,
+    this.turnsWith = const {},
   }) : r = ((color >> 16) & 0xFF) / 255.0,
        g = ((color >> 8) & 0xFF) / 255.0,
        b = (color & 0xFF) / 255.0,
@@ -69,6 +72,8 @@ class BlockType {
     this.facing,
     this.tall = false,
     this.usedInto,
+    this.grows,
+    this.turnsWith = const {},
   }) : opaque = opaque ?? (solid && alpha >= 1.0 && shape == BlockShape.cube);
 
   /// A liquid of [kind] (default: its own id). A source ([source] true) feeds
@@ -102,7 +107,9 @@ class BlockType {
        loot = null,
        facing = null,
        tall = false,
-       usedInto = null;
+       usedInto = null,
+       grows = null,
+       turnsWith = const {};
 
   /// The id: what saves, recipes and world specs name it by.
   final String id;
@@ -188,4 +195,12 @@ class BlockType {
   /// The block a player's use turns it into (a door opens, and its open
   /// state's [usedInto] closes it), or null for a block that is not used.
   final String? usedInto;
+
+  /// How it grows into its next stage (a crop), or null for a block that
+  /// does not grow.
+  final Growth? grows;
+
+  /// The block it becomes when a player uses a tool of a kind on it, by the
+  /// tool kind (`{'hoe': 'farmland'}`: a hoe tills it).
+  final Map<String, String> turnsWith;
 }

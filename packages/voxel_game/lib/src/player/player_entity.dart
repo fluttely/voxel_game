@@ -639,8 +639,9 @@ class PlayerEntity extends NodeBody implements Target {
   }
 
   /// Uses a lever, a station or a block that turns (a door) under the
-  /// crosshair, else scoops or pours with the bucket in hand, eats or puts on
-  /// the item in hand, else places its block. What turns, fills, pours, is
+  /// crosshair, else scoops or pours with the bucket in hand, works the aimed
+  /// block with the tool in hand (`BlockType.turnsWith`), eats or puts on the
+  /// item in hand, else places its block. What turns, fills, pours, is worked,
   /// eaten or put on is used on a [pressed] only: holding the button does not
   /// flap a door or eat a stack.
   void _use({required bool pressed}) {
@@ -671,6 +672,18 @@ class PlayerEntity extends NodeBody implements Target {
     final bucket = item.bucket;
     if (bucket != null) {
       if (pressed && (bucket.isFull ? _pour(bucket, hit) : _scoop(bucket))) _swingArm();
+      return;
+    }
+    // A tool the aimed block turns with works it: a hoe tills.
+    final tool = item.tool;
+    final worked = hit == null || tool == null
+        ? null
+        : _game.world.blocks[_game.world.getBlock(hit.block)].turnsWith[tool];
+    if (worked != null) {
+      if (!pressed || !_game.world.setBlockNamed(hit!.block, worked)) return;
+      _swingArm();
+      _game.playSound('dig', at: Vector3(hit.block.x + 0.5, hit.block.y + 1.0, hit.block.z + 0.5), volumeDb: -8.0);
+      if (!spec.creative && item.durability > 0) inventory.wear(selectedSlot);
       return;
     }
     if (item.food != null || item.armor != null) {

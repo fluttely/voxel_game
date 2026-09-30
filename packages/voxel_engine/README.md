@@ -91,7 +91,8 @@ sockets, through `dart:isolate` and `dart:io`, which a browser does not have.
    block does, for a game to act on: it `falls`, it needs a `support` (`Support.below`,
    `Support.side`; `blocks.stands` answers whether it would stay), it has an `onWall` form,
    it drops a rolled `loot`, it turns to face the placer (`Facing.compass`, `Facing.axis`),
-   it is two cells `tall`, a use turns it into another (`usedInto`).
+   it is two cells `tall`, a use turns it into another (`usedInto`), it `grows` into its
+   next stage (a `Growth`), a tool turns it into another (`turnsWith`).
 
    ```dart
    final blocks = BlockRegistry(const [

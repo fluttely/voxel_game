@@ -11,8 +11,10 @@
   block placed instead against a wall: a torch's wall torch) and `loot` (a `LootTable`
   rolled for its drops instead of `drop`), `facing` (a `Facing`, new: `Facing.compass`,
   four variants by the side the placer looks toward, or `Facing.axis`, two by the axis they
-  look along), `tall` (two cells, both halves this block) and `usedInto` (the block a use
-  turns it into: a door opens, its open state closes). `BlockRegistry.stands` answers
+  look along), `tall` (two cells, both halves this block), `usedInto` (the block a use
+  turns it into: a door opens, its open state closes), `grows` (a `Growth`, new: the next
+  stage of a crop, the seconds of light it takes and the least light it grows in) and
+  `turnsWith` (tool kind to the block that tool turns it into: a hoe tills). `BlockRegistry.stands` answers
   whether a block would stay at a cell, and the registry refuses a row naming a block that
   does not exist.
 - `ItemType.food` (a `Food`: hunger it fills, health it gives back, an effect it starts for

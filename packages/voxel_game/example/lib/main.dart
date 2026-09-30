@@ -9,8 +9,8 @@ const game = VoxelGameSpec(
   blocks: [
     BlockType('stone', color: 0x7F7F84, hardness: 1.5, tool: 'pickaxe', tier: 1, drop: 'cobblestone'),
     BlockType('cobblestone', color: 0x6E6E70, hardness: 2.0, tool: 'pickaxe'),
-    BlockType('dirt', color: 0x8A5E3B, hardness: 0.5, tool: 'shovel'),
-    BlockType('grass', color: 0x5C9E3A, hardness: 0.6, tool: 'shovel', drop: 'dirt'),
+    BlockType('dirt', color: 0x8A5E3B, hardness: 0.5, tool: 'shovel', turnsWith: {'hoe': 'farmland'}),
+    BlockType('grass', color: 0x5C9E3A, hardness: 0.6, tool: 'shovel', drop: 'dirt', turnsWith: {'hoe': 'farmland'}),
     BlockType('sand', color: 0xDCCB8A, hardness: 0.5, tool: 'shovel', falls: true),
     BlockType('log', color: 0x6B4F2A, hardness: 2.0, tool: 'axe'),
     BlockType('leaves', color: 0x3F8A2E, hardness: 0.2, opaque: false),
@@ -101,9 +101,49 @@ const game = VoxelGameSpec(
     BlockType('stairs_e', color: 0xB08850, shape: BlockShape.stairsE, hardness: 2.0, tool: 'axe', drop: 'stairs'),
     BlockType('stairs_s', color: 0xB08850, shape: BlockShape.stairsS, hardness: 2.0, tool: 'axe', drop: 'stairs'),
     BlockType('stairs_w', color: 0xB08850, shape: BlockShape.stairsW, hardness: 2.0, tool: 'axe', drop: 'stairs'),
+    // Farming: tall grass sometimes drops seeds, a hoe tills the ground, wheat grows on it in the light.
+    BlockType(
+      'tall_grass',
+      color: 0x6AAE44,
+      shape: BlockShape.cross,
+      solid: false,
+      hardness: 0,
+      support: Support.below(),
+      loot: LootTable([LootEntry('seeds', 1, 1, 0.4)]),
+    ),
+    BlockType('farmland', color: 0x5A3A20, hardness: 0.6, tool: 'shovel', drop: 'dirt'),
+    BlockType(
+      'wheat_0',
+      color: 0x6FA83A,
+      shape: BlockShape.cross,
+      solid: false,
+      hardness: 0,
+      drop: 'seeds',
+      support: Support.below(on: {'farmland'}),
+      grows: Growth('wheat_1', seconds: 40),
+    ),
+    BlockType(
+      'wheat_1',
+      color: 0x9AAA38,
+      shape: BlockShape.cross,
+      solid: false,
+      hardness: 0,
+      drop: 'seeds',
+      support: Support.below(on: {'farmland'}),
+      grows: Growth('wheat_2', seconds: 40),
+    ),
+    BlockType(
+      'wheat_2',
+      color: 0xD8BE50,
+      shape: BlockShape.cross,
+      solid: false,
+      hardness: 0,
+      support: Support.below(on: {'farmland'}),
+      loot: LootTable([LootEntry('wheat', 1, 3, 1.0), LootEntry('seeds', 1, 2, 1.0)]),
+    ),
   ],
   // 2. Items that are not blocks — tools, food (eaten with use), armour (worn with use), a door
-  //    (placing its block), buckets — and how to craft things.
+  //    (placing its block), buckets, a hoe, seeds (placing wheat) — and how to craft things.
   items: [
     ItemType('coal', color: 0x202020),
     ItemType('wooden_pickaxe', color: 0xB08850, tool: 'pickaxe', tier: 1, stack: 1, durability: 60, damage: 2),
@@ -123,6 +163,10 @@ const game = VoxelGameSpec(
     // A bucket scoops a water source with use, and pours it back.
     ItemType('bucket', color: 0x8A6A40, stack: 16, bucket: Bucket.empty({'water': 'water_bucket'})),
     ItemType('water_bucket', color: 0x3366CC, stack: 1, bucket: Bucket.full('water', empties: 'bucket')),
+    ItemType('wooden_hoe', color: 0xB08850, tool: 'hoe', tier: 1, stack: 1, durability: 60),
+    ItemType('seeds', color: 0x7FA040, block: 'wheat_0'),
+    ItemType('wheat', color: 0xD8BE50),
+    ItemType('bread', color: 0xB8864A, food: Food(hunger: 5)),
   ],
   recipes: [
     Recipe('planks', 4, {'log': 1}),
@@ -135,6 +179,8 @@ const game = VoxelGameSpec(
     Recipe('door', 1, {'planks': 6}),
     Recipe('stairs', 4, {'planks': 6}),
     Recipe('bucket', 1, {'planks': 3}),
+    Recipe('wooden_hoe', 1, {'planks': 3}),
+    Recipe('bread', 1, {'wheat': 3}),
   ],
   // Status effects: what a food starts, what the player carries.
   effects: [EffectType('regeneration', 'Regeneration', 0.9, 0.35, 0.55, period: 2.0, heal: 1.0)],
@@ -156,6 +202,7 @@ const game = VoxelGameSpec(
         under: 'dirt',
         trees: [TreeSpec.oak(log: 'log', leaves: 'leaves')],
         treeChance: 12,
+        plants: [Plant('tall_grass', perMille: 60)],
       ),
     ],
     beach: Biome('beach', top: 'sand'),

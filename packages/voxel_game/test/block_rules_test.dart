@@ -1,11 +1,13 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vector_math/vector_math.dart';
 import 'package:voxel_game/voxel_game.dart';
 
 const _blocks = [
   BlockType('stone', color: 0x808080, hardness: 1.5),
-  BlockType('dirt', color: 0x74502F, hardness: 0.5),
-  BlockType('grass', color: 0x4C9437, hardness: 0.6, drop: 'dirt'),
+  BlockType('dirt', color: 0x74502F, hardness: 0.5, turnsWith: {'hoe': 'farmland'}),
+  BlockType('grass', color: 0x4C9437, hardness: 0.6, drop: 'dirt', turnsWith: {'hoe': 'farmland'}),
   BlockType('sand', color: 0xDCCB8A, hardness: 0.5, falls: true),
   BlockType('glass', color: 0xCCEEFF, alpha: 0.3, hardness: 0.3),
   BlockType(
@@ -90,11 +92,44 @@ const _blocks = [
   BlockType('iron_door_open', color: 0xCCCCCC, shape: BlockShape.panelX, solid: false, tall: true),
   BlockType('wire', color: 0x600000, shape: BlockShape.wire, solid: false),
   BlockType('wire_lit', color: 0xFF0000, shape: BlockShape.wire, solid: false),
+  // Wheat: three stages on farmland, two seconds of light each.
+  BlockType('farmland', color: 0x664422, hardness: 0.6, drop: 'dirt'),
+  BlockType(
+    'wheat_0',
+    color: 0x77AA33,
+    shape: BlockShape.cross,
+    solid: false,
+    hardness: 0,
+    drop: 'seeds',
+    support: Support.below(on: {'farmland'}),
+    grows: Growth('wheat_1', seconds: 2),
+  ),
+  BlockType(
+    'wheat_1',
+    color: 0x99AA33,
+    shape: BlockShape.cross,
+    solid: false,
+    hardness: 0,
+    drop: 'seeds',
+    support: Support.below(on: {'farmland'}),
+    grows: Growth('wheat_2', seconds: 2),
+  ),
+  BlockType(
+    'wheat_2',
+    color: 0xCCBB44,
+    shape: BlockShape.cross,
+    solid: false,
+    hardness: 0,
+    support: Support.below(on: {'farmland'}),
+    loot: LootTable([LootEntry('wheat', 2, 2, 1.0), LootEntry('seeds', 1, 1, 1.0)]),
+  ),
 ];
 
 const _items = [
   ItemType('melon_slice', color: 0xE04040),
-  ItemType('seeds', color: 0x99BB44),
+  ItemType('seeds', color: 0x99BB44, block: 'wheat_0'),
+  ItemType('wheat', color: 0xCCBB44),
+  ItemType('hoe', color: 0xB08850, tool: 'hoe', stack: 1, durability: 10),
   ItemType('door', color: 0x9A7040, block: 'door_z', stack: 16),
   ItemType('bucket', color: 0xA0A0A8, stack: 16, bucket: Bucket.empty({'water': 'water_bucket'})),
   ItemType('water_bucket', color: 0x3366CC, stack: 1, bucket: Bucket.full('water', empties: 'bucket')),
@@ -113,8 +148,8 @@ const _spec = VoxelGameSpec(
   sky: SkySpec.alwaysDay,
 );
 
-Future<VoxelGame> _start({VoxelGameSpec spec = _spec}) async {
-  final game = await VoxelGame.startHeadless(spec);
+Future<VoxelGame> _start({VoxelGameSpec spec = _spec, SavedWorld? save}) async {
+  final game = await VoxelGame.startHeadless(spec, save: save);
   game.spawner.enabled = false;
   game.playWithoutCapture = true;
   for (var i = 0; i < 600 && !game.ready; i++) {
@@ -378,5 +413,79 @@ void main() {
       ],
     );
     expect(() => bad.buildItems(bad.buildBlocks()), throwsArgumentError);
+  });
+
+  test('a hoe tills grass into farmland, and seeds go only on farmland', () async {
+    final game = await _start();
+    final w = game.world, p = game.player;
+    const ground = IVec3(0, 19, -2);
+    _hold(p, 'seeds', 4);
+    _stand(game, 0, 0, pitch: -0.68);
+    await _use(game);
+    expect(w.blockNameAt(ground + IVec3.up), 'air', reason: 'wheat does not stand on grass');
+
+    _hold(p, 'hoe');
+    await _run(game, 0.3);
+    await _use(game);
+    expect(w.blockNameAt(ground), 'farmland');
+    expect(p.inventory.durAt(0), 9, reason: 'a till wears the hoe');
+
+    _hold(p, 'seeds', 4);
+    await _run(game, 0.3);
+    await _use(game);
+    expect(w.blockNameAt(ground + IVec3.up), 'wheat_0');
+    expect(game.blockRules.growing.keys, [ground + IVec3.up]);
+  });
+
+  test('a crop grows stage by stage in the light, and a ripe one drops its loot', () async {
+    final game = await _start();
+    final w = game.world;
+    const crop = IVec3(8, 20, 8);
+    w.setBlockNamed(crop + IVec3.down, 'farmland');
+    w.setBlockNamed(crop, 'wheat_0');
+    await _run(game, 1.5);
+    expect(w.blockNameAt(crop), 'wheat_0');
+    await _run(game, 1.0);
+    expect(w.blockNameAt(crop), 'wheat_1');
+    await _run(game, 2.2);
+    expect(w.blockNameAt(crop), 'wheat_2');
+    expect(game.blockRules.growing, isEmpty, reason: 'the last stage does not grow');
+
+    game.breakBlock(crop);
+    expect(_dropped(game, 'wheat'), 2);
+    expect(_dropped(game, 'seeds'), 1);
+  });
+
+  test('a crop in the dark waits, and one whose farmland goes drops its seeds', () async {
+    final game = await _start();
+    final w = game.world;
+    // A pocket sealed in the ground: no sky reaches it.
+    const crop = IVec3(8, 12, 8);
+    w.setBlockNamed(crop + IVec3.down, 'farmland');
+    w.setBlockNamed(crop, 'wheat_0');
+    await _run(game, 3.0);
+    expect(w.lightAt(crop).sky, 0);
+    expect(w.blockNameAt(crop), 'wheat_0');
+    expect(game.blockRules.growing[crop], 0.0);
+
+    w.setBlockNamed(crop + IVec3.down, 'dirt');
+    expect(w.blockNameAt(crop), 'air');
+    expect(_dropped(game, 'seeds'), 1);
+  });
+
+  test('what is growing is saved with the world', () async {
+    final dir = Directory.systemTemp.createTempSync('voxel_crops');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    final saves = WorldSaves(dir);
+    final game = await _start();
+    const crop = IVec3(8, 20, 8);
+    game.world.setBlockNamed(crop + IVec3.down, 'farmland');
+    game.world.setBlockNamed(crop, 'wheat_0');
+    await _run(game, 1.1);
+    saves.save(game, 'slot');
+
+    final back = await _start(save: saves.read('slot'));
+    expect(back.world.blockNameAt(crop), 'wheat_0');
+    expect(back.blockRules.growing[crop], closeTo(1.0, 0.1));
   });
 }

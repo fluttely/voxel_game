@@ -106,6 +106,22 @@ void main() {
         throwsArgumentError,
         reason: 'door_x does not exist',
       );
+      expect(
+        () => BlockRegistry(const [
+          BlockType('air', color: 0, solid: false),
+          BlockType('wheat_0', color: 0, grows: Growth('wheat_1', seconds: 30)),
+        ]),
+        throwsArgumentError,
+        reason: 'wheat_1 does not exist',
+      );
+      expect(
+        () => BlockRegistry(const [
+          BlockType('air', color: 0, solid: false),
+          BlockType('dirt', color: 0, turnsWith: {'hoe': 'farmland'}),
+        ]),
+        throwsArgumentError,
+        reason: 'farmland does not exist',
+      );
     });
 
     test('a block stands where what it leans on is', () {
