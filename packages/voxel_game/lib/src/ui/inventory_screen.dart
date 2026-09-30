@@ -137,65 +137,70 @@ class _InventoryScreenState extends State<InventoryScreen> {
     return ColoredBox(
       color: Colors.black54,
       child: Center(
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(color: const Color(0xEE1E2430), borderRadius: BorderRadius.circular(8)),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Text(title, style: const TextStyle(fontSize: 18)),
-                      const SizedBox(width: 12),
-                      IconButton(onPressed: widget.onClose, icon: const Icon(Icons.close), tooltip: 'Close (E)'),
-                    ],
-                  ),
-                  for (var row = hotbar; row < cap; row += hotbar)
+        // Its own Material, so the recipes' tiles draw whether or not the game
+        // put a Scaffold above the widget.
+        child: Material(
+          color: const Color(0xEE1E2430),
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [for (var i = row; i < row + hotbar && i < cap; i++) _slot(i)],
+                      children: [
+                        Text(title, style: const TextStyle(fontSize: 18)),
+                        const SizedBox(width: 12),
+                        IconButton(onPressed: widget.onClose, icon: const Icon(Icons.close), tooltip: 'Close (E)'),
+                      ],
                     ),
-                  const SizedBox(height: 10),
-                  Row(mainAxisSize: MainAxisSize.min, children: [for (var i = 0; i < hotbar; i++) _slot(i)]),
-                  const SizedBox(height: 8),
-                  Row(children: [const Text('Cursor: '), _stack(_cursor, size: 32)]),
-                ],
-              ),
-              const SizedBox(width: 16),
-              SizedBox(
-                width: 260,
-                height: 360,
-                child: recipes.isEmpty
-                    ? const Text('Nothing to craft here')
-                    : ListView(
-                        children: [
-                          for (final r in recipes)
-                            ListTile(
-                              dense: true,
-                              leading: _stack(ItemStack(r.result, r.count), size: 32),
-                              title: Text(
-                                '${game.items.has(r.result) ? game.items[r.result].name : r.result} x${r.count}',
-                              ),
-                              subtitle: Text(
-                                r.ingredients.entries
-                                    .map(
-                                      (e) =>
-                                          '${game.items.has(e.key) ? game.items[e.key].name : e.key} ${_inv.countOf(e.key)}/${e.value}',
-                                    )
-                                    .join(', '),
-                              ),
-                              enabled: game.recipes.canCraft(r, _inv),
-                              onTap: () => game.recipes.craft(r, _inv),
-                            ),
-                        ],
+                    for (var row = hotbar; row < cap; row += hotbar)
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [for (var i = row; i < row + hotbar && i < cap; i++) _slot(i)],
                       ),
-              ),
-            ],
+                    const SizedBox(height: 10),
+                    Row(mainAxisSize: MainAxisSize.min, children: [for (var i = 0; i < hotbar; i++) _slot(i)]),
+                    const SizedBox(height: 8),
+                    Row(children: [const Text('Cursor: '), _stack(_cursor, size: 32)]),
+                  ],
+                ),
+                const SizedBox(width: 16),
+                SizedBox(
+                  width: 260,
+                  height: 360,
+                  child: recipes.isEmpty
+                      ? const Text('Nothing to craft here')
+                      : ListView(
+                          children: [
+                            for (final r in recipes)
+                              ListTile(
+                                dense: true,
+                                leading: _stack(ItemStack(r.result, r.count), size: 32),
+                                title: Text(
+                                  '${game.items.has(r.result) ? game.items[r.result].name : r.result} x${r.count}',
+                                ),
+                                subtitle: Text(
+                                  r.ingredients.entries
+                                      .map(
+                                        (e) =>
+                                            '${game.items.has(e.key) ? game.items[e.key].name : e.key} ${_inv.countOf(e.key)}/${e.value}',
+                                      )
+                                      .join(', '),
+                                ),
+                                enabled: game.recipes.canCraft(r, _inv),
+                                onTap: () => game.recipes.craft(r, _inv),
+                              ),
+                          ],
+                        ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

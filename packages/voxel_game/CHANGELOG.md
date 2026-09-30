@@ -27,6 +27,9 @@
   takes the kit's controls away; before, `x ?? this.x` turned a null into "keep it" and the
   call did nothing. Wrap what you passed: `graphics: GraphicsSpec.phone` becomes
   `graphics: () => GraphicsSpec.phone`.
+- The bag opens under a `VoxelGameWidget` with no `Scaffold` above it: `InventoryScreen`'s
+  panel is its own `Material`, so its recipe tiles no longer fail to build ("No Material
+  widget found") in a game that mounts the widget straight under its app.
 - **Breaking: the HUD is hit-tested.** `VoxelGameWidget` no longer wraps the `HudBuilder`'s
   widget in an `IgnorePointer`, so the default HUD's hotbar can take a finger: a tap on a
   slot picks it, a hold of `TouchControlsSpec.dropHold` on the slot in hand drops one item, and
