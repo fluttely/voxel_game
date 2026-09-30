@@ -2,6 +2,10 @@
 
 ## 0.3.0-dev
 
+- `ChunkStreamer.putChunk` stores a volume generated elsewhere (a test's floor), with the
+  edits recorded for it written over it, as a generation landing would. Since 0.2.0-dev
+  made `chunks` read-only it was the one way in that was missing: a world built without
+  jobs had nowhere to put its chunks.
 - `ChunkWorkerPool.defaultWorkers` is two thirds of the cores (`workersFor`, new), no
   longer all of them but one: 8 on an M2 Pro instead of 11, 5 on a Galaxy S24 instead of
   7. Past that the window's fill time did not fall (on the phone 735 ms with 5 workers,

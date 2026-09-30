@@ -434,6 +434,15 @@ class ChunkStreamer {
     (_edits[pos] ??= {})[ChunkSize.index(b.x - pos.x * ChunkSize.sizeX, b.y, b.z - pos.z * ChunkSize.sizeZ)] = id;
   }
 
+  /// Stores a volume generated elsewhere at [pos], as a generation job landing
+  /// would: the edits recorded for it are written over it. Nothing is meshed.
+  /// For a world built without jobs (a test's floor); [chunks] is read-only.
+  void putChunk(ChunkPos pos, Uint8List blocks) {
+    assert(blocks.length == ChunkSize.volume, 'a chunk volume is ${ChunkSize.volume} bytes, got ${blocks.length}');
+    _applyEdits(pos, blocks);
+    _putChunk(pos, blocks);
+  }
+
   void _queueRemesh(ChunkPos pos) {
     if (!_chunks.containsKey(pos) || !_meshed.contains(pos)) return;
     if (_meshInflight.contains(pos) || _surfaceReady.containsKey(pos)) _remeshAgain.add(pos);
