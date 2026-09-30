@@ -9,8 +9,9 @@ import '../core/voxel_game.dart';
 /// What blocks do, by their rows: a block that `falls` drops to where it
 /// lands, one that loses its `support` breaks and drops, the two halves of a
 /// `tall` block go together, a block with a `usedInto` turns into it when a
-/// player uses it, and a crop placed in the world `grows` stage by stage
-/// while it has light. It runs on every block change of the world (a
+/// player uses it, a crop placed in the world `grows` stage by stage while it
+/// has light, and a block with a `storage` keeps what is put in it and spills
+/// it when it goes. It runs on every block change of the world (a
 /// player's, a creature's, a blast's, its own), so what it does cascades: the
 /// sand above falling sand falls next, and a torch on that sand drops.
 ///
@@ -58,6 +59,49 @@ class BlockRules {
   void restoreGrowing(Map<IVec3, double> growing) => _growing
     ..clear()
     ..addAll(growing);
+
+  final Map<IVec3, Inventory> _stores = {};
+
+  /// What the stores hold, by cell: what a save keeps. A store the world
+  /// generated appears here once it is looked into.
+  Map<IVec3, Inventory> get stores => Map.unmodifiable(_stores);
+
+  /// What the block with a `storage` at [cell] holds. A store the world
+  /// generated and nobody has looked into yet is filled from its loot now,
+  /// seeded by its cell and the world, so every player finds the same.
+  Inventory storeAt(IVec3 cell) {
+    final kept = _stores[cell];
+    if (kept != null) return kept;
+    final storage = _blocks[game.world.getBlock(cell)].storage;
+    if (storage == null) throw StateError('no store at $cell: ${game.world.blockNameAt(cell)}');
+    return _stores[cell] = _found(cell, storage);
+  }
+
+  /// Puts back what [stores] held (a save read back): each as the slots it
+  /// was saved with, a stack of an item there no longer is left out.
+  void restoreStores(Map<IVec3, List<Object?>> stores) {
+    _stores.clear();
+    for (final e in stores.entries) {
+      _stores[e.key] = _empty(e.value.length)..fromJson(e.value, known: game.items.has);
+    }
+  }
+
+  Inventory _empty(int slots) => Inventory(
+    stackSize: (id) => game.items[id].stack,
+    maxDurability: (id) => game.items[id].durability,
+    capacity: slots,
+    hotbarSize: 0,
+  );
+
+  Inventory _found(IVec3 cell, Storage storage) {
+    final inv = _empty(storage.slots);
+    final loot = storage.loot;
+    if (loot == null) return inv;
+    for (final s in loot.roll(math.Random(LootTable.seedFor(cell, game.world.generator.seed)))) {
+      inv.add(s.id, s.count);
+    }
+    return inv;
+  }
 
   /// Advances the crops by [dt]; once a step, on the authority. Every
   /// [growPeriod] seconds each one whose chunk is loaded and whose cell has
@@ -132,6 +176,12 @@ class BlockRules {
     } else {
       _growing.remove(cell);
     }
+    final had = _blocks[old].storage, has = _blocks[id].storage;
+    if (had != null && has == null) {
+      _spill(cell, _stores.remove(cell) ?? _found(cell, had));
+    } else if (had == null && has != null) {
+      _stores[cell] = _empty(has.slots);
+    }
     if (_blocks[old].tall && _family[old] != _family[id] && !_unpairing) _unpair(cell, old);
     if (_blocks[id].falls) _fall(cell, id);
     final above = cell + IVec3.up;
@@ -140,6 +190,16 @@ class BlockRules {
     for (final n in [above, cell + IVec3.down, for (final s in IVec3.sides) cell + s]) {
       final nid = game.world.getBlock(n);
       if (nid != BlockRegistry.air && !stands(n, nid)) game.breakBlock(n);
+    }
+  }
+
+  /// What a store held goes on the ground where it stood, and its screen
+  /// shuts.
+  void _spill(IVec3 cell, Inventory held) {
+    if (game.openStorageCell == cell) game.openScreen.value = null;
+    final at = Vector3(cell.x + 0.5, cell.y + 0.3, cell.z + 0.5);
+    for (final s in held.slots) {
+      if (s != null) game.dropItem(s.id, s.count, at);
     }
   }
 

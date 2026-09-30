@@ -46,8 +46,11 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
   liquid's source and a full one (`Bucket.full('water', empties: 'bucket')`) pours it, for
   the flow to spread. A tool works the block it is used on (`turnsWith: {'hoe':
   'farmland'}`), and a crop placed in the world `grows` (`Growth('wheat_1', seconds: 40)`)
-  stage by stage while its cell has light. The host runs them (`VoxelGame.blockRules`); a
-  client receives what they changed.
+  stage by stage while its cell has light. A block with a `storage` (a chest) opens beside
+  the bag on use, keeps what is put in it in the world save, and spills it when it breaks;
+  one the world generated is found filled from `Storage.loot`, the same for every player.
+  The host runs them (`VoxelGame.blockRules`); a client receives what they changed, and
+  opens no store until the net carries them (VA16).
 - `runVoxelGame` / `VoxelGameWidget`: the 3D view, a HUD, the inventory and crafting screen.
   A HUD of your own is built once; its pieces follow the game through `HudSelector`s.
   The default HUD's hotbar takes a finger: tap a slot to pick it, hold the one in hand to

@@ -7,6 +7,7 @@ export 'src/content/blocks/block_registry.dart';
 export 'src/content/blocks/block_type.dart';
 export 'src/content/blocks/facing.dart';
 export 'src/content/blocks/growth.dart';
+export 'src/content/blocks/storage.dart';
 export 'src/content/blocks/support.dart';
 export 'src/content/crafting/recipe.dart';
 export 'src/content/effects/status_effects.dart';

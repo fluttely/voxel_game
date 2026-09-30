@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/material.dart' show GestureDetector, MaterialApp;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vector_math/vector_math.dart';
 import 'package:voxel_game/voxel_game.dart';
@@ -122,6 +123,16 @@ const _blocks = [
     hardness: 0,
     support: Support.below(on: {'farmland'}),
     loot: LootTable([LootEntry('wheat', 2, 2, 1.0), LootEntry('seeds', 1, 1, 1.0)]),
+  ),
+  // A chest: nine slots; one the world made holds three melon slices and some seeds.
+  BlockType(
+    'chest',
+    color: 0x8A5A2A,
+    hardness: 1.0,
+    storage: Storage(
+      slots: 9,
+      loot: LootTable([LootEntry('melon_slice', 3, 3, 1.0), LootEntry('seeds', 1, 4, 1.0)]),
+    ),
   ),
 ];
 
@@ -487,5 +498,112 @@ void main() {
     final back = await _start(save: saves.read('slot'));
     expect(back.world.blockNameAt(crop), 'wheat_0');
     expect(back.blockRules.growing[crop], closeTo(1.0, 0.1));
+  });
+
+  test('a chest placed in the world is empty, keeps what is put in, and spills it when broken', () async {
+    final game = await _start();
+    const at = IVec3(8, 20, 8);
+    game.world.setBlockNamed(at, 'chest');
+    final store = game.blockRules.storeAt(at);
+    expect(store.capacity, 9);
+    expect(store.slots, everyElement(isNull), reason: 'a chest a player places holds no loot');
+    store.add('wheat', 5);
+    game.breakBlock(at);
+    expect(_dropped(game, 'wheat'), 5);
+    expect(_dropped(game, 'chest'), 1, reason: 'and the chest itself');
+    expect(game.blockRules.stores, isEmpty);
+  });
+
+  test('a chest the world made is found filled, the same in every game of the seed', () async {
+    // The world's surface is chests.
+    final chests = _spec.copyWith(
+      world: const WorldGenSpec(
+        terrain: TerrainRecipe.flat(20),
+        seaLevel: 5,
+        caves: CaveSpec.none,
+        biomes: [Biome('plains', top: 'chest', under: 'dirt')],
+      ),
+    );
+    const at = IVec3(8, 19, 8);
+    final a = await _start(spec: chests), b = await _start(spec: chests);
+    final inA = a.blockRules.storeAt(at), inB = b.blockRules.storeAt(at);
+    expect(inA.countOf('melon_slice'), 3);
+    expect(inA.countOf('seeds'), inB.countOf('seeds'), reason: 'the roll is seeded by the cell and the world');
+
+    // One broken before anyone looked into it spills its loot all the same.
+    a.breakBlock(const IVec3(4, 19, 4));
+    expect(_dropped(a, 'melon_slice'), 3);
+  });
+
+  test('use opens a chest beside the bag, and a chest that goes shuts its screen', () async {
+    final game = await _start();
+    const at = IVec3(0, 21, -2);
+    game.world.setBlockNamed(const IVec3(0, 20, -2), 'stone');
+    game.world.setBlockNamed(at, 'chest');
+    _stand(game, 0, 0);
+    await _use(game);
+    expect(game.openScreen.value, 'chest');
+    expect(game.openStorageCell, at);
+    expect(game.openStorage, same(game.blockRules.storeAt(at)));
+
+    game.openScreen.value = null;
+    expect(game.openStorage, isNull);
+    game.openScreen.value = '';
+    expect(game.openStorage, isNull, reason: 'the bag alone is not the chest');
+
+    game.openScreen.value = null;
+    await _run(game, 0.3);
+    await _use(game);
+    game.breakBlock(at);
+    expect(game.openScreen.value, isNull);
+  });
+
+  testWidgets('the screen moves a stack from the bag into the chest', (tester) async {
+    final game = (await tester.runAsync(() => VoxelGame.startHeadless(_spec)))!;
+    game.spawner.enabled = false;
+    final store = Inventory(stackSize: (id) => 64, capacity: 9, hotbarSize: 0);
+    final bag = game.player.inventory..setSlot(0, ItemStack('wheat', 5));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: InventoryScreen(game: game, station: 'chest', storage: store, onClose: () {}),
+      ),
+    );
+    final slots = find.byWidgetPredicate((w) => w is GestureDetector && w.onSecondaryTap != null);
+    expect(slots, findsNWidgets(9 + bag.capacity), reason: 'the chest above the bag, no recipes');
+    // The chest's first, then the bag's rows, then its hotbar: slot 0 of the bag is 9 + 27.
+    await tester.tap(slots.at(9 + bag.capacity - bag.hotbarSize));
+    await tester.pump();
+    await tester.tap(slots.at(4));
+    await tester.pump();
+    expect(bag.countOf('wheat'), 0);
+    expect(store.countAt(4), 5);
+    game.dispose();
+  });
+
+  test('what a chest holds is saved with the world', () async {
+    final dir = Directory.systemTemp.createTempSync('voxel_chests');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    final saves = WorldSaves(dir);
+    final game = await _start();
+    const at = IVec3(8, 20, 8);
+    game.world.setBlockNamed(at, 'chest');
+    game.blockRules.storeAt(at).add('wheat', 7);
+    saves.save(game, 'slot');
+
+    final back = await _start(save: saves.read('slot'));
+    for (var i = 0; i < 100 && !back.world.isLoaded(at); i++) {
+      await _run(back, 1 / 60);
+    }
+    expect(back.blockRules.storeAt(at).countOf('wheat'), 7);
+  });
+
+  test('a chest whose loot names an unknown item is refused', () {
+    final bad = _spec.copyWith(
+      blocks: [
+        ..._blocks,
+        const BlockType('crate', color: 0, storage: Storage(loot: LootTable([LootEntry('gold', 1, 1, 1.0)]))),
+      ],
+    );
+    expect(() => bad.buildItems(bad.buildBlocks()), throwsArgumentError);
   });
 }

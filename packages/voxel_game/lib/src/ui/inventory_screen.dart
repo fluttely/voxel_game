@@ -5,20 +5,26 @@ import '../core/voxel_game.dart';
 
 /// The bag and crafting: every slot (the hotbar last, as block sandboxes lay
 /// it out), a stack on the cursor to move between slots, and the recipes of
-/// [station] (`''` for the hand) with what each needs. Click a slot to pick
+/// [station] (`''` for the hand) with what each needs; or, with a [storage]
+/// open, its slots above the bag instead of the recipes. Click a slot to pick
 /// up or put down; right-click to take or leave one.
 ///
-/// It rebuilds when the bag changes, never every frame, so a click is never
-/// lost to a rebuild under the pointer.
+/// It rebuilds when the bag or the store changes, never every frame, so a
+/// click is never lost to a rebuild under the pointer.
 class InventoryScreen extends StatefulWidget {
-  /// The screen of [game] at [station]; [onClose] shuts it.
-  const InventoryScreen({super.key, required this.game, required this.station, required this.onClose});
+  /// The screen of [game] at [station], beside [storage] when one is open;
+  /// [onClose] shuts it.
+  const InventoryScreen({super.key, required this.game, required this.station, required this.onClose, this.storage});
 
   /// The game.
   final VoxelGame game;
 
-  /// The station crafted at; `''` in the hand.
+  /// The station crafted at; `''` in the hand. With a [storage], the block
+  /// that stores, named in the title.
   final String station;
+
+  /// The store open beside the bag (`VoxelGame.openStorage`), or null.
+  final Inventory? storage;
 
   /// Called by the close button.
   final VoidCallback onClose;
@@ -36,11 +42,21 @@ class _InventoryScreenState extends State<InventoryScreen> {
   void initState() {
     super.initState();
     _inv.listeners.add(_changed);
+    widget.storage?.listeners.add(_changed);
+  }
+
+  @override
+  void didUpdateWidget(InventoryScreen old) {
+    super.didUpdateWidget(old);
+    if (old.storage == widget.storage) return;
+    old.storage?.listeners.remove(_changed);
+    widget.storage?.listeners.add(_changed);
   }
 
   @override
   void dispose() {
     _inv.listeners.remove(_changed);
+    widget.storage?.listeners.remove(_changed);
     final held = _cursor;
     // Nothing is lost on the cursor when the screen shuts.
     if (held != null && !_inv.addStack(held)) _inv.add(held.id, held.count);
@@ -51,32 +67,32 @@ class _InventoryScreenState extends State<InventoryScreen> {
     if (mounted) setState(() {});
   }
 
-  void _click(int i, {required bool one}) {
-    final slot = _inv.slots[i];
+  void _click(Inventory inv, int i, {required bool one}) {
+    final slot = inv.slots[i];
     final held = _cursor;
     setState(() {
       if (held == null) {
-        if (slot != null) _cursor = _inv.takeFromSlot(i, one ? (slot.count + 1) ~/ 2 : slot.count);
+        if (slot != null) _cursor = inv.takeFromSlot(i, one ? (slot.count + 1) ~/ 2 : slot.count);
         return;
       }
       if (slot == null) {
         final put = one ? 1 : held.count;
-        _inv.setSlot(i, held.copy()..count = put);
+        inv.setSlot(i, held.copy()..count = put);
         held.count -= put;
         if (held.count <= 0) _cursor = null;
         return;
       }
       if (slot.id == held.id && slot.bonus == held.bonus && slot.dur < 0 && held.dur < 0) {
-        final room = _inv.stackSize(slot.id) - slot.count;
+        final room = inv.stackSize(slot.id) - slot.count;
         final put = (one ? 1 : held.count).clamp(0, room);
         slot.count += put;
         held.count -= put;
         if (held.count <= 0) _cursor = null;
-        _inv.emitChanged();
+        inv.emitChanged();
         return;
       }
       // Different items: swap the cursor with the slot.
-      _inv.setSlot(i, held);
+      inv.setSlot(i, held);
       _cursor = slot;
     });
   }
@@ -109,29 +125,36 @@ class _InventoryScreenState extends State<InventoryScreen> {
           ),
   );
 
-  Widget _slot(int i) {
-    final selected = i == widget.game.player.selectedSlot;
+  Widget _slot(Inventory inv, int i) {
+    final selected = inv == _inv && i == widget.game.player.selectedSlot;
     return Tooltip(
-      message: _inv.isEmptySlot(i) ? '' : widget.game.items[_inv.idAt(i)].name,
+      message: inv.isEmptySlot(i) ? '' : widget.game.items[inv.idAt(i)].name,
       child: GestureDetector(
-        onTap: () => _click(i, one: false),
-        onSecondaryTap: () => _click(i, one: true),
+        onTap: () => _click(inv, i, one: false),
+        onSecondaryTap: () => _click(inv, i, one: true),
         child: Container(
           margin: const EdgeInsets.all(2),
           decoration: BoxDecoration(
             color: Colors.black38,
             border: Border.all(color: selected ? Colors.white : Colors.white24),
           ),
-          child: _stack(_inv.slots[i]),
+          child: _stack(inv.slots[i]),
         ),
       ),
     );
   }
 
+  /// [inv]'s slots [from] to [to], [width] a row.
+  List<Widget> _rows(Inventory inv, int from, int to, int width) => [
+    for (var row = from; row < to; row += width)
+      Row(mainAxisSize: MainAxisSize.min, children: [for (var i = row; i < row + width && i < to; i++) _slot(inv, i)]),
+  ];
+
   @override
   Widget build(BuildContext context) {
     final game = widget.game;
     final hotbar = _inv.hotbarSize, cap = _inv.capacity;
+    final storage = widget.storage;
     final recipes = game.recipes.available(widget.station);
     final title = widget.station.isEmpty ? 'Inventory' : game.blocks[game.blocks.indexOf(widget.station)].name;
     return ColoredBox(
@@ -159,46 +182,47 @@ class _InventoryScreenState extends State<InventoryScreen> {
                         IconButton(onPressed: widget.onClose, icon: const Icon(Icons.close), tooltip: 'Close (E)'),
                       ],
                     ),
-                    for (var row = hotbar; row < cap; row += hotbar)
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [for (var i = row; i < row + hotbar && i < cap; i++) _slot(i)],
-                      ),
+                    if (storage != null) ...[
+                      ..._rows(storage, 0, storage.capacity, hotbar),
+                      const SizedBox(height: 10),
+                    ],
+                    ..._rows(_inv, hotbar, cap, hotbar),
                     const SizedBox(height: 10),
-                    Row(mainAxisSize: MainAxisSize.min, children: [for (var i = 0; i < hotbar; i++) _slot(i)]),
+                    ..._rows(_inv, 0, hotbar, hotbar),
                     const SizedBox(height: 8),
                     Row(children: [const Text('Cursor: '), _stack(_cursor, size: 32)]),
                   ],
                 ),
-                const SizedBox(width: 16),
-                SizedBox(
-                  width: 260,
-                  height: 360,
-                  child: recipes.isEmpty
-                      ? const Text('Nothing to craft here')
-                      : ListView(
-                          children: [
-                            for (final r in recipes)
-                              ListTile(
-                                dense: true,
-                                leading: _stack(ItemStack(r.result, r.count), size: 32),
-                                title: Text(
-                                  '${game.items.has(r.result) ? game.items[r.result].name : r.result} x${r.count}',
+                if (storage == null) const SizedBox(width: 16),
+                if (storage == null)
+                  SizedBox(
+                    width: 260,
+                    height: 360,
+                    child: recipes.isEmpty
+                        ? const Text('Nothing to craft here')
+                        : ListView(
+                            children: [
+                              for (final r in recipes)
+                                ListTile(
+                                  dense: true,
+                                  leading: _stack(ItemStack(r.result, r.count), size: 32),
+                                  title: Text(
+                                    '${game.items.has(r.result) ? game.items[r.result].name : r.result} x${r.count}',
+                                  ),
+                                  subtitle: Text(
+                                    r.ingredients.entries
+                                        .map(
+                                          (e) =>
+                                              '${game.items.has(e.key) ? game.items[e.key].name : e.key} ${_inv.countOf(e.key)}/${e.value}',
+                                        )
+                                        .join(', '),
+                                  ),
+                                  enabled: game.recipes.canCraft(r, _inv),
+                                  onTap: () => game.recipes.craft(r, _inv),
                                 ),
-                                subtitle: Text(
-                                  r.ingredients.entries
-                                      .map(
-                                        (e) =>
-                                            '${game.items.has(e.key) ? game.items[e.key].name : e.key} ${_inv.countOf(e.key)}/${e.value}',
-                                      )
-                                      .join(', '),
-                                ),
-                                enabled: game.recipes.canCraft(r, _inv),
-                                onTap: () => game.recipes.craft(r, _inv),
-                              ),
-                          ],
-                        ),
-                ),
+                            ],
+                          ),
+                  ),
               ],
             ),
           ),

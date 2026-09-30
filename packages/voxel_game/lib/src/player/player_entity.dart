@@ -638,8 +638,8 @@ class PlayerEntity extends NodeBody implements Target {
     if (spec.creative) _attackCooldown = 0.2;
   }
 
-  /// Uses a lever, a station or a block that turns (a door) under the
-  /// crosshair, else scoops or pours with the bucket in hand, works the aimed
+  /// Uses a lever, a store, a station or a block that turns (a door) under
+  /// the crosshair, else scoops or pours with the bucket in hand, works the aimed
   /// block with the tool in hand (`BlockType.turnsWith`), eats or puts on the
   /// item in hand, else places its block. What turns, fills, pours, is worked,
   /// eaten or put on is used on a [pressed] only: holding the button does not
@@ -656,7 +656,14 @@ class PlayerEntity extends NodeBody implements Target {
     // A station opens its crafting instead of taking a block against it.
     if (hit != null) {
       final aimed = _game.world.blockNameAt(hit.block);
-      if (_game.stations.contains(aimed) && !_game.input.down(VoxelAction.sneak)) {
+      final sneaking = _game.input.down(VoxelAction.sneak);
+      // A store opens beside the bag; a client has none to open (the host
+      // keeps them, VA16), so it builds against it.
+      if (_game.world.blocks[_game.world.getBlock(hit.block)].storage != null && !sneaking && _game.authority) {
+        if (pressed) _game.openStorageAt(hit.block);
+        return;
+      }
+      if (_game.stations.contains(aimed) && !sneaking) {
         _game.openScreen.value = aimed;
         return;
       }

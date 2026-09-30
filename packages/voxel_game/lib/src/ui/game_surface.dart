@@ -122,7 +122,12 @@ class _GameSurfaceState extends State<GameSurface> {
             if (widget.touchControls case final touch?) TouchControls(game, touch),
             RepaintBoundary(child: (widget.hud ?? DefaultHud.builder)(context, game)),
             if (screen != null)
-              InventoryScreen(game: game, station: screen, onClose: () => game.openScreen.value = null),
+              InventoryScreen(
+                game: game,
+                station: screen,
+                storage: game.openStorage,
+                onClose: () => game.openScreen.value = null,
+              ),
           ],
         ),
       ),

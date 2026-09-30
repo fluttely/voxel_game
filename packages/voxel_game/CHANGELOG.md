@@ -38,8 +38,19 @@
     (`BlockRules.growPeriod`), and becomes its next stage when they reach
     `Growth.seconds`. What the world generated does not grow. `BlockRules.growing` holds
     each crop's seconds.
-  - **`game.json` is version 3**: it keeps the crops growing (`growing`). Version 1 and 2
-    saves still load, with none growing.
+  - A block with a `storage` keeps an `Inventory` per cell (`BlockRules.storeAt`,
+    `stores`): empty when it is set in the world, filled from `Storage.loot` when the world
+    generated it, seeded by `LootTable.seedFor` its cell and the world, the first time it is
+    looked into. When it goes, what it holds spills on the ground, a generated one's loot
+    included. A press of use opens it (`VoxelGame.openStorageAt`, `openStorage`,
+    `openStorageCell`) and `InventoryScreen.storage` (new) shows its slots above the bag in
+    place of the recipes; the store is open only while the screen it opened is, and its
+    breaking shuts it. A client opens none (the host keeps them; VA16), so its use builds
+    against the block. `VoxelGameSpec.buildItems` refuses a store's loot naming an unknown
+    item.
+  - **`game.json` is version 4**: it keeps the crops growing (`growing`, from version 3)
+    and what the stores hold (`stores`). Every older version still loads, a branch on its
+    version: before 3 nothing grows, before 4 no store was looked into.
 - **Survival on the player (VA1).** Each piece is off until the spec declares it, so a game
   that declares none plays as before.
   - `PlayerSpec.hunger`, a `HungerSpec` (new): the bar empties by `secondsPerPoint`, heals

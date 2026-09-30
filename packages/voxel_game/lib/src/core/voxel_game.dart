@@ -55,6 +55,7 @@ class VoxelGame {
     );
     spawner = MobSpawner(this);
     blockRules = BlockRules(this);
+    openScreen.addListener(_screenChanged);
     if (!authority) {
       // A client: the host runs the liquids, the circuits and the spawning.
       world.flow.enabled = false;
@@ -343,9 +344,38 @@ class VoxelGame {
   bool playWithoutCapture = false;
 
   /// The screen the player asked for: null for none, `''` for the bag, a
-  /// block id for that station's crafting (a crafting table, a furnace). The
-  /// widget shows it; set it to null to close.
+  /// block id for that station's crafting (a crafting table, a furnace) or
+  /// for the store open ([openStorage]). The widget shows it; set it to null
+  /// to close.
   final ValueNotifier<String?> openScreen = ValueNotifier(null);
+
+  IVec3? _storageCell;
+  bool _openingStorage = false;
+
+  // A store is open only while the screen it opened is: any other change of
+  // the screen, a close or another screen, lets it go.
+  void _screenChanged() {
+    if (!_openingStorage) _storageCell = null;
+  }
+
+  /// The cell of the store open beside the bag, or null.
+  IVec3? get openStorageCell => _storageCell;
+
+  /// What the store open beside the bag holds, or null.
+  Inventory? get openStorage {
+    final cell = openStorageCell;
+    return cell == null ? null : blockRules.storeAt(cell);
+  }
+
+  /// Opens the store of the block at [cell] beside the bag. Only the authority
+  /// keeps stores: a client's would be its own copy.
+  void openStorageAt(IVec3 cell) {
+    if (!authority) throw StateError('a client opens no store: the host keeps them');
+    _openingStorage = true;
+    _storageCell = cell;
+    openScreen.value = world.blockNameAt(cell);
+    _openingStorage = false;
+  }
 
   /// The frames drawn so far: moves once at the end of every [frame]. A HUD
   /// listens to it to check what it shows (`HudSelector`).

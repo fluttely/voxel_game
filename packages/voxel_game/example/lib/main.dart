@@ -141,6 +141,8 @@ const game = VoxelGameSpec(
       support: Support.below(on: {'farmland'}),
       loot: LootTable([LootEntry('wheat', 1, 3, 1.0), LootEntry('seeds', 1, 2, 1.0)]),
     ),
+    // A chest: use opens it beside the bag; what it holds is saved, and spills when it breaks.
+    BlockType('chest', color: 0x8A5A2A, hardness: 2.0, tool: 'axe', storage: Storage()),
   ],
   // 2. Items that are not blocks — tools, food (eaten with use), armour (worn with use), a door
   //    (placing its block), buckets, a hoe, seeds (placing wheat) — and how to craft things.
@@ -181,6 +183,7 @@ const game = VoxelGameSpec(
     Recipe('bucket', 1, {'planks': 3}),
     Recipe('wooden_hoe', 1, {'planks': 3}),
     Recipe('bread', 1, {'wheat': 3}),
+    Recipe('chest', 1, {'planks': 8}),
   ],
   // Status effects: what a food starts, what the player carries.
   effects: [EffectType('regeneration', 'Regeneration', 0.9, 0.35, 0.55, period: 2.0, heal: 1.0)],

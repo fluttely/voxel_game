@@ -3,6 +3,7 @@ import 'package:voxel_engine/core.dart';
 import '../loot/loot_table.dart';
 import 'facing.dart';
 import 'growth.dart';
+import 'storage.dart';
 import 'support.dart';
 
 /// One block of a game, named by string. The engine sees it through the
@@ -37,6 +38,7 @@ class BlockType {
     this.usedInto,
     this.grows,
     this.turnsWith = const {},
+    this.storage,
   }) : r = ((color >> 16) & 0xFF) / 255.0,
        g = ((color >> 8) & 0xFF) / 255.0,
        b = (color & 0xFF) / 255.0,
@@ -74,6 +76,7 @@ class BlockType {
     this.usedInto,
     this.grows,
     this.turnsWith = const {},
+    this.storage,
   }) : opaque = opaque ?? (solid && alpha >= 1.0 && shape == BlockShape.cube);
 
   /// A liquid of [kind] (default: its own id). A source ([source] true) feeds
@@ -109,7 +112,8 @@ class BlockType {
        tall = false,
        usedInto = null,
        grows = null,
-       turnsWith = const {};
+       turnsWith = const {},
+       storage = null;
 
   /// The id: what saves, recipes and world specs name it by.
   final String id;
@@ -203,4 +207,7 @@ class BlockType {
   /// The block it becomes when a player uses a tool of a kind on it, by the
   /// tool kind (`{'hoe': 'farmland'}`: a hoe tills it).
   final Map<String, String> turnsWith;
+
+  /// What it stores (a chest), or null for a block that stores nothing.
+  final Storage? storage;
 }

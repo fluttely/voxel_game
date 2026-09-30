@@ -14,7 +14,9 @@
   look along), `tall` (two cells, both halves this block), `usedInto` (the block a use
   turns it into: a door opens, its open state closes), `grows` (a `Growth`, new: the next
   stage of a crop, the seconds of light it takes and the least light it grows in) and
-  `turnsWith` (tool kind to the block that tool turns it into: a hoe tills). `BlockRegistry.stands` answers
+  `turnsWith` (tool kind to the block that tool turns it into: a hoe tills) and `storage`
+  (a `Storage`, new: the slots a chest holds and the `LootTable` a generated one is found
+  with). `BlockRegistry.stands` answers
   whether a block would stay at a cell, and the registry refuses a row naming a block that
   does not exist.
 - `ItemType.food` (a `Food`: hunger it fills, health it gives back, an effect it starts for
