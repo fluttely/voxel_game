@@ -29,7 +29,7 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
 ## Features
 
 - `VoxelGameSpec`: blocks, items, recipes, status effects, world, player, mobs, sky, sounds,
-  circuits, liquids.
+  circuits, liquids, screens.
 - Survival, declared: `PlayerSpec.hunger` (a `HungerSpec`: the bar empties, a full one heals,
   an empty one starves), `PlayerSpec.xp` (an `XpSpec` curve; `PlayerEntity.gainXp`), food
   (`ItemType(food: Food(hunger: 4, heal: 2, effect: 'regeneration', seconds: 8))`, eaten with
@@ -51,6 +51,14 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
   one the world generated is found filled from `Storage.loot`, the same for every player.
   The host runs them (`VoxelGame.blockRules`); a client receives what they changed, and
   opens no store until the net carries them (VA16).
+- Screens as one state machine: `VoxelGame.screen` holds the `GameScreen` open, or null
+  while playing — the bag (`BagScreen`, crafting in the hand or at a station), a store beside
+  it (`StorageScreen`), the game menu (`PauseScreen`: resume, your screens, quit), the death
+  screen (`DeathScreen`, left only by a respawn: its button, or jump) and your own
+  (`DeclaredScreen('journal')`, built by `VoxelGameSpec.screens: {'journal':
+  ScreenSpec(buildJournal, menu: 'Journal')}`). `openScreen`, `closeScreen` and `respawn`
+  change it and refuse what cannot be. A screen gates the controls, never the world: the
+  game keeps stepping behind every one.
 - `runVoxelGame` / `VoxelGameWidget`: the 3D view, a HUD, the inventory and crafting screen.
   A HUD of your own is built once; its pieces follow the game through `HudSelector`s.
   The default HUD's hotbar takes a finger: tap a slot to pick it, hold the one in hand to
@@ -178,7 +186,7 @@ Dart SDK `^3.13.0`.
 
 5. **Grow it** with `items`, `recipes`, `effects`,
    `player: PlayerSpec(startingItems: {...}, hunger: HungerSpec())`, `sky`, `sounds`,
-   `signals`, `graphics`, and the `on...` hooks.
+   `signals`, `graphics`, `screens`, and the `on...` hooks.
 
 6. **Play together (optional):** `runVoxelGame(spec, hostPort: 7777)` on one
    machine and `runVoxelGame(spec, join: '192.168.0.10')` on another.

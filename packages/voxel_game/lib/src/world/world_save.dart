@@ -141,6 +141,8 @@ class WorldSaves {
       ..cameraMode = CameraMode.values.byName(p['view']! as String);
     game.player.inventory.fromJson(p['inventory']! as List<Object?>, known: game.items.has);
     if (version >= 2) _restoreSurvival(game, p);
+    // Health is 0 only in death: a player saved on the death screen loads on it.
+    if (game.player.hp <= 0.0) game.player.kill();
     if (version >= 3) {
       final growing = <IVec3, double>{};
       for (final e in s['growing']! as List<Object?>) {

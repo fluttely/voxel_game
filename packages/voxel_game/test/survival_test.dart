@@ -231,7 +231,7 @@ void main() {
   });
 
   test('a starved player stands up again fed, with no effects on them', () async {
-    final game = await _start(_flat(player: const PlayerSpec(hunger: _fastHunger, respawnSeconds: 0.5)));
+    final game = await _start(_flat(player: const PlayerSpec(hunger: _fastHunger, respawnDelay: 0.5)));
     final p = game.player;
     p
       ..hunger = 0.0
@@ -240,6 +240,8 @@ void main() {
     await _run(game, 0.6);
     expect(p.isDead, isTrue);
     await _run(game, 0.6);
+    game.respawn();
+    await _run(game, 1 / 60);
     expect(p.isDead, isFalse);
     expect(p.hp, p.maxHp);
     expect(p.hunger, closeTo(20.0, 0.5), reason: 'full, less the steps since');

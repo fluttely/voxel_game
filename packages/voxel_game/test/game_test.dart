@@ -629,9 +629,10 @@ void main() {
     expect(p.position.distanceTo(p.spawnPoint), greaterThan(3.0));
     p.takeDamage(const Damage(1000, source: 'test'));
     expect(p.isDead, isTrue);
-    for (var i = 0; i < 2000 && p.isDead; i++) {
+    for (var i = 0; i < 2000 && !game.canRespawn; i++) {
       game.frame(1 / 120);
     }
+    game.respawn();
     expect(p.isDead, isFalse);
     expect(p.drawnPosition.distanceTo(p.spawnPoint), lessThan(1e-4));
     game.frame(1 / 120);
@@ -643,12 +644,12 @@ void main() {
     await _run(game, 0.5);
     game.input.tap(VoxelAction.inventory);
     await _run(game, 1 / 60);
-    expect(game.openScreen.value, '', reason: 'the bag opens on the press the step read');
+    expect(game.screen.value, const BagScreen(), reason: 'the bag opens on the press the step read');
     game.input.tap(VoxelAction.inventory);
     await _run(game, 1 / 60);
-    expect(game.openScreen.value, isNull, reason: 'and the same button closes it');
+    expect(game.screen.value, isNull, reason: 'and the same button closes it');
     // A press is spent once: the steps that follow read nothing.
     await _run(game, 0.2);
-    expect(game.openScreen.value, isNull);
+    expect(game.screen.value, isNull);
   });
 }

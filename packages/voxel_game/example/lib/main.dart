@@ -1,4 +1,5 @@
 // A small voxel sandbox in one declaration: `flutter run -d macos`.
+import 'package:flutter/material.dart';
 import 'package:voxel_game/voxel_game.dart';
 
 void main() => runVoxelGame(game, title: 'Voxel game', saveSlot: 'world1');
@@ -238,4 +239,32 @@ const game = VoxelGameSpec(
       spawn: SpawnRule.dark(),
     ),
   ],
+  // 6. Screens of the game's own: this one is a button in the game menu (Esc, or ⏸ on a phone).
+  screens: {'controls': ScreenSpec(_controls, menu: 'Controls')},
+);
+
+Widget _controls(BuildContext context, VoxelGame game) => ColoredBox(
+  color: Colors.black54,
+  child: Center(
+    child: Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Controls', style: TextStyle(fontSize: 20)),
+            const SizedBox(height: 12),
+            const Text(
+              'WASD walk · Space jump · Shift run · Ctrl sneak\n'
+              'Left click mine and hit · Right click place, use, eat, wear\n'
+              'E bag · Q drop · V view · Esc menu\n'
+              'A phone: a stick at the left, the world is the button',
+            ),
+            const SizedBox(height: 12),
+            FilledButton(onPressed: game.closeScreen, child: const Text('Back to the game')),
+          ],
+        ),
+      ),
+    ),
+  ),
 );

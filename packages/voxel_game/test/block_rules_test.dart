@@ -542,20 +542,19 @@ void main() {
     game.world.setBlockNamed(at, 'chest');
     _stand(game, 0, 0);
     await _use(game);
-    expect(game.openScreen.value, 'chest');
-    expect(game.openStorageCell, at);
+    expect(game.screen.value, const StorageScreen(at));
     expect(game.openStorage, same(game.blockRules.storeAt(at)));
 
-    game.openScreen.value = null;
+    game.closeScreen();
     expect(game.openStorage, isNull);
-    game.openScreen.value = '';
+    game.openScreen(const BagScreen());
     expect(game.openStorage, isNull, reason: 'the bag alone is not the chest');
 
-    game.openScreen.value = null;
+    game.closeScreen();
     await _run(game, 0.3);
     await _use(game);
     game.breakBlock(at);
-    expect(game.openScreen.value, isNull);
+    expect(game.screen.value, isNull);
   });
 
   testWidgets('the screen moves a stack from the bag into the chest', (tester) async {

@@ -5,6 +5,7 @@ import 'package:voxel_engine/content.dart';
 import 'package:voxel_engine/core.dart';
 
 import '../core/voxel_game.dart';
+import '../ui/game_screen.dart';
 
 /// What blocks do, by their rows: a block that `falls` drops to where it
 /// lands, one that loses its `support` breaks and drops, the two halves of a
@@ -196,7 +197,7 @@ class BlockRules {
   /// What a store held goes on the ground where it stood, and its screen
   /// shuts.
   void _spill(IVec3 cell, Inventory held) {
-    if (game.openStorageCell == cell) game.openScreen.value = null;
+    if (game.screen.value == StorageScreen(cell)) game.closeScreen();
     final at = Vector3(cell.x + 0.5, cell.y + 0.3, cell.z + 0.5);
     for (final s in held.slots) {
       if (s != null) game.dropItem(s.id, s.count, at);

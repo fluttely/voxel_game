@@ -10,6 +10,7 @@ import '../mobs/mob_spec.dart';
 import '../player/player_spec.dart';
 import '../world/game_world.dart';
 import 'graphics_spec.dart';
+import 'screen_spec.dart';
 import 'signal_spec.dart';
 import 'sky_spec.dart';
 import 'sound_spec.dart';
@@ -46,6 +47,7 @@ class VoxelGameSpec {
     this.renderDistance = 6,
     this.graphics,
     this.touchControls = TouchControlsSpec.standard,
+    this.screens = const {},
     this.mining = const MiningRules(),
     this.liquids = const {},
     this.systems = const [],
@@ -102,6 +104,10 @@ class VoxelGameSpec {
   /// takes no finger either).
   final TouchControlsSpec? touchControls;
 
+  /// The game's own screens, by the id a `DeclaredScreen` opens; those with a
+  /// `ScreenSpec.menu` are listed in the game menu, in this order.
+  final Map<String, ScreenSpec> screens;
+
   /// How long blocks take to break.
   final MiningRules mining;
 
@@ -144,6 +150,7 @@ class VoxelGameSpec {
     int? renderDistance,
     ValueGetter<GraphicsSpec?>? graphics,
     ValueGetter<TouchControlsSpec?>? touchControls,
+    Map<String, ScreenSpec>? screens,
     MiningRules? mining,
     Map<String, LiquidSpec>? liquids,
     List<GameSystem>? systems,
@@ -166,6 +173,7 @@ class VoxelGameSpec {
     renderDistance: renderDistance ?? this.renderDistance,
     graphics: graphics == null ? this.graphics : graphics(),
     touchControls: touchControls == null ? this.touchControls : touchControls(),
+    screens: screens ?? this.screens,
     mining: mining ?? this.mining,
     liquids: liquids ?? this.liquids,
     systems: systems ?? this.systems,

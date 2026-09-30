@@ -7,7 +7,8 @@ import '../input/voxel_action.dart';
 import 'hud_selector.dart';
 
 /// The kit's HUD: a crosshair, the hotbar with counts, health, how far the
-/// aimed block is mined, and "click to play" while the mouse is free. Pass
+/// aimed block is mined, and "click to play" while the mouse is free and no
+/// screen is open (the death screen is one: `DeathMenu`). Pass
 /// your own `HudBuilder` to replace it, or build on its pieces.
 ///
 /// It is built once; each piece that changes is a [HudSelector] on
@@ -74,8 +75,11 @@ class DefaultHud extends StatelessWidget {
               ),
               HudSelector(
                 frames: frames,
-                select: () => (captured: game.input.wantCapture, touch: game.input.lastDevice == InputDevice.touch),
-                builder: (context, s) => s.captured
+                select: () => (
+                  hidden: game.input.wantCapture || game.screen.value != null,
+                  touch: game.input.lastDevice == InputDevice.touch,
+                ),
+                builder: (context, s) => s.hidden
                     ? const SizedBox.shrink()
                     : Center(
                         child: Padding(
@@ -83,23 +87,11 @@ class DefaultHud extends StatelessWidget {
                           child: Text(
                             s.touch
                                 ? 'Tap to play'
-                                : 'Click to play  -  WASD move, Space jump, mouse look, left mine, right place, V view, Esc free the mouse',
+                                : 'Click to play  -  WASD move, Space jump, mouse look, left mine, right place, V view, E bag, Esc menu',
                             style: const TextStyle(fontSize: 14, shadows: _shadow),
                           ),
                         ),
                       ),
-              ),
-              HudSelector(
-                frames: frames,
-                select: () => p.isDead,
-                builder: (context, dead) => dead
-                    ? const Center(
-                        child: Text(
-                          'You died',
-                          style: TextStyle(fontSize: 36, color: Colors.redAccent, shadows: _shadow),
-                        ),
-                      )
-                    : const SizedBox.shrink(),
               ),
             ],
           ),

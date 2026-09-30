@@ -13,6 +13,7 @@ import '../input/input_map.dart';
 import '../input/voxel_action.dart';
 import '../mobs/mob.dart';
 import '../mobs/rig.dart';
+import '../ui/game_screen.dart';
 import 'character_motor.dart';
 import 'player_spec.dart';
 
@@ -142,6 +143,9 @@ class PlayerEntity extends NodeBody implements Target {
   @override
   bool get isDead => _dead;
 
+  /// Seconds since the player died; 0 while alive.
+  double get deadSeconds => _dead ? _deadFor : 0.0;
+
   /// The item in hand, or `''`.
   String get heldItem => inventory.idAt(selectedSlot);
 
@@ -242,13 +246,18 @@ class PlayerEntity extends NodeBody implements Target {
       if (push.length2 > 0) push.normalize();
       motor.shove(Vector3(push.x * damage.knockback, 5.0, push.z * damage.knockback));
     }
-    if (hp <= 0.0) {
-      hp = 0.0;
-      _dead = true;
-      _deadFor = 0.0;
-      _game.playerDied();
-    }
+    if (hp <= 0.0) kill();
     return taken;
+  }
+
+  /// Kills the player where it stands, whatever it wears or is: what a blow
+  /// that takes the last of its health does, and a save that left it dead.
+  void kill() {
+    if (_dead) throw StateError('the player is already dead');
+    hp = 0.0;
+    _dead = true;
+    _deadFor = 0.0;
+    _game.playerDied();
   }
 
   /// Turns the view by [look] radians (yaw right and pitch down positive):
@@ -268,7 +277,6 @@ class PlayerEntity extends NodeBody implements Target {
     hurtFlash = math.max(hurtFlash - dt * 2.5, 0.0);
     if (_dead) {
       _deadFor += dt;
-      if (_deadFor >= spec.respawnSeconds) _respawn();
       return;
     }
     _survive(dt);
@@ -660,11 +668,11 @@ class PlayerEntity extends NodeBody implements Target {
       // A store opens beside the bag; a client has none to open (the host
       // keeps them, VA16), so it builds against it.
       if (_game.world.blocks[_game.world.getBlock(hit.block)].storage != null && !sneaking && _game.authority) {
-        if (pressed) _game.openStorageAt(hit.block);
+        if (pressed) _game.openScreen(StorageScreen(hit.block));
         return;
       }
       if (_game.stations.contains(aimed) && !sneaking) {
-        _game.openScreen.value = aimed;
+        if (pressed) _game.openScreen(BagScreen(station: aimed));
         return;
       }
       // A door is opened, not built against, unless the player sneaks.
@@ -741,7 +749,10 @@ class PlayerEntity extends NodeBody implements Target {
     _game.dropItem(id, 1, eyePosition - Vector3(0, 0.3, 0), throwVelocity: forward * 5.0 + Vector3(0, 2, 0));
   }
 
-  void _respawn() {
+  /// Stands the dead player up at [spawnPoint], whole, fed and with no
+  /// effects on it. `VoxelGame.respawn` calls it as the death screen closes.
+  void respawn() {
+    if (!_dead) throw StateError('only the dead stand up again');
     _dead = false;
     hp = maxHp;
     hunger = spec.hunger?.max ?? 0.0;
@@ -749,6 +760,8 @@ class PlayerEntity extends NodeBody implements Target {
     _bodyTimer = 0.0;
     position = spawnPoint.clone();
     velocity = Vector3.zero();
+    // Put there, not fallen there: a spawn below where the player died is no fall.
+    motor.resetFall();
     syncNode(snap: true);
   }
 

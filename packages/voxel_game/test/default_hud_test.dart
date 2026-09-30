@@ -110,7 +110,7 @@ void main() {
     expect(input.justPressed(VoxelAction.inventory), isTrue);
     expect(input.justPressed(VoxelAction.use), isFalse);
     await step(tester, game);
-    expect(game.openScreen.value, '');
+    expect(game.screen.value, const BagScreen());
     game.dispose();
   });
 

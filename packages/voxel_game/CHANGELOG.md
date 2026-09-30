@@ -2,6 +2,42 @@
 
 ## Unreleased
 
+- **Screens as a state machine (VA3).** Breaking: `VoxelGame.openScreen` was a
+  `ValueNotifier<String?>` of a station id; it is now a method.
+  - `GameScreen` (new, sealed): `BagScreen` (the bag, crafting at its `station`, `''` in the
+    hand), `StorageScreen` (the store of a cell beside the bag), `PauseScreen` (the game
+    menu), `DeathScreen` and `DeclaredScreen` (a game's own, by id). `VoxelGame.screen`
+    holds the one open, or null while playing; `openScreen(screen)` replaces it,
+    `closeScreen()` closes it. Each refuses what cannot be: closing nothing, a station no
+    recipe names, a store on a client or where nothing stores, an undeclared id, opening the
+    death screen (only the player's death does) or anything over it.
+  - `VoxelGame.openStorageAt` and `openStorageCell` are gone: `openScreen(StorageScreen(cell))`
+    and the screen's `cell`. `openStorage` stays, read from the screen.
+  - The step reads the buttons every screen shares: inventory opens and closes the bag and a
+    store; pause opens the game menu and closes any screen but the death screen; the
+    inventory button does not close the menu or a game's own screen. Pause used to free the
+    mouse; it opens the menu, which frees it. A pointer lost mid-play (focus left the window)
+    opens the menu too (`VoxelGameWidget`).
+  - Death is a screen: the player's death replaces whatever was open with the `DeathScreen`
+    (`DeathMenu`, new), which only `VoxelGame.respawn()` leaves, once `canRespawn`. Its
+    Respawn button wakes after `PlayerSpec.respawnDelay` (new, 1 s, replacing
+    `respawnSeconds`: the timer that stood the player up is gone), and a keyboard or a pad
+    stands up with jump. `PlayerEntity.respawn`, `kill` and `deadSeconds` are public. The
+    default HUD's "You died" is gone with it.
+  - A respawn is no fall: it used to count the drop from where the player died to a spawn
+    below it, and hurt them as they stood up (`CharacterMotor.resetFall`, now called).
+  - A world saved with the player dead loads with it dead, on the death screen (health 0
+    is death; no new save version).
+  - `PauseMenu` (new): Resume, a button per `ScreenSpec.menu`, and Quit when
+    `VoxelGameWidget.onQuit` (new) is given, called once the world is saved.
+    `runVoxelGame` quits the app on a desktop and shows no Quit on a phone.
+  - `VoxelGameSpec.screens` (new): a game's own screens by id, each a `ScreenSpec` (new)
+    of a `ScreenBuilder` and, for the game menu, a `menu` label.
+  - `GameSurface` shows each screen as its widget, keyed by the screen, so one replacing
+    another (a death over the bag) gives the bag's cursor back first; it takes `onQuit`.
+  - Use opens a station's crafting on a press only, as a store already did.
+  - The "click to play" hint hides while a screen is open, and says `E bag, Esc menu`.
+
 - **Blocks that do things (VA2).** Each is a field of a block's row, so a game that
   declares none plays as before.
   - `BlockRules` (new, `VoxelGame.blockRules`) answers every block change of the world: a

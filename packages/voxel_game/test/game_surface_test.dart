@@ -67,7 +67,7 @@ void main() {
     await input.capture();
     input.touchToggle(VoxelAction.sneak);
     expect(input.touchHeld(VoxelAction.sneak), isTrue);
-    game.openScreen.value = '';
+    game.openScreen(const BagScreen());
     await tester.pump();
     expect(find.byType(InventoryScreen), findsOneWidget);
     expect(input.wantCapture, isFalse);
@@ -78,7 +78,7 @@ void main() {
     expect(input.justPressed(VoxelAction.use), isFalse);
     await tester.tap(find.byIcon(Icons.close));
     await tester.pump();
-    expect(game.openScreen.value, isNull);
+    expect(game.screen.value, isNull);
     expect(find.byType(InventoryScreen), findsNothing);
     expect(input.wantCapture, isTrue);
     game.dispose();

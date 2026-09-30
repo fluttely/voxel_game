@@ -29,6 +29,13 @@
 - **Cost of leaving it:** a session opened in the example reads that the kit is a sibling folder it is not, that `../CLAUDE.md` (this repository's) is the 2D track's and must be ignored, and follows a map whose kit paths all miss; it is `KL-001` again, one folder down.
 - **Found while:** 2026-09-30 — closing `KL-006`, whose evidence named the stale `CLAUDE.md`.
 
+### KL-013 · The kit's screens are for a pointer: a pad reaches one button of each
+
+- **Lens:** input parity (rule 13)
+- **Evidence:** `packages/voxel_game/lib/src/ui/pause_menu.dart:37-45` and `ui/inventory_screen.dart:132` are buttons and slots a pointer taps; no widget takes focus, and `GameSurface`'s `Focus` (`ui/game_surface.dart`) hands every key to `InputMap.onKey`, which answers handled, so neither arrows nor Flutter's focus traversal reach them. The pad's buttons go only to `InputMap`. What a pad can do on a screen is what `VoxelGame.step` reads: pause closes one, inventory closes the bag, jump stands up from the death screen. A pad cannot move a stack in the bag, craft, open a game's screen from the menu or quit.
+- **Cost of leaving it:** a game on a pad (a console-like desktop, a phone with a controller) gets stuck on its first screen past the HUD; VA6 (the bag grows) and VA7 (settings) each add a panel a pad cannot work, so the debt grows by a screen a step.
+- **Found while:** 2026-09-30 — VA3, giving the death screen a respawn for a keyboard and a pad (jump) beside its button.
+
 ## Closed
 
 ### KL-008 · The example crashes in the Adreno driver in its first two seconds, now and then

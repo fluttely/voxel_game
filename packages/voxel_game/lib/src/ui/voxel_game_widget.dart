@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:ui' show AppExitType;
 
+import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart' show SchedulerBinding, Ticker;
-import 'package:flutter/services.dart' show DeviceOrientation, SystemChrome, SystemUiMode;
+import 'package:flutter/services.dart' show DeviceOrientation, ServicesBinding, SystemChrome, SystemUiMode;
 import 'package:flutter_scene/scene.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sound_recipes/sound_recipes.dart';
@@ -13,6 +15,7 @@ import 'package:voxel_scene/voxel_scene.dart';
 import '../core/voxel_game.dart';
 import '../spec/voxel_game_spec.dart';
 import 'default_hud.dart';
+import 'game_screen.dart';
 import 'game_surface.dart';
 import 'loading_screen.dart';
 import 'loading_stage.dart';
@@ -41,6 +44,9 @@ import '../world/world_save.dart';
 /// when the widget goes away. With [hostPort] others can join the game on
 /// that port; with [join] (`'192.168.0.10'`, or `'host:port'`) this game
 /// joins one instead.
+///
+/// On a desktop the game menu's Quit saves the world and closes the app; a
+/// phone or tablet has no Quit, as its apps are left from the system.
 Future<void> runVoxelGame(
   VoxelGameSpec spec, {
   String title = 'Voxel game',
@@ -67,6 +73,11 @@ Future<void> runVoxelGame(
           saveSlot: saveSlot,
           hostPort: hostPort,
           join: join,
+          onQuit: switch (defaultTargetPlatform) {
+            TargetPlatform.macOS || TargetPlatform.windows || TargetPlatform.linux =>
+              () => ServicesBinding.instance.exitApplication(AppExitType.required),
+            TargetPlatform.android || TargetPlatform.iOS || TargetPlatform.fuchsia => null,
+          },
         ),
       ),
     ),
@@ -100,7 +111,12 @@ class VoxelGameWidget extends StatefulWidget {
     this.autosave = const Duration(minutes: 1),
     this.hostPort,
     this.join,
+    this.onQuit,
   });
+
+  /// The game menu's Quit, called once the world is saved (when it is kept
+  /// in a [saveSlot]); null for a menu with no Quit.
+  final VoidCallback? onQuit;
 
   /// Host the game on this port, or null for a game nobody joins.
   final int? hostPort;
@@ -226,6 +242,11 @@ class _VoxelGameWidgetState extends State<VoxelGameWidget> with SingleTickerProv
     return tracks.containsKey(key) ? key : null;
   }
 
+  void _quit() {
+    _save();
+    widget.onQuit!();
+  }
+
   void _save() {
     final game = _game, saves = _saves, slot = widget.saveSlot;
     if (game == null || saves == null || slot == null || !game.ready || !game.authority) return;
@@ -274,15 +295,19 @@ class _VoxelGameWidgetState extends State<VoxelGameWidget> with SingleTickerProv
 
   void _tick(VoxelGame game, double dt) {
     final input = game.input;
-    if (input.captureLost) {
-      input.captureLost = false;
-      input.releaseKeys();
-    }
     game.gameplay =
         _stage == LoadingStage.playing &&
         (input.wantCapture || game.playWithoutCapture) &&
-        game.openScreen.value == null;
+        game.screen.value == null;
     game.frame(dt);
+    // After the frame, whose steps are out of gameplay once the pointer is
+    // lost: a pause pressed as it went cannot close the menu it opens here.
+    if (input.captureLost) {
+      input.captureLost = false;
+      input.releaseKeys();
+      // Focus left the window mid-play: the game menu is up when it comes back.
+      if (_stage == LoadingStage.playing && game.screen.value == null) game.openScreen(const PauseScreen());
+    }
   }
 
   @override
@@ -299,6 +324,7 @@ class _VoxelGameWidgetState extends State<VoxelGameWidget> with SingleTickerProv
       ),
       hud: widget.hud,
       touchControls: widget.spec.touchControls,
+      onQuit: widget.onQuit == null ? null : _quit,
     );
   }
 }

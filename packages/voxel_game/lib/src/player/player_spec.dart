@@ -33,7 +33,7 @@ class PlayerSpec {
     this.creative = false,
     this.fallDamage = true,
     this.rig = const Rig.humanoid(),
-    this.respawnSeconds = 3.0,
+    this.respawnDelay = 1.0,
     this.hunger,
     this.xp,
     this.armorSlots = const ['head', 'chest', 'legs', 'feet'],
@@ -95,8 +95,10 @@ class PlayerSpec {
   /// How the player looks in third person.
   final Rig rig;
 
-  /// Seconds between dying and standing again at the spawn.
-  final double respawnSeconds;
+  /// Seconds after dying before the player may stand up again at the spawn
+  /// (`VoxelGame.respawn`, from the death screen): a press meant for the
+  /// fight does not skip it.
+  final double respawnDelay;
 
   /// Hunger, or null for a player who never gets hungry (food then only
   /// heals and starts effects).

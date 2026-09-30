@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../core/voxel_game.dart';
 import '../spec/touch_controls_spec.dart';
+import 'death_menu.dart';
 import 'default_hud.dart';
+import 'game_screen.dart';
 import 'inventory_screen.dart';
+import 'pause_menu.dart';
 import 'touch_controls.dart';
 
 /// Builds an overlay over the running game. It is called when the widget
@@ -17,8 +20,9 @@ import 'touch_controls.dart';
 typedef HudBuilder = Widget Function(BuildContext context, VoxelGame game);
 
 /// A loaded game on screen: [world] under the touch controls, the HUD and the
-/// open screen, all inside the one `Listener` that hands every pointer to
-/// [VoxelGame.input], and a `Focus` that hands it the keys.
+/// open screen ([VoxelGame.screen], each [GameScreen] as its widget), all
+/// inside the one `Listener` that hands every pointer to [VoxelGame.input],
+/// and a `Focus` that hands it the keys.
 ///
 /// It is the arbiter of the pointer: the first press while the game does not
 /// want the pointer takes it (and is nothing else), a press while a screen is
@@ -30,8 +34,9 @@ typedef HudBuilder = Widget Function(BuildContext context, VoxelGame game);
 /// widget.
 class GameSurface extends StatefulWidget {
   /// [game] over [world], with [hud] ([DefaultHud] when null) and, when
-  /// [touchControls] is given, the kit's [TouchControls] between the two.
-  const GameSurface({super.key, required this.game, required this.world, this.hud, this.touchControls});
+  /// [touchControls] is given, the kit's [TouchControls] between the two;
+  /// [onQuit] is the game menu's Quit.
+  const GameSurface({super.key, required this.game, required this.world, this.hud, this.touchControls, this.onQuit});
 
   /// The game.
   final VoxelGame game;
@@ -45,6 +50,9 @@ class GameSurface extends StatefulWidget {
   /// The controls a finger plays with, or null for none.
   final TouchControlsSpec? touchControls;
 
+  /// The game menu's Quit ([PauseMenu]), or null for a menu with none.
+  final VoidCallback? onQuit;
+
   @override
   State<GameSurface> createState() => _GameSurfaceState();
 }
@@ -55,20 +63,20 @@ class _GameSurfaceState extends State<GameSurface> {
   @override
   void initState() {
     super.initState();
-    widget.game.openScreen.addListener(_screenChanged);
+    widget.game.screen.addListener(_screenChanged);
   }
 
   @override
   void didUpdateWidget(GameSurface old) {
     super.didUpdateWidget(old);
     if (identical(old.game, widget.game)) return;
-    old.game.openScreen.removeListener(_screenChanged);
-    widget.game.openScreen.addListener(_screenChanged);
+    old.game.screen.removeListener(_screenChanged);
+    widget.game.screen.addListener(_screenChanged);
   }
 
   @override
   void dispose() {
-    widget.game.openScreen.removeListener(_screenChanged);
+    widget.game.screen.removeListener(_screenChanged);
     _focus.dispose();
     super.dispose();
   }
@@ -78,7 +86,7 @@ class _GameSurfaceState extends State<GameSurface> {
     // Opening also lets go of everything held: an on-screen button taken off
     // the screen gets no lift, and a switched-on sneak would still be on when
     // the player came back.
-    if (widget.game.openScreen.value != null) {
+    if (widget.game.screen.value != null) {
       input
         ..release()
         ..releaseKeys();
@@ -91,7 +99,7 @@ class _GameSurfaceState extends State<GameSurface> {
   void _onPointerDown(PointerDownEvent e) {
     final game = widget.game;
     _focus.requestFocus();
-    if (game.openScreen.value != null) return;
+    if (game.screen.value != null) return;
     if (!game.input.wantCapture) {
       game.input.capture();
       return;
@@ -102,7 +110,7 @@ class _GameSurfaceState extends State<GameSurface> {
   @override
   Widget build(BuildContext context) {
     final game = widget.game;
-    final screen = game.openScreen.value;
+    final screen = game.screen.value;
     return Focus(
       focusNode: _focus,
       autofocus: true,
@@ -121,16 +129,28 @@ class _GameSurfaceState extends State<GameSurface> {
             // on a narrow screen, the slot wins.
             if (widget.touchControls case final touch?) TouchControls(game, touch),
             RepaintBoundary(child: (widget.hud ?? DefaultHud.builder)(context, game)),
-            if (screen != null)
-              InventoryScreen(
-                game: game,
-                station: screen,
-                storage: game.openStorage,
-                onClose: () => game.openScreen.value = null,
-              ),
+            // Keyed by the screen, so one replacing another is built afresh:
+            // a stack on the bag's cursor goes back before the next opens.
+            if (screen != null) KeyedSubtree(key: ValueKey(screen), child: _screen(context, screen)),
           ],
         ),
       ),
     );
+  }
+
+  Widget _screen(BuildContext context, GameScreen screen) {
+    final game = widget.game;
+    return switch (screen) {
+      BagScreen(:final station) => InventoryScreen(game: game, station: station, onClose: game.closeScreen),
+      StorageScreen(:final cell) => InventoryScreen(
+        game: game,
+        station: game.world.blockNameAt(cell),
+        storage: game.blockRules.storeAt(cell),
+        onClose: game.closeScreen,
+      ),
+      PauseScreen() => PauseMenu(game, onQuit: widget.onQuit),
+      DeathScreen() => DeathMenu(game),
+      DeclaredScreen(:final id) => game.spec.screens[id]!.build(context, game),
+    };
   }
 }

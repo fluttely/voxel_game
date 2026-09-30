@@ -36,7 +36,7 @@ class TouchControls extends StatelessWidget {
   @override
   Widget build(BuildContext context) => HudSelector(
     frames: game.frames,
-    select: () => game.input.lastDevice == InputDevice.touch && game.gameplay && game.openScreen.value == null,
+    select: () => game.input.lastDevice == InputDevice.touch && game.gameplay && game.screen.value == null,
     builder: (context, shown) => shown ? _TouchLayer(game, spec) : const SizedBox.shrink(),
   );
 }

@@ -30,6 +30,7 @@ import '../player/player_entity.dart';
 import '../spec/graphics_spec.dart';
 import '../spec/signal_spec.dart';
 import '../spec/voxel_game_spec.dart';
+import '../ui/game_screen.dart';
 import '../world/block_rules.dart';
 import '../world/game_world.dart';
 import '../world/world_save.dart';
@@ -55,7 +56,6 @@ class VoxelGame {
     );
     spawner = MobSpawner(this);
     blockRules = BlockRules(this);
-    openScreen.addListener(_screenChanged);
     if (!authority) {
       // A client: the host runs the liquids, the circuits and the spawning.
       world.flow.enabled = false;
@@ -343,39 +343,62 @@ class VoxelGame {
   /// captures the pointer.
   bool playWithoutCapture = false;
 
-  /// The screen the player asked for: null for none, `''` for the bag, a
-  /// block id for that station's crafting (a crafting table, a furnace) or
-  /// for the store open ([openStorage]). The widget shows it; set it to null
-  /// to close.
-  final ValueNotifier<String?> openScreen = ValueNotifier(null);
+  /// The screen open over the world, or null while the player plays: one
+  /// [GameScreen] at a time, changed only by [openScreen], [closeScreen],
+  /// [respawn] and the player's death. The widget shows it; the world keeps
+  /// stepping behind it.
+  ValueListenable<GameScreen?> get screen => _screen;
+  final ValueNotifier<GameScreen?> _screen = ValueNotifier(null);
 
-  IVec3? _storageCell;
-  bool _openingStorage = false;
-
-  // A store is open only while the screen it opened is: any other change of
-  // the screen, a close or another screen, lets it go.
-  void _screenChanged() {
-    if (!_openingStorage) _storageCell = null;
+  /// Opens [next] over the world, in place of the screen open. Throws for a
+  /// [DeathScreen] (the player's death opens it), over one (only [respawn]
+  /// leaves it), for a [BagScreen] at a block no recipe names, a
+  /// [StorageScreen] on a client or at a block that stores nothing, and a
+  /// [DeclaredScreen] the spec does not declare.
+  void openScreen(GameScreen next) {
+    if (_screen.value is DeathScreen) throw StateError('the dead leave the death screen only by a respawn');
+    switch (next) {
+      case DeathScreen():
+        throw ArgumentError.value(next, 'next', 'only the player\'s death opens the death screen');
+      case BagScreen(:final station) when station.isNotEmpty && !stations.contains(station):
+        throw ArgumentError.value(station, 'station', 'no recipe is crafted there');
+      case StorageScreen() when !authority:
+        throw StateError('a client opens no store: the host keeps them');
+      case StorageScreen(:final cell) when blocks[world.getBlock(cell)].storage == null:
+        throw ArgumentError.value(cell, 'cell', 'no store there: ${world.blockNameAt(cell)}');
+      case DeclaredScreen(:final id) when !spec.screens.containsKey(id):
+        throw ArgumentError.value(id, 'id', 'the spec declares no such screen');
+      case BagScreen() || StorageScreen() || PauseScreen() || DeclaredScreen():
+        _screen.value = next;
+    }
   }
 
-  /// The cell of the store open beside the bag, or null.
-  IVec3? get openStorageCell => _storageCell;
-
-  /// What the store open beside the bag holds, or null.
-  Inventory? get openStorage {
-    final cell = openStorageCell;
-    return cell == null ? null : blockRules.storeAt(cell);
+  /// Closes the screen open. Throws when none is, and over the [DeathScreen],
+  /// which only [respawn] leaves.
+  void closeScreen() {
+    final open = _screen.value;
+    if (open == null) throw StateError('no screen is open');
+    if (open is DeathScreen) throw StateError('the dead leave the death screen only by a respawn');
+    _screen.value = null;
   }
 
-  /// Opens the store of the block at [cell] beside the bag. Only the authority
-  /// keeps stores: a client's would be its own copy.
-  void openStorageAt(IVec3 cell) {
-    if (!authority) throw StateError('a client opens no store: the host keeps them');
-    _openingStorage = true;
-    _storageCell = cell;
-    openScreen.value = world.blockNameAt(cell);
-    _openingStorage = false;
+  /// Whether the dead player may stand up again: dead for at least
+  /// `PlayerSpec.respawnDelay`.
+  bool get canRespawn => player.isDead && player.deadSeconds >= spec.player.respawnDelay;
+
+  /// Stands the dead player up at its spawn, and closes the [DeathScreen].
+  /// Throws before [canRespawn].
+  void respawn() {
+    if (!canRespawn) throw StateError('the player cannot stand up yet');
+    player.respawn();
+    _screen.value = null;
   }
+
+  /// The store open beside the bag ([StorageScreen]), or null.
+  Inventory? get openStorage => switch (_screen.value) {
+    StorageScreen(:final cell) => blockRules.storeAt(cell),
+    _ => null,
+  };
 
   /// The frames drawn so far: moves once at the end of every [frame]. A HUD
   /// listens to it to check what it shows (`HudSelector`).
@@ -491,15 +514,23 @@ class VoxelGame {
   /// before it is kept first, for the frames to draw from.
   void step(double dt) {
     _beginStep();
-    // One arbiter for the two buttons every surface shares: the step that
-    // drains the one-shots is the only thing that reads them, so one press
-    // cannot close a screen here and open another there.
-    if (openScreen.value != null) {
-      if (input.justPressed(VoxelAction.inventory) || input.justPressed(VoxelAction.pause)) openScreen.value = null;
-    } else if (gameplay && input.justPressed(VoxelAction.inventory)) {
-      openScreen.value = '';
-    } else if (input.justPressed(VoxelAction.pause) && input.wantCapture) {
-      input.release();
+    // One arbiter for the buttons every screen shares: the step that drains
+    // the one-shots is the only thing that reads them, so one press cannot
+    // close a screen here and open another there.
+    switch (_screen.value) {
+      case null:
+        if (gameplay && input.justPressed(VoxelAction.inventory)) {
+          openScreen(const BagScreen());
+        } else if (gameplay && input.justPressed(VoxelAction.pause)) {
+          openScreen(const PauseScreen());
+        }
+      case BagScreen() || StorageScreen():
+        if (input.justPressed(VoxelAction.inventory) || input.justPressed(VoxelAction.pause)) closeScreen();
+      case PauseScreen() || DeclaredScreen():
+        if (input.justPressed(VoxelAction.pause)) closeScreen();
+      case DeathScreen():
+        // Jump stands up: the respawn of a keyboard and a pad.
+        if (canRespawn && input.justPressed(VoxelAction.jump)) respawn();
     }
     if (!player.placed) {
       player.tryPlace(_spawnColumn.x, _spawnColumn.z);
@@ -696,8 +727,9 @@ class VoxelGame {
   /// Called by a mob as it dies.
   void mobDied(Mob mob) => spec.onMobKilled?.call(this, mob);
 
-  /// Called by the player as it dies.
-  void playerDied() {}
+  /// Called by the player as it dies: the [DeathScreen] replaces whatever
+  /// was open.
+  void playerDied() => _screen.value = const DeathScreen();
 
   /// Stops the worker isolates, the input devices and the network.
   void dispose() {
@@ -705,6 +737,7 @@ class VoxelGame {
     world.dispose();
     input.dispose();
     _frames.dispose();
+    _screen.dispose();
   }
 
   /// The spec of mob [id].

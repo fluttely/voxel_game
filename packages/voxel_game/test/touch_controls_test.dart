@@ -165,7 +165,7 @@ void main() {
     await frame(tester, game);
     expect(jump, findsNothing);
     game.gameplay = true;
-    game.openScreen.value = '';
+    game.openScreen(const BagScreen());
     await frame(tester, game);
     expect(jump, findsNothing);
     game.dispose();
