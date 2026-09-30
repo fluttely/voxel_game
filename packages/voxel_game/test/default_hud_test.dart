@@ -125,7 +125,7 @@ void main() {
   });
 
   testWidgets('a game with no touch controls gets a hotbar that takes no finger', (tester) async {
-    final game = await start(tester, VoxelGameSpec(blocks: _spec.blocks, world: _spec.world, touchControls: null));
+    final game = await start(tester, _spec.copyWith(touchControls: () => null));
     game.input.lastDevice = InputDevice.touch;
     await step(tester, game);
     expect(find.byIcon(Icons.more_horiz), findsNothing);

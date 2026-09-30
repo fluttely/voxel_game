@@ -171,14 +171,14 @@ class Bench {
 
   late final VoxelGameSpec spec = example.game.copyWith(
     renderDistance: radius,
-    graphics: graphics,
+    graphics: () => graphics,
     // Creative: the hunters of the mobs run cannot end it by killing the player.
     player: PlayerSpec(
       creative: true,
       startingItems: example.game.player.startingItems,
       reach: aim ? aimReach : example.game.player.reach,
     ),
-    onTick: _tick,
+    onTick: () => _tick,
   );
 
   final Stopwatch _clock = Stopwatch();

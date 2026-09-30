@@ -56,7 +56,7 @@ void main() {
   }
 
   test('a spec with graphics keeps them, and the view distance is the loaded window', () async {
-    final game = await VoxelGame.startHeadless(flat.copyWith(graphics: GraphicsSpec.phone), loadRadius: 3);
+    final game = await VoxelGame.startHeadless(flat.copyWith(graphics: () => GraphicsSpec.phone), loadRadius: 3);
     addTearDown(game.dispose);
     expect(game.graphics, same(GraphicsSpec.phone));
     expect(game.viewDistance, 48.0);

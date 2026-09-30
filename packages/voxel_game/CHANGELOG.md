@@ -21,6 +21,12 @@
 - A screen opening lets go of every held input (`InputMap.releaseKeys`), as that method's
   documentation said it did: a switched-on sneak, a finger's jump and the stick no longer
   survive the bag.
+- **Breaking: `VoxelGameSpec.copyWith` can ask for null.** Its nullable fields (`signals`,
+  `graphics`, `touchControls`, `onBlockBroken`, `onBlockPlaced`, `onMobKilled`, `onTick`)
+  are now given as a getter of the new value, so `copyWith(touchControls: () => null)`
+  takes the kit's controls away; before, `x ?? this.x` turned a null into "keep it" and the
+  call did nothing. Wrap what you passed: `graphics: GraphicsSpec.phone` becomes
+  `graphics: () => GraphicsSpec.phone`.
 - **Breaking: the HUD is hit-tested.** `VoxelGameWidget` no longer wraps the `HudBuilder`'s
   widget in an `IgnorePointer`, so the default HUD's hotbar can take a finger: a tap on a
   slot picks it, a hold of `TouchControlsSpec.dropHold` on the slot in hand drops one item, and

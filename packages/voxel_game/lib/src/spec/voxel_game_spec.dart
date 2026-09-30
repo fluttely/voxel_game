@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:voxel_engine/content.dart';
 import 'package:voxel_engine/core.dart';
 import 'package:voxel_engine/worldgen.dart';
@@ -119,6 +120,10 @@ class VoxelGameSpec {
 
   /// This game with the given fields replaced: the same world at another
   /// render distance, say, or with a hook of a test's.
+  ///
+  /// A field that may be null is given as a getter of its new value, so null
+  /// can be asked for: `copyWith(touchControls: () => null)` takes the kit's
+  /// controls away, and leaving `touchControls` out keeps them.
   VoxelGameSpec copyWith({
     List<BlockType>? blocks,
     WorldGenSpec? world,
@@ -128,18 +133,18 @@ class VoxelGameSpec {
     List<MobSpec>? mobs,
     SkySpec? sky,
     SoundSpec? sounds,
-    SignalSpec? signals,
+    ValueGetter<SignalSpec?>? signals,
     int? seed,
     int? renderDistance,
-    GraphicsSpec? graphics,
-    TouchControlsSpec? touchControls,
+    ValueGetter<GraphicsSpec?>? graphics,
+    ValueGetter<TouchControlsSpec?>? touchControls,
     MiningRules? mining,
     Map<String, LiquidSpec>? liquids,
     List<GameSystem>? systems,
-    void Function(VoxelGame game, String block, IVec3 cell)? onBlockBroken,
-    void Function(VoxelGame game, String block, IVec3 cell)? onBlockPlaced,
-    void Function(VoxelGame game, Mob mob)? onMobKilled,
-    void Function(VoxelGame game, double dt)? onTick,
+    ValueGetter<void Function(VoxelGame game, String block, IVec3 cell)?>? onBlockBroken,
+    ValueGetter<void Function(VoxelGame game, String block, IVec3 cell)?>? onBlockPlaced,
+    ValueGetter<void Function(VoxelGame game, Mob mob)?>? onMobKilled,
+    ValueGetter<void Function(VoxelGame game, double dt)?>? onTick,
   }) => VoxelGameSpec(
     blocks: blocks ?? this.blocks,
     world: world ?? this.world,
@@ -149,18 +154,18 @@ class VoxelGameSpec {
     mobs: mobs ?? this.mobs,
     sky: sky ?? this.sky,
     sounds: sounds ?? this.sounds,
-    signals: signals ?? this.signals,
+    signals: signals == null ? this.signals : signals(),
     seed: seed ?? this.seed,
     renderDistance: renderDistance ?? this.renderDistance,
-    graphics: graphics ?? this.graphics,
-    touchControls: touchControls ?? this.touchControls,
+    graphics: graphics == null ? this.graphics : graphics(),
+    touchControls: touchControls == null ? this.touchControls : touchControls(),
     mining: mining ?? this.mining,
     liquids: liquids ?? this.liquids,
     systems: systems ?? this.systems,
-    onBlockBroken: onBlockBroken ?? this.onBlockBroken,
-    onBlockPlaced: onBlockPlaced ?? this.onBlockPlaced,
-    onMobKilled: onMobKilled ?? this.onMobKilled,
-    onTick: onTick ?? this.onTick,
+    onBlockBroken: onBlockBroken == null ? this.onBlockBroken : onBlockBroken(),
+    onBlockPlaced: onBlockPlaced == null ? this.onBlockPlaced : onBlockPlaced(),
+    onMobKilled: onMobKilled == null ? this.onMobKilled : onMobKilled(),
+    onTick: onTick == null ? this.onTick : onTick(),
   );
 
   /// The block registry: [blocks] with air first.

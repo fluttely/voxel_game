@@ -54,14 +54,15 @@
 - **Found while:** 2026-09-25 — finding why the phone runner lost runs during PF14's A/B.
 - **Seen again:** 2026-09-28, PF3's phone A/B: the same `SIGSEGV` at `0x3f8` in `vkCmdBeginRenderPass` under `InternalFlutterGpu_RenderPass_Begin`, the second run of a call (`orbit:6` after `mobs:6`, `9c36cc2`, no PF3 code), 18 lines and 19 launches that day.
 
+## Closed
+
 ### KL-010 · `VoxelGameSpec.copyWith` cannot clear a nullable field
 
 - **Lens:** kit API / spec
 - **Evidence:** `packages/voxel_game/lib/src/spec/voxel_game_spec.dart:152-163`: every field goes through `x ?? this.x`, so `copyWith(touchControls: null)` (or `signals: null`, `graphics: null`, `onTick: null`) returns the spec unchanged. `touchControls` is the first nullable field whose null means something a game would switch to ("I draw my own"); `test/default_hud_test.dart` has to rebuild a spec from `blocks` and `world` to get one.
 - **Cost of leaving it:** `copyWith` is documented as how a game varies a spec ("with a hook of a test's"), and it silently ignores the one change a game with its own touch layer needs; nothing fails, the kit's controls just stay on screen. The usual fixes are a sentinel default or a `Value<T>?` wrapper for the nullable fields.
 - **Found while:** 2026-09-29 — `VT3`, testing `DefaultHud` under `touchControls: null`.
-
-## Closed
+- **Closed by:** 2026-09-29 — `voxel_game: VoxelGameSpec.copyWith can ask for null`. The seven nullable fields take a `ValueGetter` of their new value (`touchControls: () => null`), the getter form rather than a sentinel because a sentinel types the parameter `Object?` and needs an `as` back (rule 8). `test/default_hud_test.dart` builds its spec with `copyWith` again; `test/frame_stats_test.dart` covers asking for null and keeping a field left out. Breaking for the example's benchmark and one test, both updated.
 
 ### KL-011 · The kit never says what a tap on the world means
 
