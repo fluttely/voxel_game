@@ -28,7 +28,15 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
 
 ## Features
 
-- `VoxelGameSpec`: blocks, items, recipes, world, player, mobs, sky, sounds, circuits, liquids.
+- `VoxelGameSpec`: blocks, items, recipes, status effects, world, player, mobs, sky, sounds,
+  circuits, liquids.
+- Survival, declared: `PlayerSpec.hunger` (a `HungerSpec`: the bar empties, a full one heals,
+  an empty one starves), `PlayerSpec.xp` (an `XpSpec` curve; `PlayerEntity.gainXp`), food
+  (`ItemType(food: Food(hunger: 4, heal: 2, effect: 'regeneration', seconds: 8))`, eaten with
+  use) and armour (`ItemType(armor: Armor('chest', 3))`, put on with use, turning a blow aside
+  down to `PlayerSpec.armorFloor`). The player carries the spec's `effects` in
+  `PlayerEntity.effects`, which bend its speed, damage, mining and armour. Each is off until
+  declared.
 - `runVoxelGame` / `VoxelGameWidget`: the 3D view, a HUD, the inventory and crafting screen.
   A HUD of your own is built once; its pieces follow the game through `HudSelector`s.
   The default HUD's hotbar takes a finger: tap a slot to pick it, hold the one in hand to
@@ -154,8 +162,9 @@ Dart SDK `^3.13.0`.
        );
    ```
 
-5. **Grow it** with `items`, `recipes`, `player: PlayerSpec(startingItems: {...})`,
-   `sky`, `sounds`, `signals`, `graphics`, and the `on...` hooks.
+5. **Grow it** with `items`, `recipes`, `effects`,
+   `player: PlayerSpec(startingItems: {...}, hunger: HungerSpec())`, `sky`, `sounds`,
+   `signals`, `graphics`, and the `on...` hooks.
 
 6. **Play together (optional):** `runVoxelGame(spec, hostPort: 7777)` on one
    machine and `runVoxelGame(spec, join: '192.168.0.10')` on another.

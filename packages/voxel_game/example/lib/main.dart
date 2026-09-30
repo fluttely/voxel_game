@@ -20,17 +20,35 @@ const game = VoxelGameSpec(
     BlockType.liquid('water', color: 0x3366CC),
     BlockType.liquid('water_flow', color: 0x3366CC, kind: 'water', source: false),
   ],
-  // 2. Items that are not blocks, and how to craft things.
+  // 2. Items that are not blocks — tools, food (eaten with use), armour (worn with use) — and
+  //    how to craft things.
   items: [
     ItemType('coal', color: 0x202020),
     ItemType('wooden_pickaxe', color: 0xB08850, tool: 'pickaxe', tier: 1, stack: 1, durability: 60, damage: 2),
     ItemType('wool', color: 0xEEEEEE),
+    ItemType('apple', color: 0xD03A2A, food: Food(hunger: 4)),
+    ItemType('mutton', color: 0xC8705A, food: Food(hunger: 6)),
+    ItemType('bowl', color: 0x9A7040),
+    ItemType(
+      'stew',
+      color: 0xA0683A,
+      stack: 1,
+      food: Food(hunger: 6, heal: 4, effect: 'regeneration', seconds: 8, leaves: 'bowl'),
+    ),
+    ItemType('wool_cap', color: 0xE8E8E8, stack: 1, armor: Armor('head', 1)),
+    ItemType('wool_tunic', color: 0xE8E8E8, stack: 1, armor: Armor('chest', 3)),
   ],
   recipes: [
     Recipe('planks', 4, {'log': 1}),
     Recipe('torch', 4, {'coal': 1, 'planks': 1}),
     Recipe('wooden_pickaxe', 1, {'planks': 5}),
+    Recipe('bowl', 4, {'planks': 3}),
+    Recipe('stew', 1, {'bowl': 1, 'apple': 1, 'mutton': 1}),
+    Recipe('wool_cap', 1, {'wool': 3}),
+    Recipe('wool_tunic', 1, {'wool': 5}),
   ],
+  // Status effects: what a food starts, what the player carries.
+  effects: [EffectType('regeneration', 'Regeneration', 0.9, 0.35, 0.55, period: 2.0, heal: 1.0)],
   // 3. The world: biomes chosen by climate, trees, ores.
   world: WorldGenSpec(
     bedrock: 'stone',
@@ -54,8 +72,11 @@ const game = VoxelGameSpec(
     beach: Biome('beach', top: 'sand'),
     ores: [Ore('coal_ore', share: 0.11)],
   ),
-  // 4. The player and what they start with.
-  player: PlayerSpec(startingItems: {'wooden_pickaxe': 1, 'planks': 16, 'torch': 8}),
+  // 4. The player: what they start with, and hunger that food fills.
+  player: PlayerSpec(
+    startingItems: {'wooden_pickaxe': 1, 'planks': 16, 'torch': 8, 'apple': 4, 'wool_cap': 1},
+    hunger: HungerSpec(),
+  ),
   // 5. Creatures: a body, a brain (goals; the lower priority wins), drops and when they spawn.
   mobs: [
     MobSpec(
@@ -66,7 +87,7 @@ const game = VoxelGameSpec(
       height: 1.2,
       rig: Rig.quadruped(body: 0xEEEEEE, head: 0xD8C8B0),
       brain: [FleeWhenHurt(), LookAtPlayer(), Wander()],
-      drops: [Drop('wool', 1, 2)],
+      drops: [Drop('wool', 1, 2), Drop('mutton', 1, 2)],
       spawn: SpawnRule.daylight(),
     ),
     MobSpec(

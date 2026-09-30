@@ -97,12 +97,15 @@ sockets, through `dart:isolate` and `dart:io`, which a browser does not have.
    ]);
    ```
 
-2. **Declare items.** Every block you can hold is an item already.
+2. **Declare items.** Every block you can hold is an item already. One that is eaten says
+   what it does in `food`, one that is worn where in `armor`.
 
    ```dart
    final items = ItemRegistry([
      ...ItemRegistry.forBlocks(blocks),
      const ItemType('wooden_pickaxe', color: 0xB08850, tool: 'pickaxe', tier: 1, stack: 1, durability: 60),
+     const ItemType('apple', color: 0xD03A2A, food: Food(hunger: 4)),
+     const ItemType('wool_tunic', color: 0xE8E8E8, stack: 1, armor: Armor('chest', 3)),
    ]);
    ```
 

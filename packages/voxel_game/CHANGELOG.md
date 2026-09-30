@@ -2,6 +2,42 @@
 
 ## Unreleased
 
+- **Survival on the player (VA1).** Each piece is off until the spec declares it, so a game
+  that declares none plays as before.
+  - `PlayerSpec.hunger`, a `HungerSpec` (new): the bar empties by `secondsPerPoint`, heals
+    `regenAmount` every `regenSeconds` while it holds `regenAbove`, and starves the player by
+    `starveDamage` every `starveSeconds` once it is empty. A creative player never gets
+    hungry. `PlayerEntity.hunger` is the bar.
+  - Food: the item in hand with an `ItemType.food` is eaten on a press of use (holding use
+    does not eat the stack), when it would do something (`PlayerEntity.canEat`): fill a bar
+    that is not full, heal, or start its effect. It leaves its `Food.leaves` in the bag.
+    `PlayerEntity.eatHeld` does it from code.
+  - Armour: the item in hand with an `ItemType.armor` is put on by use, and what was worn in
+    its slot comes back into the hand (`wearHeld`, `takeOff`, `worn`). `PlayerEntity.armor`,
+    the points worn plus what the effects add, turns `PlayerSpec.armorPerPoint` of a blow
+    aside a point, never below `PlayerSpec.armorFloor` of it (0.4 and 35 %, the Minecraft
+    example's). `PlayerSpec.armorSlots` names the slots; an item worn elsewhere is refused
+    when the items are built.
+  - Status effects: `VoxelGameSpec.effects` declares them, the player carries them in
+    `PlayerEntity.effects` (the engine's `StatusEffects`), a tick's damage and healing land
+    on the player, and four stats are read by name: `PlayerEntity.speedStat`, `damageStat`,
+    `miningStat` (multipliers) and `armorStat` (points).
+  - Experience: `PlayerSpec.xp`, an `XpSpec` (new) curve of `base * (level + 1) ^ exponent`
+    points a level, each raising `PlayerEntity.maxHp` by `hpPerLevel`. `PlayerEntity.gainXp`
+    adds points, and throws when no curve is declared.
+  - `Damage.internal` (new): a hurt from within (an effect's tick, starving) is not turned
+    aside by armour and lands through the moment of grace a blow leaves.
+  - A respawn stands the player up at `maxHp`, fed, with no effects on them.
+  - `VoxelGameSpec.buildItems` throws for a food whose effect is not declared or which leaves
+    an unknown item, and for armour worn in a slot the player does not have.
+  - A save's `game.json` is version 2 (`WorldSaves.stateVersion`): it keeps hunger, experience
+    and level, the effects and what is worn. A version 1 save still loads, its player fed, at
+    level 0, wearing nothing.
+  - The default HUD draws as many hearts as `maxHp` has. The bars for hunger, experience,
+    armour and the effects are VA4's.
+  - The example eats and wears: apples to start with, mutton from sheep, a stew (bowl, apple,
+    mutton) that heals and regenerates, a wool cap to start with and a wool tunic to craft.
+
 - **A phone plays in landscape, never upright.** `runVoxelGame` locks a phone or tablet to
   the two landscape orientations and hides the status and navigation bars until a swipe
   (`SystemUiMode.immersiveSticky`). The example's runners say the same from the launch

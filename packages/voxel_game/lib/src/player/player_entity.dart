@@ -19,9 +19,18 @@ import 'player_spec.dart';
 /// The player: a body driven by [VoxelAction]s that looks, walks, swims,
 /// climbs ladders, mines and places blocks, hits creatures, picks items up,
 /// takes falls, burns in lava, drowns, dies and stands up again at the spawn.
+///
+/// It survives by what its [spec] declares: it gets hungry and eats
+/// ([PlayerSpec.hunger], `ItemType.food`), wears armour (`ItemType.armor`),
+/// carries status effects ([effects]) and gains experience ([PlayerSpec.xp]).
+/// The effects bend four stats by name: [speedStat], [damageStat],
+/// [miningStat] (multipliers) and [armorStat] (points added).
 class PlayerEntity extends NodeBody implements Target {
-  /// A player of [spec].
-  PlayerEntity(this.spec, this.inventory) : hp = spec.hp, cameraMode = spec.camera {
+  /// A player of [spec] with [inventory] as its bag, carrying [effects].
+  PlayerEntity(this.spec, this.inventory, this.effects)
+    : hp = spec.hp,
+      hunger = spec.hunger?.max ?? 0.0,
+      cameraMode = spec.camera {
     halfWidth = spec.halfWidth;
     height = spec.height;
     motor = CharacterMotor(this, MotorTuning(jumpVelocity: spec.jumpVelocity));
@@ -33,8 +42,50 @@ class PlayerEntity extends NodeBody implements Target {
   /// The bag; the first `hotbarSize` slots are the hotbar.
   final Inventory inventory;
 
+  /// The status effects on the player.
+  final StatusEffects effects;
+
+  /// The effects' stat that multiplies the speed on foot and swimming.
+  static const speedStat = 'speed';
+
+  /// The effects' stat that multiplies the damage of a hit.
+  static const damageStat = 'damage';
+
+  /// The effects' stat that multiplies how fast blocks are mined.
+  static const miningStat = 'mining';
+
+  /// The effects' stat that adds armour points.
+  static const armorStat = 'armor';
+
   /// Health.
   double hp;
+
+  /// The hunger bar, 0 (starving) to [HungerSpec.max]; 0 and unused without
+  /// [PlayerSpec.hunger].
+  double hunger;
+
+  /// Experience points toward the next [level].
+  int xp = 0;
+
+  /// The experience level, from 0.
+  int level = 0;
+
+  /// The most health: [PlayerSpec.hp], raised by each [level].
+  double get maxHp => spec.hp + level * (spec.xp?.hpPerLevel ?? 0.0);
+
+  final Map<String, ItemStack> _worn = {};
+
+  /// What is worn, by [PlayerSpec.armorSlots] slot.
+  Map<String, ItemStack> get worn => Map.unmodifiable(_worn);
+
+  /// Armour points: what is worn, plus what the effects add.
+  double get armor {
+    var points = effects.bonus(armorStat);
+    for (final s in _worn.values) {
+      points += _game.items[s.id].armor!.points;
+    }
+    return points;
+  }
 
   /// Where the player stands up after dying.
   Vector3 spawnPoint = Vector3.zero();
@@ -84,6 +135,7 @@ class PlayerEntity extends NodeBody implements Target {
   double _lavaTimer = 0.0;
   double _drownTimer = 0.0;
   double _invulnerable = 0.0;
+  double _bodyTimer = 0.0;
   bool _placed = false;
   late VoxelGame _game;
 
@@ -167,12 +219,20 @@ class PlayerEntity extends NodeBody implements Target {
     return left;
   }
 
+  /// Takes [damage], less what [armor] turns aside: [PlayerSpec.armorPerPoint]
+  /// a point, never below [PlayerSpec.armorFloor] of the blow. An internal
+  /// hurt is neither turned aside nor stopped by the moment of grace a blow
+  /// leaves.
   @override
   double takeDamage(Damage damage) {
-    if (_dead || spec.creative || _invulnerable > 0.0) return 0.0;
-    final taken = math.min(hp, damage.amount);
-    hp -= damage.amount;
-    _invulnerable = 0.4;
+    if (_dead || spec.creative) return 0.0;
+    if (!damage.internal && _invulnerable > 0.0) return 0.0;
+    final amount = damage.internal
+        ? damage.amount
+        : math.max(damage.amount - armor * spec.armorPerPoint, damage.amount * spec.armorFloor);
+    final taken = math.min(hp, amount);
+    hp -= amount;
+    if (!damage.internal) _invulnerable = 0.4;
     hurtFlash = 1.0;
     _game.playSound('hurt', volumeDb: -3.0);
     final from = damage.from;
@@ -211,6 +271,8 @@ class PlayerEntity extends NodeBody implements Target {
       if (_deadFor >= spec.respawnSeconds) _respawn();
       return;
     }
+    _survive(dt);
+    if (_dead) return;
     if (!_game.world.isLoaded(IVec3.floor(position))) {
       velocity = Vector3.zero();
       return;
@@ -241,7 +303,7 @@ class PlayerEntity extends NodeBody implements Target {
     }
     final usePressed = gameplay && input.justPressed(VoxelAction.use);
     if (usePressed || gameplay && input.down(VoxelAction.use) && _useCooldown <= 0.0) {
-      _use();
+      _use(pressed: usePressed);
       _useCooldown = usePressed ? 0.25 : 0.2;
     }
     _animate(dt);
@@ -254,7 +316,13 @@ class PlayerEntity extends NodeBody implements Target {
         ? input.axis(VoxelAction.moveLeft, VoxelAction.moveRight, stick: _leftX, touch: TouchAxis.x)
         : 0.0;
     final y = gameplay
-        ? input.axis(VoxelAction.moveForward, VoxelAction.moveBack, stick: _leftY, invertStick: true, touch: TouchAxis.y)
+        ? input.axis(
+            VoxelAction.moveForward,
+            VoxelAction.moveBack,
+            stick: _leftY,
+            invertStick: true,
+            touch: TouchAxis.y,
+          )
         : 0.0;
     var wish = flatForward * -y + right * x;
     if (wish.length > 1.0) wish = wish.normalized();
@@ -266,6 +334,7 @@ class PlayerEntity extends NodeBody implements Target {
     } else if (inLiquid) {
       speed *= 0.8;
     }
+    speed *= effects.multiplier(speedStat);
     final floor = _game.world.getBlockXYZ(position.x.floor(), (position.y - 0.05).floor(), position.z.floor());
     if (onFloor) speed *= _game.blocks[floor].speed;
     final events = motor.step(
@@ -303,6 +372,117 @@ class PlayerEntity extends NodeBody implements Target {
       if (w.blocks[b].shape == BlockShape.ladder) return true;
     }
     return false;
+  }
+
+  /// The body's clock: the effects tick, hunger empties, and a full bar heals
+  /// while an empty one starves.
+  void _survive(double dt) {
+    for (final e in effects.tick(dt)) {
+      if (e.damage > 0.0) takeDamage(Damage(e.damage, source: e.id, internal: true));
+      if (e.heal > 0.0) hp = math.min(hp + e.heal, maxHp);
+    }
+    final h = spec.hunger;
+    if (h == null || spec.creative) return;
+    hunger = math.max(hunger - dt / h.secondsPerPoint, 0.0);
+    final starving = hunger <= 0.0;
+    final healing = !starving && hunger >= h.regenAbove && hp < maxHp;
+    if (!starving && !healing) {
+      _bodyTimer = 0.0;
+      return;
+    }
+    _bodyTimer += dt;
+    if (starving && _bodyTimer >= h.starveSeconds) {
+      _bodyTimer = 0.0;
+      takeDamage(Damage(h.starveDamage, source: 'starving', internal: true));
+    } else if (healing && _bodyTimer >= h.regenSeconds) {
+      _bodyTimer = 0.0;
+      hp = math.min(hp + h.regenAmount, maxHp);
+    }
+  }
+
+  /// Adds [amount] experience, levelling up while it is enough.
+  void gainXp(int amount) {
+    final curve = spec.xp;
+    if (curve == null) throw StateError('the player gains experience only with PlayerSpec.xp declared');
+    assert(amount >= 0);
+    xp += amount;
+    while (xp >= curve.toNext(level)) {
+      xp -= curve.toNext(level);
+      level++;
+      hp += curve.hpPerLevel;
+      _game.playSound('levelup', volumeDb: -4.0);
+    }
+  }
+
+  /// Whether eating [item] now would do something: fill hunger that is not
+  /// full, heal health that is not full, or start its effect.
+  bool canEat(ItemType item) {
+    final food = item.food;
+    if (food == null) return false;
+    if (food.effect != null) return true;
+    if (food.heal > 0.0 && hp < maxHp) return true;
+    final h = spec.hunger;
+    return food.hunger > 0 && h != null && !spec.creative && hunger < h.max;
+  }
+
+  /// Eats one of the item in hand; false (nothing eaten) when it is not food
+  /// or would do nothing ([canEat]).
+  bool eatHeld() {
+    final item = _heldType;
+    if (item == null || !canEat(item)) return false;
+    final food = item.food!;
+    inventory.takeFromSlot(selectedSlot, 1);
+    final h = spec.hunger;
+    if (h != null) hunger = math.min(hunger + food.hunger, h.max);
+    hp = math.min(hp + food.heal, maxHp);
+    final effect = food.effect;
+    if (effect != null) effects.apply(effect, food.seconds, food.power);
+    final leaves = food.leaves;
+    if (leaves != null) _keep(leaves, 1);
+    _game.playSound('eat', volumeDb: -6.0);
+    return true;
+  }
+
+  /// Puts on the armour in hand, taking off (into the hand) what was worn in
+  /// its slot; false when the item in hand is not armour.
+  bool wearHeld() {
+    final item = _heldType;
+    final piece = item?.armor;
+    if (piece == null) return false;
+    final stack = inventory.takeFromSlot(selectedSlot, 1)!;
+    final before = _worn[piece.slot];
+    _worn[piece.slot] = stack;
+    if (before != null) {
+      if (inventory.isEmptySlot(selectedSlot)) {
+        inventory.setSlot(selectedSlot, before);
+      } else if (!inventory.addStack(before)) {
+        _game.dropItem(before.id, before.count, eyePosition - Vector3(0, 0.3, 0));
+      }
+    }
+    _game.playSound('click', volumeDb: -4.0);
+    return true;
+  }
+
+  /// Takes off what is worn in [slot] into the bag; false when nothing is
+  /// worn there or the bag has no empty slot (it stays worn).
+  bool takeOff(String slot) {
+    final stack = _worn[slot];
+    if (stack == null || !inventory.addStack(stack)) return false;
+    _worn.remove(slot);
+    return true;
+  }
+
+  /// Wears [stack] in [slot] with no item in hand: a save read back.
+  void putOn(String slot, ItemStack stack) {
+    final piece = _game.items[stack.id].armor;
+    if (piece == null || piece.slot != slot) throw ArgumentError.value(stack.id, slot, 'not armour for this slot');
+    _worn[slot] = stack.copy();
+  }
+
+  /// [count] of [item] into the bag, what does not fit on the ground.
+  void _keep(String item, int count) {
+    final left = inventory.add(item, count);
+    if (left > 0) _game.dropItem(item, left, eyePosition - Vector3(0, 0.3, 0));
   }
 
   void _liquidHazards(double dt) {
@@ -375,7 +555,8 @@ class PlayerEntity extends NodeBody implements Target {
       _attackCooldown = 0.45;
       _swingArm();
       final item = _heldType;
-      final damage = item == null || item.tool == null ? spec.handDamage : item.damage.toDouble();
+      final base = item == null || item.tool == null ? spec.handDamage : item.damage.toDouble();
+      final damage = base * effects.multiplier(damageStat);
       mob.takeDamage(Damage(damage, from: position, knockback: 6.0, attacker: this));
       if (item != null && item.durability > 0) inventory.wear(selectedSlot);
       return;
@@ -395,7 +576,9 @@ class PlayerEntity extends NodeBody implements Target {
     }
     final block = _game.world.getBlock(hit.block);
     final type = _game.blocks[block];
-    final time = spec.creative ? (type.hardness < 0 ? -1.0 : 0.0) : _game.mining.mineTime(type, _heldType);
+    final time = spec.creative
+        ? (type.hardness < 0 ? -1.0 : 0.0)
+        : _game.mining.mineTime(type, _heldType) / effects.multiplier(miningStat);
     if (time < 0.0) return;
     if (pressed) _swingArm();
     _digTimer -= dt;
@@ -416,7 +599,10 @@ class PlayerEntity extends NodeBody implements Target {
     if (spec.creative) _attackCooldown = 0.2;
   }
 
-  void _use() {
+  /// Uses a lever or a station under the crosshair, else eats or puts on the
+  /// item in hand ([pressed] only: holding the button does not eat a stack),
+  /// else places its block.
+  void _use({required bool pressed}) {
     final hit = aimedBlock;
     // A lever or a button is used, not built against.
     final net = _game.signals;
@@ -434,7 +620,13 @@ class PlayerEntity extends NodeBody implements Target {
       }
     }
     final item = _heldType;
-    if (hit == null || item == null || item.block == null) return;
+    if (item == null) return;
+    if (item.food != null || item.armor != null) {
+      if (!pressed) return;
+      if (eatHeld() || wearHeld()) _swingArm();
+      return;
+    }
+    if (hit == null || item.block == null) return;
     final cell = hit.block + hit.normal;
     final world = _game.world;
     if (!world.isLoaded(cell) || !world.blocks.isReplaceable(world.getBlock(cell))) return;
@@ -477,7 +669,10 @@ class PlayerEntity extends NodeBody implements Target {
 
   void _respawn() {
     _dead = false;
-    hp = spec.hp;
+    hp = maxHp;
+    hunger = spec.hunger?.max ?? 0.0;
+    effects.rows.clear();
+    _bodyTimer = 0.0;
     position = spawnPoint.clone();
     velocity = Vector3.zero();
     syncNode(snap: true);

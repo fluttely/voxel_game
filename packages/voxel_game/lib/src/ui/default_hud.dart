@@ -118,7 +118,7 @@ class DefaultHud extends StatelessWidget {
                     builder: (context, hp) => Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        for (var i = 0; i < (p.spec.hp / 2).ceil(); i++)
+                        for (var i = 0; i < (p.maxHp / 2).ceil(); i++)
                           Icon(
                             hp >= (i + 1) * 2
                                 ? Icons.favorite

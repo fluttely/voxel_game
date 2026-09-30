@@ -50,6 +50,7 @@ class VoxelGame {
     player = PlayerEntity(
       spec.player,
       Inventory(stackSize: (id) => items[id].stack, maxDurability: (id) => items[id].durability),
+      StatusEffects(spec.buildEffects()),
     );
     spawner = MobSpawner(this);
     if (!authority) {

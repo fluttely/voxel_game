@@ -2,6 +2,12 @@
 
 ## 0.3.0-dev
 
+- `ItemType.food` (a `Food`: hunger it fills, health it gives back, an effect it starts for
+  some seconds at some power, an item it leaves behind) and `ItemType.armor` (an `Armor`: the
+  slot it is worn in and the points it is worth), both new, both null for an item that is
+  neither eaten nor worn. The comment that told a game to subclass `ItemType` for food and
+  armour is gone: they are fields now, so the kit's player reads them from any game's rows.
+
 - `ChunkStreamer.putChunk` stores a volume generated elsewhere (a test's floor), with the
   edits recorded for it written over it, as a generation landing would. Since 0.2.0-dev
   made `chunks` read-only it was the one way in that was missing: a world built without

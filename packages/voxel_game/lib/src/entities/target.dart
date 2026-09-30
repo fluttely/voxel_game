@@ -4,8 +4,16 @@ import 'package:vector_math/vector_math.dart';
 class Damage {
   /// [amount] of damage of [source] (`'melee'`, `'fall'`, `'lava'`, a
   /// projectile's kind), from [from] with [knockback] metres a second of
-  /// shove, dealt by [attacker] when someone dealt it.
-  const Damage(this.amount, {this.source = 'melee', this.from, this.knockback = 0.0, this.attacker});
+  /// shove, dealt by [attacker] when someone dealt it. [internal] for a hurt
+  /// from within the body.
+  const Damage(
+    this.amount, {
+    this.source = 'melee',
+    this.from,
+    this.knockback = 0.0,
+    this.attacker,
+    this.internal = false,
+  });
 
   /// How much health it takes.
   final double amount;
@@ -21,6 +29,10 @@ class Damage {
 
   /// Who dealt it, or null.
   final Target? attacker;
+
+  /// A hurt from within (a status effect's tick, hunger): armour does not
+  /// turn it aside and the moment of grace after a blow does not stop it.
+  final bool internal;
 }
 
 /// Anything that can be hunted and hurt: the player, a mob, a remote player.

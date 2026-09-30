@@ -1,7 +1,11 @@
-/// One item of a game. A block's item names that block in [block].
+import 'armor.dart';
+import 'food.dart';
+
+/// One item of a game. A block's item names that block in [block]; one that
+/// is eaten says what it does in [food], one that is worn in [armor].
 ///
-/// A game with more to say about its items (food, armour, potions)
-/// subclasses this and keeps an `ItemRegistry<ItsType>`.
+/// A game with more to say about its items subclasses this and keeps an
+/// `ItemRegistry<ItsType>`.
 class ItemType {
   /// An item named [id] of colour [color] (`0xRRGGBB`).
   const ItemType(
@@ -14,6 +18,8 @@ class ItemType {
     this.tier = 0,
     this.damage = 1,
     this.durability = 0,
+    this.food,
+    this.armor,
     this.tags = const {},
   }) : r = ((color >> 16) & 0xFF) / 255.0,
        g = ((color >> 8) & 0xFF) / 255.0,
@@ -32,6 +38,8 @@ class ItemType {
     this.tier = 0,
     this.damage = 1,
     this.durability = 0,
+    this.food,
+    this.armor,
     this.tags = const {},
   });
 
@@ -64,6 +72,12 @@ class ItemType {
 
   /// Uses before it breaks; 0 for an item that never wears.
   final int durability;
+
+  /// What eating it does, or null for an item that is not eaten.
+  final Food? food;
+
+  /// How it is worn, or null for an item that is not.
+  final Armor? armor;
 
   /// Free labels a game queries by.
   final Set<String> tags;

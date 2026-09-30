@@ -91,6 +91,29 @@ void main() {
       expect(rules.drops(b('stone'), items['wooden_pickaxe']), isTrue);
       expect(rules.drops(b('stone'), items['stone_shovel']), isFalse);
     });
+
+    test('an item says what eating it does and where it is worn', () {
+      const stew = ItemType('stew', color: 0x8B5A2B, stack: 1, food: Food(hunger: 6, heal: 2.0, leaves: 'bowl'));
+      const potion = ItemType('potion', color: 0xFF30A0, food: Food(effect: 'regeneration', seconds: 10.0, power: 2.0));
+      const helmet = ItemType('helmet', color: 0xC0C0C0, stack: 1, armor: Armor('head', 2));
+      expect(stew.food!.hunger, 6);
+      expect(stew.food!.leaves, 'bowl');
+      expect(stew.armor, isNull);
+      expect(potion.food!.effect, 'regeneration');
+      expect(potion.food!.hunger, 0, reason: 'a drink fills nothing');
+      expect(helmet.armor!.slot, 'head');
+      expect(helmet.food, isNull);
+      expect(items['stone'].food, isNull, reason: "a block's item is neither eaten nor worn");
+    });
+
+    test('an effect without its seconds, or seconds without an effect, is refused', () {
+      // ignore: prefer_const_constructors
+      expect(() => Food(effect: 'regeneration'), throwsA(isA<AssertionError>()));
+      // ignore: prefer_const_constructors
+      expect(() => Food(hunger: 2, seconds: 5.0), throwsA(isA<AssertionError>()));
+      // ignore: prefer_const_constructors
+      expect(() => Armor('chest', 0), throwsA(isA<AssertionError>()));
+    });
   });
 
   group('Inventory', () {

@@ -36,6 +36,7 @@ class VoxelGameSpec {
     required this.world,
     this.items = const [],
     this.recipes = const [],
+    this.effects = const [],
     this.player = const PlayerSpec(),
     this.mobs = const [],
     this.sky = const SkySpec(),
@@ -66,6 +67,10 @@ class VoxelGameSpec {
 
   /// Crafting recipes.
   final List<Recipe> recipes;
+
+  /// The status effects there are: what a `Food` starts, what the player
+  /// carries in `PlayerEntity.effects`.
+  final List<EffectType> effects;
 
   /// The player.
   final PlayerSpec player;
@@ -129,6 +134,7 @@ class VoxelGameSpec {
     WorldGenSpec? world,
     List<ItemType>? items,
     List<Recipe>? recipes,
+    List<EffectType>? effects,
     PlayerSpec? player,
     List<MobSpec>? mobs,
     SkySpec? sky,
@@ -150,6 +156,7 @@ class VoxelGameSpec {
     world: world ?? this.world,
     items: items ?? this.items,
     recipes: recipes ?? this.recipes,
+    effects: effects ?? this.effects,
     player: player ?? this.player,
     mobs: mobs ?? this.mobs,
     sky: sky ?? this.sky,
@@ -176,12 +183,37 @@ class VoxelGameSpec {
   ]);
 
   /// The item registry: an item per holdable block, then [items] (replacing a
-  /// block's item of the same id).
+  /// block's item of the same id). Throws [ArgumentError] for a food whose
+  /// effect is not in [effects] or which leaves an unknown item, and for
+  /// armour worn in a slot the player does not have.
   ItemRegistry<ItemType> buildItems(BlockRegistry<BlockType> registry) {
     final byId = <String, ItemType>{for (final i in ItemRegistry.forBlocks(registry)) i.id: i};
     for (final i in items) {
       byId[i.id] = i;
     }
+    final effectIds = {for (final e in effects) e.id};
+    for (final i in byId.values) {
+      final food = i.food, armor = i.armor;
+      if (food?.effect case final e? when !effectIds.contains(e)) {
+        throw ArgumentError.value(e, i.id, 'the food starts an effect the spec does not declare');
+      }
+      if (food?.leaves case final l? when !byId.containsKey(l)) {
+        throw ArgumentError.value(l, i.id, 'the food leaves an item that does not exist');
+      }
+      if (armor != null && !player.armorSlots.contains(armor.slot)) {
+        throw ArgumentError.value(armor.slot, i.id, 'the armour is worn in a slot the player does not have');
+      }
+    }
     return ItemRegistry(byId.values);
+  }
+
+  /// Every effect in [effects], by id; throws [ArgumentError] on a duplicate.
+  Map<String, EffectType> buildEffects() {
+    final byId = <String, EffectType>{};
+    for (final e in effects) {
+      if (byId.containsKey(e.id)) throw ArgumentError('duplicate effect id: ${e.id}');
+      byId[e.id] = e;
+    }
+    return byId;
   }
 }

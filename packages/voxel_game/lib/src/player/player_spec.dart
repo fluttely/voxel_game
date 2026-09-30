@@ -1,4 +1,6 @@
 import '../mobs/rig.dart';
+import 'hunger_spec.dart';
+import 'xp_spec.dart';
 
 /// First person or behind the shoulder.
 enum CameraMode {
@@ -32,7 +34,12 @@ class PlayerSpec {
     this.fallDamage = true,
     this.rig = const Rig.humanoid(),
     this.respawnSeconds = 3.0,
-  });
+    this.hunger,
+    this.xp,
+    this.armorSlots = const ['head', 'chest', 'legs', 'feet'],
+    this.armorPerPoint = 0.4,
+    this.armorFloor = 0.35,
+  }) : assert(armorPerPoint >= 0.0 && armorFloor >= 0.0 && armorFloor <= 1.0);
 
   /// Health.
   final double hp;
@@ -90,4 +97,21 @@ class PlayerSpec {
 
   /// Seconds between dying and standing again at the spawn.
   final double respawnSeconds;
+
+  /// Hunger, or null for a player who never gets hungry (food then only
+  /// heals and starts effects).
+  final HungerSpec? hunger;
+
+  /// Experience, or null for a player who gains none.
+  final XpSpec? xp;
+
+  /// Where armour is worn: every `Armor.slot` an item declares is one of
+  /// these.
+  final List<String> armorSlots;
+
+  /// Damage each point of armour turns aside.
+  final double armorPerPoint;
+
+  /// The share of a blow that always lands, however much armour is worn.
+  final double armorFloor;
 }

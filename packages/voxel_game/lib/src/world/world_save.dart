@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:vector_math/vector_math.dart';
+import 'package:voxel_engine/content.dart';
 import 'package:voxel_engine/core.dart';
 
 import '../core/voxel_game.dart';
@@ -25,13 +26,21 @@ class SavedWorld {
 
 /// Saved worlds under one [directory], a folder per slot holding `edits.bin`
 /// (the edited cells, `EditDeltaCodec`) and `game.json` (the clock and the
-/// player: where, looking where, health, the bag, the spawn point).
+/// player: where, looking where, health, hunger, experience, the effects on
+/// them, the bag, what they wear, the spawn point).
+///
+/// `game.json` is version 2. A version 1 save, from before the player had
+/// hunger, experience, effects and armour, still loads: its player stands up
+/// fed, at level 0, wearing nothing.
 class WorldSaves {
   /// Saves under [directory].
   WorldSaves(this.directory);
 
   /// Where the slots live.
   final Directory directory;
+
+  /// The version of `game.json` [save] writes.
+  static const stateVersion = 2;
 
   /// The edit file's layout: magic `VXK1`, version 1, one dimension.
   static const EditDeltaCodec codec = EditDeltaCodec(magic: 0x314B5856, version: 1, dimensions: 1);
@@ -62,7 +71,7 @@ class WorldSaves {
     File('${d.path}/edits.bin').writeAsBytesSync(codec.encode(game.world.generator.seed, game.world.edits));
     final p = game.player;
     final state = <String, Object?>{
-      'version': 1,
+      'version': stateVersion,
       'seed': game.world.generator.seed,
       'time': game.time,
       'timeOfDay': game.timeOfDay,
@@ -75,6 +84,11 @@ class WorldSaves {
         'slot': p.selectedSlot,
         'view': p.cameraMode.name,
         'inventory': p.inventory.toJson(),
+        'hunger': p.hunger,
+        'xp': p.xp,
+        'level': p.level,
+        'effects': p.effects.toJson(),
+        'worn': {for (final e in p.worn.entries) e.key: e.value.toJson()},
       },
     };
     // Written beside and renamed over, so a crash mid-write keeps the old one.
@@ -113,5 +127,17 @@ class WorldSaves {
       ..selectedSlot = (p['slot']! as num).toInt()
       ..cameraMode = CameraMode.values.byName(p['view']! as String);
     game.player.inventory.fromJson(p['inventory']! as List<Object?>, known: game.items.has);
+    final version = (s['version']! as num).toInt();
+    if (version == 1) return;
+    if (version != stateVersion) throw StateError('game.json version $version: this kit reads 1 and $stateVersion');
+    game.player
+      ..hunger = (p['hunger']! as num).toDouble()
+      ..xp = (p['xp']! as num).toInt()
+      ..level = (p['level']! as num).toInt();
+    game.player.effects.fromJson(p['effects']! as Map<String, Object?>);
+    for (final e in (p['worn']! as Map<String, Object?>).entries) {
+      final stack = ItemStack.fromJson(e.value! as Map<String, Object?>);
+      if (game.items.has(stack.id)) game.player.putOn(e.key, stack);
+    }
   }
 }
