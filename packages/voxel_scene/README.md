@@ -17,6 +17,10 @@ and night sky, block models and the selection outline.
 - `MirroredCamera`: the camera that shows `voxel_engine`'s winding the right way round.
 - `SelectionOutline`: the edges of the aimed box, one mesh, one draw; `BoxMesh`, boxes as
   one mesh wound the engine's way, which it is made of.
+- `ResizeSafeScene`: a `Scene` to render with when the sun caches its static shadows,
+  as `DayNightSky`'s does. It drops the cache on the frame the view changes size, which
+  keeps Impeller's Vulkan backend from beginning a render pass on a freed depth texture
+  (flutter/flutter#192538), a crash seen on Adreno phones as a game turns to landscape.
 - `DayNightSky`, `VoxelModelMesh`, `RigPart`, `NodeBody`.
 
 ## Install

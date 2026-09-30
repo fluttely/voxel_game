@@ -2,6 +2,17 @@
 
 ## 0.3.0-dev
 
+- `ResizeSafeScene` (new): a `Scene` whose sun turns `cacheStaticShadows` off for the one
+  frame rendered at a new size (region, pixel ratio, render scale or a view's viewport or
+  scale, told by `RenderSizeWatch`, new). flutter_scene pairs each cached shadow tile with
+  a depth texture from the view's transient pool, which a resize clears, and Impeller's
+  Vulkan backend caches the tile's framebuffer keyed by the tile alone
+  (flutter/flutter#192538): the next refresh of the tile began a render pass on the freed
+  depth, a `SIGSEGV` in the Adreno driver's `vkCmdBeginRenderPass` within the first
+  seconds of a game that turns to landscape (the kit's `KL-008`). With the cache off for
+  that frame flutter_scene discards the tiles and builds new ones on the next. The
+  example renders with it. To remove once Flutter keys that cache on every attachment
+  (flutter/flutter#192539).
 - **Breaking: `VoxelChunkView` draws what changed in `rebuild`, once a frame, within a
   time budget.** `apply` and `remove` only keep or drop the chunk and mark its region;
   `rebuild(near, {budgetUsec})` builds the marked regions nearest the chunk `near` first,

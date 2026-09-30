@@ -6,6 +6,8 @@ export 'src/box_mesh.dart';
 export 'src/day_night_sky.dart';
 export 'src/mirrored_camera.dart';
 export 'src/node_body.dart';
+export 'src/render_size_watch.dart';
+export 'src/resize_safe_scene.dart';
 export 'src/rig_part.dart';
 export 'src/selection_outline.dart';
 export 'src/terrain_material.dart';

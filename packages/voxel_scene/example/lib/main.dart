@@ -83,7 +83,7 @@ class HillsView extends StatefulWidget {
 }
 
 class _HillsViewState extends State<HillsView> {
-  final Scene _scene = Scene();
+  final Scene _scene = ResizeSafeScene();
   final VoxelChunkView _view = VoxelChunkView();
   late final ChunkStreamer _streamer = ChunkStreamer(table: table, sink: _view, loadRadius: 6);
   final ValueNotifier<String> _stats = ValueNotifier('starting the workers');
