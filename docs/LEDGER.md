@@ -22,14 +22,6 @@
 - **Cost of leaving it:** the kit says it targets every platform Flutter supports, but a first-person game on two of the three desktops plays like a touch screen with a mouse. Nothing tells a game author about it: `pointerLockSupported` is public, but the README never mentions it.
 - **Found while:** 2026-09-24 — adding Windows and Linux runners to the examples, for the launch post.
 
-### KL-008 · The example crashes in the Adreno driver in its first two seconds, now and then
-
-- **Lens:** platform stability / rendering
-- **Evidence:** three tombstones on the Galaxy S24 (Snapdragon 8 Gen 3, Android 16, Flutter 3.47.5, `adb shell dumpsys dropbox --print SYSTEM_TOMBSTONE`), 2026-09-25 20:10, 20:13 and 20:20, each with the process 1–2 s old: `SIGSEGV`, null pointer dereference at `0x3f8`, on the main thread (UI and platform merged), in `vulkan.adreno.so` `vkCmdBeginRenderPass` called from `InternalFlutterGpu_RenderPass_Begin`, so from a flutter_scene render pass the game encodes. They hit both sides of PF14's A/B (`70ca8dc`, `2f89a05`); the dropbox, which reaches back to 2026-09-22 and the 104 phone runs committed under `docs/perf/`, holds no other native crash of the app. `packages/voxel_game/example/lib/benchmark.dart:49-50` turns the window to landscape and full screen as `main` starts, so the first frames are drawn while the surface is resized; that is the suspect, not a finding.
-- **Cost of leaving it:** a game built on the kit can die at launch on a current flagship, with nothing in the `flutter` log; a phone benchmark loses the run (`tool/run_benchmark.dart` now prints the exit reason and the crash log when it does).
-- **Found while:** 2026-09-25 — finding why the phone runner lost runs during PF14's A/B.
-- **Seen again:** 2026-09-28, PF3's phone A/B: the same `SIGSEGV` at `0x3f8` in `vkCmdBeginRenderPass` under `InternalFlutterGpu_RenderPass_Begin`, the second run of a call (`orbit:6` after `mobs:6`, `9c36cc2`, no PF3 code), 18 lines and 19 launches that day.
-
 ### KL-012 · The minecraft example's instructions describe it as a folder of Dawnforge
 
 - **Lens:** docs / AI context
@@ -38,6 +30,16 @@
 - **Found while:** 2026-09-30 — closing `KL-006`, whose evidence named the stale `CLAUDE.md`.
 
 ## Closed
+
+### KL-008 · The example crashes in the Adreno driver in its first two seconds, now and then
+
+- **Lens:** platform stability / rendering
+- **Evidence:** three tombstones on the Galaxy S24 (Snapdragon 8 Gen 3, Android 16, Flutter 3.47.5, `adb shell dumpsys dropbox --print SYSTEM_TOMBSTONE`), 2026-09-25 20:10, 20:13 and 20:20, each with the process 1–2 s old: `SIGSEGV`, null pointer dereference at `0x3f8`, on the main thread (UI and platform merged), in `vulkan.adreno.so` `vkCmdBeginRenderPass` called from `InternalFlutterGpu_RenderPass_Begin`, so from a flutter_scene render pass the game encodes. They hit both sides of PF14's A/B (`70ca8dc`, `2f89a05`); the dropbox, which reaches back to 2026-09-22 and the 104 phone runs committed under `docs/perf/`, holds no other native crash of the app. `packages/voxel_game/example/lib/benchmark.dart:49-50` turns the window to landscape and full screen as `main` starts, so the first frames are drawn while the surface is resized; that is the suspect, not a finding.
+- **Cost of leaving it:** a game built on the kit can die at launch on a current flagship, with nothing in the `flutter` log; a phone benchmark loses the run (`tool/run_benchmark.dart` now prints the exit reason and the crash log when it does).
+- **Found while:** 2026-09-25 — finding why the phone runner lost runs during PF14's A/B.
+- **Seen again:** 2026-09-28, PF3's phone A/B: the same `SIGSEGV` at `0x3f8` in `vkCmdBeginRenderPass` under `InternalFlutterGpu_RenderPass_Begin`, the second run of a call (`orbit:6` after `mobs:6`, `9c36cc2`, no PF3 code), 18 lines and 19 launches that day.
+- **Closed by:** 2026-09-30 — `voxel_scene: ResizeSafeScene drops the sun's shadow cache on a resize` and `voxel_game, examples: every game renders through a ResizeSafeScene`. The cause is in the code, not a guess: flutter_scene 0.23's shadow pass draws static casters into persistent tiles (`render/shadow_pass.dart:246`, `entry.tile`) with a depth texture from the view's transient pool (`:255`), and `_ViewSurface.nextSwapchainColor` clears that pool whenever the render's pixel size changes (`surface.dart:83-86`); Impeller's Vulkan backend caches a framebuffer on the colour texture keyed by it alone, so the tile's next refresh begins a render pass on the freed depth's image view — flutter/flutter#192538, the same `vkCmdBeginRenderPass` crash in a vendor driver, still open with its fix (#192539) unmerged under Flutter 3.47.5. It fits every observation: the benchmark turns to landscape as it starts, the chunks streaming in change the static signature and refresh a tile every frame (`render/shadow_cache.dart`, `maxAmortizedRefreshes`), and the finalizer that frees the depth runs when it runs, hence now and then; each sun step rebuilds the tiles, which ends the window. `ResizeSafeScene` turns the sun's `cacheStaticShadows` off for the one frame rendered at a new size (`RenderSizeWatch`), so flutter_scene discards the tiles and builds new ones on the new depth. `MeasuredScene`, the minecraft example's `PacedScene` and voxel_scene's example extend or use it. **Not witnessed on the phone**: the crash hit about 4 of 123 launches, so showing it gone takes a hundred-odd launches of the benchmark on the S24, which is the owner's call (`CLAUDE.md`, §Benchmarks). Covered by `packages/voxel_scene/test/render_size_watch_test.dart` and seen on the Mac (the minecraft example's `--screenshot`, the same picture as before). Remove the scene once the Flutter the kit requires carries #192539.
+
 
 ### KL-006 · The minecraft example measures the published kit, not this tree
 

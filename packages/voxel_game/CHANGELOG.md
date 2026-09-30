@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- `MeasuredScene`, the scene the game renders, is a voxel_scene `ResizeSafeScene`: the
+  frame drawn at a new size (a phone turning to landscape, a window resized, a new render
+  scale) draws the sun's static shadows without their cache, so no cached tile begins a
+  render pass on a depth texture the resize freed, which crashed the Adreno Vulkan driver
+  in the first seconds of a game now and then.
 - **A phone gets controls it can see.** `TouchControls` draws a floating stick in the
   lower-left zone (centred where the thumb lands; pushed past `sprintAt` of its reach it
   also holds sprint), jump and sneak at the bottom right, the view and pause at the top

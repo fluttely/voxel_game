@@ -2,6 +2,7 @@ import 'dart:collection';
 import 'dart:ui' as ui;
 
 import 'package:flutter_scene/scene.dart';
+import 'package:voxel_scene/voxel_scene.dart';
 // flutter_scene's completion tracker: every command buffer the renderer submits
 // is numbered there and marked done from its GPU completion callback. The kit
 // pins flutter_scene exactly, as voxel_scene does for its gpu shim.
@@ -24,7 +25,10 @@ import 'frame_stats.dart';
 /// queued before it: a latency, not the GPU's cost. A GPU-bound frame keeps
 /// about three frames queued (a Metal System Trace of `orbit:6` at 120 Hz: 9.8
 /// ms of GPU work a frame, 29 ms of this latency).
-final class MeasuredScene extends Scene {
+///
+/// It is a [ResizeSafeScene], so a resize never leaves the sun's cached shadow
+/// tiles on a freed depth texture (a Vulkan driver crash, `KL-008`).
+final class MeasuredScene extends ResizeSafeScene {
   /// A scene reporting to [stats].
   MeasuredScene(this.stats);
 

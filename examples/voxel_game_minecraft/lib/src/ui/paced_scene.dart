@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_scene/scene.dart';
+import 'package:voxel_scene/voxel_scene.dart';
 // flutter_scene's completion tracker: every command buffer the renderer submits
 // is numbered here and marked done from its GPU completion callback.
 // ignore: implementation_imports
@@ -28,7 +29,7 @@ import 'package:flutter_scene/src/render/frame_transients.dart' show rendererSub
 /// would write the texture on screen. The scene shows one frame late and renders
 /// at most every other vsync (~60 Hz on a 120 Hz display); the world keeps
 /// ticking behind it, only its picture waits.
-base class PacedScene extends Scene {
+base class PacedScene extends ResizeSafeScene {
   /// `--pace-probe`: print the counters every [_logEvery] painted frames.
   static bool log = false;
   static const int _logEvery = 60;
