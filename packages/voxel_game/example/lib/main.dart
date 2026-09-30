@@ -103,7 +103,7 @@ const game = VoxelGameSpec(
     BlockType('stairs_w', color: 0xB08850, shape: BlockShape.stairsW, hardness: 2.0, tool: 'axe', drop: 'stairs'),
   ],
   // 2. Items that are not blocks — tools, food (eaten with use), armour (worn with use), a door
-  //    (placing its block) — and how to craft things.
+  //    (placing its block), buckets — and how to craft things.
   items: [
     ItemType('coal', color: 0x202020),
     ItemType('wooden_pickaxe', color: 0xB08850, tool: 'pickaxe', tier: 1, stack: 1, durability: 60, damage: 2),
@@ -120,6 +120,9 @@ const game = VoxelGameSpec(
     ItemType('wool_cap', color: 0xE8E8E8, stack: 1, armor: Armor('head', 1)),
     ItemType('wool_tunic', color: 0xE8E8E8, stack: 1, armor: Armor('chest', 3)),
     ItemType('door', color: 0x9A7040, block: 'door_z', stack: 16),
+    // A bucket scoops a water source with use, and pours it back.
+    ItemType('bucket', color: 0x8A6A40, stack: 16, bucket: Bucket.empty({'water': 'water_bucket'})),
+    ItemType('water_bucket', color: 0x3366CC, stack: 1, bucket: Bucket.full('water', empties: 'bucket')),
   ],
   recipes: [
     Recipe('planks', 4, {'log': 1}),
@@ -131,6 +134,7 @@ const game = VoxelGameSpec(
     Recipe('wool_tunic', 1, {'wool': 5}),
     Recipe('door', 1, {'planks': 6}),
     Recipe('stairs', 4, {'planks': 6}),
+    Recipe('bucket', 1, {'planks': 3}),
   ],
   // Status effects: what a food starts, what the player carries.
   effects: [EffectType('regeneration', 'Regeneration', 0.9, 0.35, 0.55, period: 2.0, heal: 1.0)],

@@ -2,6 +2,9 @@
 
 ## 0.3.0-dev
 
+- `ItemType.bucket` (a `Bucket`, new): `Bucket.empty` names, per liquid kind, the full item
+  it becomes once it scoops that liquid's source; `Bucket.full` names the source block it
+  pours and the item it becomes once poured (VA2).
 - `BlockType` says what a block does on its own (VA2), all off by default: `falls` (sand,
   gravel), `support` (a `Support`, new: `Support.below`, on any solid block or on the ones
   named in `on`, or `Support.side`, an opaque block on one of the four sides), `onWall` (the

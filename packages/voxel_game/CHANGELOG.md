@@ -26,6 +26,11 @@
     that block, unless the player sneaks; holding use does not flap it. A block that would
     turn solid around a body stays as it is (`BlockRules.use`, `VoxelGame.bodyIn`, which
     the player's placing now shares).
+  - A press of use with an empty `ItemType.bucket` scoops the first liquid source along
+    the aim that it fills with, leaving air; a full one pours its source against the aimed
+    block, where the world's flow spreads it. One of a stack changes: the last in the hand,
+    else into the bag. `VoxelGameSpec.buildItems` refuses a bucket of a liquid kind there
+    is not, pouring what is not a liquid source, or becoming an unknown item.
 - **Survival on the player (VA1).** Each piece is off until the spec declares it, so a game
   that declares none plays as before.
   - `PlayerSpec.hunger`, a `HungerSpec` (new): the bar empties by `secondsPerPoint`, heals

@@ -102,7 +102,8 @@ sockets, through `dart:isolate` and `dart:io`, which a browser does not have.
    ```
 
 2. **Declare items.** Every block you can hold is an item already. One that is eaten says
-   what it does in `food`, one that is worn where in `armor`.
+   what it does in `food`, one that is worn where in `armor`, one that carries a liquid in
+   `bucket` (`Bucket.empty`, `Bucket.full`).
 
    ```dart
    final items = ItemRegistry([

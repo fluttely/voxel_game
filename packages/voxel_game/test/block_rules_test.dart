@@ -96,6 +96,8 @@ const _items = [
   ItemType('melon_slice', color: 0xE04040),
   ItemType('seeds', color: 0x99BB44),
   ItemType('door', color: 0x9A7040, block: 'door_z', stack: 16),
+  ItemType('bucket', color: 0xA0A0A8, stack: 16, bucket: Bucket.empty({'water': 'water_bucket'})),
+  ItemType('water_bucket', color: 0x3366CC, stack: 1, bucket: Bucket.full('water', empties: 'bucket')),
 ];
 
 /// Level grass at y 20 (its top at 20), no caves, no trees, always day.
@@ -342,5 +344,39 @@ void main() {
     await _run(game, 0.3);
     await _use(game);
     expect(w.blockNameAt(const IVec3(6, 20, 0)), 'stairs_e');
+  });
+
+  test('an empty bucket scoops a source, and a full one pours it', () async {
+    final game = await _start();
+    final w = game.world, p = game.player;
+    const pool = IVec3(0, 20, -2);
+    w.setBlockNamed(pool, 'water');
+    _hold(p, 'bucket', 3);
+    _stand(game, 0, 0, pitch: -0.51);
+    await _use(game);
+    expect(w.blockNameAt(pool), 'air');
+    expect(p.inventory.countAt(0), 2, reason: 'one bucket of the stack was filled');
+    expect(p.inventory.countOf('water_bucket'), 1, reason: 'the full one went to the bag');
+
+    await _run(game, 0.3);
+    await _use(game);
+    expect(p.inventory.countOf('bucket'), 2, reason: 'nothing left to scoop');
+
+    _hold(p, 'water_bucket');
+    _stand(game, 0, 0, pitch: -0.68);
+    await _run(game, 0.3);
+    await _use(game);
+    expect(w.blockNameAt(pool), 'water', reason: 'poured against the top of the grass');
+    expect(p.inventory.idAt(0), 'bucket', reason: 'the last full bucket empties in the hand');
+  });
+
+  test('a bucket of a liquid there is not is refused', () {
+    final bad = _spec.copyWith(
+      items: [
+        ..._items,
+        const ItemType('lava_bucket', color: 0xFF6010, bucket: Bucket.full('lava', empties: 'bucket')),
+      ],
+    );
+    expect(() => bad.buildItems(bad.buildBlocks()), throwsArgumentError);
   });
 }

@@ -42,7 +42,10 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
   stand, a torch put against a wall becomes its `onWall` form, a block with `loot` drops
   what its `LootTable` rolls, stairs take the `facing` variant the player looks toward, and
   a door is `tall` (two cells, broken as one) and turns into its `usedInto` on a press of
-  use. The host runs them (`VoxelGame.blockRules`); a client receives what they changed.
+  use. A bucket (`ItemType(bucket: Bucket.empty({'water': 'water_bucket'}))`) scoops a
+  liquid's source and a full one (`Bucket.full('water', empties: 'bucket')`) pours it, for
+  the flow to spread. The host runs them (`VoxelGame.blockRules`); a client receives what
+  they changed.
 - `runVoxelGame` / `VoxelGameWidget`: the 3D view, a HUD, the inventory and crafting screen.
   A HUD of your own is built once; its pieces follow the game through `HudSelector`s.
   The default HUD's hotbar takes a finger: tap a slot to pick it, hold the one in hand to

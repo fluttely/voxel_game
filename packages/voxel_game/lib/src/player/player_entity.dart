@@ -479,6 +479,45 @@ class PlayerEntity extends NodeBody implements Target {
     _worn[slot] = stack.copy();
   }
 
+  /// An empty [bucket] in hand scoops the first liquid source along the aim
+  /// that it [Bucket.fills]; false when there is none in reach.
+  bool _scoop(Bucket bucket) {
+    final world = _game.world;
+    final cell = VoxelRaycast.liquid(world, eyePosition, forward, spec.reach);
+    if (cell == null) return false;
+    final id = world.getBlock(cell);
+    final full = bucket.fills[world.blocks.liquidOf(id)];
+    if (full == null || !world.blocks[id].liquidSource) return false;
+    if (!world.setBlock(cell, BlockRegistry.air)) return false;
+    _swapHeld(full);
+    _game.playSound('splash', at: Vector3(cell.x + 0.5, cell.y + 0.5, cell.z + 0.5), volumeDb: -10.0);
+    return true;
+  }
+
+  /// A full [bucket] in hand pours its liquid's source against the aimed
+  /// block; false when that cell would not take it.
+  bool _pour(Bucket bucket, RayHit? hit) {
+    if (hit == null) return false;
+    final world = _game.world;
+    final cell = hit.block + hit.normal;
+    if (!world.isLoaded(cell) || !world.blocks.isReplaceable(world.getBlock(cell))) return false;
+    if (!world.setBlockNamed(cell, bucket.liquid!)) return false;
+    _swapHeld(bucket.empties!);
+    _game.playSound('splash', at: Vector3(cell.x + 0.5, cell.y + 0.5, cell.z + 0.5), volumeDb: -10.0);
+    return true;
+  }
+
+  /// One of the item in hand becomes one [into]: in the hand when it was the
+  /// last, else in the bag.
+  void _swapHeld(String into) {
+    inventory.takeFromSlot(selectedSlot, 1);
+    if (inventory.isEmptySlot(selectedSlot)) {
+      inventory.setSlot(selectedSlot, ItemStack(into, 1));
+    } else {
+      _keep(into, 1);
+    }
+  }
+
   /// [count] of [item] into the bag, what does not fit on the ground.
   void _keep(String item, int count) {
     final left = inventory.add(item, count);
@@ -600,9 +639,10 @@ class PlayerEntity extends NodeBody implements Target {
   }
 
   /// Uses a lever, a station or a block that turns (a door) under the
-  /// crosshair, else eats or puts on the item in hand, else places its block.
-  /// What turns, is eaten or put on is used on a [pressed] only: holding the
-  /// button does not flap a door or eat a stack.
+  /// crosshair, else scoops or pours with the bucket in hand, eats or puts on
+  /// the item in hand, else places its block. What turns, fills, pours, is
+  /// eaten or put on is used on a [pressed] only: holding the button does not
+  /// flap a door or eat a stack.
   void _use({required bool pressed}) {
     final hit = aimedBlock;
     // A lever or a button is used, not built against.
@@ -628,6 +668,11 @@ class PlayerEntity extends NodeBody implements Target {
     }
     final item = _heldType;
     if (item == null) return;
+    final bucket = item.bucket;
+    if (bucket != null) {
+      if (pressed && (bucket.isFull ? _pour(bucket, hit) : _scoop(bucket))) _swingArm();
+      return;
+    }
     if (item.food != null || item.armor != null) {
       if (!pressed) return;
       if (eatHeld() || wearHeld()) _swingArm();

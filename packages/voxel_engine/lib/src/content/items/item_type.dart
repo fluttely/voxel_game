@@ -1,8 +1,10 @@
 import 'armor.dart';
+import 'bucket.dart';
 import 'food.dart';
 
 /// One item of a game. A block's item names that block in [block]; one that
-/// is eaten says what it does in [food], one that is worn in [armor].
+/// is eaten says what it does in [food], one that is worn in [armor], one
+/// that carries a liquid in [bucket].
 ///
 /// A game with more to say about its items subclasses this and keeps an
 /// `ItemRegistry<ItsType>`.
@@ -20,6 +22,7 @@ class ItemType {
     this.durability = 0,
     this.food,
     this.armor,
+    this.bucket,
     this.tags = const {},
   }) : r = ((color >> 16) & 0xFF) / 255.0,
        g = ((color >> 8) & 0xFF) / 255.0,
@@ -40,6 +43,7 @@ class ItemType {
     this.durability = 0,
     this.food,
     this.armor,
+    this.bucket,
     this.tags = const {},
   });
 
@@ -78,6 +82,9 @@ class ItemType {
 
   /// How it is worn, or null for an item that is not.
   final Armor? armor;
+
+  /// What it does with a liquid, or null for an item that is not a bucket.
+  final Bucket? bucket;
 
   /// Free labels a game queries by.
   final Set<String> tags;

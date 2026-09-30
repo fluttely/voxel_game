@@ -185,8 +185,9 @@ class VoxelGameSpec {
   /// The item registry: an item per holdable block, then [items] (replacing a
   /// block's item of the same id). Throws [ArgumentError] for a food whose
   /// effect is not in [effects] or which leaves an unknown item, for armour
-  /// worn in a slot the player does not have, and for a block whose loot
-  /// names an unknown item.
+  /// worn in a slot the player does not have, for a block whose loot names
+  /// an unknown item, and for a bucket that scoops or pours a liquid there is
+  /// not or becomes an unknown item.
   ItemRegistry<ItemType> buildItems(BlockRegistry<BlockType> registry) {
     final byId = <String, ItemType>{for (final i in ItemRegistry.forBlocks(registry)) i.id: i};
     for (final i in items) {
@@ -208,6 +209,18 @@ class VoxelGameSpec {
       }
       if (armor != null && !player.armorSlots.contains(armor.slot)) {
         throw ArgumentError.value(armor.slot, i.id, 'the armour is worn in a slot the player does not have');
+      }
+      final bucket = i.bucket;
+      if (bucket == null) continue;
+      for (final e in bucket.fills.entries) {
+        if (!registry.liquidKinds.contains(e.key)) throw ArgumentError.value(e.key, i.id, 'the bucket scoops no liquid');
+        if (!byId.containsKey(e.value)) throw ArgumentError.value(e.value, i.id, 'the bucket fills into no item');
+      }
+      if (bucket.liquid case final l?) {
+        if (!registry.has(l) || !registry[registry.indexOf(l)].isLiquid || !registry[registry.indexOf(l)].liquidSource) {
+          throw ArgumentError.value(l, i.id, 'the bucket pours what is not a liquid source');
+        }
+        if (!byId.containsKey(bucket.empties)) throw ArgumentError.value(bucket.empties, i.id, 'the bucket empties into no item');
       }
     }
     return ItemRegistry(byId.values);
