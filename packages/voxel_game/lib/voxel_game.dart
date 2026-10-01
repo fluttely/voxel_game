@@ -64,6 +64,7 @@ export 'src/ui/voxel_game_widget.dart';
 export 'src/ui/inventory_screen.dart';
 export 'src/ui/loading_screen.dart';
 export 'src/ui/loading_stage.dart';
+export 'src/ui/notices.dart';
 export 'src/ui/pause_menu.dart';
 export 'src/ui/touch_controls.dart';
 export 'src/world/world_save.dart';

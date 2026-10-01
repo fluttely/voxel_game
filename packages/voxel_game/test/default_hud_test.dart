@@ -134,4 +134,111 @@ void main() {
     expect(find.textContaining('Click to play'), findsOneWidget);
     game.dispose();
   });
+
+  // The icons of [icon] drawn in [color] in the HUD.
+  int icons(IconData icon, {Color? color}) => find
+      .descendant(of: find.byType(DefaultHud), matching: find.byIcon(icon))
+      .evaluate()
+      .where((e) => color == null || (e.widget as Icon).color == color)
+      .length;
+
+  testWidgets('a bar shows only what the spec declares', (tester) async {
+    final game = await start(tester);
+    await step(tester, game);
+    expect(icons(Icons.favorite), 10);
+    expect(icons(Icons.restaurant), 0, reason: 'no PlayerSpec.hunger');
+    expect(icons(Icons.shield), 0, reason: 'no armour');
+    expect(find.byType(LinearProgressIndicator), findsNothing, reason: 'no PlayerSpec.xp, and nothing mined');
+    expect(find.textContaining('Regeneration'), findsNothing);
+    game.dispose();
+  });
+
+  testWidgets('hunger sits beside the hearts, two points an icon', (tester) async {
+    final game = await start(tester, _spec.copyWith(player: const PlayerSpec(hunger: HungerSpec())));
+    final orange = Colors.orange.shade300;
+    await step(tester, game);
+    expect(icons(Icons.restaurant, color: orange), 10);
+    game.player.hunger = 9;
+    await step(tester, game);
+    expect(icons(Icons.restaurant, color: orange), 4);
+    expect(icons(Icons.restaurant, color: orange.withValues(alpha: 0.5)), 1);
+    expect(icons(Icons.restaurant, color: Colors.white24), 5);
+    game.dispose();
+  });
+
+  testWidgets('armour shows over the hearts while there is any', (tester) async {
+    final game = await start(
+      tester,
+      _spec.copyWith(
+        effects: const [
+          EffectType('iron_skin', 'Iron skin', 0.6, 0.6, 0.7, stats: {PlayerEntity.armorStat: StatModifier.add(3)}),
+        ],
+      ),
+    );
+    await step(tester, game);
+    expect(icons(Icons.shield) + icons(Icons.shield_outlined), 0);
+    game.player.effects.apply('iron_skin', 30);
+    await step(tester, game);
+    expect(icons(Icons.shield), 1);
+    expect(icons(Icons.shield_outlined), 1);
+    game.dispose();
+  });
+
+  testWidgets('experience is a bar under the hearts, with the level on it', (tester) async {
+    final game = await start(tester, _spec.copyWith(player: const PlayerSpec(xp: XpSpec(base: 10, exponent: 0))));
+    await step(tester, game);
+    LinearProgressIndicator bar() => tester.widget(find.byType(LinearProgressIndicator));
+    expect(bar().value, 0.0);
+    expect(find.text('0'), findsNothing, reason: 'level 0 shows no number');
+    game.player.gainXp(25);
+    await step(tester, game);
+    expect(find.text('2'), findsOneWidget);
+    expect(bar().value, 0.5);
+    game.dispose();
+  });
+
+  testWidgets('each effect shows its name, its power past the first and its time left', (tester) async {
+    final game = await start(
+      tester,
+      _spec.copyWith(
+        effects: const [
+          EffectType('regeneration', 'Regeneration', 0.9, 0.35, 0.55, period: 2.0, heal: 1.0),
+          EffectType('poison', 'Poison', 0.3, 0.6, 0.2, period: 1.0, damage: 0.5, bad: true),
+        ],
+      ),
+    );
+    final effects = game.player.effects;
+    effects.apply('regeneration', 75, 2);
+    effects.apply('poison', 3);
+    await step(tester, game);
+    expect(find.text('Regeneration 2  1:15'), findsOneWidget);
+    expect(find.text('Poison  3s'), findsOneWidget);
+    // A bit over four seconds, a step a frame.
+    for (var i = 0; i < 250; i++) {
+      game.frame(1 / 60);
+    }
+    await tester.pump();
+    expect(find.text('Regeneration 2  1:11'), findsOneWidget);
+    expect(find.textContaining('Poison'), findsNothing, reason: 'it ran out');
+    game.dispose();
+  });
+
+  testWidgets('the game\'s notices and the pickups show at the right, then go', (tester) async {
+    final game = await start(tester);
+    game.notify('A chest is full');
+    game.player.pickUp('dirt', 3);
+    await step(tester, game);
+    expect(find.text('A chest is full'), findsOneWidget);
+    expect(find.text('+3 Dirt'), findsOneWidget);
+    game.player.pickUp('dirt', 2);
+    await step(tester, game);
+    expect(find.text('+5 Dirt'), findsOneWidget, reason: 'a pickup soon after the last adds to its line');
+    for (var i = 0; i < 4 * 60; i++) {
+      game.frame(1 / 60);
+    }
+    await tester.pumpAndSettle();
+    expect(find.text('A chest is full'), findsNothing);
+    expect(find.text('+5 Dirt'), findsNothing);
+    game.dispose();
+  });
 }

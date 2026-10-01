@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- **The default HUD shows survival and tells the player things (VA4).** Each survival piece
+  only as the spec declares it:
+  - hunger beside the hearts with `PlayerSpec.hunger`, two points an icon;
+  - armour over the hearts while `PlayerEntity.armor` is above 0;
+  - the experience bar under the hearts, with the level on it past 0, with `PlayerSpec.xp`;
+  - the status effects at the top left when `VoxelGameSpec.effects` names some: a row each,
+    in its colour, with its power past the first and its time left (`1:15`, `9s`).
+  - The hearts follow `PlayerEntity.maxHp`, which a level raises; they used to stop at the
+    count of the first frame.
+  - `HudSelector.equals` (new): how two values compare, `==` unless given; `listEquals`
+    for a list of records.
+  - `VoxelGame.notify(text)` (new) tells the player something for three seconds, in a feed
+    at the right of the default HUD. Under it, what went into the bag: `PlayerEntity.pickUp`
+    adds a line per item (`+3 Dirt`), and a repeat within a second of the last adds to it
+    (`+5 Dirt`). Both live in `VoxelGame.notices` (`Notices`, new, exported), which `frame`
+    ages; each line is a `NoticeLine` record, fading for its last half second.
+  - The example declares `XpSpec()` and gives experience for a kill (`onMobKilled`).
 - **Screens as a state machine (VA3).** Breaking: `VoxelGame.openScreen` was a
   `ValueNotifier<String?>` of a station id; it is now a method.
   - `GameScreen` (new, sealed): `BagScreen` (the bag, crafting at its `station`, `''` in the

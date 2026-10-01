@@ -36,7 +36,10 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
   use) and armour (`ItemType(armor: Armor('chest', 3))`, put on with use, turning a blow aside
   down to `PlayerSpec.armorFloor`). The player carries the spec's `effects` in
   `PlayerEntity.effects`, which bend its speed, damage, mining and armour. Each is off until
-  declared.
+  declared, and the default HUD draws only what is: hunger beside the hearts, armour over
+  them, the experience bar under them, the effects with their time left at the top left.
+- `VoxelGame.notify('Night falls')` tells the player something for a few seconds; the default
+  HUD shows it at the right, over what the player just picked up (`+5 Dirt`).
 - Blocks that do things, each a field of its row: sand `falls` to where it lands, a torch
   with a `support` drops once its floor or wall goes and is never placed where it would not
   stand, a torch put against a wall becomes its `onWall` form, a block with `loot` drops

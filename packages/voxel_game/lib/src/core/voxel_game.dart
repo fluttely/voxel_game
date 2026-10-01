@@ -31,6 +31,7 @@ import '../spec/graphics_spec.dart';
 import '../spec/signal_spec.dart';
 import '../spec/voxel_game_spec.dart';
 import '../ui/game_screen.dart';
+import '../ui/notices.dart';
 import '../world/block_rules.dart';
 import '../world/game_world.dart';
 import '../world/world_save.dart';
@@ -400,6 +401,14 @@ class VoxelGame {
     _ => null,
   };
 
+  /// What the HUD tells the player for a few seconds: [notify]'s feed and
+  /// the pickups. [frame] ages it.
+  final Notices notices = Notices();
+
+  /// Tells the player [text] for a few seconds, in the HUD's feed. Throws
+  /// for empty text.
+  void notify(String text) => notices.add(text);
+
   /// The frames drawn so far: moves once at the end of every [frame]. A HUD
   /// listens to it to check what it shows (`HudSelector`).
   ValueListenable<int> get frames => _frames;
@@ -454,6 +463,7 @@ class VoxelGame {
       final intensity = s.update(timeOfDay, fogDistance: viewDistance);
       world.setSkyIntensity(intensity);
     }
+    notices.advance(dt);
     _frameWatch.stop();
     stats.addFrame(seconds: dt, simMs: _frameWatch.elapsedMicroseconds / 1000.0, steps: steps);
     _frames.value++;

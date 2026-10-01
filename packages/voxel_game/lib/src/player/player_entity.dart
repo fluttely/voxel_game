@@ -216,10 +216,14 @@ class PlayerEntity extends NodeBody implements Target {
     return true;
   }
 
-  /// Adds [count] of [item] to the bag; returns what did not fit.
+  /// Adds [count] of [item] to the bag, and tells the player what went in
+  /// (`VoxelGame.notices`); returns what did not fit.
   int pickUp(String item, int count) {
     final left = inventory.add(item, count);
-    if (left < count) _game.playSound('pickup', volumeDb: -8.0, pitch: 1.0 + _game.random.nextDouble() * 0.3);
+    if (left < count) {
+      _game.playSound('pickup', volumeDb: -8.0, pitch: 1.0 + _game.random.nextDouble() * 0.3);
+      _game.notices.picked(item, _game.items[item].name, count - left);
+    }
     return left;
   }
 
