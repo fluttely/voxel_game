@@ -14,13 +14,18 @@ import '../input/voxel_action.dart';
 import '../mobs/mob.dart';
 import '../mobs/rig.dart';
 import '../ui/game_screen.dart';
+import '../vehicles/rideable.dart';
+import '../vehicles/vehicle.dart';
+import '../vehicles/vehicle_spec.dart';
 import 'character_motor.dart';
 import 'player_spec.dart';
 
 /// The player: a body driven by [VoxelAction]s that looks, walks, swims,
 /// climbs ladders, mines and places blocks, hits creatures, tames and rides
-/// them (a use with what tames one in hand; sneak to get off), picks items up,
-/// takes falls, burns in lava, drowns, dies and stands up again at the spawn.
+/// them (a use with what tames one in hand; sneak to get off), puts vehicles
+/// down, rides them and breaks them (`VoxelGameSpec.vehicles`), picks items
+/// up, takes falls, burns in lava, drowns, dies and stands up again at the
+/// spawn.
 ///
 /// It survives by what its [spec] declares: it gets hungry and eats
 /// ([PlayerSpec.hunger], `ItemType.food`), wears armour (`ItemType.armor`),
@@ -110,12 +115,17 @@ class PlayerEntity extends NodeBody implements Target {
   /// The block under the crosshair, or null.
   RayHit? aimedBlock;
 
-  /// The creature under the crosshair (nearer than any block), or null.
+  /// The creature under the crosshair (nearer than any block or vehicle), or
+  /// null.
   Mob? aimedMob;
 
-  /// The creature the player rides, or null: it walks by the player's
-  /// input, and sneak gets off ([dismount]).
-  Mob? riding;
+  /// The vehicle under the crosshair (nearer than any block or creature), or
+  /// null; never the one ridden.
+  Vehicle? aimedVehicle;
+
+  /// What the player rides, a mount or a vehicle, or null: it moves by the
+  /// player's input, and sneak gets off ([dismount]).
+  Rideable? riding;
 
   /// 0..1 how far the aimed block is mined.
   double mineProgress = 0.0;
@@ -361,8 +371,7 @@ class PlayerEntity extends NodeBody implements Target {
       // The bag is not opened from here: `VoxelGame.step` is the one reader of
       // that button, so a press cannot open it and close it in one step.
     }
-    final mount = riding;
-    if (mount != null && (mount.isDead || mount.removed)) dismount();
+    if (riding?.gone ?? false) dismount();
     if (riding != null) {
       _ride(dt, gameplay);
     } else {
@@ -440,11 +449,11 @@ class PlayerEntity extends NodeBody implements Target {
 
   static const _leftX = GamepadAxis.leftStickX, _leftY = GamepadAxis.leftStickY;
 
-  /// One step in the saddle: the move goes to the mount ([Mob.carry]), sprint
-  /// and jump with it, and the player sits on its seat; a press of sneak gets
-  /// off.
+  /// One step in the saddle or the seat: the move goes to what is ridden
+  /// ([Rideable.carry]: the move along the ground, its two axes, sprint and
+  /// jump), and the player sits on its seat; a press of sneak gets off.
   void _ride(double dt, bool gameplay) {
-    final mount = riding!;
+    final seat = riding!;
     final input = _game.input;
     if (gameplay && input.justPressed(VoxelAction.sneak)) {
       dismount();
@@ -453,56 +462,56 @@ class PlayerEntity extends NodeBody implements Target {
     final (x, y) = _moveAxes(gameplay);
     var wish = flatForward * -y + right * x;
     if (wish.length > 1.0) wish = wish.normalized();
-    mount.carry(
-      dt,
-      wish,
+    seat.carry(dt, (
+      wish: wish,
+      forward: -y,
+      turn: x,
       sprint: gameplay && input.down(VoxelAction.sprint) && y < 0.0,
       jump: gameplay && input.down(VoxelAction.jump),
-    );
-    position = mount.seat();
-    velocity = mount.velocity.clone();
+    ));
+    position = seat.seat();
+    velocity = seat.velocity.clone();
     motor.resetFall();
   }
 
-  /// Gets on [mount], the player's tamed mount that no one rides.
-  void ride(Mob mount) {
-    if (!identical(mount.owner, this) || mount.spec.mount == null) {
-      throw StateError('only the player\'s own tamed mount can be ridden');
-    }
-    if (mount.rider != null || riding != null) throw StateError('one rider, one mount');
-    riding = mount;
-    mount.rider = this;
+  /// Gets on [seat]: one that [Rideable.takes] the player (their own tamed
+  /// mount, a vehicle nobody rides), while they ride nothing. Throws
+  /// otherwise.
+  void ride(Rideable seat) {
+    if (riding != null) throw StateError('one rider, one seat: the player rides already');
+    if (!seat.takes(this)) throw StateError('the ${seat.name.toLowerCase()} does not take the player');
+    riding = seat;
+    seat.rider = this;
     mineProgress = 0.0;
     _miningCell = null;
-    position = mount.seat();
+    position = seat.seat();
     velocity = Vector3.zero();
-    _game.notify('Riding the ${mount.spec.name.toLowerCase()}: sneak to get off');
+    _game.notify('Riding the ${seat.name.toLowerCase()}: sneak to get off');
   }
 
-  /// Gets off the mount: beside it, on its right, where that is clear, else
-  /// where it stands. One that is gone leaves the player where they are.
+  /// Gets off what is ridden: beside it, on its right, where that is clear,
+  /// else where it stands.
   void dismount() {
-    final mount = riding;
-    if (mount == null) throw StateError('the player rides nothing');
+    final seat = riding;
+    if (seat == null) throw StateError('the player rides nothing');
     riding = null;
-    mount.rider = null;
-    if (!mount.removed) {
-      final side = mount.position + right * (mount.halfWidth + halfWidth + 0.2);
-      final cell = IVec3.floor(side + Vector3(0, 0.1, 0));
-      final w = _game.world;
-      position = !w.isSolid(cell) && !w.isSolid(cell + IVec3.up) ? side : mount.position.clone();
-    }
+    seat.rider = null;
+    final side = seat.position + right * (seat.halfWidth + halfWidth + 0.2);
+    final cell = IVec3.floor(side + Vector3(0, 0.1, 0));
+    final w = _game.world;
+    position = !w.isSolid(cell) && !w.isSolid(cell + IVec3.up) ? side : seat.position.clone();
     velocity = Vector3.zero();
     motor.resetFall();
   }
 
   /// Whether a use on [mob] does something: the item in hand tames it, or it
-  /// is the player's own mount and no one rides it. The host's creatures (a
-  /// client's replicas) are neither tamed nor ridden from here (VA16).
+  /// is the player's own mount, no one rides it and the player rides nothing
+  /// ([Mob.takes]). The host's creatures (a client's replicas) are neither
+  /// tamed nor ridden from here (VA16).
   bool usableOn(Mob mob) {
     if (mob.replica || mob.isDead) return false;
     if (!mob.tamed) return mob.spec.tameWith.contains(heldItem);
-    return identical(mob.owner, this) && mob.spec.mount != null && mob.rider == null;
+    return riding == null && mob.takes(this);
   }
 
   /// Uses the item in hand on [mob] ([usableOn]): one of what tames it,
@@ -714,29 +723,39 @@ class PlayerEntity extends NodeBody implements Target {
       blockedAt: clear,
       accepts: (m) => !m.isDead && !identical(m, riding),
     );
+    final vehicle = Reach.nearestBody(
+      _game.vehicles,
+      origin,
+      dir,
+      maxDist: spec.meleeReach,
+      blockedAt: clear,
+      accepts: (v) => !v.gone && !identical(v, riding),
+    );
     final mobD = mob?.rayDistance(origin, dir) ?? double.infinity;
-    final block = hit != null && hit.distance <= mobD;
+    final vehicleD = vehicle?.rayDistance(origin, dir) ?? double.infinity;
+    final block = hit != null && hit.distance <= math.min(mobD, vehicleD);
     aimedBlock = block ? hit : null;
-    aimedMob = block ? null : mob;
-    // A finger's tap swings at a creature in reach and uses anything else, as
-    // a mouse's two buttons would.
+    aimedMob = !block && mobD <= vehicleD ? mob : null;
+    aimedVehicle = !block && mobD > vehicleD ? vehicle : null;
+    // A finger's tap swings at a creature in reach and uses anything else (a
+    // vehicle is boarded), as a mouse's two buttons would.
     _game.input.touchTapPrimary = aimedMob != null && !usableOn(aimedMob!);
     final o = outline;
     if (o == null) return;
     if (block) {
       o.show(selectionBoxAt(_game.world, hit.block.x, hit.block.y, hit.block.z));
-    } else if (mob == null) {
+    } else if (aimedMob == null && aimedVehicle == null) {
       o.hide();
     }
   }
 
-  /// Puts the outline around the aimed creature where the creature is drawn
+  /// Puts the outline around the aimed creature or vehicle where it is drawn
   /// this frame; a block's is set by the step, where blocks change.
   void drawOutline() {
-    final o = outline, mob = aimedMob;
-    if (o == null || mob == null) return;
-    final p = mob.drawnPosition, w = mob.halfWidth;
-    o.show(CollisionBox(p.x - w, p.y, p.z - w, p.x + w, p.y + mob.height, p.z + w));
+    final o = outline, body = aimedMob ?? aimedVehicle;
+    if (o == null || body == null) return;
+    final p = body.drawnPosition, w = body.halfWidth;
+    o.show(CollisionBox(p.x - w, p.y, p.z - w, p.x + w, p.y + body.height, p.z + w));
   }
 
   ItemType? get _heldType {
@@ -754,6 +773,16 @@ class PlayerEntity extends NodeBody implements Target {
   }
 
   void _attack(double dt, bool pressed) {
+    final vehicle = aimedVehicle;
+    if (vehicle != null) {
+      mineProgress = 0.0;
+      if (_attackCooldown > 0.0) return;
+      _attackCooldown = 0.4;
+      _swingArm();
+      // One swing breaks one nobody rides; the host owns them (VA16).
+      if (vehicle.rider == null && _game.authority) vehicle.breakApart(drop: !spec.creative);
+      return;
+    }
     final mob = aimedMob;
     if (mob != null) {
       mineProgress = 0.0;
@@ -807,17 +836,27 @@ class PlayerEntity extends NodeBody implements Target {
   }
 
   /// Uses the creature under the crosshair when the item in hand tames it
-  /// or it is the player's mount to ride ([usableOn]); else a lever, a store,
+  /// or it is the player's mount to ride ([usableOn]), or rides the vehicle
+  /// under it when it takes the player ([Vehicle.takes]); else a lever, a store,
   /// a station or a block that turns (a door) under the crosshair, else lights a portal's frame with its lighter in hand
   /// (`PortalSpec.lighter`), scoops or pours with the bucket in hand, works the aimed
   /// block with the tool in hand (`BlockType.turnsWith`), eats or puts on the
-  /// item in hand, else places its block. What turns, fills, pours, is worked,
-  /// eaten or put on is used on a [pressed] only: holding the button does not
-  /// flap a door or eat a stack.
+  /// item in hand, puts down the vehicle it is ([_placeVehicle]), else places
+  /// its block. What turns, fills, pours, is worked, eaten, put on or put down
+  /// is used on a [pressed] only: holding the button does not flap a door or
+  /// eat a stack.
   void _use({required bool pressed}) {
     final mob = aimedMob;
     if (mob != null && usableOn(mob)) {
       if (pressed) _useOn(mob);
+      return;
+    }
+    final vehicle = aimedVehicle;
+    if (vehicle != null && riding == null && vehicle.takes(this)) {
+      if (pressed) {
+        _swingArm();
+        ride(vehicle);
+      }
       return;
     }
     final hit = aimedBlock;
@@ -857,6 +896,12 @@ class PlayerEntity extends NodeBody implements Target {
       _swingArm();
       _game.playSound('click', at: Vector3(hit.block.x + 0.5, hit.block.y + 0.5, hit.block.z + 0.5), volumeDb: -4.0);
       if (!spec.creative && item.durability > 0) inventory.wear(selectedSlot);
+      return;
+    }
+    final vehicleSpec = _game.vehicleFor(item.id);
+    if (vehicleSpec != null) {
+      // The host owns the vehicles (VA16): a client puts none down.
+      if (pressed && _game.authority) _placeVehicle(vehicleSpec);
       return;
     }
     final bucket = item.bucket;
@@ -912,6 +957,40 @@ class PlayerEntity extends NodeBody implements Target {
     _game.spec.onBlockPlaced?.call(_game, world.blocks.idOf(id), cell);
   }
 
+  /// Puts a vehicle of [vehicle] down where its kind goes along the aim,
+  /// pointing the way the player looks, one of its item used up (not in
+  /// creative); tells the player where it goes when there is no such place.
+  void _placeVehicle(VehicleSpec vehicle) {
+    final at = switch (vehicle) {
+      BoatSpec() => _boatPlace(),
+    };
+    if (at == null) {
+      _game.notify(switch (vehicle) {
+        BoatSpec() => 'A ${vehicle.name.toLowerCase()} goes on water',
+      });
+      return;
+    }
+    _swingArm();
+    _game.placeVehicle(vehicle.item, at, facing: yaw);
+    _game.playSound('place_${vehicle.sound}', at: at, volumeDb: -4.0);
+    if (!spec.creative) inventory.takeFromSlot(selectedSlot, 1);
+  }
+
+  /// Where a boat goes: on the surface of the first liquid along the aim
+  /// within reach (the bucket's ray), at the top of its column, with room
+  /// over it; null when there is none.
+  Vector3? _boatPlace() {
+    final world = _game.world;
+    final found = VoxelRaycast.liquid(world, eyePosition, forward, spec.reach);
+    if (found == null) return null;
+    var top = found;
+    while (world.table.isLiquid(world.getBlock(top + IVec3.up))) {
+      top = top + IVec3.up;
+    }
+    if (world.isSolid(top + IVec3.up)) return null;
+    return Vector3(top.x + 0.5, top.y + 0.9, top.z + 0.5);
+  }
+
   void _swingArm() {
     rig?.swing();
     _game.firstPerson?.swing();
@@ -949,11 +1028,16 @@ class PlayerEntity extends NodeBody implements Target {
     r.root.visible = cameraMode == CameraMode.thirdPerson;
     final id = heldItem;
     if (r.canHold) r.hold(id.isEmpty ? null : _game.itemModel(id));
-    // In the saddle the legs rest and the body faces the way the mount goes.
-    final seated = riding != null;
+    // Seated the legs rest and the body faces the way the seat points.
+    final seat = riding;
+    final seated = seat != null;
     final speed = math.sqrt(velocity.x * velocity.x + velocity.z * velocity.z);
     final flat = Vector3(velocity.x, 0, velocity.z);
-    final face = speed > 0.5 ? math.atan2(-flat.x, -flat.z) : yaw;
+    final face = seat != null
+        ? seat.facing
+        : speed > 0.5
+        ? math.atan2(-flat.x, -flat.z)
+        : yaw;
     // The hit-stop: the pose holds, the body still moves.
     if (!frozen) r.animate(dt, speed: seated ? 0.0 : speed, targetYaw: face, onFloor: seated || onFloor);
     r.paint(flashing ? VoxelModelMesh.flash() : VoxelModelMesh.material());

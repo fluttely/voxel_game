@@ -441,7 +441,7 @@ void main() {
       game.spawnMob('pet', p.position + Vector3(0, 0, -5));
       saves.save(game, 'pets');
       final json = jsonDecode(File('${dir.path}/pets/game.json').readAsStringSync()) as Map<String, Object?>;
-      expect(json['version'], 6);
+      expect(json['version'], WorldSaves.stateVersion);
       expect(((json['mobs']! as Map<String, Object?>)['world']! as List<Object?>).length, 2);
 
       final loaded = await VoxelGame.startHeadless(spec, save: saves.read('pets'));

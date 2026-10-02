@@ -8,6 +8,7 @@ import '../core/voxel_game.dart';
 import '../entities/game_entity.dart';
 import '../entities/target.dart';
 import '../player/character_motor.dart';
+import '../vehicles/rideable.dart';
 import 'behaviors.dart';
 import 'goal.dart';
 import 'mob_levels.dart';
@@ -28,7 +29,10 @@ import 'rig.dart';
 /// Behaviours steer it through [walkTo], [walkDirection], [halt] and
 /// [lookAt]; they read [target], [lastHurtBy], [sinceHurt] and [home], and
 /// keep their own state in [memory].
-class Mob extends GameEntity implements Target {
+///
+/// A tamed one with a `MobSpec.mount` is [Rideable]: its owner rides it, and
+/// its brain rests while they do.
+class Mob extends GameEntity implements Target, Rideable {
   /// A [spec] standing at [at].
   Mob(this.spec, Vector3 at) : hp = spec.hp, home = at.clone() {
     halfWidth = spec.halfWidth;
@@ -205,7 +209,16 @@ class Mob extends GameEntity implements Target {
   bool get tamed => _owner != null;
 
   /// Who rides it, or null. The rider moves it ([carry]); its brain rests.
+  @override
   Target? rider;
+
+  /// Its spec's name.
+  @override
+  String get name => spec.name;
+
+  /// Dead or removed.
+  @override
+  bool get gone => _dead || removed;
 
   bool _snap = false;
 
@@ -223,17 +236,27 @@ class Mob extends GameEntity implements Target {
   }
 
   /// Where its rider's feet go (`MountSpec.seat`).
+  @override
   Vector3 seat() => position + Vector3(0, spec.mount!.seat, 0);
 
-  /// One step of [dt] under its rider: walks along [wish] at its ridden pace
-  /// (`MobSpec.mount`), faster with [sprint], jumping with [jump].
-  void carry(double dt, Vector3 wish, {bool sprint = false, bool jump = false}) {
+  /// Whether [rider] may get on: it is a mount (`MobSpec.mount`) tamed by
+  /// [rider], alive, here (not a client's replica of the host's), and nobody
+  /// rides it.
+  @override
+  bool takes(Target rider) =>
+      identical(_owner, rider) && spec.mount != null && this.rider == null && !_dead && !removed && !replica;
+
+  /// One step of [dt] under its rider: walks along the input's `wish` at its
+  /// ridden pace (`MobSpec.mount`), faster with `sprint`, jumping with `jump`.
+  @override
+  void carry(double dt, RideInput input) {
     final mount = spec.mount!;
+    final wish = input.wish;
     motor.step(
       dt,
       wish: wish,
-      speed: spec.speed * mount.speed * (sprint ? mount.sprint : 1.0),
-      jump: jump || motor.swimming && headInLiquid,
+      speed: spec.speed * mount.speed * (input.sprint ? mount.sprint : 1.0),
+      jump: input.jump || motor.swimming && headInLiquid,
       jumpSpeed: mount.jumpVelocity,
       leaveWater: true,
     );
@@ -456,6 +479,7 @@ class Mob extends GameEntity implements Target {
 
   /// The yaw it faces, radians; set, it turns there (a creature loaded
   /// from a save).
+  @override
   double facing = 0.0;
 
   Vector3 _flyToward(Vector3 goal) {

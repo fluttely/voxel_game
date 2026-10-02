@@ -283,6 +283,8 @@ const game = VoxelGameSpec(
     ItemType('wheat', color: 0xD8BE50),
     ItemType('bread', color: 0xB8864A, food: Food(hunger: 5)),
     ItemType('flint_and_steel', color: 0x5A5A60, stack: 1, durability: 64),
+    // A boat: put on water with use, ridden by a use on it, left with sneak, broken by a swing.
+    ItemType('boat', color: 0x8C6133, stack: 1),
   ],
   recipes: [
     Recipe('planks', 4, {'log': 1}),
@@ -305,6 +307,7 @@ const game = VoxelGameSpec(
     Recipe('lamp', 1, {'torch': 1, 'planks': 4}),
     Recipe('piston', 1, {'planks': 3, 'cobblestone': 4, 'wire': 1}),
     Recipe('powered_rail', 6, {'planks': 2, 'cobblestone': 4, 'wire': 1}),
+    Recipe('boat', 1, {'planks': 5}),
   ],
   // Status effects: what a food starts, what the player carries.
   effects: [
@@ -577,6 +580,8 @@ const game = VoxelGameSpec(
       boss: true,
     ),
   ],
+  // Vehicles, one an item: the boat floats, rows forward and steers with the move keys.
+  vehicles: [BoatSpec(item: 'boat')],
   // 6. Screens of the game's own: this one is a button in the game menu (Esc, or ⏸ on a phone).
   screens: {'controls': ScreenSpec(_controls, menu: 'Controls')},
 );

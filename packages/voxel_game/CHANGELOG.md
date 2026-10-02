@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+- **Vehicles, first part: a seat and a boat (VA15a).** `Rideable`: anything with a seat (a
+  rider, a name, where it stands and points, `seat()`, `takes(rider)`, `gone`, and
+  `carry(dt, RideInput)`, the move along the ground plus its forward and turn axes, sprint
+  and jump). `Mob` is one. **Breaking:** `PlayerEntity.riding` is a `Rideable?`,
+  `PlayerEntity.ride` takes any `Rideable` that `takes` the player (it throws otherwise, and
+  while the player rides already), and `Mob.carry(dt, wish, sprint:, jump:)` is
+  `carry(dt, RideInput)`. A rider faces the way its seat points; one riding something no
+  longer uses a mount of theirs (`usableOn`), which threw before. `VoxelGameSpec.vehicles`:
+  `VehicleSpec`s, one an item (`checkVehicles`, run at start: the item exists, places no
+  block, and is no other vehicle's). A `BoatSpec` (the app's numbers by default: 6.5 m/s
+  rowed on liquid, 1.5 on land, 1.7 rad/s turn, a hull of planks drawn from its `model`
+  boxes) floats on any liquid and settles at its surface, is rowed by the move's forward
+  axis and steered by its right axis, coasts to rest without a rider, waits while its chunk
+  is not loaded, and rolls and bobs to the eye. The player puts one on the first liquid
+  along the aim with its item in hand (one used up, not in creative; "A boat goes on water"
+  otherwise), rides it by a use on it (`aimedVehicle`, the nearest of block, creature and
+  vehicle; a finger's tap boards it), gets off with sneak, and breaks one nobody rides with
+  a swing, back into its item (none in creative; `Vehicle.breakApart`). `VoxelGame.vehicles`,
+  `vehicleFor`, `placeVehicle`. A client neither puts one down, boards nor breaks one: the
+  host owns them (VA16). `travel` gets the rider off first, and a vehicle stays where it was
+  left: the dimension's vehicles are parked (`parkedVehicles`) and put back on the way back
+  (`restoreVehicles`). `game.json` is version 7: `vehicles`, every dimension's (`Vehicle.row`:
+  item, position, facing; `VoxelGame.vehicleRows`), no rider; a version 6 save loads with
+  none, and a network hello brings none. The example gains a boat (five planks).
+
 - **Combat feel (VA14).** A blow from outside is felt: its victim's pose holds for
   `Mob.hitStop` (0.06 s, `frozen`), it shows white for `Mob.hitFlash` (0.1 s, `flashing`)
   and shakes, and a shove carries it as before (`CharacterMotor.shove`'s stagger); a burn's

@@ -39,6 +39,9 @@ import '../world/block_rules.dart';
 import '../world/game_world.dart';
 import '../world/portals.dart';
 import '../world/travel.dart';
+import '../vehicles/boat.dart';
+import '../vehicles/vehicle.dart';
+import '../vehicles/vehicle_spec.dart';
 import '../weather/weather.dart';
 import '../world/world_save.dart';
 
@@ -67,6 +70,7 @@ class VoxelGame {
     assert(settings.renderDistance == world.loadRadius, 'the world streams the settings\' render distance');
     spec.checkDimensions(blocks, items);
     spec.checkMobs(items);
+    spec.checkVehicles(items);
     portals = Portals(world, spec.portals);
     _applyLive(settings);
     pathCosts = blocks.pathCosts(avoidLiquids: const {'lava'});
@@ -312,16 +316,22 @@ class VoxelGame {
 
   /// Takes the player to [dimension]: to [at] exactly, or to the arrival of
   /// its present column there (`GameWorld.arrivalAt`), with a return portal
-  /// when it went [through] a portal and none is near. The creatures and the
-  /// items of the dimension left are left behind for good; a store's screen
-  /// shuts. The player waits off the ground ([ready] false) until the world
-  /// is loaded around it. Throws for the dimension the player is in, one the
+  /// when it went [through] a portal and none is near. The player gets off
+  /// what it rides first. The creatures and the items of the dimension left
+  /// are left behind for good; its vehicles stay where they were left: parked
+  /// ([parkedVehicles]) and put back when the player comes back, a mount
+  /// ridden in being a creature and so left behind. A store's screen shuts.
+  /// The player waits off the ground ([ready] false) until the world is
+  /// loaded around it. Throws for the dimension the player is in, one the
   /// spec does not declare, and during another arrival.
   void travel(String dimension, {Vector3? at, PortalSpec? through}) {
     final d = spec.dimensionIds.indexOf(dimension);
     if (d < 0) throw ArgumentError.value(dimension, 'dimension', 'the spec declares no such dimension');
     if (d == world.dimension) throw ArgumentError.value(dimension, 'dimension', 'the player is there');
     if (_travel is Arriving) throw StateError('the player is arriving already');
+    if (player.riding != null) player.dismount();
+    final left = [for (final v in vehicles) v.row];
+    if (left.isNotEmpty) _parked[this.dimension] = left;
     for (final m in mobs) {
       m.removed = true;
     }
@@ -333,8 +343,40 @@ class VoxelGame {
     final from = player.position;
     final x = (at?.x ?? from.x).floor(), z = (at?.z ?? from.z).floor();
     world.switchDimension(d);
+    restoreVehicles(dimension, _parked.remove(dimension) ?? const []);
     player.hold(at ?? Vector3(x + 0.5, world.generator.surfaceHeight(x, z).toDouble(), z + 0.5));
     _travel = Arriving(dimension, x, z, exactly: at?.clone(), portal: through);
+  }
+
+  /// The vehicles left in the dimensions the player is not in, by dimension
+  /// id: each one's save row (`Vehicle.row`), put back in the world when the
+  /// player comes back ([travel]).
+  Map<String, List<Map<String, Object?>>> get parkedVehicles => Map.unmodifiable(_parked);
+  final Map<String, List<Map<String, Object?>>> _parked = {};
+
+  /// Every vehicle's save row by dimension id: the vehicles in the world, in
+  /// the player's dimension, and the parked ones of the others.
+  Map<String, List<Map<String, Object?>>> get vehicleRows => {
+    ..._parked,
+    dimension: [for (final v in vehicles) v.row],
+  };
+
+  /// Puts back [dimension]'s vehicles from their save [rows] (`Vehicle.row`):
+  /// in the world when the player is there, else parked for when it comes.
+  /// Throws for a dimension the spec does not declare, and for an item no
+  /// vehicle is.
+  void restoreVehicles(String dimension, List<Map<String, Object?>> rows) {
+    if (!spec.dimensionIds.contains(dimension)) {
+      throw ArgumentError.value(dimension, 'dimension', 'the spec declares no such dimension');
+    }
+    if (dimension != this.dimension) {
+      if (rows.isNotEmpty) _parked[dimension] = [..._parked[dimension] ?? const [], ...rows];
+      return;
+    }
+    for (final r in rows) {
+      final p = [for (final e in r['pos']! as List<Object?>) (e! as num).toDouble()];
+      placeVehicle(r['item']! as String, Vector3(p[0], p[1], p[2]), facing: (r['yaw']! as num).toDouble());
+    }
   }
 
   /// Stands the arriving player on the ground once the chunks around its
@@ -483,8 +525,28 @@ class VoxelGame {
   /// The living creatures.
   final List<Mob> mobs = [];
 
-  /// Everything else that moves: items on the ground, projectiles.
+  /// Everything else that moves: items on the ground, projectiles, vehicles.
   final List<GameEntity> entities = [];
+
+  /// The vehicles in the world (in [entities]).
+  Iterable<Vehicle> get vehicles => entities.whereType<Vehicle>().where((v) => !v.removed);
+
+  /// The vehicle [item] puts down (`VoxelGameSpec.vehicles`), or null for an
+  /// item that is none.
+  VehicleSpec? vehicleFor(String item) => _vehicleSpecs[item];
+  late final Map<String, VehicleSpec> _vehicleSpecs = {for (final v in spec.vehicles) v.item: v};
+
+  /// Puts a vehicle of [item]'s down at [at], pointing [facing] (radians, as
+  /// `PlayerEntity.yaw`). Throws for an item that is no vehicle, and on a
+  /// client: the host owns the vehicles (VA16).
+  Vehicle placeVehicle(String item, Vector3 at, {double facing = 0.0}) {
+    if (!authority) throw StateError('a client puts no vehicle down: the host owns them');
+    final v = vehicleFor(item);
+    if (v == null) throw ArgumentError.value(item, 'item', 'no vehicle is put down with it');
+    return add(switch (v) {
+      BoatSpec() => Boat(v, at, facing: facing),
+    });
+  }
 
   /// The camera's rig.
   final ViewCamera view = ViewCamera();

@@ -10,6 +10,7 @@ import '../mobs/behaviors.dart';
 import '../mobs/mob.dart';
 import '../mobs/mob_spec.dart';
 import '../player/player_spec.dart';
+import '../vehicles/vehicle_spec.dart';
 import '../world/game_world.dart';
 import 'graphics_spec.dart';
 import 'portal_spec.dart';
@@ -45,6 +46,7 @@ class VoxelGameSpec {
     this.effects = const [],
     this.player = const PlayerSpec(),
     this.mobs = const [],
+    this.vehicles = const [],
     this.sky = const SkySpec(),
     this.sounds = const SoundSpec(),
     this.signals,
@@ -103,6 +105,11 @@ class VoxelGameSpec {
 
   /// The creatures.
   final List<MobSpec> mobs;
+
+  /// The vehicles, one an item: a `BoatSpec`'s boat is put on water with its
+  /// item in hand, ridden by a use, left with sneak and broken back into its
+  /// item by a swing (see [checkVehicles]).
+  final List<VehicleSpec> vehicles;
 
   /// Day, night and the light between.
   final SkySpec sky;
@@ -170,6 +177,7 @@ class VoxelGameSpec {
     List<EffectType>? effects,
     PlayerSpec? player,
     List<MobSpec>? mobs,
+    List<VehicleSpec>? vehicles,
     SkySpec? sky,
     SoundSpec? sounds,
     ValueGetter<SignalSpec?>? signals,
@@ -195,6 +203,7 @@ class VoxelGameSpec {
     effects: effects ?? this.effects,
     player: player ?? this.player,
     mobs: mobs ?? this.mobs,
+    vehicles: vehicles ?? this.vehicles,
     sky: sky ?? this.sky,
     sounds: sounds ?? this.sounds,
     signals: signals == null ? this.signals : signals(),
@@ -319,6 +328,20 @@ class VoxelGameSpec {
       }
       if (m.xp > 0 && player.xp == null) {
         throw ArgumentError.value(m.xp, m.id, 'the mob is worth experience and the player gains none');
+      }
+    }
+  }
+
+  /// Throws [ArgumentError] for a vehicle whose item is not in [items] or
+  /// places a block (a use with it in hand would build instead), and for two
+  /// vehicles of one item.
+  void checkVehicles(ItemRegistry<ItemType> items) {
+    final seen = <String>{};
+    for (final v in vehicles) {
+      if (!items.has(v.item)) throw ArgumentError.value(v.item, 'vehicles', 'the vehicle\'s item does not exist');
+      if (!seen.add(v.item)) throw ArgumentError.value(v.item, 'vehicles', 'two vehicles of one item');
+      if (items[v.item].block != null) {
+        throw ArgumentError.value(v.item, 'vehicles', 'the vehicle\'s item places a block');
       }
     }
   }
