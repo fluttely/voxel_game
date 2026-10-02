@@ -2,6 +2,10 @@
 
 ## 0.3.0-dev
 
+- `Inventory.roomForStack` (new): how many of a stack `put` would take — a new one as many as
+  `roomFor`, a worn or bonused one all or nothing. A host reads it of a peer's declared bag
+  before it hands a drop over.
+
 - `SignalRules.usedInto` (new): what a use turns a block into (a lever flipped, a button
   pressed), null for neither; `SignalNetwork.use` writes it. A client, which runs no circuits,
   reads it to flip a lever as a block edit of its own that the host's circuits answer.

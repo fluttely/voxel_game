@@ -470,4 +470,50 @@ void main() {
     host.dispose();
     client.dispose();
   });
+
+  test("over the network: drops are the host's where it is; a client elsewhere keeps its own", () async {
+    final host = await _start();
+    final session = await host.host(port: 0);
+    final client = await VoxelGame.joinGame(_spec, '127.0.0.1', port: session.net.port, headless: true);
+    client.spawner.enabled = false;
+    Future<void> both(double seconds) async {
+      for (var t = 0.0; t < seconds; t += 1 / 60) {
+        host.frame(1 / 60);
+        client.frame(1 / 60);
+        await Future<void>.delayed(const Duration(milliseconds: 1));
+      }
+    }
+
+    Future<void> go(String dimension) async {
+      client.travel(dimension);
+      for (var i = 0; i < 600 && client.travelState is Arriving; i++) {
+        await both(1 / 60);
+      }
+      await both(0.5);
+    }
+
+    await both(1.0);
+    final lying = host.dropItem('stone', 1, host.player.position + Vector3(8, 0.5, 0), throwVelocity: Vector3.zero())!;
+    await both(0.5);
+    expect(client.entities.whereType<ItemPickup>().single.netId, lying.netId);
+
+    await go('nether');
+    expect(client.entities.whereType<ItemPickup>(), isEmpty, reason: 'the host\'s drops lie in the main world');
+    final own = client.dropItem(
+      'planks',
+      1,
+      client.player.position + Vector3(0, 0.5, 8),
+      throwVelocity: Vector3.zero(),
+    );
+    expect(own, isNotNull, reason: 'the host steps no world here: the drop is the client\'s');
+    expect(own!.replica, isFalse);
+    await both(0.5);
+    expect(host.entities.whereType<ItemPickup>().map((d) => d.item), ['stone']);
+
+    await go('world');
+    final back = client.entities.whereType<ItemPickup>().single;
+    expect([back.replica, back.netId], [true, lying.netId], reason: 'sent again as the client came back');
+    host.dispose();
+    client.dispose();
+  });
 }

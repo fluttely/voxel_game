@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:vector_math/vector_math.dart';
+import 'package:voxel_engine/content.dart' show Inventory, ItemStack;
 import 'package:voxel_engine/core.dart';
 
 import '../core/voxel_game.dart';
@@ -10,7 +11,8 @@ import '../mobs/rig.dart';
 
 /// Another player in a networked game: a body standing where its peer says,
 /// drawn with the player's rig. On the host it is a [Target] the mobs hunt;
-/// the damage it takes goes to its peer through [onHurt].
+/// the damage it takes goes to its peer through [onHurt], and the drops it
+/// reaches through [onGive], as far as its peer's declared [bag] takes them.
 class RemotePlayer extends GameEntity implements Target {
   /// Peer [peer]'s player.
   RemotePlayer(this.peer, Vector3 at) {
@@ -29,6 +31,24 @@ class RemotePlayer extends GameEntity implements Target {
 
   /// Where damage dealt to it goes (the host sends it to the peer).
   void Function(Damage damage)? onHurt;
+
+  /// Where a stack handed to it goes (the host sends it to the peer).
+  void Function(ItemStack stack)? onGive;
+
+  /// Its peer's bag as the peer last declared it, and what the host handed
+  /// it since; null until the first declaration (on the host only).
+  Inventory? bag;
+
+  /// How many of [stack] its [bag] takes, as far as the host knows: none
+  /// before the peer has declared one.
+  int roomFor(ItemStack stack) => bag?.roomForStack(stack) ?? 0;
+
+  /// Hands [stack] to its peer, counted in its [bag] until the peer next
+  /// declares it.
+  void give(ItemStack stack) {
+    bag!.put(stack);
+    onGive!(stack);
+  }
 
   /// The model; null headless.
   RigInstance? rig;

@@ -470,7 +470,7 @@ class VoxelGame {
         ? await startHeadless(spec, save: hello.world, authority: false)
         : await start(spec, save: hello.world, settings: settings, authority: false);
     game.player.restore(hello.spawn, hello.spawn);
-    game.session = ClientSession(game, hello.connection, hello.peer);
+    game.session = ClientSession(game, hello.connection, hello.peer, drops: hello.drops);
     return game;
   }
 
@@ -1053,22 +1053,21 @@ class VoxelGame {
     return add(Mob(spec, at));
   }
 
-  /// [count] of a new [item] dropped at [at].
-  ItemPickup dropItem(String item, int count, Vector3 at, {Vector3? throwVelocity}) =>
+  /// [count] of a new [item] dropped at [at], as [dropStack].
+  ItemPickup? dropItem(String item, int count, Vector3 at, {Vector3? throwVelocity}) =>
       dropStack(ItemStack(item, count), at, throwVelocity: throwVelocity);
 
   /// [stack], as it left a slot (wear and bonus kept), dropped at [at]:
-  /// thrown with [throwVelocity], or tossed up at random.
-  ItemPickup dropStack(ItemStack stack, Vector3 at, {Vector3? throwVelocity}) {
+  /// thrown with [throwVelocity], or tossed up at random. On a client where
+  /// the host is, the host makes it (a break, a throw, a bag's overflow, a
+  /// catch's rest: one path), and this returns null; the host's drop comes
+  /// back as a replica. Anywhere else the drop is made here and returned.
+  ItemPickup? dropStack(ItemStack stack, Vector3 at, {Vector3? throwVelocity}) {
     if (!items.has(stack.id)) throw ArgumentError.value(stack.id, 'stack', 'no such item');
     if (stack.count <= 0) throw ArgumentError.value(stack.count, 'stack', 'an empty stack');
-    return add(
-      ItemPickup(
-        stack.copy(),
-        at,
-        throwVelocity: throwVelocity ?? Vector3(random.nextDouble() * 2 - 1, 3.0, random.nextDouble() * 2 - 1),
-      ),
-    );
+    final velocity = throwVelocity ?? Vector3(random.nextDouble() * 2 - 1, 3.0, random.nextDouble() * 2 - 1);
+    if (session?.handOffDrop(stack, at, velocity) ?? false) return null;
+    return add(ItemPickup(stack.copy(), at, throwVelocity: velocity));
   }
 
   /// Shoots [projectile] from [from] toward [at], by [owner], its damage

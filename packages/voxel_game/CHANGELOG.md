@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+- **Net catches up, second part: drops and the bag (VA16b).** The host owns every item on the
+  ground. It numbers each drop its game makes and announces it at the end of the step
+  (`drops`: number, stack, position, with the host's dimension), sends 10 times a second the
+  drops that moved more than 5 cm (`drop_poses`) and the gone ones (`drops_gone`); a client
+  draws them as replicas (`ItemPickup.replica`, `netId` and `setNetPose`, new), lerped to the
+  host's poses, and only in the host's dimension. The hello carries the drops there are
+  (`joinHost`'s `drops`, which `ClientSession` now requires), and a peer coming back to the
+  host's dimension is sent them again. `VoxelGame.dropStack` on a client where the host is
+  becomes a request (`drop`) the host makes, and returns null (`dropStack` and `dropItem`
+  now return `ItemPickup?`): one path for a break's loot (rolled by the client, which knows
+  the tool), a throw, a bag's overflow and a catch's rest. Where the host is not, it steps no
+  world, so the client keeps its drop itself; a request that crosses a trip goes back to the
+  bag. The host decides every pickup: the nearest living player in its dimension whose bag
+  takes some of the stack, its own or a peer's puppet. A peer's share goes to it as `give`;
+  what its bag no longer takes comes back as `give_rest` and lands at the puppet's feet, out
+  of reach for 2 s (`ItemPickup.wait`, new). A client declares its bag when it changes, at most
+  5 times a second (`bag`); the host keeps it as `RemotePlayer.bag` (with `roomFor` and
+  `give`, new), counts what it hands over until the next declaration, and pulls nothing toward
+  a bag that takes none of it, or one not declared yet. The game's own player is no longer
+  pulled toward with a full bag either. A drop where its side has no world (a far client's, on
+  the host) waits where it is: an unloaded cell reads as air, and it fell to the world's floor.
+  A malformed stack, bag or dimension throws.
+
 - **Net catches up, first part: blocks (VA16a).** A client's block edit shows at once and goes
   to the host as a request (`requests`: its number, the cell, the id it replaced and the id it
   wrote, a message per dimension and step). The host keeps it only where its own block is the

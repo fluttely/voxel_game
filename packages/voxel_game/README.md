@@ -288,7 +288,9 @@ Dart SDK `^3.13.0`.
 6. **Play together (optional):** `runVoxelGame(spec, hostPort: 7777)` on one
    machine and `runVoxelGame(spec, join: '192.168.0.10')` on another. A client's block
    edit shows at once, and the host keeps it only over the block it replaced: of two players
-   on one cell, the second is rolled back.
+   on one cell, the second is rolled back. The items on the ground are the host's: a
+   client's drop is made there, and the host hands each stack to the nearest player whose
+   bag takes it.
 
 7. **Open on a title (optional):** `runVoxelGame(spec, menu: TitleSpec(name: 'My game'))`
    lets the player make, pick, host and join worlds instead of dropping into one slot.

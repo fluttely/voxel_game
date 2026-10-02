@@ -211,6 +211,18 @@ void main() {
       expect(full.roomFor('dirt', 10), 0);
     });
 
+    test('roomForStack is what put would take: a new stack tops up, a worn one wants an empty slot', () {
+      final i = Inventory(stackSize: (id) => 64, capacity: 2)..add('dirt', 100);
+      expect(i.roomForStack(ItemStack('dirt', 40)), 28);
+      expect(i.roomForStack(ItemStack('sword', 1, dur: 10)), 0);
+      expect(i.roomForStack(ItemStack('sword', 1, bonus: 2)), 0);
+      i.remove('dirt', 64);
+      expect(i.roomForStack(ItemStack('sword', 1, dur: 10)), 1);
+      final room = i.roomForStack(ItemStack('dirt', 200));
+      expect(room, 92);
+      expect(i.put(ItemStack('dirt', 200)), 200 - room);
+    });
+
     test('remove takes from the back and all-or-nothing; wear breaks a tool', () {
       final i = inv()..add('dirt', 70);
       expect(i.remove('dirt', 100), isFalse);

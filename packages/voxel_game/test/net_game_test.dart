@@ -288,4 +288,137 @@ void main() {
     expect(_client(a).rollbacks, 0);
     await _close(session, [a, b]);
   });
+
+  test("a client's drop is the host's: it lies on the host and the other client draws it where it lands", () async {
+    final (host, session, [a, b]) = await _session(2);
+    // Out of everyone's reach, so nobody takes it.
+    final cell = IVec3.floor(a.player.position) + const IVec3(8, -1, 0);
+    expect(a.world.blockNameAt(cell), 'grass');
+    a.breakBlock(cell, byPlayer: true);
+    expect(a.entities.whereType<ItemPickup>(), isEmpty, reason: 'the host makes it');
+    expect(a.dropItem('planks', 2, a.player.position + Vector3(0, 0.5, -8), throwVelocity: Vector3.zero()), isNull);
+    await _run([host, a, b], 2.0);
+
+    final drops = {for (final d in host.entities.whereType<ItemPickup>()) d.item: d};
+    expect(
+      drops.keys,
+      unorderedEquals(['dirt', 'planks']),
+      reason: "the block's loot, rolled by the client, and a throw",
+    );
+    expect(drops['planks']!.count, 2);
+    for (final d in drops.values) {
+      expect(d.replica, isFalse);
+      expect(d.netId, isNot(0));
+    }
+    for (final g in [a, b]) {
+      final replicas = g.entities.whereType<ItemPickup>().toList();
+      expect(replicas, hasLength(2));
+      for (final r in replicas) {
+        final d = drops[r.item]!;
+        expect(r.replica, isTrue);
+        expect(r.netId, d.netId);
+        expect(r.position.distanceTo(d.position), lessThan(0.1), reason: 'its poses followed it to where it lies');
+      }
+    }
+    expect(drops['dirt']!.position.y, lessThan(cell.y + 1.5), reason: 'it fell from where it was tossed up');
+    await _close(session, [a, b]);
+  });
+
+  test('the host decides the pickup: the nearest player whose bag takes it, a client as well as its own', () async {
+    final (host, session, [a, b]) = await _session(2);
+    final at = host.player.position.clone();
+    a.player.position = at + Vector3(0, 0, 30);
+    b.player.position = at + Vector3(3, 0, 0);
+    await _run([host, a, b], 0.5);
+    expect(host.remotePlayers.firstWhere((r) => r.peer == _client(b).peer).bag, isNotNull, reason: 'b declared it');
+
+    // Two metres from the host's player and one from b's.
+    host.dropItem('stone', 2, at + Vector3(2, 0.2, 0), throwVelocity: Vector3.zero());
+    await _run([host, a, b], 0.3);
+    expect(b.entities.whereType<ItemPickup>().single.replica, isTrue);
+    await _run([host, a, b], 1.5);
+    expect(b.player.inventory.countOf('stone'), 2, reason: "the host handed it to b's bag");
+    expect(host.player.inventory.countOf('stone'), 0);
+    for (final g in [host, a, b]) {
+      expect(g.entities.whereType<ItemPickup>(), isEmpty, reason: 'taken, so gone everywhere');
+    }
+
+    // One metre from the host's player and two from b's.
+    host.dropItem('planks', 1, at + Vector3(1, 0.2, 0), throwVelocity: Vector3.zero());
+    await _run([host, a, b], 1.5);
+    expect(host.player.inventory.countOf('planks'), 1);
+    expect(b.player.inventory.countOf('planks'), 0);
+    for (final g in [host, a, b]) {
+      expect(g.entities.whereType<ItemPickup>(), isEmpty);
+    }
+    await _close(session, [a, b]);
+  });
+
+  test("what a client's bag no longer takes comes back to the puppet's feet; a full bag pulls nothing", () async {
+    final (host, session, [a]) = await _session(1);
+    final at = host.player.position.clone();
+    host.player.position = at + Vector3(0, 0, 30);
+    a.player.position = at + Vector3(10, 0, 0);
+    await _run([host, a], 0.5);
+    final puppet = host.remotePlayers.single;
+    expect(puppet.roomFor(ItemStack('stone', 3)), 3, reason: 'empty, as declared');
+
+    // Full on the client, still empty as the host knows it: the client does
+    // not step, so it declares nothing until the stack has crossed.
+    a.player.inventory.add('planks', 100000);
+    expect(a.player.inventory.roomFor('stone', 1), 0);
+    host.dropItem('stone', 3, puppet.position + Vector3(0.5, 0.2, 0), throwVelocity: Vector3.zero());
+    await _run([host], 1.5);
+    expect(a.player.inventory.countOf('stone'), 0);
+    final back = host.entities.whereType<ItemPickup>().single;
+    expect([back.item, back.count], ['stone', 3], reason: 'give_rest brought all of it back');
+    expect(back.wait, greaterThan(ItemPickup.delay));
+    expect(back.position.distanceTo(puppet.position), lessThan(1.5), reason: "at the puppet's feet");
+
+    // Now the client declares its full bag: the drop stays where it is.
+    await _run([host, a], 3.0);
+    expect(puppet.roomFor(ItemStack('stone', 3)), 0);
+    expect(host.entities.whereType<ItemPickup>().single, same(back));
+    expect(back.position.distanceTo(puppet.position), lessThan(1.5));
+    expect(a.player.inventory.countOf('stone'), 0);
+    expect(a.entities.whereType<ItemPickup>().single.netId, back.netId);
+    await _close(session, [a]);
+  });
+
+  test("a far client's drop waits where the host has no world, and its player takes it", () async {
+    final (host, session, [a]) = await _session(1);
+    a.player.position = host.player.position + Vector3(300, 0, 0);
+    await _run([host, a], 2.0);
+    final cell = IVec3.floor(a.player.position) + const IVec3(2, -1, 0);
+    expect(host.world.isLoaded(cell), isFalse);
+    expect(a.world.blockNameAt(cell), 'grass');
+    a.breakBlock(cell, byPlayer: true);
+    await _run([host, a], 0.2);
+    final drop = host.entities.whereType<ItemPickup>().single;
+    expect(drop.position.y, greaterThan(cell.y), reason: 'not fallen through the world the host does not have');
+    await _run([host, a], 2.0);
+    expect(a.player.inventory.countOf('dirt'), 1);
+    expect(host.entities.whereType<ItemPickup>(), isEmpty);
+    await _close(session, [a]);
+  });
+
+  test('the hello brings the drops there are', () async {
+    final host = await VoxelGame.startHeadless(_spec);
+    host.spawner.enabled = false;
+    await _run([host], 1.0);
+    final lying = host.dropItem('planks', 4, host.player.position + Vector3(8, 0.5, 0), throwVelocity: Vector3.zero())!;
+    await _run([host], 1.0);
+    final session = await host.host(port: 0);
+    final client = await VoxelGame.joinGame(_spec, '127.0.0.1', port: session.net.port, headless: true);
+
+    // Before the client's first step.
+    final r = client.entities.whereType<ItemPickup>().single;
+    expect(r.replica, isTrue);
+    expect(r.netId, lying.netId);
+    expect([r.item, r.count], ['planks', 4]);
+    expect(r.position.distanceTo(lying.position), lessThan(0.01));
+    await _run([host, client], 0.5);
+    expect(client.entities.whereType<ItemPickup>().single, same(r), reason: 'a drop sent again is not drawn twice');
+    await _close(session, [client]);
+  });
 }
