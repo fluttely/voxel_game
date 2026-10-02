@@ -36,6 +36,13 @@
 - **Cost of leaving it:** a game on a pad (a console-like desktop, a phone with a controller) gets stuck on its first screen past the HUD; VA6 (the bag grows) and VA7 (settings) each add a panel a pad cannot work, so the debt grows by a screen a step.
 - **Found while:** 2026-09-30 — VA3, giving the death screen a respawn for a keyboard and a pad (jump) beside its button.
 
+### KL-014 · A hidden window stops the game: the steps run only on frames
+
+- **Lens:** game loop / authority (rule 12)
+- **Evidence:** `packages/voxel_game/lib/src/ui/voxel_game_widget.dart:355` and `:417`: `VoxelGame.frame` (and so every `step`) is called from two tickers only, the loading one (`:232`) and `SceneView.onTick`. Flutter turns frames off for `AppLifecycleState.hidden` (`flutter/lib/src/scheduler/binding.dart:423-426`), which is what macOS reports for a window covered by another one or minimised. On 2026-10-02 a capture entry of the example, launched behind VS Code, sat 30 s at `onReady` without filling, and its timers captured one frame three times; forcing frames (`scheduleForcedFrame`) made it fill in 2 s.
+- **Cost of leaving it:** a desktop host whose window is covered or minimised stops its world for everyone: no steps, so no client's edit applied and nothing broadcast, the opposite of what rule 12 wants of an authority. A lone game pausing while hidden is harmless, which is why it went unseen. A phone in the background is suspended by its system anyway, so the cost is the desktop host's, and later a dedicated one's.
+- **Found while:** 2026-10-02 — seeing VA9's weather on the Mac with the window behind the owner's editor.
+
 ## Closed
 
 ### KL-008 · The example crashes in the Adreno driver in its first two seconds, now and then
