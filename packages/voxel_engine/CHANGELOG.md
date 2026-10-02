@@ -2,6 +2,12 @@
 
 ## 0.3.0-dev
 
+- `LootTable.oneOf` (new): a table that gives one of its entries or nothing — each entry's
+  chance is its slice of one roll, in order, and what the slices leave gives nothing (a
+  fishing line's catch: 70 % fish, 10 % salmon, ...). `LootTable.check` (new) throws for
+  slices that sum over 1, and `roll` checks them; `LootTable.oneOf` (the flag) tells the
+  two kinds apart. A table built as before rolls each entry by its own chance, unchanged.
+
 - A richer world, declared as rows (VA11). A spec that uses none of them generates what it
   did before, chunk for chunk (`spec_test.dart` pins it).
   - `WorldGenSpec.strata` (new) of `Stratum(block, belowY:)` (new): the rock below a height

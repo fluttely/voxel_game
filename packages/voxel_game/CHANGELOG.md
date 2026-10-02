@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- **Vehicles and fishing, third part: fishing (VA15c).** `VoxelGameSpec.fishing`, a
+  `FishingSpec` (`rod`, `catches` — a `LootTable`, a `LootTable.oneOf` for one catch a bite —,
+  `liquids` `{'water'}`, `reach` 8, a wait of `minWait`–`maxWait` 3–8 s, a `bite` of 1.5 s,
+  `xp` 2), checked at start (`checkFishing`: the rod an item that places no block, every
+  catch an item, one-of slices summing to 1 at most, every liquid a block's, and experience
+  only with `PlayerSpec.xp`). A use with the rod in hand, on a press only, casts a `Bobber`
+  at the surface of the first of those liquids along the aim ("Cast at water" otherwise): it
+  flies there in an arc (2.2 of its flight a second, 1.4 m high), floats bobbing, and after
+  the wait something bites ("Something bites!"): it dips for the bite's seconds, and a use
+  then lands one roll of the catches in the bag (`pickUp`; what does not fit falls at the
+  player's feet; "Nothing on the line" for an empty roll) and the experience. A use while
+  nothing bites reels in empty ("Reeled in"); the line is reeled in when the rod leaves the
+  hand, when the player is twice the reach from it, and when the player dies, and forgotten
+  when a trip takes it away. A line runs from the hand to the float every frame
+  (`PlayerEntity.drawnHand`). `PlayerEntity.bobber`. The example fishes: a `fishing_rod`, a
+  `raw_fish` (food), and catches one-of 70 % a fish, 10 % two, 15 % a bowl, 5 % a lighter.
+
 - **Vehicles, second part: rails and a minecart (VA15b).** `Rails` (`VoxelGame.rails`): a
   block of a rail shape (`BlockShape.railNs` … `railSlopeW`) is a rail of the kind it drops,
   and a powered rail on (a value of `SignalSpec.poweredRails`) speeds a cart while one off

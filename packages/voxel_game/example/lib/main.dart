@@ -370,6 +370,9 @@ const game = VoxelGameSpec(
     ItemType('boat', color: 0x8C6133, stack: 1),
     // A minecart: put on a rail with use, ridden by a use on it and pushed with the move keys along its way.
     ItemType('minecart', color: 0x8C8C94, stack: 1),
+    // A fishing rod: cast at water with use, and use again when something bites (the `fishing` below).
+    ItemType('fishing_rod', color: 0x9E7340, stack: 1),
+    ItemType('raw_fish', color: 0x99B3BF, food: Food(hunger: 2)),
   ],
   recipes: [
     Recipe('planks', 4, {'log': 1}),
@@ -395,6 +398,7 @@ const game = VoxelGameSpec(
     Recipe('boat', 1, {'planks': 5}),
     Recipe('rail', 16, {'cobblestone': 6, 'planks': 1}),
     Recipe('minecart', 1, {'cobblestone': 5}),
+    Recipe('fishing_rod', 1, {'planks': 3, 'wool': 2}),
   ],
   // Status effects: what a food starts, what the player carries.
   effects: [
@@ -673,6 +677,17 @@ const game = VoxelGameSpec(
     BoatSpec(item: 'boat'),
     CartSpec(item: 'minecart'),
   ],
+  // Fishing: the rod casts at water; three to eight seconds later something bites, and a use within a second and a
+  // half lands one catch — mostly a fish, now and then two, some junk, and once in twenty a lighter.
+  fishing: FishingSpec(
+    rod: 'fishing_rod',
+    catches: LootTable.oneOf([
+      LootEntry('raw_fish', 1, 1, 0.70),
+      LootEntry('raw_fish', 2, 2, 0.10),
+      LootEntry('bowl', 1, 1, 0.15),
+      LootEntry('flint_and_steel', 1, 1, 0.05),
+    ]),
+  ),
   // 6. Screens of the game's own: this one is a button in the game menu (Esc, or ⏸ on a phone).
   screens: {'controls': ScreenSpec(_controls, menu: 'Controls')},
 );

@@ -135,6 +135,15 @@ sockets, through `dart:isolate` and `dart:io`, which a browser does not have.
    book.craft(book.available('furnace').first, bag);
    ```
 
+6. **Roll loot.** A `LootTable` rolls each entry by its own chance (a chest, a mob's
+   drops); a `LootTable.oneOf` gives one entry or nothing, each chance a slice of one roll
+   (a fishing line's catch). `check()` throws for slices summing over 1.
+
+   ```dart
+   const catches = LootTable.oneOf([LootEntry('raw_fish', 1, 1, 0.7), LootEntry('stick', 1, 2, 0.15)]);
+   final got = catches.roll(math.Random()); // raw_fish 70 %, sticks 15 %, nothing 15 %
+   ```
+
 ### worldgen — a world declared instead of coded
 
 1. **Give it your block ids.** A `BlockRegistry` already has them: `blocks.ids`.

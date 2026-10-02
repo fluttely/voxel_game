@@ -73,6 +73,7 @@ class VoxelGame {
     spec.checkDimensions(blocks, items);
     spec.checkMobs(items);
     spec.checkVehicles(items);
+    spec.checkFishing(blocks, items);
     portals = Portals(world, spec.portals);
     _applyLive(settings);
     pathCosts = blocks.pathCosts(avoidLiquids: const {'lava'});

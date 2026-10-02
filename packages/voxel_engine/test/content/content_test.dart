@@ -72,10 +72,7 @@ void main() {
     test('refuses a block that leans on, or turns into, a block that does not exist', () {
       const air = BlockType('air', color: 0, solid: false);
       expect(
-        () => BlockRegistry(const [
-          air,
-          BlockType('torch', color: 0, solid: false, onWall: 'wall_torch'),
-        ]),
+        () => BlockRegistry(const [air, BlockType('torch', color: 0, solid: false, onWall: 'wall_torch')]),
         throwsArgumentError,
       );
       expect(
@@ -281,6 +278,39 @@ void main() {
     expect(a, b);
     expect(a.single.id, 'gold');
     expect(a.single.count, inInclusiveRange(2, 4));
+  });
+
+  test('LootTable.oneOf gives one entry by its slice of the roll, or nothing from what the slices leave', () {
+    const table = LootTable.oneOf([
+      LootEntry('fish', 1, 1, 0.7),
+      LootEntry('salmon', 1, 1, 0.1),
+      LootEntry('junk', 1, 2, 0.15),
+    ]);
+    table.check();
+    final rng = math.Random(7);
+    final counts = <String, int>{};
+    const rolls = 20000;
+    for (var i = 0; i < rolls; i++) {
+      final got = table.roll(rng);
+      expect(got.length, lessThanOrEqualTo(1), reason: 'one entry at most');
+      final key = got.isEmpty ? '' : got.single.id;
+      counts[key] = (counts[key] ?? 0) + 1;
+      if (got.isNotEmpty && got.single.id == 'junk') expect(got.single.count, inInclusiveRange(1, 2));
+    }
+    expect(counts['fish']! / rolls, closeTo(0.7, 0.02));
+    expect(counts['salmon']! / rolls, closeTo(0.1, 0.02));
+    expect(counts['junk']! / rolls, closeTo(0.15, 0.02));
+    expect(counts['']! / rolls, closeTo(0.05, 0.02), reason: 'what the slices leave gives nothing');
+
+    const full = LootTable.oneOf([LootEntry('a', 1, 1, 0.7), LootEntry('b', 1, 1, 0.1), LootEntry('c', 1, 1, 0.2)]);
+    full.check();
+    for (var i = 0; i < 200; i++) {
+      expect(full.roll(rng), hasLength(1), reason: 'slices summing to 1 always give one');
+    }
+    const over = LootTable.oneOf([LootEntry('a', 1, 1, 0.7), LootEntry('b', 1, 1, 0.4)]);
+    expect(over.check, throwsArgumentError);
+    expect(() => over.roll(rng), throwsArgumentError);
+    const LootTable([LootEntry('a', 1, 1, 0.7), LootEntry('b', 1, 1, 0.9)]).check();
   });
 
   group('StatusEffects', () {

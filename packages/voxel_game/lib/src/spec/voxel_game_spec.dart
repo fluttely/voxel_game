@@ -10,6 +10,7 @@ import '../mobs/behaviors.dart';
 import '../mobs/mob.dart';
 import '../mobs/mob_spec.dart';
 import '../player/player_spec.dart';
+import '../fishing/fishing_spec.dart';
 import '../vehicles/vehicle_spec.dart';
 import '../world/game_world.dart';
 import 'graphics_spec.dart';
@@ -47,6 +48,7 @@ class VoxelGameSpec {
     this.player = const PlayerSpec(),
     this.mobs = const [],
     this.vehicles = const [],
+    this.fishing,
     this.sky = const SkySpec(),
     this.sounds = const SoundSpec(),
     this.signals,
@@ -111,6 +113,10 @@ class VoxelGameSpec {
   /// use, left with sneak and broken back into its item by a swing (see
   /// [checkVehicles]).
   final List<VehicleSpec> vehicles;
+
+  /// How the player fishes: the rod, what bites, where; null for a game with
+  /// no fishing (see [checkFishing]).
+  final FishingSpec? fishing;
 
   /// Day, night and the light between.
   final SkySpec sky;
@@ -179,6 +185,7 @@ class VoxelGameSpec {
     PlayerSpec? player,
     List<MobSpec>? mobs,
     List<VehicleSpec>? vehicles,
+    ValueGetter<FishingSpec?>? fishing,
     SkySpec? sky,
     SoundSpec? sounds,
     ValueGetter<SignalSpec?>? signals,
@@ -205,6 +212,7 @@ class VoxelGameSpec {
     player: player ?? this.player,
     mobs: mobs ?? this.mobs,
     vehicles: vehicles ?? this.vehicles,
+    fishing: fishing == null ? this.fishing : fishing(),
     sky: sky ?? this.sky,
     sounds: sounds ?? this.sounds,
     signals: signals == null ? this.signals : signals(),
@@ -330,6 +338,27 @@ class VoxelGameSpec {
       if (m.xp > 0 && player.xp == null) {
         throw ArgumentError.value(m.xp, m.id, 'the mob is worth experience and the player gains none');
       }
+    }
+  }
+
+  /// Throws [ArgumentError] for [fishing] with a rod that is no item or
+  /// places a block, a catch that is no item or a one-of table whose chances
+  /// sum over 1 (`LootTable.check`), a liquid kind no block of [blocks] is,
+  /// and experience for a catch with no `PlayerSpec.xp` declared.
+  void checkFishing(BlockRegistry<BlockType> blocks, ItemRegistry<ItemType> items) {
+    final f = fishing;
+    if (f == null) return;
+    if (!items.has(f.rod)) throw ArgumentError.value(f.rod, 'fishing', 'the rod is no item');
+    if (items[f.rod].block != null) throw ArgumentError.value(f.rod, 'fishing', 'the rod places a block');
+    for (final e in f.catches.entries) {
+      if (!items.has(e.item)) throw ArgumentError.value(e.item, 'fishing', 'a catch is no item');
+    }
+    f.catches.check();
+    for (final l in f.liquids) {
+      if (!blocks.liquidKinds.contains(l)) throw ArgumentError.value(l, 'fishing', 'no block is that liquid');
+    }
+    if (f.xp > 0 && player.xp == null) {
+      throw ArgumentError.value(f.xp, 'fishing', 'a catch gives experience only with PlayerSpec.xp declared');
     }
   }
 

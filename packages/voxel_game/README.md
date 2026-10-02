@@ -29,7 +29,7 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
 ## Features
 
 - `VoxelGameSpec`: blocks, items, recipes, status effects, world, player, mobs, vehicles,
-  sky, sounds, circuits, liquids, screens.
+  fishing, sky, sounds, circuits, liquids, screens.
 - Survival, declared: `PlayerSpec.hunger` (a `HungerSpec`: the bar empties, a full one heals,
   an empty one starves), `PlayerSpec.xp` (an `XpSpec` curve; `PlayerEntity.gainXp`), food
   (`ItemType(food: Food(hunger: 4, heal: 2, effect: 'regeneration', seconds: 8))`, eaten with
@@ -164,6 +164,9 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
   move keys. A mount and a vehicle are both `Rideable` (`PlayerEntity.ride` / `riding` /
   `dismount`). A vehicle stays where it was left, in the save and across a trip to another
   dimension.
+- Fishing, declared: `VoxelGameSpec.fishing: FishingSpec(rod: 'fishing_rod', catches:
+  LootTable.oneOf([...]))`. The rod casts a float at water; after a few seconds something
+  bites, and a use within the bite lands one catch in the bag and some experience.
 - Combat that is felt: a blow holds its victim's pose for a moment (the hit-stop), shows it
   white and shakes it, and its shove carries it off its feet; the player's camera shakes by
   the damage taken. A creature dies by toppling over and fading out. `PlayerSpec.critChance`

@@ -14,6 +14,9 @@ import '../input/voxel_action.dart';
 import '../mobs/mob.dart';
 import '../mobs/rig.dart';
 import '../ui/game_screen.dart';
+import '../camera/first_person_view.dart';
+import '../fishing/bobber.dart';
+import '../fishing/fishing_spec.dart';
 import '../vehicles/minecart.dart';
 import '../vehicles/rideable.dart';
 import '../vehicles/vehicle.dart';
@@ -127,6 +130,12 @@ class PlayerEntity extends NodeBody implements Target {
   /// What the player rides, a mount or a vehicle, or null: it moves by the
   /// player's input, and sneak gets off ([dismount]).
   Rideable? riding;
+
+  /// The float of the line the player has out (`VoxelGameSpec.fishing`), or
+  /// null. It is reeled in when the rod leaves the hand, when the player is
+  /// twice the cast's reach from it, and when the player dies.
+  Bobber? get bobber => _bobber;
+  Bobber? _bobber;
 
   /// 0..1 how far the aimed block is mined.
   double mineProgress = 0.0;
@@ -324,6 +333,7 @@ class PlayerEntity extends NodeBody implements Target {
   void kill() {
     if (_dead) throw StateError('the player is already dead');
     if (riding != null) dismount();
+    if (_bobber != null) _reelIn();
     hp = 0.0;
     _dead = true;
     _deadFor = 0.0;
@@ -392,6 +402,7 @@ class PlayerEntity extends NodeBody implements Target {
       _use(pressed: usePressed);
       _useCooldown = usePressed ? 0.25 : 0.2;
     }
+    _tendLine();
     _animate(dt);
     syncNode(yaw: rig?.yaw);
   }
@@ -899,6 +910,11 @@ class PlayerEntity extends NodeBody implements Target {
       if (!spec.creative && item.durability > 0) inventory.wear(selectedSlot);
       return;
     }
+    final fishing = _game.spec.fishing;
+    if (fishing != null && item.id == fishing.rod) {
+      if (pressed) _fish(fishing);
+      return;
+    }
     final vehicleSpec = _game.vehicleFor(item.id);
     if (vehicleSpec != null) {
       // The host owns the vehicles (VA16): a client puts none down.
@@ -1000,6 +1016,91 @@ class PlayerEntity extends NodeBody implements Target {
     final c = aimedBlock?.block;
     if (c == null || !_game.rails.isRail(_game.world.getBlock(c))) return null;
     return Vector3(c.x + 0.5, c.y + Minecart.railTop, c.z + 0.5);
+  }
+
+  /// A use with the rod: a line out is landed when something bites and
+  /// reeled in empty when nothing does; else one is cast at the first liquid
+  /// of [fishing]'s along the aim within its reach, or the player is told
+  /// where it goes.
+  void _fish(FishingSpec fishing) {
+    final b = _bobber;
+    if (b != null) {
+      if (b.biting) {
+        _land(fishing, b);
+      } else {
+        _reelIn();
+        _game.notify('Reeled in');
+      }
+      return;
+    }
+    final at = _castPlace(fishing);
+    if (at == null) {
+      _game.notify('Cast at ${fishing.liquids.join(' or ')}');
+      return;
+    }
+    _swingArm();
+    _game.playSound('swing', volumeDb: -12.0, pitch: 1.3);
+    _bobber = _game.add(Bobber(fishing, this, _handAt(position, eyePosition), at));
+  }
+
+  /// Where a float lands: on the surface of the first liquid along the aim
+  /// within [fishing]'s reach, at the top of its column, when it is one of
+  /// [fishing]'s liquids; null otherwise.
+  Vector3? _castPlace(FishingSpec fishing) {
+    final world = _game.world;
+    final found = VoxelRaycast.liquid(world, eyePosition, forward, fishing.reach);
+    if (found == null || !fishing.liquids.contains(world.blocks.liquidOf(world.getBlock(found)))) return null;
+    var top = found;
+    while (world.table.isLiquid(world.getBlock(top + IVec3.up))) {
+      top = top + IVec3.up;
+    }
+    return Vector3(top.x + 0.5, top.y + 0.85, top.z + 0.5);
+  }
+
+  /// Lands what bit [b]: one roll of the catches into the bag (what does not
+  /// fit on the ground), the experience, and the line in.
+  void _land(FishingSpec fishing, Bobber b) {
+    final caught = fishing.catches.roll(_game.random);
+    for (final s in caught) {
+      final left = pickUp(s.id, s.count);
+      if (left > 0) _game.dropItem(s.id, left, centre());
+    }
+    if (caught.isEmpty) _game.notify('Nothing on the line');
+    _game.playSound('splash', at: b.position, volumeDb: -6.0, pitch: 1.2);
+    _swingArm();
+    if (fishing.xp > 0) gainXp(fishing.xp);
+    _reelIn();
+  }
+
+  void _reelIn() {
+    _bobber!.removed = true;
+    _bobber = null;
+  }
+
+  /// Reels the line in once the rod is out of the hand or the player is twice
+  /// the reach from it; forgets one the world took away (a trip).
+  void _tendLine() {
+    final b = _bobber;
+    if (b == null) return;
+    if (b.removed) {
+      _bobber = null;
+    } else if (heldItem != b.spec.rod || b.position.distanceTo(position) > b.spec.reach * 2.0) {
+      _reelIn();
+    }
+  }
+
+  /// Where the hand that holds the item is drawn this frame, near enough for
+  /// a line to hang from: the fist in front of the eye in first person
+  /// (`FirstPersonView`), at the body's right in third.
+  Vector3 get drawnHand => _handAt(drawnPosition, drawnEye);
+
+  Vector3 _handAt(Vector3 feet, Vector3 eye) {
+    final r = right;
+    if (cameraMode == CameraMode.firstPerson) {
+      final f = forward;
+      return eye + r * 0.44 - r.cross(f).normalized() * 0.38 + f * FirstPersonView.reach;
+    }
+    return feet + Vector3(0, height * 0.55, 0) + r * 0.35 + flatForward * 0.3;
   }
 
   void _swingArm() {

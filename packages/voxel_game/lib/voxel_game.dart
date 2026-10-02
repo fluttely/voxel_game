@@ -106,6 +106,8 @@ export 'src/ui/title_screen.dart';
 export 'src/ui/touch_controls.dart';
 export 'src/ui/voxel_game_home.dart';
 export 'src/ui/world_list.dart';
+export 'src/fishing/bobber.dart';
+export 'src/fishing/fishing_spec.dart';
 export 'src/vehicles/boat.dart';
 export 'src/vehicles/minecart.dart';
 export 'src/vehicles/rideable.dart';
