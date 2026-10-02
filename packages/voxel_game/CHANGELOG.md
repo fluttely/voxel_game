@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **A dropped stack keeps its wear.** `VoxelGame.dropStack(stack, at)` (new) puts on the
+  ground the stack that left a slot, wear and bonus kept; `dropItem` drops a new one, as
+  before. `ItemPickup` holds that `stack` (its constructor takes it; `item` and `count` read
+  it) and goes back into the bag through `PlayerEntity.pickUpStack` (new): a worn or bonused
+  stack takes an empty slot whole, or stays on the ground. A press of drop, a store's spill
+  and an armour piece that does not fit when another is put on all drop the stack itself, so
+  a pickaxe on its last uses no longer comes back new. Drop throws one of the **selected**
+  slot (it took one from the last slot holding the same item).
+  `PlayerEntity.throwStack` (new) throws a stack ahead as drop does.
 - **Items have a shape (VA5).** One voxel model per item, `VoxelGame.itemModel(id)` (the
   engine's `ItemModel`, declared by `ItemType.shape` or read off the item's row), drawn
   everywhere the item is:

@@ -216,6 +216,17 @@ class PlayerEntity extends NodeBody implements Target {
     return true;
   }
 
+  /// Adds [stack] to the bag: a fresh one tops up stacks like [pickUp], a
+  /// worn or bonused one takes an empty slot whole, or stays out. Returns how
+  /// many did not fit.
+  int pickUpStack(ItemStack stack) {
+    if (stack.dur < 0 && stack.bonus == 0) return pickUp(stack.id, stack.count);
+    if (!inventory.addStack(stack)) return stack.count;
+    _game.playSound('pickup', volumeDb: -8.0, pitch: 1.0 + _game.random.nextDouble() * 0.3);
+    _game.notices.picked(stack.id, _game.items[stack.id].name, stack.count);
+    return 0;
+  }
+
   /// Adds [count] of [item] to the bag, and tells the player what went in
   /// (`VoxelGame.notices`); returns what did not fit.
   int pickUp(String item, int count) {
@@ -468,7 +479,7 @@ class PlayerEntity extends NodeBody implements Target {
       if (inventory.isEmptySlot(selectedSlot)) {
         inventory.setSlot(selectedSlot, before);
       } else if (!inventory.addStack(before)) {
-        _game.dropItem(before.id, before.count, eyePosition - Vector3(0, 0.3, 0));
+        _game.dropStack(before, eyePosition - Vector3(0, 0.3, 0));
       }
     }
     _game.playSound('click', volumeDb: -4.0);
@@ -747,11 +758,14 @@ class PlayerEntity extends NodeBody implements Target {
   }
 
   void _dropHeld() {
-    final id = heldItem;
-    if (id.isEmpty) return;
-    inventory.remove(id, 1);
-    _game.dropItem(id, 1, eyePosition - Vector3(0, 0.3, 0), throwVelocity: forward * 5.0 + Vector3(0, 2, 0));
+    final one = inventory.takeFromSlot(selectedSlot, 1);
+    if (one != null) throwStack(one);
   }
+
+  /// Throws [stack] out ahead, the way a press of drop throws one of the
+  /// held stack; the bag throws what is let go outside it the same way.
+  void throwStack(ItemStack stack) =>
+      _game.dropStack(stack, eyePosition - Vector3(0, 0.3, 0), throwVelocity: forward * 5.0 + Vector3(0, 2, 0));
 
   /// Stands the dead player up at [spawnPoint], whole, fed and with no
   /// effects on it. `VoxelGame.respawn` calls it as the death screen closes.

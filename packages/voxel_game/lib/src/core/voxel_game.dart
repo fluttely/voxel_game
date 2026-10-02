@@ -699,13 +699,18 @@ class VoxelGame {
     return add(Mob(spec, at));
   }
 
-  /// [count] of [item] dropped at [at].
-  ItemPickup dropItem(String item, int count, Vector3 at, {Vector3? throwVelocity}) {
-    if (!items.has(item)) throw ArgumentError.value(item, 'item', 'no such item');
+  /// [count] of a new [item] dropped at [at].
+  ItemPickup dropItem(String item, int count, Vector3 at, {Vector3? throwVelocity}) =>
+      dropStack(ItemStack(item, count), at, throwVelocity: throwVelocity);
+
+  /// [stack], as it left a slot (wear and bonus kept), dropped at [at]:
+  /// thrown with [throwVelocity], or tossed up at random.
+  ItemPickup dropStack(ItemStack stack, Vector3 at, {Vector3? throwVelocity}) {
+    if (!items.has(stack.id)) throw ArgumentError.value(stack.id, 'stack', 'no such item');
+    if (stack.count <= 0) throw ArgumentError.value(stack.count, 'stack', 'an empty stack');
     return add(
       ItemPickup(
-        item,
-        count,
+        stack.copy(),
         at,
         throwVelocity: throwVelocity ?? Vector3(random.nextDouble() * 2 - 1, 3.0, random.nextDouble() * 2 - 1),
       ),

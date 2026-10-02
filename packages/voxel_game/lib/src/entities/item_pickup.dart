@@ -2,28 +2,33 @@ import 'dart:math' as math;
 
 import 'package:flutter_scene/scene.dart';
 import 'package:vector_math/vector_math.dart';
+import 'package:voxel_engine/content.dart' show ItemStack;
 import 'package:voxel_scene/voxel_scene.dart';
 
 import '../core/voxel_game.dart';
 import 'game_entity.dart';
 
-/// An item lying in the world: it falls, spins, is pulled toward a player
+/// A stack lying in the world: it falls, spins, is pulled toward a player
 /// within [magnet] metres and picked up within [reach], after [delay]; it
-/// vanishes after [life] seconds.
+/// vanishes after [life] seconds. It is the [stack] that left a slot, its
+/// wear and bonus kept.
 class ItemPickup extends GameEntity {
-  /// [count] of item [item] at [at], thrown with [throwVelocity].
-  ItemPickup(this.item, this.count, Vector3 at, {Vector3? throwVelocity}) {
+  /// [stack] at [at], thrown with [throwVelocity].
+  ItemPickup(this.stack, Vector3 at, {Vector3? throwVelocity}) {
     position = at.clone();
     velocity = throwVelocity?.clone() ?? Vector3.zero();
     halfWidth = 0.125;
     height = 0.25;
   }
 
+  /// What lies here.
+  final ItemStack stack;
+
   /// The item.
-  final String item;
+  String get item => stack.id;
 
   /// How many.
-  int count;
+  int get count => stack.count;
 
   /// How far a player pulls it.
   static const double magnet = 3.0;
@@ -72,12 +77,12 @@ class ItemPickup extends GameEntity {
     final d = to.length;
     if (!p.isDead && _age > delay && d < magnet) {
       if (d < reach) {
-        final left = p.pickUp(item, count);
+        final left = p.pickUpStack(stack);
         if (left == 0) {
           removed = true;
           return;
         }
-        count = left;
+        stack.count = left;
       } else {
         velocity = to / d * 6.0;
       }

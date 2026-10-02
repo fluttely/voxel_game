@@ -200,7 +200,7 @@ class BlockRules {
     if (game.screen.value == StorageScreen(cell)) game.closeScreen();
     final at = Vector3(cell.x + 0.5, cell.y + 0.3, cell.z + 0.5);
     for (final s in held.slots) {
-      if (s != null) game.dropItem(s.id, s.count, at);
+      if (s != null) game.dropStack(s, at);
     }
   }
 

@@ -193,6 +193,24 @@ void main() {
     );
   });
 
+  test('a worn tool dropped and picked up again is the same tool, wear and all', () async {
+    final game = await _start(_flat(player: const PlayerSpec(startingItems: {'wooden_pickaxe': 1})));
+    final p = game.player;
+    final slot = p.inventory.find('wooden_pickaxe');
+    p.selectedSlot = slot;
+    p.inventory.wear(slot, 53);
+    expect(p.inventory.durAt(slot), 7);
+    game.input.tap(VoxelAction.drop);
+    await _run(game, 0.1);
+    expect(p.inventory.countOf('wooden_pickaxe'), 0);
+    final drop = game.entities.whereType<ItemPickup>().single;
+    expect(drop.stack.dur, 7, reason: 'the stack on the ground is the one that left the slot');
+    await _run(game, 3.0);
+    final back = p.inventory.find('wooden_pickaxe');
+    expect(back, isNot(-1), reason: 'the drop flies back to the player that threw it');
+    expect(p.inventory.durAt(back), 7, reason: 'not a new pickaxe');
+  });
+
   test('a held block is placed against the aimed face and used up', () async {
     final game = await _start(_flat(player: const PlayerSpec(startingItems: {'planks': 3})));
     final p = game.player;
