@@ -2,6 +2,47 @@
 
 ## 0.3.0-dev
 
+- A richer world, declared as rows (VA11). A spec that uses none of them generates what it
+  did before, chunk for chunk (`spec_test.dart` pins it).
+  - `WorldGenSpec.strata` (new) of `Stratum(block, belowY:)` (new): the rock below a height
+    is that block instead of `stone` (dark stone in the deep); ores vein it as they vein
+    stone, in a cavern too.
+  - `Biome.covers` (new) of `Cover(block, perMille:, minHeight:, maxHeight:, patch:)` (new):
+    the surface block where the ground stands in a window of height and a roll hits, one
+    roll per `patch` square, tried in order — snow on the peaks, gravel on the sea floor,
+    patches of mud. A cavern's floors take them too.
+  - `Biome.pools` (new, a `Pools(bed:, threshold:, scale:)`): one block of the world's water
+    over `bed` where noise runs high on land above the sea, never beside lower ground or
+    over a cave, so the water stays put. Nothing grows in a pool.
+  - `TreeSpec.weight` (new, 1): a biome picks its trees by weight. `TreeSpec.belowY` (new):
+    a tree grows only on ground below it. `TreeSpec.oak`/`spruce`/`palm` take both.
+  - `Plant.maxHeight` (new; `height` when null): a plant stands `height` to `maxHeight`
+    tall (a cactus, two or three). `Plant.spread` (new, 0..4): that many neighbours (+x, +z,
+    -x, -z) level with it may grow one too, each on a coin — a patch of melons, whole across
+    chunk borders. `Plant.byWater` (new): it grows only beside water at the surface (the
+    sea, a river, a pool), and a column away from water skips it without spending its
+    share (reeds). A cavern throws `ArgumentError` for pools, spreading and water-seeking
+    plants.
+  - **Breaking:** `StructureSpec(name, structure, regionChunks:, chance:, biomes:)` takes a
+    `Structure` (new): how far it reaches (`radius`), how deep it sits (`depth`), how far
+    trees stay off (`clearing`), its `blockNames` and `build(site)`. A build function is a
+    `CustomStructure(build, radius:, depth:, blocks:)` (was `StructureSpec(name, build:,
+    radius:, depth:)`); `StructureBuild` moved to `structure.dart`. A structure's blocks are
+    in `WorldGenSpec.blockNames`, so a world fails to compile naming a missing one.
+  - The stock structures (new), every block taken by name, the furnishings nullable:
+    `Dungeon` (three rooms under the ground, guarded, a ladder shaft up), `Tower`, `Well`,
+    `Camp`, `Ruins`, `Mine` (a head frame, a ladder down to a corridor at `floorY` with
+    supports, lights, a rail to its chest, `veins` in its rock shell, liquids sealed off)
+    and `Village` (huts on a ring around a well, doors to the well, paths, an optional
+    `VillageFarm`).
+  - Structures keep apart: a site within reach (the two radii) of an earlier structure's
+    candidate is dropped. Two structures of one name throw `ArgumentError`.
+  - `StructureSite.hashAt` (a cell's hash), `worldY`, `isRock` (the world's stone, strata
+    and ores) and `isOpen` (air, its water or lava); `StructureSite.level` takes `floor:`
+    (the floor's dy, 0 by default).
+  - The generator works out each column's height and biome once a chunk (the surface, the
+    plants and the pools share them) where it used to twice.
+
 - `WorldGenSpec.cavern` (a `CavernSpec`, new; null by default): a world that is one great
   cave (VA10) — a slab of its `stone` between a bedrock `floor` and `roof` (7 and 100), opened
   by 3D noise over `threshold` (about two fifths open) and stretched by `scale`, its sea

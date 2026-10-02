@@ -13,17 +13,30 @@ export 'package:voxel_engine/core.dart' show BlockShape, IVec3;
 export 'package:voxel_engine/worldgen.dart'
     show
         Biome,
+        Camp,
         CavernSpec,
         CaveSpec,
         Climate,
+        Cover,
+        CustomStructure,
+        Dungeon,
+        Mine,
         Ore,
         Plant,
+        Pools,
         Precipitation,
+        Ruins,
+        Stratum,
+        Structure,
         StructureSite,
         StructureSpec,
         TerrainRecipe,
+        Tower,
         TreeShape,
         TreeSpec,
+        Village,
+        VillageFarm,
+        Well,
         WorldGenSpec;
 
 export 'src/camera/shoulder_orbit.dart';

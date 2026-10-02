@@ -50,6 +50,12 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
   what falls is the biome's (`Biome(precipitation: Precipitation.snow)`, or `none` for a
   desert). `VoxelGame.weather` tells what it is and `set`s a spell from code; the player's
   `GameSettings.weather` turns it off. Only a lone game or a host rolls it.
+- A world dressed by rows: `WorldGenSpec(strata: [Stratum('dark_stone', belowY: 22)])`,
+  a biome's `covers` (`Cover('snow', minHeight: 101)`), `pools` (`Pools(bed: 'mud')`), trees
+  by `weight`, plants that stand `maxHeight` tall, `spread` into patches or grow `byWater`;
+  and structures from a stock library built of the game's blocks by name —
+  `StructureSpec('village', Village(floor: 'cobblestone', walls: 'planks', ...))`, `Dungeon`,
+  `Tower`, `Well`, `Camp`, `Ruins`, `Mine` — or a `CustomStructure` of its own.
 - Dimensions and portals, declared: `VoxelGameSpec.dimensions: {'underworld':
   WorldGenSpec(cavern: CavernSpec(), ...)}` gives a game more worlds than its `world`, each
   from the same seed, one streaming at a time, every dimension's edits, crops and stores

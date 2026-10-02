@@ -1,7 +1,7 @@
 import 'package:voxel_engine/core.dart';
 
 import 'spec_generator.dart';
-import 'structure_site.dart';
+import 'structure.dart';
 
 /// A whole world described as data: its terrain, biomes, ores, caves and
 /// structures, with blocks named by string. [compile] turns it into a
@@ -14,7 +14,9 @@ import 'structure_site.dart';
 ///     Biome('plains', top: 'grass', under: 'dirt',
 ///         trees: [TreeSpec.oak(log: 'log', leaves: 'leaves')], treeChance: 20),
 ///   ],
+///   strata: [Stratum('deepslate', belowY: 22)],
 ///   ores: [Ore('coal_ore', share: 0.11)],
+///   structures: [StructureSpec('well', Well(rim: 'cobblestone', water: 'water', posts: 'fence', roof: 'planks'))],
 /// );
 /// ```
 ///
@@ -39,6 +41,7 @@ class WorldGenSpec {
     this.bedrock,
     this.ocean,
     this.beach,
+    this.strata = const [],
     this.ores = const [],
     this.caves = const CaveSpec(),
     this.structures = const [],
@@ -69,13 +72,18 @@ class WorldGenSpec {
   /// The biome of the shore (at most one block above [seaLevel]).
   final Biome? beach;
 
+  /// The rock by depth, tried in order: a cell of rock below a stratum's
+  /// `belowY` is its block instead of [stone]. Ores vein it as they do stone.
+  final List<Stratum> strata;
+
   /// Ores, tried in order.
   final List<Ore> ores;
 
   /// Caves.
   final CaveSpec caves;
 
-  /// Structures, each on its own grid.
+  /// Structures, each on its own grid, tried in order: a site within reach of
+  /// an earlier structure's is dropped, so two never overlap.
   final List<StructureSpec> structures;
 
   /// The roof and floor of a world that is one great cave, or null for open
@@ -88,8 +96,10 @@ class WorldGenSpec {
     water,
     ?bedrock,
     for (final b in [...biomes, ?ocean, ?beach]) ...b.blockNames,
+    for (final s in strata) s.block,
     for (final o in ores) o.block,
     ?caves.lava,
+    for (final s in structures) ...s.structure.blockNames,
     for (final h in cavern?.hangs ?? const <Plant>[]) h.block,
   };
 
@@ -160,11 +170,13 @@ class TerrainRecipe {
 /// to its `seaLevel`.
 ///
 /// Its biomes cover the floors: each floor's top block is the column's
-/// biome's `top` (chosen by climate, as on the surface), with that biome's
-/// plants on it; [hangs] hang from the ceilings. A cavern grows no trees and
-/// carves no caves: the spec throws when its biomes have trees or its caves
-/// are on. Its ores vein the rock, and its structures stand on the lowest
-/// floor above the sea, which is what `SpecGenerator.surfaceHeight` answers.
+/// biome's `top` or the first of its `covers` that holds there (chosen by
+/// climate, as on the surface), with that biome's plants on it; [hangs] hang
+/// from the ceilings. A cavern grows no trees, holds no pools and carves no
+/// caves, and its plants neither spread nor seek water: the spec throws when
+/// its biomes say otherwise or its caves are on. Its ores and strata vein the
+/// rock, and its structures stand on the lowest floor above the sea, which is
+/// what `SpecGenerator.surfaceHeight` answers.
 class CavernSpec {
   /// A cavern between [floor] and [roof]; noise over [threshold] is open (the
   /// default opens about two fifths of the slab), [scale] stretches the
@@ -276,6 +288,8 @@ class Biome {
     this.trees = const [],
     this.treeChance = 0,
     this.plants = const [],
+    this.covers = const [],
+    this.pools,
     this.ice,
     this.precipitation = Precipitation.rain,
   }) : under = under ?? top;
@@ -295,7 +309,8 @@ class Biome {
   /// Where this biome grows.
   final Climate climate;
 
-  /// The trees it grows, one picked per tree by its roll.
+  /// The trees it grows, one picked per tree by its roll, weighted by
+  /// [TreeSpec.weight].
   final List<TreeSpec> trees;
 
   /// Per cent of tree patches that hold a tree.
@@ -303,6 +318,14 @@ class Biome {
 
   /// Small plants, one roll per column, tried in order.
   final List<Plant> plants;
+
+  /// What covers the ground instead of [top] where the surface stands in a
+  /// cover's window and its roll hits, tried in order: snow on the peaks,
+  /// gravel on the sea floor, patches of mud.
+  final List<Cover> covers;
+
+  /// Shallow pools in the low ground, or null for none.
+  final Pools? pools;
 
   /// The block the sea's surface freezes to here, or null for open water.
   final String? ice;
@@ -316,6 +339,8 @@ class Biome {
     under,
     for (final t in trees) ...t.blockNames,
     for (final p in plants) p.block,
+    for (final c in covers) c.block,
+    ?pools?.bed,
     ?ice,
   };
 }
@@ -344,7 +369,8 @@ enum TreeShape {
 /// A tree a biome grows.
 class TreeSpec {
   /// A [shape] of [log] and [leaves], its trunk [minHeight] to [maxHeight]
-  /// tall; [vines] hang from a jungle tree's crowns.
+  /// tall; [vines] hang from a jungle tree's crowns. [weight] is its share of
+  /// its biome's trees; it grows only on ground below [belowY].
   const TreeSpec(
     this.shape, {
     required this.log,
@@ -352,19 +378,64 @@ class TreeSpec {
     this.vines,
     this.minHeight = 9,
     this.maxHeight = 12,
-  }) : assert(minHeight <= maxHeight);
+    this.weight = 1,
+    this.belowY,
+  }) : assert(minHeight <= maxHeight),
+       assert(weight > 0);
 
   /// An oak, 9-12 tall.
-  const TreeSpec.oak({required String log, required String leaves, int minHeight = 9, int maxHeight = 12})
-    : this(TreeShape.oak, log: log, leaves: leaves, minHeight: minHeight, maxHeight: maxHeight);
+  const TreeSpec.oak({
+    required String log,
+    required String leaves,
+    int minHeight = 9,
+    int maxHeight = 12,
+    int weight = 1,
+    int? belowY,
+  }) : this(
+         TreeShape.oak,
+         log: log,
+         leaves: leaves,
+         minHeight: minHeight,
+         maxHeight: maxHeight,
+         weight: weight,
+         belowY: belowY,
+       );
 
   /// A spruce, 12-16 tall.
-  const TreeSpec.spruce({required String log, required String leaves, int minHeight = 12, int maxHeight = 16})
-    : this(TreeShape.spruce, log: log, leaves: leaves, minHeight: minHeight, maxHeight: maxHeight);
+  const TreeSpec.spruce({
+    required String log,
+    required String leaves,
+    int minHeight = 12,
+    int maxHeight = 16,
+    int weight = 1,
+    int? belowY,
+  }) : this(
+         TreeShape.spruce,
+         log: log,
+         leaves: leaves,
+         minHeight: minHeight,
+         maxHeight: maxHeight,
+         weight: weight,
+         belowY: belowY,
+       );
 
   /// A palm, 8-12 tall.
-  const TreeSpec.palm({required String log, required String leaves, int minHeight = 8, int maxHeight = 12})
-    : this(TreeShape.palm, log: log, leaves: leaves, minHeight: minHeight, maxHeight: maxHeight);
+  const TreeSpec.palm({
+    required String log,
+    required String leaves,
+    int minHeight = 8,
+    int maxHeight = 12,
+    int weight = 1,
+    int? belowY,
+  }) : this(
+         TreeShape.palm,
+         log: log,
+         leaves: leaves,
+         minHeight: minHeight,
+         maxHeight: maxHeight,
+         weight: weight,
+         belowY: belowY,
+       );
 
   /// The shape.
   final TreeShape shape;
@@ -384,14 +455,35 @@ class TreeSpec {
   /// The tallest trunk.
   final int maxHeight;
 
+  /// Its share of its biome's trees: a tree of weight 3 beside one of weight 1
+  /// grows three times as often.
+  final int weight;
+
+  /// It grows only where the ground (the first air cell) is below this, or
+  /// anywhere when null: no spruce on the peaks.
+  final int? belowY;
+
   /// Every block this tree places.
   Set<String> get blockNames => {log, leaves, ?vines};
 }
 
 /// A small plant on a biome's surface.
 class Plant {
-  /// [block] on [perMille] of the columns, [height] blocks tall (a cactus).
-  const Plant(this.block, {required this.perMille, this.height = 1});
+  /// [block] on [perMille] of the columns, [height] to [maxHeight] blocks
+  /// tall (a cactus). [spread] is how many of the four neighbours may grow
+  /// one too, each on a coin's roll (a patch of melons); [byWater] grows it
+  /// only beside water at the surface (reeds), and a column away from water
+  /// skips it without spending its share.
+  const Plant(
+    this.block, {
+    required this.perMille,
+    this.height = 1,
+    int? maxHeight,
+    this.spread = 0,
+    this.byWater = false,
+  }) : maxHeight = maxHeight ?? height,
+       assert(height >= 1),
+       assert(spread >= 0 && spread <= 4);
 
   /// The plant block.
   final String block;
@@ -399,8 +491,75 @@ class Plant {
   /// How many columns in a thousand grow it.
   final int perMille;
 
-  /// How many blocks tall it stands.
+  /// How many blocks tall it stands, at the least.
   final int height;
+
+  /// How many blocks tall it stands, at the most.
+  final int maxHeight;
+
+  /// How many of the four neighbours (+x, +z, -x, -z, in that order) may
+  /// grow one too, where their ground is level with this one's.
+  final int spread;
+
+  /// Whether it grows only beside water: one of the four neighbours is the
+  /// sea's, a river's or a pool's surface.
+  final bool byWater;
+}
+
+/// The rock of a world below a height: dark stone in the deep.
+class Stratum {
+  /// [block] instead of the world's stone below [belowY].
+  const Stratum(this.block, {required this.belowY});
+
+  /// The rock block.
+  final String block;
+
+  /// Rock below this height is [block].
+  final int belowY;
+}
+
+/// A biome's surface block where the ground stands in a window of height
+/// and a roll hits: snow above a height, patches of mud.
+class Cover {
+  /// [block] on [perMille] of the columns whose surface height (the first air
+  /// cell) is in [minHeight]..[maxHeight]; one roll per [patch] x [patch]
+  /// square of columns, so a cover lies in patches.
+  const Cover(this.block, {this.perMille = 1000, this.minHeight, this.maxHeight, this.patch = 1})
+    : assert(perMille > 0 && perMille <= 1000),
+      assert(patch >= 1);
+
+  /// The surface block.
+  final String block;
+
+  /// How many columns (or patches) in a thousand it covers.
+  final int perMille;
+
+  /// The lowest surface height, or null.
+  final int? minHeight;
+
+  /// The highest surface height, or null.
+  final int? maxHeight;
+
+  /// The side of the square one roll covers, in blocks.
+  final int patch;
+}
+
+/// Shallow pools: one block of the world's water over [bed], wherever noise
+/// runs over [threshold] on land above the sea and the four neighbours stand
+/// no lower, so the water stays where it is.
+class Pools {
+  /// Pools over [bed]; [threshold] in -1..1 (higher, fewer pools), [scale]
+  /// stretches them sideways.
+  const Pools({required this.bed, this.threshold = 0.28, this.scale = 1.0});
+
+  /// What lies under the water.
+  final String bed;
+
+  /// Noise (-1..1) over this is a pool.
+  final double threshold;
+
+  /// Horizontal stretch: 2 makes every pool twice as wide.
+  final double scale;
 }
 
 /// An ore of a world.
@@ -438,26 +597,24 @@ class CaveSpec {
 
 /// A structure of a world: at most one per region of [regionChunks] square,
 /// in [chance] of the regions, on the land biomes named in [biomes] (any land
-/// when null), built by [build] around a site on the surface.
+/// when null), its [structure] built around a site on the surface (or its
+/// `depth` under it).
+///
+/// ```dart
+/// StructureSpec('well', Well(rim: 'cobblestone', water: 'water', posts: 'fence', roof: 'planks'), chance: 0.4)
+/// StructureSpec('hut', CustomStructure(hut, radius: 4))
+/// ```
 class StructureSpec {
-  /// A structure. [radius] is how far it reaches from its site, in blocks:
-  /// trees stay clear of it, and the site stays that far inside its region.
-  const StructureSpec(
-    this.name, {
-    required this.build,
-    this.regionChunks = 6,
-    this.chance = 0.3,
-    this.biomes,
-    this.radius = 8,
-    this.depth = 0,
-  }) : assert(chance >= 0 && chance <= 1);
+  /// A structure: [name] is what [SpecGenerator.structuresNear] answers,
+  /// [structure] what is drawn.
+  const StructureSpec(this.name, this.structure, {this.regionChunks = 6, this.chance = 0.3, this.biomes})
+    : assert(chance >= 0 && chance <= 1);
 
   /// The structure's name, what [SpecGenerator.structuresNear] answers.
   final String name;
 
-  /// Draws the structure; called once per chunk it may reach, and must draw
-  /// the same thing every time (roll with [StructureSite.roll]).
-  final StructureBuild build;
+  /// What is drawn, how far it reaches and what blocks it uses.
+  final Structure structure;
 
   /// The side of a region, in chunks.
   final int regionChunks;
@@ -467,10 +624,4 @@ class StructureSpec {
 
   /// The land biomes it stands on, or null for any land.
   final List<String>? biomes;
-
-  /// How far it reaches from its site, in blocks.
-  final int radius;
-
-  /// How far under the surface its site sits (a dungeon), 0 on the surface.
-  final int depth;
 }

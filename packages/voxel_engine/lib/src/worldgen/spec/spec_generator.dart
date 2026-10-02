@@ -33,6 +33,10 @@ class SpecGenerator implements ChunkGenerator {
       if (spec.caves.enabled) throw ArgumentError.value(spec.caves, 'caves', 'a cavern is open already: CaveSpec.none');
       for (final b in [...spec.biomes, ?spec.ocean, ?spec.beach]) {
         if (b.trees.isNotEmpty) throw ArgumentError.value(b.name, 'biomes', 'a cavern grows no trees');
+        if (b.pools != null) throw ArgumentError.value(b.name, 'biomes', 'a cavern holds no pools');
+        if (b.plants.any((p) => p.spread != 0 || p.byWater)) {
+          throw ArgumentError.value(b.name, 'biomes', 'a cavern\'s plants neither spread nor seek water');
+        }
       }
       if (cavern.roof >= ChunkSize.sizeY - 1) {
         throw ArgumentError.value(cavern.roof, 'cavern.roof', 'the roof must be under the top of the world');
@@ -44,6 +48,16 @@ class SpecGenerator implements ChunkGenerator {
     _stone = _id(spec.stone);
     _water = _id(spec.water);
     _bedrock = spec.bedrock == null ? _stone : _id(spec.bedrock!);
+    _rock = Uint8List(ChunkSize.sizeY);
+    for (var y = 0; y < ChunkSize.sizeY; y++) {
+      _rock[y] = _stone;
+      for (final s in spec.strata) {
+        if (y < s.belowY) {
+          _rock[y] = _id(s.block);
+          break;
+        }
+      }
+    }
     _land = [for (final b in spec.biomes) _compileBiome(b)];
     _ocean = spec.ocean == null ? null : _compileBiome(spec.ocean!);
     _beach = spec.beach == null ? null : _compileBiome(spec.beach!);
@@ -52,6 +66,9 @@ class SpecGenerator implements ChunkGenerator {
       for (final o in spec.ores) OreVein(_id(o.block), belowY: o.belowY, upTo: upTo += (o.share * 10000).round()),
     ]);
     _lava = spec.caves.lava == null ? 0 : _id(spec.caves.lava!);
+    _rockIds = {_stone, for (final s in spec.strata) _id(s.block), for (final o in spec.ores) _id(o.block)};
+    _liquidIds = {_water, if (_lava != 0) _lava};
+    _spreads = [..._land, ?_ocean, ?_beach].any((b) => b.plants.any((p) => p.spec.spread != 0));
     _soft = {
       for (final b in [..._land, ?_ocean, ?_beach])
         for (final t in b.trees) ...[t.blocks.leaves, if (t.blocks.vines != 0) t.blocks.vines],
@@ -65,7 +82,8 @@ class SpecGenerator implements ChunkGenerator {
         salt: 200 + i,
         primeZ: 104729 + i * 97,
       );
-      assert(s.radius < grid.span ~/ 2, 'structure ${s.name} reaches past its region');
+      assert(s.structure.radius < grid.span ~/ 2, 'structure ${s.name} reaches past its region');
+      if (_byName.containsKey(s.name)) throw ArgumentError.value(s.name, 'structures', 'two structures share a name');
       _structures.add((spec: s, grid: grid));
       _byName[s.name] = s;
     }
@@ -98,6 +116,9 @@ class SpecGenerator implements ChunkGenerator {
 
   final Map<String, int> _ids;
   late final int _stone, _water, _bedrock, _lava;
+  late final Uint8List _rock;
+  late final Set<int> _rockIds, _liquidIds;
+  late final bool _spreads;
   late final List<_Biome> _land;
   late final _Biome? _ocean, _beach;
   late final OreTable _ores;
@@ -110,7 +131,16 @@ class SpecGenerator implements ChunkGenerator {
   final List<({StructureSpec spec, StructureGrid grid})> _structures = [];
   final Map<String, StructureSpec> _byName = {};
 
+  /// Structure candidates already rolled, by structure and region: a site
+  /// checks every earlier structure's around it, and every chunk asks again.
+  /// Cleared when it grows past [_candidatesKept].
+  final Map<(int, int, int), PlacedStructure?> _candidates = {};
+  static const int _candidatesKept = 4096;
+
   static const ScatterGrid _treeGrid = ScatterGrid(patch: 7, inset: 2, salt: 91);
+
+  /// The four neighbours of a column, in the order a plant spreads.
+  static const List<(int, int)> _sides = [(1, 0), (0, 1), (-1, 0), (0, -1)];
 
   /// How far outside a chunk a tree may stand and still reach into it.
   static const int _treeReach = 6;
@@ -122,7 +152,7 @@ class SpecGenerator implements ChunkGenerator {
   }
 
   _Biome _compileBiome(Biome b) {
-    var plantUpTo = 0;
+    final pools = b.pools;
     return _Biome(
       b,
       top: _id(b.top),
@@ -135,7 +165,11 @@ class SpecGenerator implements ChunkGenerator {
             blocks: TreeBlocks(log: _id(t.log), leaves: _id(t.leaves), vines: t.vines == null ? 0 : _id(t.vines!)),
           ),
       ],
-      plants: [for (final p in b.plants) (block: _id(p.block), upTo: plantUpTo += p.perMille, height: p.height)],
+      plants: [for (final p in b.plants) (spec: p, block: _id(p.block))],
+      covers: [for (final c in b.covers) (spec: c, block: _id(c.block))],
+      pools: pools == null
+          ? null
+          : (spec: pools, bed: _id(pools.bed), noise: simplexNoise(seed ^ 0x89ABCDE, 0.09 / pools.scale, 1)),
     );
   }
 
@@ -188,22 +222,51 @@ class SpecGenerator implements ChunkGenerator {
 
   /// The structures whose regions touch chunk ([chunkX], [chunkZ]).
   List<PlacedStructure> structuresNear(int chunkX, int chunkZ) => [
-    for (final s in _structures)
-      for (final (rx, rz) in s.grid.around(chunkX, chunkZ)) ?_site(s.spec, s.grid, rx, rz),
+    for (var i = 0; i < _structures.length; i++)
+      for (final (rx, rz) in _structures[i].grid.around(chunkX, chunkZ)) ?_site(i, rx, rz),
   ];
 
-  PlacedStructure? _site(StructureSpec s, StructureGrid grid, int rx, int rz) {
+  /// Structure [i]'s site in region ([rx], [rz]), or null: none rolled there,
+  /// or one within reach of an earlier structure's candidate.
+  PlacedStructure? _site(int i, int rx, int rz) {
+    final site = _candidate(i, rx, rz);
+    if (site == null) return null;
+    final reach = _structures[i].spec.structure.radius;
+    for (var j = 0; j < i; j++) {
+      final other = _structures[j];
+      final d = reach + other.spec.structure.radius;
+      final span = other.grid.span;
+      for (var oz = floorDiv(site.z - d, span); oz <= floorDiv(site.z + d, span); oz++) {
+        for (var ox = floorDiv(site.x - d, span); ox <= floorDiv(site.x + d, span); ox++) {
+          final o = _candidate(j, ox, oz);
+          if (o != null && (o.x - site.x).abs() <= d && (o.z - site.z).abs() <= d) return null;
+        }
+      }
+    }
+    return site;
+  }
+
+  /// Structure [i]'s candidate in region ([rx], [rz]): rolled by the region's
+  /// hash, on land, on one of its biomes; earlier structures not asked.
+  PlacedStructure? _candidate(int i, int rx, int rz) {
+    final key = (i, rx, rz);
+    if (_candidates.containsKey(key)) return _candidates[key];
+    if (_candidates.length >= _candidatesKept) _candidates.clear();
+    return _candidates[key] = _roll(_structures[i].spec, _structures[i].grid, rx, rz);
+  }
+
+  PlacedStructure? _roll(StructureSpec s, StructureGrid grid, int rx, int rz) {
     final h = grid.hashOf(seed, rx, rz);
     if ((h >> 16) % 10000 >= (s.chance * 10000).round()) return null;
     final span = grid.span;
-    final margin = s.radius + 1;
+    final margin = s.structure.radius + 1;
     final sx = rx * span + margin + h % (span - 2 * margin);
     final sz = rz * span + margin + (h >> 8) % (span - 2 * margin);
     final surface = surfaceHeight(sx, sz);
     if (surface <= spec.seaLevel + 1) return null;
     final allowed = s.biomes;
     if (allowed != null && !allowed.contains(_biomeFor(sx, sz, surface).spec.name)) return null;
-    return (name: s.name, x: sx, y: surface - s.depth, z: sz);
+    return (name: s.name, x: sx, y: surface - s.structure.depth, z: sz);
   }
 
   /// Whether ([x], [y], [z]) of a cavern is open: between floor and roof,
@@ -244,14 +307,16 @@ class SpecGenerator implements ChunkGenerator {
     if (spec.cavern != null) {
       _cavern(w);
     } else {
-      _surface(w);
-      _decorate(w, structuresNear(chunkX, chunkZ));
+      final columns = _Columns(this, w.ox, w.oz);
+      _surface(w, columns);
+      _decorate(w, columns, structuresNear(chunkX, chunkZ));
     }
-    for (final s in _structures) {
+    for (var i = 0; i < _structures.length; i++) {
+      final s = _structures[i];
       for (final (rx, rz) in s.grid.around(chunkX, chunkZ)) {
-        final site = _site(s.spec, s.grid, rx, rz);
+        final site = _site(i, rx, rz);
         if (site == null) continue;
-        s.spec.build(
+        s.spec.structure.build(
           StructureSite(
             name: site.name,
             x: site.x,
@@ -261,6 +326,8 @@ class SpecGenerator implements ChunkGenerator {
             writer: w,
             block: _id,
             surfaceAt: surfaceHeight,
+            isRock: _rockIds.contains,
+            isLiquid: _liquidIds.contains,
           ),
         );
       }
@@ -289,21 +356,24 @@ class SpecGenerator implements ChunkGenerator {
           } else if (open[y]) {
             id = y <= sea ? _water : 0;
           } else {
-            id = _ores.pick(y, hash(wx >> 1, y >> 1, wz >> 1), hash(wx, y, wz)) ?? _stone;
+            id = _ores.pick(y, hash(wx >> 1, y >> 1, wz >> 1), hash(wx, y, wz)) ?? _rock[y];
           }
           if (id != 0) blocks[ChunkSize.index(x, y, z)] = id;
         }
         for (var y = math.max(sea, c.floor + 1); y < c.roof - 1; y++) {
           if (open[y] || !open[y + 1]) continue;
           // A floor: its biome's top over its under, and maybe a plant on it.
-          blocks[ChunkSize.index(x, y, z)] = biome.top;
+          blocks[ChunkSize.index(x, y, z)] = _topAt(biome, wx, wz, y + 1);
           for (var k = 1; k <= biome.spec.underDepth && y - k > c.floor && !open[y - k]; k++) {
             blocks[ChunkSize.index(x, y - k, z)] = biome.under;
           }
-          final roll = hash(wx, y + 7, wz) % 1000;
+          final roll = hash(wx, y + 7, wz);
+          var upTo = 0;
           for (final p in biome.plants) {
-            if (roll >= p.upTo) continue;
-            for (var i = 1; i <= p.height && open[y + i] && y + i < c.roof; i++) {
+            upTo += p.spec.perMille;
+            if (roll % 1000 >= upTo) continue;
+            final tall = _tall(p.spec, roll);
+            for (var i = 1; i <= tall && open[y + i] && y + i < c.roof; i++) {
               blocks[ChunkSize.index(x, y + i, z)] = p.block;
             }
             break;
@@ -325,27 +395,32 @@ class SpecGenerator implements ChunkGenerator {
     }
   }
 
-  /// The columns of an open-sky world: bedrock, rock and its ores, soil, the
-  /// biome's top, the sea, and the caves carved through.
-  void _surface(ChunkWriter w) {
+  /// The columns of an open-sky world: bedrock, rock (by stratum) and its
+  /// ores, soil, the biome's top or cover, a pool's water over its bed, the
+  /// sea, and the caves carved through.
+  void _surface(ChunkWriter w, _Columns columns) {
     final blocks = w.blocks;
     final sea = spec.seaLevel;
     for (var z = 0; z < ChunkSize.sizeZ; z++) {
       for (var x = 0; x < ChunkSize.sizeX; x++) {
         final wx = w.ox + x, wz = w.oz + z;
-        final h = surfaceHeight(wx, wz);
-        final biome = _biomeFor(wx, wz, h);
+        final h = columns.height(wx, wz);
+        final biome = columns.biome(wx, wz);
+        final pool = biome.pools != null && columns.pool(wx, wz);
+        final top = pool ? _water : _topAt(biome, wx, wz, h);
         final soil = h - 1 - biome.spec.underDepth;
         for (var y = 0; y < ChunkSize.sizeY; y++) {
           var id = 0;
           if (y == 0) {
             id = _bedrock;
+          } else if (pool && y == h - 2) {
+            id = biome.pools!.bed;
           } else if (y < soil) {
-            id = _ores.pick(y, hash(wx >> 1, y >> 1, wz >> 1), hash(wx, y, wz)) ?? _stone;
+            id = _ores.pick(y, hash(wx >> 1, y >> 1, wz >> 1), hash(wx, y, wz)) ?? _rock[y];
           } else if (y < h - 1) {
             id = biome.under;
           } else if (y == h - 1) {
-            id = biome.top;
+            id = top;
           } else if (y <= sea) {
             id = y == sea && biome.ice != 0 ? biome.ice : _water;
           }
@@ -364,47 +439,149 @@ class SpecGenerator implements ChunkGenerator {
     }
   }
 
-  void _decorate(ChunkWriter w, List<PlacedStructure> near) {
+  /// The surface block of [b]'s column ([wx], [wz]) with surface height [h]:
+  /// the first cover whose window holds [h] and whose roll hits, or its top.
+  int _topAt(_Biome b, int wx, int wz, int h) {
+    for (var i = 0; i < b.covers.length; i++) {
+      final c = b.covers[i].spec;
+      if ((c.minHeight != null && h < c.minHeight!) || (c.maxHeight != null && h > c.maxHeight!)) continue;
+      if (c.perMille < 1000 && hash(floorDiv(wx, c.patch), 0x3C0 + i, floorDiv(wz, c.patch)) % 1000 >= c.perMille) {
+        continue;
+      }
+      return b.covers[i].block;
+    }
+    return b.top;
+  }
+
+  /// Whether column ([wx], [wz]) of [columns] is a pool: its biome has pools,
+  /// it stands above the sea where the pool noise runs high, no neighbour
+  /// stands lower and no cave opens under the bed or beside the water.
+  bool _isPool(_Columns columns, int wx, int wz) {
+    final pools = columns.biome(wx, wz).pools;
+    if (pools == null) return false;
+    final h = columns.height(wx, wz);
+    if (h <= spec.seaLevel) return false;
+    if (pools.noise.getNoise2(wx.toDouble(), wz.toDouble()) <= pools.spec.threshold) return false;
+    final caves = spec.caves.enabled;
+    if (caves && _caves.carved(wx, h - 2, wz, h)) return false;
+    for (final (dx, dz) in _sides) {
+      final nh = columns.height(wx + dx, wz + dz);
+      if (nh < h) return false;
+      if (caves && _caves.carved(wx + dx, h - 1, wz + dz, nh)) return false;
+    }
+    return true;
+  }
+
+  /// Whether a neighbour of column ([wx], [wz]), ground [h], is water at the
+  /// surface no more than a block under its ground: the sea, a river, a pool.
+  bool _byWater(_Columns columns, int wx, int wz, int h) {
+    final sea = spec.seaLevel;
+    for (final (dx, dz) in _sides) {
+      final nx = wx + dx, nz = wz + dz;
+      final nh = columns.height(nx, nz);
+      final water = nh <= sea ? sea : (columns.pool(nx, nz) ? nh - 1 : -1);
+      if (water >= h - 2) return true;
+    }
+    return false;
+  }
+
+  /// Whether the ground block of column ([wx], [wz]), surface [h], is carved
+  /// away to air: what `_surface` does to it, asked of the position alone.
+  bool _groundGone(int wx, int h, int wz) {
+    final y = h - 1;
+    if (y <= 1 || !spec.caves.enabled || !_caves.carved(wx, y, wz, h)) return false;
+    return y > spec.caves.lavaBelowY || _lava == 0;
+  }
+
+  void _decorate(ChunkWriter w, _Columns columns, List<PlacedStructure> near) {
     final sea = spec.seaLevel;
     for (var z = -_treeReach; z < ChunkSize.sizeZ + _treeReach; z++) {
       for (var x = -_treeReach; x < ChunkSize.sizeX + _treeReach; x++) {
         final inside = x >= 0 && x < ChunkSize.sizeX && z >= 0 && z < ChunkSize.sizeZ;
+        // A plant that spreads may reach in from the ring just outside.
+        final plants = inside || (_spreads && x >= -1 && x <= ChunkSize.sizeX && z >= -1 && z <= ChunkSize.sizeZ);
         final wx = w.ox + x, wz = w.oz + z;
         final patch = _treeGrid.spotOf(seed, wx, wz);
         final tree = patch.x == wx && patch.z == wz;
-        if (!inside && !tree) continue;
-        final h = surfaceHeight(wx, wz);
+        if (!plants && !tree) continue;
+        final h = columns.height(wx, wz);
         if (h <= sea) continue; // nothing grows under the sea
-        final biome = _biomeFor(wx, wz, h);
+        final biome = columns.biome(wx, wz);
+        final pool = biome.pools != null && columns.pool(wx, wz);
         if (tree &&
             biome.trees.isNotEmpty &&
             patch.hash % 100 < biome.spec.treeChance &&
+            !pool &&
             !(spec.caves.enabled && _caves.carved(wx, h - 1, wz, h)) &&
             !_nearStructure(near, wx, wz)) {
-          final t = biome.trees[(patch.hash >> 20) % biome.trees.length];
-          final tall = t.spec.minHeight + (patch.hash >> 12) % (t.spec.maxHeight - t.spec.minHeight + 1);
-          _canvas.begin(wx, h, wz);
-          _drawTree(t.spec.shape, wx, h, wz, tall, patch.hash, t.blocks);
-          _canvas.print(w);
-        }
-        if (!inside || w.blocks[ChunkSize.index(x, h - 1, z)] == 0) continue;
-        final roll = hash(wx, 7, wz) % 1000;
-        for (final p in biome.plants) {
-          if (roll >= p.upTo) continue;
-          for (var i = 0; i < p.height; i++) {
-            w.place(x, h + i, z, p.block, over: _soft.contains);
+          final t = _pickTree(biome, patch.hash >> 20);
+          final below = t.spec.belowY;
+          if (below == null || h < below) {
+            final tall = t.spec.minHeight + (patch.hash >> 12) % (t.spec.maxHeight - t.spec.minHeight + 1);
+            _canvas.begin(wx, h, wz);
+            _drawTree(t.spec.shape, wx, h, wz, tall, patch.hash, t.blocks);
+            _canvas.print(w);
           }
-          break;
         }
+        if (!plants || pool) continue; // nothing grows in a pool
+        if (inside ? w.blocks[ChunkSize.index(x, h - 1, z)] == 0 : _groundGone(wx, h, wz)) continue;
+        _plant(w, columns, x, h, z, wx, wz, biome);
       }
     }
   }
 
+  /// The plant of column ([wx], [wz]), chunk-local ([x], [z]), on ground
+  /// [h]: one roll, its biome's plants tried in order, a plant that seeks
+  /// water skipped away from it, and a spreading one grown on the
+  /// neighbours level with it too.
+  void _plant(ChunkWriter w, _Columns columns, int x, int h, int z, int wx, int wz, _Biome biome) {
+    final roll = hash(wx, 7, wz);
+    var upTo = 0;
+    for (final p in biome.plants) {
+      final s = p.spec;
+      if (s.byWater && !_byWater(columns, wx, wz, h)) continue;
+      upTo += s.perMille;
+      if (roll % 1000 >= upTo) continue;
+      final tall = _tall(s, roll);
+      _stand(w, x, h, z, p.block, tall);
+      for (var k = 0; k < s.spread; k++) {
+        if ((roll >> (14 + k)) & 1 != 0) continue;
+        final (dx, dz) = _sides[k];
+        final nx = wx + dx, nz = wz + dz;
+        if (columns.height(nx, nz) != h || columns.pool(nx, nz) || _groundGone(nx, h, nz)) continue;
+        _stand(w, x + dx, h, z + dz, p.block, tall);
+      }
+      break;
+    }
+  }
+
+  /// How tall plant [s] stands for [roll].
+  static int _tall(Plant s, int roll) =>
+      s.maxHeight == s.height ? s.height : s.height + (roll >> 10) % (s.maxHeight - s.height + 1);
+
+  /// A plant [tall] blocks high at chunk-local ([x], [h], [z]), over air or a
+  /// canopy.
+  void _stand(ChunkWriter w, int x, int h, int z, int block, int tall) {
+    for (var i = 0; i < tall; i++) {
+      w.place(x, h + i, z, block, over: _soft.contains);
+    }
+  }
+
+  /// The tree of [b] that [roll] picks, by weight.
+  static ({TreeSpec spec, TreeBlocks blocks}) _pickTree(_Biome b, int roll) {
+    var r = roll % b.treeWeight;
+    for (final t in b.trees) {
+      r -= t.spec.weight;
+      if (r < 0) return t;
+    }
+    throw StateError('a roll under the total weight picks a tree');
+  }
+
   bool _nearStructure(List<PlacedStructure> near, int wx, int wz) {
     for (final s in near) {
-      final spec = _byName[s.name]!;
-      if (spec.depth != 0) continue; // dug under the trees, never through them
-      final r = spec.radius + _treeReach;
+      final clearing = _byName[s.name]!.structure.clearing;
+      if (clearing == 0) continue; // dug under the trees, never through them
+      final r = clearing + _treeReach;
       final dx = s.x - wx, dz = s.z - wz;
       if (dx * dx + dz * dz <= r * r) return true;
     }
@@ -437,10 +614,72 @@ class _Biome {
     required this.ice,
     required this.trees,
     required this.plants,
-  });
+    required this.covers,
+    required this.pools,
+  }) : treeWeight = trees.fold(0, (sum, t) => sum + t.spec.weight);
 
   final Biome spec;
   final int top, under, ice;
   final List<({TreeSpec spec, TreeBlocks blocks})> trees;
-  final List<({int block, int upTo, int height})> plants;
+  final int treeWeight;
+  final List<({Plant spec, int block})> plants;
+  final List<({Cover spec, int block})> covers;
+  final ({Pools spec, int bed, FastNoiseLite noise})? pools;
+}
+
+/// The heights and biomes of one chunk's columns and a ring around them,
+/// each worked out once (the surface, the plants and the pools all ask), and
+/// which of them are pools, asked lazily. A column past the ring is worked
+/// out every time it is asked.
+class _Columns {
+  _Columns(this._g, this.ox, this.oz) {
+    for (var z = 0; z < _sideZ; z++) {
+      for (var x = 0; x < _sideX; x++) {
+        final wx = ox - _ring + x, wz = oz - _ring + z;
+        final h = _g.surfaceHeight(wx, wz);
+        _heights[z * _sideX + x] = h;
+        _biomes.add(_g._biomeFor(wx, wz, h));
+      }
+    }
+  }
+
+  static const int _ring = 2;
+  static const int _sideX = ChunkSize.sizeX + 2 * _ring, _sideZ = ChunkSize.sizeZ + 2 * _ring;
+
+  final SpecGenerator _g;
+
+  /// World x and z of the chunk's first column.
+  final int ox, oz;
+
+  final Int32List _heights = Int32List(_sideX * _sideZ);
+  final List<_Biome> _biomes = [];
+
+  /// 0 not asked yet, 1 dry, 2 a pool.
+  final Uint8List _pools = Uint8List(_sideX * _sideZ);
+
+  int _index(int wx, int wz) {
+    final x = wx - ox + _ring, z = wz - oz + _ring;
+    if (x < 0 || x >= _sideX || z < 0 || z >= _sideZ) return -1;
+    return z * _sideX + x;
+  }
+
+  /// The surface height of column ([wx], [wz]).
+  int height(int wx, int wz) {
+    final i = _index(wx, wz);
+    return i < 0 ? _g.surfaceHeight(wx, wz) : _heights[i];
+  }
+
+  /// The biome of column ([wx], [wz]).
+  _Biome biome(int wx, int wz) {
+    final i = _index(wx, wz);
+    return i < 0 ? _g._biomeFor(wx, wz, _g.surfaceHeight(wx, wz)) : _biomes[i];
+  }
+
+  /// Whether column ([wx], [wz]) is a pool.
+  bool pool(int wx, int wz) {
+    final i = _index(wx, wz);
+    if (i < 0) return _g._isPool(this, wx, wz);
+    if (_pools[i] == 0) _pools[i] = _g._isPool(this, wx, wz) ? 2 : 1;
+    return _pools[i] == 2;
+  }
 }

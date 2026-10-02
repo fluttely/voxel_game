@@ -39,7 +39,7 @@ const WorldGenSpec _world = WorldGenSpec(
   ores: [Ore('coal_ore', share: 0.2)],
   caves: CaveSpec(lava: 'lava'),
   structures: [
-    StructureSpec('hut', build: _hut, chance: 1.0, biomes: ['plains'], radius: 4, regionChunks: 3),
+    StructureSpec('hut', CustomStructure(_hut, radius: 4), chance: 1.0, biomes: ['plains'], regionChunks: 3),
   ],
 );
 
@@ -64,6 +64,15 @@ ChunkGenerator _worldFactory() => _world.compile(_ids, 7);
 ChunkGenerator _dimensionsFactory() => DimensionGenerator(const [_world, _cavern], _ids, 7);
 
 int _count(Uint8List b, int id) => b.where((v) => v == id).length;
+
+/// An FNV-1a hash of [bytes], to pin a world.
+int _fingerprint(Iterable<int> bytes) {
+  var h = 0x811c9dc5;
+  for (final v in bytes) {
+    h = ((h ^ v) * 0x01000193) & 0xffffffff;
+  }
+  return h;
+}
 
 void main() {
   test('a flat world is stone under soil under grass, bedrock at the bottom', () {
@@ -129,6 +138,26 @@ void main() {
     }
     expect(coal, greaterThan(0));
     expect(logs + flowers + water, greaterThan(0));
+  });
+
+  test('a world that uses none of the rows added since generates what it did before them', () {
+    // Pinned on 2026-10-02, before strata, covers, pools, tree weights, plant
+    // spreads and structures kept apart: a spec without them must not move.
+    final g = _world.compile(_ids, 7), c = _cavern.compile(_ids, 3);
+    expect(
+      _fingerprint([
+        for (var cx = -3; cx <= 3; cx++)
+          for (var cz = -3; cz <= 3; cz++) _fingerprint(g.generateIn(cx, cz, 0)),
+      ]),
+      3858467787,
+    );
+    expect(
+      _fingerprint([
+        for (var cx = -2; cx <= 2; cx++)
+          for (var cz = -2; cz <= 2; cz++) _fingerprint(c.generateIn(cx, cz, 0)),
+      ]),
+      2821150095,
+    );
   });
 
   test('generation is pure: the same chunk twice, and another seed differs', () {

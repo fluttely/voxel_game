@@ -37,7 +37,7 @@ const WorldGenSpec world = WorldGenSpec(
   beach: Biome('beach', top: 'sand'),
   ores: [Ore('coal_ore', share: 0.11)],
   structures: [
-    StructureSpec('tower', build: tower, biomes: ['plains', 'forest'], radius: 3),
+    StructureSpec('tower', CustomStructure(tower, radius: 3, blocks: {'cobblestone'}), biomes: ['plains', 'forest']),
   ],
 );
 

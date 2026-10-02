@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- **A richer world (VA11).** The kit re-exports voxel_engine's new world rows — `Stratum`,
+  `Cover`, `Pools`, `Structure`, `CustomStructure` and the stock structures `Dungeon`,
+  `Tower`, `Well`, `Camp`, `Ruins`, `Mine`, `Village`, `VillageFarm` — and with them the new
+  `StructureSpec(name, structure, ...)` (breaking: a build function is a
+  `CustomStructure`). The example's world wears them: peaks with snow over 101 and gravel,
+  a tundra with ice, a desert of cacti, a swamp of pools, mud, reeds and willows, a jungle of
+  giants and melons, a forest of oaks and big oaks by weight, dark stone under y 22, a sea
+  floor of sand and gravel, and all seven structures. Its world (and the benchmark's, which
+  is the example's) is not the one it was: a save made before keeps its edits over new
+  ground.
+
 - **Dimensions and portals (VA10).** `VoxelGameSpec.dimensions` (new, `{id: WorldGenSpec}`,
   empty by default): the worlds beside `world`, whose id is `VoxelGameSpec.mainDimension`
   (`'world'`; a dimension of that name throws); `dimensionIds` and `dimensionWorlds` number

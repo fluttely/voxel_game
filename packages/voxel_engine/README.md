@@ -162,15 +162,25 @@ sockets, through `dart:isolate` and `dart:io`, which a browser does not have.
 4. **Ask it about the world** without generating chunks: `surfaceHeight(x, z)`,
    `biomeAt(x, z)`, `structuresNear(cx, cz)`.
 
-5. **Add a structure** with a build function:
+5. **Add structures**: a stock one (`Dungeon`, `Tower`, `Well`, `Camp`, `Ruins`, `Mine`,
+   `Village`) takes its blocks by name; your own is a build function. Structures keep
+   apart: a site within reach of an earlier one's is dropped.
 
    ```dart
    void tower(StructureSite s) {
      s.level(-2, -2, 2, 2, 'stone', clearTo: 10);
      s.fill(-2, 0, -2, 2, 8, 2, 'stone', hollow: true);
    }
-   // structures: [StructureSpec('tower', build: tower, biomes: ['plains'], radius: 3)]
+   // structures: [
+   //   StructureSpec('well', Well(rim: 'cobblestone', water: 'water', posts: 'fence', roof: 'planks')),
+   //   StructureSpec('tower', CustomStructure(tower, radius: 3, blocks: {'stone'}), biomes: ['plains']),
+   // ]
    ```
+
+6. **Dress the ground** with rows: `strata` (dark stone in the deep), a biome's `covers`
+   (snow above a height, patches of mud), `pools` (water over mud), trees by `weight`,
+   and plants that grow taller (`maxHeight`), in patches (`spread`) or by water
+   (`byWater`).
 
 ### signals — circuits and rails
 

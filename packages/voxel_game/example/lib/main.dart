@@ -153,6 +153,26 @@ const game = VoxelGameSpec(
     BlockType('glowstone', color: 0xF0D27A, hardness: 0.3, light: 15),
     BlockType('bedrock', color: 0x2A2A2E, hardness: -1),
     BlockType.liquid('lava', color: 0xE0601A, alpha: 0.9, light: 15),
+    // The ground's dress: dark stone in the deep, snow on the peaks and the tundra, gravel, swamp mud, ice.
+    BlockType('dark_stone', color: 0x4A4A52, hardness: 2.0, tool: 'pickaxe', tier: 1, drop: 'cobblestone'),
+    BlockType('snow', color: 0xF2F6FA, hardness: 0.3, tool: 'shovel'),
+    BlockType('gravel', color: 0x857F7A, hardness: 0.6, tool: 'shovel', falls: true),
+    BlockType('mud', color: 0x4A3A2C, hardness: 0.5, tool: 'shovel', speed: 0.7),
+    BlockType('ice', color: 0xA8CCF0, alpha: 0.8, hardness: 0.5, speed: 1.3),
+    BlockType('spruce_log', color: 0x4A3420, hardness: 2.0, tool: 'axe', drop: 'log'),
+    BlockType('spruce_leaves', color: 0x2E5A38, hardness: 0.2, opaque: false),
+    // What grows: cacti two or three tall, melons in patches, reeds beside water.
+    BlockType('cactus', color: 0x4E8A32, hardness: 0.4, support: Support.below(on: {'sand', 'cactus'})),
+    BlockType('melon', color: 0x6AA030, hardness: 1.0, tool: 'axe'),
+    BlockType('reeds', color: 0x8AB860, shape: BlockShape.cross, solid: false, hardness: 0, support: Support.below()),
+    // What structures are built of: bricks, ladders, fences, slabs, glass, a rail.
+    BlockType('stone_bricks', color: 0x7A7A7E, hardness: 2.0, tool: 'pickaxe', tier: 1),
+    BlockType('mossy_bricks', color: 0x5E7A5A, hardness: 2.0, tool: 'pickaxe', tier: 1),
+    BlockType('ladder', color: 0x9A7040, shape: BlockShape.ladder, solid: false, opaque: false, hardness: 0.4),
+    BlockType('fence', color: 0xB08850, shape: BlockShape.fence, opaque: false, hardness: 2.0, tool: 'axe'),
+    BlockType('slab', color: 0xB08850, shape: BlockShape.slab, opaque: false, hardness: 2.0, tool: 'axe'),
+    BlockType('glass', color: 0xCDE6F0, alpha: 0.35, hardness: 0.3, drop: ''),
+    BlockType('rail', color: 0x8A8478, shape: BlockShape.railEw, solid: false, opaque: false, hardness: 0.7),
   ],
   // 2. Items that are not blocks — tools, food (eaten with use), armour (worn with use), a door
   //    (placing its block), buckets, a hoe, seeds (placing wheat) — and how to craft things.
@@ -200,16 +220,69 @@ const game = VoxelGameSpec(
   ],
   // Status effects: what a food starts, what the player carries.
   effects: [EffectType('regeneration', 'Regeneration', 0.9, 0.35, 0.55, period: 2.0, heal: 1.0)],
-  // 3. The world: biomes chosen by climate, trees, ores.
+  // 3. The world: biomes chosen by climate (the first that holds), what covers their ground, the trees they
+  //    grow by weight and the plants, dark stone in the deep, ores, and structures built of the game's blocks.
   world: WorldGenSpec(
     bedrock: 'stone',
     biomes: [
+      Biome(
+        'peaks',
+        top: 'stone',
+        climate: Climate.highlands,
+        covers: [Cover('snow', minHeight: 101), Cover('gravel', perMille: 250)],
+        trees: [TreeSpec.spruce(log: 'spruce_log', leaves: 'spruce_leaves', belowY: 96)],
+        treeChance: 20,
+        precipitation: Precipitation.snow,
+      ),
+      Biome(
+        'tundra',
+        top: 'snow',
+        under: 'dirt',
+        climate: Climate.cold,
+        trees: [TreeSpec.spruce(log: 'spruce_log', leaves: 'spruce_leaves')],
+        treeChance: 37,
+        ice: 'ice',
+        precipitation: Precipitation.snow,
+      ),
+      Biome(
+        'desert',
+        top: 'sand',
+        climate: Climate.hotDry,
+        plants: [Plant('cactus', perMille: 12, height: 2, maxHeight: 3)],
+        precipitation: Precipitation.none,
+      ),
+      Biome(
+        'swamp',
+        top: 'grass',
+        under: 'dirt',
+        climate: Climate(minTemperature: 0.1, minHumidity: 0.42, maxHeight: 52),
+        covers: [Cover('mud', perMille: 400, patch: 2)],
+        pools: Pools(bed: 'mud'),
+        trees: [TreeSpec(TreeShape.willow, log: 'log', leaves: 'leaves', minHeight: 9, maxHeight: 11)],
+        treeChance: 27,
+        plants: [Plant('reeds', perMille: 550, byWater: true), Plant('tall_grass', perMille: 280)],
+      ),
+      Biome(
+        'jungle',
+        top: 'grass',
+        under: 'dirt',
+        climate: Climate.hotWet,
+        trees: [
+          TreeSpec(TreeShape.jungle, log: 'log', leaves: 'leaves', minHeight: 16, maxHeight: 22, weight: 3),
+          TreeSpec.oak(log: 'log', leaves: 'leaves'),
+        ],
+        treeChance: 47,
+        plants: [Plant('melon', perMille: 12, spread: 2), Plant('tall_grass', perMille: 300)],
+      ),
       Biome(
         'forest',
         top: 'grass',
         under: 'dirt',
         climate: Climate.wet,
-        trees: [TreeSpec.oak(log: 'log', leaves: 'leaves')],
+        trees: [
+          TreeSpec.oak(log: 'log', leaves: 'leaves', weight: 7),
+          TreeSpec(TreeShape.bigOak, log: 'log', leaves: 'leaves', minHeight: 14, maxHeight: 18, weight: 3),
+        ],
         treeChance: 90,
       ),
       Biome(
@@ -221,8 +294,19 @@ const game = VoxelGameSpec(
         plants: [Plant('tall_grass', perMille: 60)],
       ),
     ],
+    ocean: Biome('ocean', top: 'sand', covers: [Cover('gravel', perMille: 200)]),
     beach: Biome('beach', top: 'sand'),
+    strata: [Stratum('dark_stone', belowY: 22)],
     ores: [Ore('coal_ore', share: 0.11)],
+    structures: [
+      StructureSpec('village', _village, chance: 0.4, biomes: ['plains', 'forest']),
+      StructureSpec('mine', _mine, chance: 0.3, regionChunks: 5, biomes: ['plains', 'forest', 'peaks', 'tundra']),
+      StructureSpec('dungeon', _dungeon, chance: 0.4),
+      StructureSpec('tower', _tower, chance: 0.25, regionChunks: 4),
+      StructureSpec('camp', _camp, chance: 0.2, regionChunks: 4),
+      StructureSpec('ruins', _ruins, chance: 0.3, regionChunks: 3, biomes: ['plains', 'forest', 'jungle']),
+      StructureSpec('well', _well, chance: 0.2, regionChunks: 3, biomes: ['plains', 'desert']),
+    ],
   ),
   // Another dimension, a world of its own from the same seed: one great cave between a bedrock floor and roof,
   // a lava sea, soul sand where it is wet, glowstone hanging from the ceilings. No sky falls in it.
@@ -292,6 +376,53 @@ const game = VoxelGameSpec(
   // 6. Screens of the game's own: this one is a button in the game menu (Esc, or ⏸ on a phone).
   screens: {'controls': ScreenSpec(_controls, menu: 'Controls')},
 );
+
+// The stock structures, each built of the game's blocks by name; a block left out is left out of the structure.
+const _village = Village(
+  floor: 'cobblestone',
+  walls: 'planks',
+  corners: 'log',
+  roof: 'planks',
+  path: 'gravel',
+  wellRim: 'stone_bricks',
+  water: 'water',
+  roofRim: 'slab',
+  window: 'glass',
+  chest: 'chest',
+  torch: 'torch',
+  light: 'glowstone',
+  farm: VillageFarm(soil: 'dirt', tilled: 'farmland', crop: 'wheat_2', fence: 'fence', torch: 'torch'),
+);
+const _mine = Mine(
+  frame: 'cobblestone',
+  posts: 'fence',
+  roof: 'planks',
+  ladder: 'ladder',
+  beams: 'log',
+  walls: 'cobblestone',
+  rail: 'rail',
+  light: 'torch',
+  chest: 'chest',
+  veins: {'coal_ore': 15},
+);
+const _dungeon = Dungeon(
+  walls: 'stone_bricks',
+  mossy: 'mossy_bricks',
+  ladder: 'ladder',
+  light: 'glowstone',
+  chest: 'chest',
+);
+const _tower = Tower(walls: 'stone_bricks', mossy: 'mossy_bricks', floor: 'planks', ladder: 'ladder', chest: 'chest');
+const _camp = Camp(cloth: 'planks', poles: 'log', chest: 'chest', light: 'torch');
+const _ruins = Ruins(
+  floor: 'cobblestone',
+  ground: 'grass',
+  walls: 'stone_bricks',
+  mossy: 'mossy_bricks',
+  plants: ['tall_grass'],
+  chest: 'chest',
+);
+const _well = Well(rim: 'cobblestone', water: 'water', posts: 'fence', roof: 'planks');
 
 void _killed(VoxelGame game, Mob mob) => game.player.gainXp(switch (mob.spec.id) {
   'brute' => 60,
