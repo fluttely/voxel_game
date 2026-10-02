@@ -8,41 +8,61 @@ import 'package:voxel_engine/core.dart';
 
 import '../core/voxel_game.dart';
 import '../player/player_spec.dart';
+import '../spec/voxel_game_spec.dart';
 import 'world_info.dart';
 
 /// What a save holds before a game starts from it: its seed, its edits and
 /// the rest as JSON.
 class SavedWorld {
-  /// A save read from disk.
-  const SavedWorld(this.seed, this.edits, this.state);
+  /// A save read from disk, its [edits] numbered as [dimensions] names them.
+  const SavedWorld(this.seed, this.edits, this.state, {this.dimensions = const [VoxelGameSpec.mainDimension]});
 
   /// The world seed the save was made with (it wins over the spec's).
   final int seed;
 
-  /// The world's edits.
+  /// The world's edits, by the dimension's place in [dimensions].
   final EditsByDimension edits;
 
   /// The game's own state: clock, player.
   final Map<String, Object?> state;
+
+  /// The id of each dimension [edits] numbers, in its order.
+  final List<String> dimensions;
+
+  /// [edits] numbered as [ids] (a game's `VoxelGameSpec.dimensionIds`)
+  /// number the dimensions. Throws [StateError] for a dimension saved that
+  /// [ids] lacks.
+  EditsByDimension editsFor(List<String> ids) => {
+    for (var i = 0; i < dimensions.length; i++) _indexIn(ids, dimensions[i]): edits[i] ?? <ChunkPos, Map<int, int>>{},
+  };
+
+  static int _indexIn(List<String> ids, String dimension) {
+    final i = ids.indexOf(dimension);
+    if (i < 0) throw StateError('the save holds dimension $dimension, which the game does not declare');
+    return i;
+  }
 }
 
 /// Saved worlds under one [directory], a folder per slot holding
 /// `world.json` (what the world list shows: `WorldInfo`), `edits.bin` (the
-/// edited cells, `EditDeltaCodec`) and `game.json` (the clock, the crops
-/// growing, what the stores hold, and the player: where, looking where,
-/// health, hunger, experience, the effects on them, the bag, what they wear,
-/// the spawn point).
+/// edited cells of every dimension, `EditDeltaCodec`) and `game.json` (the
+/// clock, the dimensions in the order `edits.bin` holds them, the crops
+/// growing and what the stores hold in each, and the player: in which
+/// dimension, where, looking where, health, hunger, experience, the effects
+/// on them, the bag, what they wear, the spawn point).
 ///
 /// A world [create]d and not yet played has only its `world.json`; a world
 /// saved before there was one has only the other two, and [info] reads it
 /// from them (its name is its slot, it plays as the game declares, when it
 /// was made is not known) until its next [save] or [rename] writes one.
 ///
-/// `game.json` is version 4. Older saves still load, each a branch on its
+/// `game.json` is version 5. Older saves still load, each a branch on its
 /// version: a version 1 save, from before the player had hunger, experience,
 /// effects and armour, stands its player up fed, at level 0, wearing nothing;
 /// a save before version 3 has no crops growing, and one before version 4
-/// no stores (a store found in its world is looked into afresh).
+/// no stores (a store found in its world is looked into afresh); a save
+/// before version 5 is of the main world alone, its crops and stores there,
+/// its player in it, and its `edits.bin` of version 1, one dimension.
 class WorldSaves {
   /// Saves under [directory]; [clock] says when a world is made and played.
   WorldSaves(this.directory, {this.clock = DateTime.now});
@@ -54,10 +74,13 @@ class WorldSaves {
   final DateTime Function() clock;
 
   /// The version of `game.json` [save] writes.
-  static const stateVersion = 4;
+  static const stateVersion = 5;
 
-  /// The edit file's layout: magic `VXK1`, version 1, one dimension.
-  static const EditDeltaCodec codec = EditDeltaCodec(magic: 0x314B5856, version: 1, dimensions: 1);
+  /// The edit file's layout for a game of [dimensions]: magic `VXK1`,
+  /// version 2, every dimension; a version 1 file, of one dimension, still
+  /// reads.
+  static EditDeltaCodec codecFor(int dimensions) =>
+      EditDeltaCodec(magic: 0x314B5856, version: 2, dimensions: dimensions, legacySingleDimensionVersion: 1);
 
   Directory _slot(String slot) {
     assert(slot.isNotEmpty && !slot.contains('/') && !slot.contains(r'\') && !slot.startsWith('.'));
@@ -179,20 +202,31 @@ class WorldSaves {
     final now = clock();
     final before = contains(slot) ? info(slot) : null;
     final d = _slot(slot)..createSync(recursive: true);
-    File('${d.path}/edits.bin').writeAsBytesSync(codec.encode(game.world.generator.seed, game.world.edits));
+    final ids = game.spec.dimensionIds;
+    final seed = game.world.generators.seed;
+    File('${d.path}/edits.bin').writeAsBytesSync(codecFor(ids.length).encode(seed, game.world.edits));
     final p = game.player;
+    final rules = game.blockRules;
     final state = <String, Object?>{
       'version': stateVersion,
-      'seed': game.world.generator.seed,
+      'seed': seed,
       'time': game.time,
       'timeOfDay': game.timeOfDay,
-      'growing': [
-        for (final e in game.blockRules.growing.entries) [e.key.x, e.key.y, e.key.z, e.value],
-      ],
-      'stores': [
-        for (final e in game.blockRules.stores.entries) [e.key.x, e.key.y, e.key.z, e.value.toJson()],
-      ],
+      'dimensions': ids,
+      'growing': {
+        for (var i = 0; i < ids.length; i++)
+          ids[i]: [
+            for (final e in rules.growingIn(i).entries) [e.key.x, e.key.y, e.key.z, e.value],
+          ],
+      },
+      'stores': {
+        for (var i = 0; i < ids.length; i++)
+          ids[i]: [
+            for (final e in rules.storesIn(i).entries) [e.key.x, e.key.y, e.key.z, e.value.toJson()],
+          ],
+      },
       'player': {
+        'dimension': game.dimension,
         'pos': [p.position.x, p.position.y, p.position.z],
         'spawn': [p.spawnPoint.x, p.spawnPoint.y, p.spawnPoint.z],
         'yaw': p.yaw,
@@ -212,15 +246,7 @@ class WorldSaves {
     final played = Duration(microseconds: (game.time * 1e6).round());
     _writeInfo(
       before?.copyWith(saved: true, lastPlayed: now, playTime: played) ??
-          WorldInfo(
-            slot: slot,
-            name: slot,
-            seed: game.world.generator.seed,
-            saved: true,
-            created: now,
-            lastPlayed: now,
-            playTime: played,
-          ),
+          WorldInfo(slot: slot, name: slot, seed: seed, saved: true, created: now, lastPlayed: now, playTime: played),
     );
   }
 
@@ -228,10 +254,14 @@ class WorldSaves {
   SavedWorld read(String slot) {
     final d = _slot(slot);
     final state = jsonDecode(_state(slot).readAsStringSync()) as Map<String, Object?>;
+    // Before version 5, the main world alone.
+    final dimensions = [
+      for (final id in state['dimensions'] as List<Object?>? ?? const [VoxelGameSpec.mainDimension]) id! as String,
+    ];
     final edits = File('${d.path}/edits.bin');
-    final decoded = edits.existsSync() ? codec.decode(edits.readAsBytesSync()) : null;
+    final decoded = edits.existsSync() ? codecFor(dimensions.length).decode(edits.readAsBytesSync()) : null;
     final seed = (state['seed']! as num).toInt();
-    return SavedWorld(seed, decoded?.edits ?? <int, Map<ChunkPos, Map<int, int>>>{}, state);
+    return SavedWorld(seed, decoded?.edits ?? <int, Map<ChunkPos, Map<int, int>>>{}, state, dimensions: dimensions);
   }
 
   /// Puts [saved]'s clock, crops, stores and player back into [game] (its
@@ -245,6 +275,11 @@ class WorldSaves {
     final version = (s['version']! as num).toInt();
     if (version < 1 || version > stateVersion) {
       throw StateError('game.json version $version: this kit reads 1 to $stateVersion');
+    }
+    final ids = game.spec.dimensionIds;
+    if (version >= 5) {
+      final d = SavedWorld._indexIn(ids, p['dimension']! as String);
+      if (d != game.world.dimension) game.world.switchDimension(d);
     }
     Vector3 v(Object? o) {
       final l = [for (final e in o! as List<Object?>) (e! as num).toDouble()];
@@ -262,22 +297,28 @@ class WorldSaves {
     if (version >= 2) _restoreSurvival(game, p);
     // Health is 0 only in death: a player saved on the death screen loads on it.
     if (game.player.hp <= 0.0) game.player.kill();
+    // Before version 5, one list each, of the main world.
+    Map<String, Object?> byDimension(Object? o) => version >= 5 ? o! as Map<String, Object?> : {ids.first: o};
     if (version >= 3) {
-      final growing = <IVec3, double>{};
-      for (final e in s['growing']! as List<Object?>) {
-        final n = [for (final v in e! as List<Object?>) v! as num];
-        growing[IVec3(n[0].toInt(), n[1].toInt(), n[2].toInt())] = n[3].toDouble();
+      for (final g in byDimension(s['growing']).entries) {
+        final growing = <IVec3, double>{};
+        for (final e in g.value! as List<Object?>) {
+          final n = [for (final v in e! as List<Object?>) v! as num];
+          growing[IVec3(n[0].toInt(), n[1].toInt(), n[2].toInt())] = n[3].toDouble();
+        }
+        game.blockRules.restoreGrowing(growing, dimension: SavedWorld._indexIn(ids, g.key));
       }
-      game.blockRules.restoreGrowing(growing);
     }
     if (version >= 4) {
-      final stores = <IVec3, List<Object?>>{};
-      for (final e in s['stores']! as List<Object?>) {
-        final row = e! as List<Object?>;
-        stores[IVec3((row[0]! as num).toInt(), (row[1]! as num).toInt(), (row[2]! as num).toInt())] =
-            row[3]! as List<Object?>;
+      for (final k in byDimension(s['stores']).entries) {
+        final stores = <IVec3, List<Object?>>{};
+        for (final e in k.value! as List<Object?>) {
+          final row = e! as List<Object?>;
+          stores[IVec3((row[0]! as num).toInt(), (row[1]! as num).toInt(), (row[2]! as num).toInt())] =
+              row[3]! as List<Object?>;
+        }
+        game.blockRules.restoreStores(stores, dimension: SavedWorld._indexIn(ids, k.key));
       }
-      game.blockRules.restoreStores(stores);
     }
   }
 

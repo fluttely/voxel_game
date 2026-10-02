@@ -16,14 +16,15 @@ import 'weather_kind.dart';
 /// and [flash] and lets the rain and snow fall by [rainShare] and
 /// [snowShare]. With no [spec] the sky stays clear.
 class Weather {
-  /// The weather of [spec] over [world]'s biomes, rolled by [seed]'s own
-  /// random numbers. Throws [ArgumentError] for odds of a biome the world
-  /// does not have.
-  Weather(this.spec, WorldGenSpec world, {required int seed}) : _random = math.Random(seed ^ 0x57EA7E) {
+  /// The weather of [spec] over the biomes of [worlds] (a game's
+  /// dimensions), rolled by [seed]'s own random numbers. Throws
+  /// [ArgumentError] for odds of a biome none of them has.
+  Weather(this.spec, List<WorldGenSpec> worlds, {required int seed}) : _random = math.Random(seed ^ 0x57EA7E) {
     final s = spec;
     if (s == null) return;
     final names = {
-      for (final b in <Biome>[...world.biomes, ?world.ocean, ?world.beach]) b.name,
+      for (final w in worlds)
+        for (final b in <Biome>[...w.biomes, ?w.ocean, ?w.beach]) b.name,
     };
     for (final name in s.biomes.keys) {
       if (!names.contains(name)) throw ArgumentError.value(name, 'biomes', 'the world has no such biome');

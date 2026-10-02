@@ -28,6 +28,16 @@ class SpecGenerator implements ChunkGenerator {
   /// lacks a block the spec names or the spec has no land biome.
   SpecGenerator(this.spec, Map<String, int> ids, this.seed) : _ids = ids {
     if (spec.biomes.isEmpty) throw ArgumentError.value(spec.biomes, 'biomes', 'a world needs at least one land biome');
+    final cavern = spec.cavern;
+    if (cavern != null) {
+      if (spec.caves.enabled) throw ArgumentError.value(spec.caves, 'caves', 'a cavern is open already: CaveSpec.none');
+      for (final b in [...spec.biomes, ?spec.ocean, ?spec.beach]) {
+        if (b.trees.isNotEmpty) throw ArgumentError.value(b.name, 'biomes', 'a cavern grows no trees');
+      }
+      if (cavern.roof >= ChunkSize.sizeY - 1) {
+        throw ArgumentError.value(cavern.roof, 'cavern.roof', 'the roof must be under the top of the world');
+      }
+    }
     for (final name in spec.blockNames) {
       _id(name);
     }
@@ -72,6 +82,12 @@ class SpecGenerator implements ChunkGenerator {
       cavern: simplexNoise(seed ^ 0x789ABCD, 0.020, 2),
       seaLevel: spec.seaLevel,
     );
+    var hangUpTo = 0;
+    _hangs = [
+      for (final p in cavern?.hangs ?? const <Plant>[])
+        (block: _id(p.block), upTo: hangUpTo += p.perMille, height: p.height),
+    ];
+    if (cavern != null) _slab = simplexNoise(seed ^ 0x0A1B2C3, 0.030 / cavern.scale, 2);
   }
 
   /// What is generated.
@@ -89,6 +105,8 @@ class SpecGenerator implements ChunkGenerator {
   late final TreeCanvas _canvas;
   late final CaveCarver _caves;
   late final FastNoiseLite _continental, _hills, _mountainMask, _ridge, _temperature, _humidity, _river;
+  late final FastNoiseLite _slab;
+  late final List<({int block, int upTo, int height})> _hangs;
   final List<({StructureSpec spec, StructureGrid grid})> _structures = [];
   final Map<String, StructureSpec> _byName = {};
 
@@ -124,8 +142,11 @@ class SpecGenerator implements ChunkGenerator {
   /// The world's positional hash under [seed].
   int hash(int x, int y, int z) => worldHash(seed, x, y, z);
 
-  /// The first air cell above the ground of column ([x], [z]).
+  /// The first air cell above the ground of column ([x], [z]). In a cavern,
+  /// the lowest floor above the sea: the first open cell over rock there, or
+  /// just above the sea when the column has none.
   int surfaceHeight(int x, int z) {
+    if (spec.cavern != null) return _cavernFloor(_cavernColumn(x, z, List<bool>.filled(ChunkSize.sizeY, false)));
     final t = spec.terrain;
     final flat = t.flatHeight;
     if (flat != null) return flat;
@@ -185,10 +206,129 @@ class SpecGenerator implements ChunkGenerator {
     return (name: s.name, x: sx, y: surface - s.depth, z: sz);
   }
 
+  /// Whether ([x], [y], [z]) of a cavern is open: between floor and roof,
+  /// where the noise is over the threshold, the slab kept solid near both.
+  bool _cavernOpen(int x, int y, int z) {
+    final c = spec.cavern!;
+    if (y <= c.floor || y >= c.roof) return false;
+    final n = _slab.getNoise3(x.toDouble(), y * 1.4, z.toDouble());
+    var edge = 0.0;
+    if (y < c.floor + 6) edge = (c.floor + 6 - y) / 6.0;
+    if (y > c.roof - 8) edge = math.max(edge, (y - (c.roof - 8)) / 8.0);
+    return n - edge * 0.6 > c.threshold;
+  }
+
+  /// Fills [open] with which cells of cavern column ([x], [z]) are open.
+  List<bool> _cavernColumn(int x, int z, List<bool> open) {
+    for (var y = 0; y < ChunkSize.sizeY; y++) {
+      open[y] = _cavernOpen(x, y, z);
+    }
+    return open;
+  }
+
+  /// The lowest floor above the sea in a cavern column [open].
+  int _cavernFloor(List<bool> open) {
+    final c = spec.cavern!;
+    for (var y = math.max(spec.seaLevel + 1, c.floor + 1); y < c.roof; y++) {
+      if (open[y] && !open[y - 1]) return y;
+    }
+    return spec.seaLevel + 1;
+  }
+
+  /// [dimension] is a router's ([DimensionGenerator]): one spec is one
+  /// dimension.
   @override
   Uint8List generateIn(int chunkX, int chunkZ, int dimension) {
     final blocks = Uint8List(ChunkSize.volume);
     final w = ChunkWriter(blocks, chunkX, chunkZ);
+    if (spec.cavern != null) {
+      _cavern(w);
+    } else {
+      _surface(w);
+      _decorate(w, structuresNear(chunkX, chunkZ));
+    }
+    for (final s in _structures) {
+      for (final (rx, rz) in s.grid.around(chunkX, chunkZ)) {
+        final site = _site(s.spec, s.grid, rx, rz);
+        if (site == null) continue;
+        s.spec.build(
+          StructureSite(
+            name: site.name,
+            x: site.x,
+            y: site.y,
+            z: site.z,
+            seed: seed,
+            writer: w,
+            block: _id,
+            surfaceAt: surfaceHeight,
+          ),
+        );
+      }
+    }
+    return blocks;
+  }
+
+  /// The columns of a cavern: bedrock at y 0, the floor and the roof, rock
+  /// and its ores between, the sea in the open cells up to its level, each
+  /// floor its biome's top over its under, with its plants, and what hangs
+  /// from the ceilings.
+  void _cavern(ChunkWriter w) {
+    final c = spec.cavern!;
+    final sea = spec.seaLevel;
+    final blocks = w.blocks;
+    final open = List<bool>.filled(ChunkSize.sizeY, false);
+    for (var z = 0; z < ChunkSize.sizeZ; z++) {
+      for (var x = 0; x < ChunkSize.sizeX; x++) {
+        final wx = w.ox + x, wz = w.oz + z;
+        _cavernColumn(wx, wz, open);
+        final biome = _biomeFor(wx, wz, _cavernFloor(open));
+        for (var y = 0; y <= c.roof; y++) {
+          final int id;
+          if (y == 0 || y == c.floor || y == c.roof) {
+            id = _bedrock;
+          } else if (open[y]) {
+            id = y <= sea ? _water : 0;
+          } else {
+            id = _ores.pick(y, hash(wx >> 1, y >> 1, wz >> 1), hash(wx, y, wz)) ?? _stone;
+          }
+          if (id != 0) blocks[ChunkSize.index(x, y, z)] = id;
+        }
+        for (var y = math.max(sea, c.floor + 1); y < c.roof - 1; y++) {
+          if (open[y] || !open[y + 1]) continue;
+          // A floor: its biome's top over its under, and maybe a plant on it.
+          blocks[ChunkSize.index(x, y, z)] = biome.top;
+          for (var k = 1; k <= biome.spec.underDepth && y - k > c.floor && !open[y - k]; k++) {
+            blocks[ChunkSize.index(x, y - k, z)] = biome.under;
+          }
+          final roll = hash(wx, y + 7, wz) % 1000;
+          for (final p in biome.plants) {
+            if (roll >= p.upTo) continue;
+            for (var i = 1; i <= p.height && open[y + i] && y + i < c.roof; i++) {
+              blocks[ChunkSize.index(x, y + i, z)] = p.block;
+            }
+            break;
+          }
+        }
+        for (var y = c.roof - 1; y > sea + 1; y--) {
+          if (open[y] || !open[y - 1]) continue;
+          // A ceiling: something may hang from it.
+          final roll = hash(wx, y ^ 0x55, wz) % 1000;
+          for (final h in _hangs) {
+            if (roll >= h.upTo) continue;
+            for (var i = 1; i <= h.height && open[y - i] && y - i > sea; i++) {
+              blocks[ChunkSize.index(x, y - i, z)] = h.block;
+            }
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  /// The columns of an open-sky world: bedrock, rock and its ores, soil, the
+  /// biome's top, the sea, and the caves carved through.
+  void _surface(ChunkWriter w) {
+    final blocks = w.blocks;
     final sea = spec.seaLevel;
     for (var z = 0; z < ChunkSize.sizeZ; z++) {
       for (var x = 0; x < ChunkSize.sizeX; x++) {
@@ -222,27 +362,6 @@ class SpecGenerator implements ChunkGenerator {
         }
       }
     }
-    final near = structuresNear(chunkX, chunkZ);
-    _decorate(w, near);
-    for (final s in _structures) {
-      for (final (rx, rz) in s.grid.around(chunkX, chunkZ)) {
-        final site = _site(s.spec, s.grid, rx, rz);
-        if (site == null) continue;
-        s.spec.build(
-          StructureSite(
-            name: site.name,
-            x: site.x,
-            y: site.y,
-            z: site.z,
-            seed: seed,
-            writer: w,
-            block: _id,
-            surfaceAt: surfaceHeight,
-          ),
-        );
-      }
-    }
-    return blocks;
   }
 
   void _decorate(ChunkWriter w, List<PlacedStructure> near) {

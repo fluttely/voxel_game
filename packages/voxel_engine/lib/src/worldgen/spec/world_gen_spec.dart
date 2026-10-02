@@ -18,6 +18,8 @@ import 'structure_site.dart';
 /// );
 /// ```
 ///
+/// A world with a [cavern] has a roof: the underworld a portal leads to.
+///
 /// A spec is plain data plus pure callbacks, so it crosses to the worker
 /// isolates: build the generator factory as `() => spec.compile(ids, seed)`
 /// in a static or top-level function, never in a method that could capture
@@ -26,7 +28,8 @@ class WorldGenSpec {
   /// A world. [biomes] are tried in order and the first whose [Climate]
   /// matches a column wins; the last one is the fallback, whatever its
   /// climate. [ocean] and [beach] take the columns below and just above
-  /// [seaLevel] when given.
+  /// [seaLevel] when given. With a [cavern] the world is a roofed slab of
+  /// [stone] instead (see [CavernSpec]).
   const WorldGenSpec({
     required this.biomes,
     this.seaLevel = 46,
@@ -39,6 +42,7 @@ class WorldGenSpec {
     this.ores = const [],
     this.caves = const CaveSpec(),
     this.structures = const [],
+    this.cavern,
   });
 
   /// Land biomes, tried in order; at least one.
@@ -74,6 +78,10 @@ class WorldGenSpec {
   /// Structures, each on its own grid.
   final List<StructureSpec> structures;
 
+  /// The roof and floor of a world that is one great cave, or null for open
+  /// sky over [terrain].
+  final CavernSpec? cavern;
+
   /// Every block name the spec uses, so a game can check its table has them.
   Set<String> get blockNames => {
     stone,
@@ -82,6 +90,7 @@ class WorldGenSpec {
     for (final b in [...biomes, ?ocean, ?beach]) ...b.blockNames,
     for (final o in ores) o.block,
     ?caves.lava,
+    for (final h in cavern?.hangs ?? const <Plant>[]) h.block,
   };
 
   /// The generator of this world for [seed], resolving block names through
@@ -143,6 +152,41 @@ class TerrainRecipe {
 
   /// Horizontal stretch: 2 makes continents, hills and rivers twice as wide.
   final double scale;
+}
+
+/// A world that is one great cave: a slab of the world's stone between a
+/// floor and a roof of its bedrock, opened by 3D noise into caverns, the
+/// world's sea (its `water`, lava in an underworld) filling every open cell up
+/// to its `seaLevel`.
+///
+/// Its biomes cover the floors: each floor's top block is the column's
+/// biome's `top` (chosen by climate, as on the surface), with that biome's
+/// plants on it; [hangs] hang from the ceilings. A cavern grows no trees and
+/// carves no caves: the spec throws when its biomes have trees or its caves
+/// are on. Its ores vein the rock, and its structures stand on the lowest
+/// floor above the sea, which is what `SpecGenerator.surfaceHeight` answers.
+class CavernSpec {
+  /// A cavern between [floor] and [roof]; noise over [threshold] is open (the
+  /// default opens about two fifths of the slab), [scale] stretches the
+  /// caverns sideways.
+  const CavernSpec({this.floor = 7, this.roof = 100, this.threshold = 0.08, this.scale = 1.0, this.hangs = const []})
+    : assert(floor > 0 && roof > floor + 16, 'a cavern needs room between its floor and its roof');
+
+  /// The height of the bedrock floor.
+  final int floor;
+
+  /// The height of the bedrock roof.
+  final int roof;
+
+  /// Noise (-1..1) over this is open: higher closes the caverns.
+  final double threshold;
+
+  /// Horizontal stretch: 2 makes every cavern twice as wide.
+  final double scale;
+
+  /// What hangs from the ceilings above the sea, one roll per ceiling, tried
+  /// in order: a [Plant]'s height is how far it hangs down.
+  final List<Plant> hangs;
 }
 
 /// A window of climate a biome claims. Temperature and humidity are noise in

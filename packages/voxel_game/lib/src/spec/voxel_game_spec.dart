@@ -10,6 +10,7 @@ import '../mobs/mob_spec.dart';
 import '../player/player_spec.dart';
 import '../world/game_world.dart';
 import 'graphics_spec.dart';
+import 'portal_spec.dart';
 import 'screen_spec.dart';
 import 'signal_spec.dart';
 import 'sky_spec.dart';
@@ -35,6 +36,8 @@ class VoxelGameSpec {
   const VoxelGameSpec({
     required this.blocks,
     required this.world,
+    this.dimensions = const {},
+    this.portals = const [],
     this.items = const [],
     this.recipes = const [],
     this.effects = const [],
@@ -60,8 +63,27 @@ class VoxelGameSpec {
   /// The blocks, air first or added; their order is the save contract.
   final List<BlockType> blocks;
 
-  /// How the world is generated.
+  /// How the world is generated: the dimension a game starts in, whose id
+  /// is [mainDimension].
   final WorldGenSpec world;
+
+  /// The id of the dimension [world] generates.
+  static const String mainDimension = 'world';
+
+  /// The other dimensions, by id: each a world of its own, generated from the
+  /// same seed, reached through [portals] or `VoxelGame.travel`. Their order
+  /// numbers them after [world] (see [dimensionIds]).
+  final Map<String, WorldGenSpec> dimensions;
+
+  /// The gateways between dimensions.
+  final List<PortalSpec> portals;
+
+  /// Every dimension's id, numbered as the world streams them: [mainDimension]
+  /// first, then [dimensions] in order.
+  List<String> get dimensionIds => [mainDimension, ...dimensions.keys];
+
+  /// Every dimension's generation, numbered as [dimensionIds].
+  List<WorldGenSpec> get dimensionWorlds => [world, ...dimensions.values];
 
   /// Items beyond the blocks (every block is already an item); an item named
   /// like a block replaces that block's item.
@@ -139,6 +161,8 @@ class VoxelGameSpec {
   VoxelGameSpec copyWith({
     List<BlockType>? blocks,
     WorldGenSpec? world,
+    Map<String, WorldGenSpec>? dimensions,
+    List<PortalSpec>? portals,
     List<ItemType>? items,
     List<Recipe>? recipes,
     List<EffectType>? effects,
@@ -162,6 +186,8 @@ class VoxelGameSpec {
   }) => VoxelGameSpec(
     blocks: blocks ?? this.blocks,
     world: world ?? this.world,
+    dimensions: dimensions ?? this.dimensions,
+    portals: portals ?? this.portals,
     items: items ?? this.items,
     recipes: recipes ?? this.recipes,
     effects: effects ?? this.effects,
@@ -205,7 +231,9 @@ class VoxelGameSpec {
     }
     for (final b in registry.types) {
       for (final e in [...?b.loot?.entries, ...?b.storage?.loot?.entries]) {
-        if (!byId.containsKey(e.item)) throw ArgumentError.value(e.item, b.id, 'the block holds an item that does not exist');
+        if (!byId.containsKey(e.item)) {
+          throw ArgumentError.value(e.item, b.id, 'the block holds an item that does not exist');
+        }
       }
     }
     final effectIds = {for (final e in effects) e.id};
@@ -226,17 +254,49 @@ class VoxelGameSpec {
       final bucket = i.bucket;
       if (bucket == null) continue;
       for (final e in bucket.fills.entries) {
-        if (!registry.liquidKinds.contains(e.key)) throw ArgumentError.value(e.key, i.id, 'the bucket scoops no liquid');
+        if (!registry.liquidKinds.contains(e.key)) {
+          throw ArgumentError.value(e.key, i.id, 'the bucket scoops no liquid');
+        }
         if (!byId.containsKey(e.value)) throw ArgumentError.value(e.value, i.id, 'the bucket fills into no item');
       }
       if (bucket.liquid case final l?) {
-        if (!registry.has(l) || !registry[registry.indexOf(l)].isLiquid || !registry[registry.indexOf(l)].liquidSource) {
+        if (!registry.has(l) ||
+            !registry[registry.indexOf(l)].isLiquid ||
+            !registry[registry.indexOf(l)].liquidSource) {
           throw ArgumentError.value(l, i.id, 'the bucket pours what is not a liquid source');
         }
-        if (!byId.containsKey(bucket.empties)) throw ArgumentError.value(bucket.empties, i.id, 'the bucket empties into no item');
+        if (!byId.containsKey(bucket.empties)) {
+          throw ArgumentError.value(bucket.empties, i.id, 'the bucket empties into no item');
+        }
       }
     }
     return ItemRegistry(byId.values);
+  }
+
+  /// Throws [ArgumentError] for a dimension named [mainDimension], and for a
+  /// portal between dimensions not declared (or one and the same), of blocks
+  /// not in [registry], a solid portal block or one another portal has, or a
+  /// lighter not in [items].
+  void checkDimensions(BlockRegistry<BlockType> registry, ItemRegistry<ItemType> items) {
+    if (dimensions.containsKey(mainDimension)) {
+      throw ArgumentError.value(mainDimension, 'dimensions', 'the main world is `world`, not a dimension');
+    }
+    final ids = dimensionIds;
+    final portalBlocks = <String>{};
+    for (final p in portals) {
+      if (!portalBlocks.add(p.portal)) throw ArgumentError.value(p.portal, 'portal', 'two portals of one block');
+      for (final end in [p.from, p.to]) {
+        if (!ids.contains(end)) throw ArgumentError.value(end, 'portal', 'no such dimension');
+      }
+      if (p.from == p.to) throw ArgumentError.value(p.to, 'portal', 'a portal leads to another dimension');
+      for (final b in [p.frame, p.portal]) {
+        if (!registry.has(b)) throw ArgumentError.value(b, 'portal', 'no such block');
+      }
+      if (registry[registry.indexOf(p.portal)].solid) {
+        throw ArgumentError.value(p.portal, 'portal', 'a portal block must not be solid: a body stands in it');
+      }
+      if (!items.has(p.lighter)) throw ArgumentError.value(p.lighter, 'portal', 'no such item');
+    }
   }
 
   /// Every effect in [effects], by id; throws [ArgumentError] on a duplicate.

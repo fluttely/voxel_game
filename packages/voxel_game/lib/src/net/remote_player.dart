@@ -23,6 +23,10 @@ class RemotePlayer extends GameEntity implements Target {
   /// The peer's number.
   final int peer;
 
+  /// The dimension its peer is in, numbered as the world's: drawn, and a
+  /// target, only where it is the local player's.
+  int dimension = 0;
+
   /// Where damage dealt to it goes (the host sends it to the peer).
   void Function(Damage damage)? onHurt;
 
@@ -44,9 +48,11 @@ class RemotePlayer extends GameEntity implements Target {
   /// The item in its hand (`''` for none), as its peer last said.
   String get heldItem => _held;
 
-  /// Where the peer says its player is, looking where, holding what (`''` for
-  /// nothing), alive or not.
-  void setPose(Vector3 at, double yaw, {required String held, bool dead = false}) {
+  /// Where the peer says its player is, in which dimension, looking where,
+  /// holding what (`''` for nothing), alive or not.
+  void setPose(Vector3 at, double yaw, {required String held, bool dead = false, int dimension = 0}) {
+    if (dimension != this.dimension) position = at.clone(); // across dimensions it does not walk
+    this.dimension = dimension;
     _to = at.clone();
     _yaw = yaw;
     _held = held;
@@ -71,7 +77,7 @@ class RemotePlayer extends GameEntity implements Target {
     _speed = lerpd(_speed, moved.length / math.max(dt, 1e-6), math.min(1.0, dt * 8.0));
     final r = rig;
     if (r != null) {
-      r.root.visible = !_dead;
+      r.root.visible = !_dead && dimension == game.world.dimension;
       if (r.canHold) r.hold(_held.isEmpty ? null : game.itemModel(_held));
       r.animate(dt, speed: _speed, targetYaw: _yaw, onFloor: true);
       r.place(Vector3.zero());

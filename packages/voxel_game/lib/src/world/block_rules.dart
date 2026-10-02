@@ -45,27 +45,35 @@ class BlockRules {
 
   bool _unpairing = false;
 
-  final Map<IVec3, double> _growing = {};
+  // Each dimension's crops and stores, by its number: the cells of one are
+  // not the cells of another.
+  final Map<int, Map<IVec3, double>> _growingBy = {};
+  final Map<int, Map<IVec3, Inventory>> _storesBy = {};
+  Map<IVec3, double> get _growing => _growingBy.putIfAbsent(game.world.dimension, () => {});
+  Map<IVec3, Inventory> get _stores => _storesBy.putIfAbsent(game.world.dimension, () => {});
   double _growClock = 0.0;
 
   /// How often the crops are looked at, in seconds.
   static const growPeriod = 1.0;
 
-  /// The crops placed in the world since it was generated, each with the
-  /// seconds of light it has had toward its next stage: what a save keeps.
-  /// A crop the world generated does not grow.
+  /// The crops placed in the dimension streaming since it was generated,
+  /// each with the seconds of light it has had toward its next stage. A crop
+  /// the world generated does not grow, nor one in a dimension the player has
+  /// left.
   Map<IVec3, double> get growing => Map.unmodifiable(_growing);
 
-  /// Puts back what [growing] held (a save read back).
-  void restoreGrowing(Map<IVec3, double> growing) => _growing
-    ..clear()
-    ..addAll(growing);
+  /// The crops of dimension [d], as [growing]: what a save keeps.
+  Map<IVec3, double> growingIn(int d) => Map.unmodifiable(_growingBy[d] ?? const <IVec3, double>{});
 
-  final Map<IVec3, Inventory> _stores = {};
+  /// Puts back what [growingIn] dimension [d] held (a save read back).
+  void restoreGrowing(Map<IVec3, double> growing, {int dimension = 0}) => _growingBy[dimension] = {...growing};
 
-  /// What the stores hold, by cell: what a save keeps. A store the world
-  /// generated appears here once it is looked into.
+  /// What the stores of the dimension streaming hold, by cell. A store the
+  /// world generated appears here once it is looked into.
   Map<IVec3, Inventory> get stores => Map.unmodifiable(_stores);
+
+  /// What the stores of dimension [d] hold, as [stores]: what a save keeps.
+  Map<IVec3, Inventory> storesIn(int d) => Map.unmodifiable(_storesBy[d] ?? const <IVec3, Inventory>{});
 
   /// What the block with a `storage` at [cell] holds. A store the world
   /// generated and nobody has looked into yet is filled from its loot now,
@@ -78,14 +86,12 @@ class BlockRules {
     return _stores[cell] = _found(cell, storage);
   }
 
-  /// Puts back what [stores] held (a save read back): each as the slots it
-  /// was saved with, a stack of an item there no longer is left out.
-  void restoreStores(Map<IVec3, List<Object?>> stores) {
-    _stores.clear();
-    for (final e in stores.entries) {
-      _stores[e.key] = _empty(e.value.length)..fromJson(e.value, known: game.items.has);
-    }
-  }
+  /// Puts back what [storesIn] dimension [d] held (a save read back): each
+  /// as the slots it was saved with, a stack of an item there no longer is
+  /// left out.
+  void restoreStores(Map<IVec3, List<Object?>> stores, {int dimension = 0}) => _storesBy[dimension] = {
+    for (final e in stores.entries) e.key: _empty(e.value.length)..fromJson(e.value, known: game.items.has),
+  };
 
   Inventory _empty(int slots) => Inventory(
     stackSize: (id) => game.items[id].stack,

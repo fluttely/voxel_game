@@ -50,6 +50,16 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
   what falls is the biome's (`Biome(precipitation: Precipitation.snow)`, or `none` for a
   desert). `VoxelGame.weather` tells what it is and `set`s a spell from code; the player's
   `GameSettings.weather` turns it off. Only a lone game or a host rolls it.
+- Dimensions and portals, declared: `VoxelGameSpec.dimensions: {'underworld':
+  WorldGenSpec(cavern: CavernSpec(), ...)}` gives a game more worlds than its `world`, each
+  from the same seed, one streaming at a time, every dimension's edits, crops and stores
+  kept for when the player comes back. `PortalSpec(frame: 'obsidian', portal: 'portal',
+  lighter: 'flint_and_steel', to: 'underworld')`: the lighter, used on the hollow of a closed
+  frame, fills it with portal blocks; standing in them takes the player across, to the same
+  column, on firm ground (a pocket carved where there is none), with a portal built there
+  for the way back unless one is near. `VoxelGame.travel('underworld')` goes from code, and
+  a death elsewhere respawns in the main world. The save and the network carry the
+  dimension.
 - `VoxelGame.notify('Night falls')` tells the player something for a few seconds; the default
   HUD shows it at the right, over what the player just picked up (`+5 Dirt`).
 - The default HUD also reads the world through the frame's camera (`VoxelGame.camera`, the

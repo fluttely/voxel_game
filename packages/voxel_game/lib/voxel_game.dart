@@ -13,6 +13,7 @@ export 'package:voxel_engine/core.dart' show BlockShape, IVec3;
 export 'package:voxel_engine/worldgen.dart'
     show
         Biome,
+        CavernSpec,
         CaveSpec,
         Climate,
         Ore,
@@ -53,6 +54,7 @@ export 'src/player/xp_spec.dart';
 export 'src/settings/game_settings.dart';
 export 'src/settings/settings_store.dart';
 export 'src/spec/graphics_spec.dart';
+export 'src/spec/portal_spec.dart';
 export 'src/spec/screen_spec.dart';
 export 'src/spec/sky_spec.dart';
 export 'src/spec/title_spec.dart';
@@ -63,6 +65,8 @@ export 'src/spec/voxel_game_spec.dart';
 export 'src/weather/weather.dart';
 export 'src/weather/weather_kind.dart';
 export 'src/world/game_world.dart';
+export 'src/world/portals.dart';
+export 'src/world/travel.dart';
 export 'src/ui/credits_roll.dart';
 export 'src/ui/damage_numbers.dart';
 export 'src/ui/death_menu.dart';

@@ -144,6 +144,15 @@ const game = VoxelGameSpec(
     ),
     // A chest: use opens it beside the bag; what it holds is saved, and spills when it breaks.
     BlockType('chest', color: 0x8A5A2A, hardness: 2.0, tool: 'axe', storage: Storage()),
+    // A portal: an obsidian frame, lit with flint and steel, fills with this; stand in it to cross.
+    BlockType('obsidian', color: 0x1E1430, hardness: 10.0, tool: 'pickaxe', tier: 1),
+    BlockType('portal', color: 0x8A3CF0, solid: false, alpha: 0.6, light: 11, hardness: -1, drop: ''),
+    // The underworld's own: rock, sand, light from the ceilings, a floor and roof nothing breaks, a lava sea.
+    BlockType('hellstone', color: 0x6E2A2A, hardness: 0.4, tool: 'pickaxe'),
+    BlockType('soul_sand', color: 0x54402F, hardness: 0.5, tool: 'shovel', speed: 0.6),
+    BlockType('glowstone', color: 0xF0D27A, hardness: 0.3, light: 15),
+    BlockType('bedrock', color: 0x2A2A2E, hardness: -1),
+    BlockType.liquid('lava', color: 0xE0601A, alpha: 0.9, light: 15),
   ],
   // 2. Items that are not blocks — tools, food (eaten with use), armour (worn with use), a door
   //    (placing its block), buckets, a hoe, seeds (placing wheat) — and how to craft things.
@@ -170,6 +179,7 @@ const game = VoxelGameSpec(
     ItemType('seeds', color: 0x7FA040, block: 'wheat_0'),
     ItemType('wheat', color: 0xD8BE50),
     ItemType('bread', color: 0xB8864A, food: Food(hunger: 5)),
+    ItemType('flint_and_steel', color: 0x5A5A60, stack: 1, durability: 64),
   ],
   recipes: [
     Recipe('planks', 4, {'log': 1}),
@@ -185,6 +195,8 @@ const game = VoxelGameSpec(
     Recipe('wooden_hoe', 1, {'planks': 3}),
     Recipe('bread', 1, {'wheat': 3}),
     Recipe('chest', 1, {'planks': 8}),
+    Recipe('obsidian', 1, {'cobblestone': 4}),
+    Recipe('flint_and_steel', 1, {'coal': 1, 'cobblestone': 1}),
   ],
   // Status effects: what a food starts, what the player carries.
   effects: [EffectType('regeneration', 'Regeneration', 0.9, 0.35, 0.55, period: 2.0, heal: 1.0)],
@@ -212,6 +224,26 @@ const game = VoxelGameSpec(
     beach: Biome('beach', top: 'sand'),
     ores: [Ore('coal_ore', share: 0.11)],
   ),
+  // Another dimension, a world of its own from the same seed: one great cave between a bedrock floor and roof,
+  // a lava sea, soul sand where it is wet, glowstone hanging from the ceilings. No sky falls in it.
+  dimensions: {
+    'underworld': WorldGenSpec(
+      cavern: CavernSpec(hangs: [Plant('glowstone', perMille: 40, height: 2)]),
+      stone: 'hellstone',
+      water: 'lava',
+      seaLevel: 28,
+      bedrock: 'bedrock',
+      caves: CaveSpec.none,
+      biomes: [
+        Biome('soul_valley', top: 'soul_sand', climate: Climate.wet, precipitation: Precipitation.none),
+        Biome('wastes', top: 'hellstone', precipitation: Precipitation.none),
+      ],
+      ores: [Ore('coal_ore', share: 0.05)],
+    ),
+  },
+  // The way there: an obsidian frame around a hollow 2 wide and 3 tall, lit with flint and steel; two seconds
+  // in it and the player crosses, a frame built on the far side for the way back.
+  portals: [PortalSpec(frame: 'obsidian', portal: 'portal', lighter: 'flint_and_steel', to: 'underworld')],
   // The weather: rain and storms rolled every few minutes (snow where a biome's precipitation is snow).
   sky: SkySpec(weather: WeatherSpec()),
   // 4. The player: what they start with, hunger that food fills, and experience (a kill's, below).

@@ -2,6 +2,20 @@
 
 ## 0.3.0-dev
 
+- `WorldGenSpec.cavern` (a `CavernSpec`, new; null by default): a world that is one great
+  cave (VA10) — a slab of its `stone` between a bedrock `floor` and `roof` (7 and 100), opened
+  by 3D noise over `threshold` (about two fifths open) and stretched by `scale`, its sea
+  (`water`, lava in an underworld) in the open cells up to `seaLevel`, open sky above the
+  roof. Each floor above the sea takes its column's biome's `top` over its `under` and its
+  plants; `CavernSpec.hangs` (`Plant`s) hang from the ceilings; ores vein the rock;
+  structures stand on the lowest floor above the sea, which is what `surfaceHeight` answers
+  there. A cavern throws `ArgumentError` for biomes with trees, caves on, or a roof at the
+  top of the world.
+- `DimensionGenerator` (new): a world of several dimensions, one `WorldGenSpec` each,
+  compiled for one seed; the `ChunkGenerator` that hands chunk (x, z) of dimension `d` to
+  `specs[d]`'s generator, for the worker isolates. `SpecGenerator.generateIn` still ignores
+  its dimension: one spec is one dimension.
+
 - `Biome.precipitation` (a `Precipitation`, new: `rain`, the default, `snow` or `none`):
   what falls on a biome when the weather turns (VA9). The generator does not read it.
 

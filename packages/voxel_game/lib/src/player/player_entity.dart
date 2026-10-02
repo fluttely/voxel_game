@@ -216,6 +216,27 @@ class PlayerEntity extends NodeBody implements Target {
     return true;
   }
 
+  /// Takes the player off the ground to wait at [at] while a world loads
+  /// around it (a trip to another dimension): [placed] is false, so it
+  /// neither steps nor turns, until [placeAt].
+  void hold(Vector3 at) {
+    position = at.clone();
+    velocity = Vector3.zero();
+    _restoreAt = null;
+    _placed = false;
+    syncNode(snap: true);
+  }
+
+  /// Stands the player at [at], at rest, a fall forgotten: the end of a
+  /// [hold].
+  void placeAt(Vector3 at) {
+    position = at.clone();
+    velocity = Vector3.zero();
+    motor.resetFall();
+    _placed = true;
+    syncNode(snap: true);
+  }
+
   /// Puts [stack] in the bag (`Inventory.put`: a fresh one tops up stacks, a
   /// worn or bonused one takes an empty slot whole), and tells the player
   /// what went in (`VoxelGame.notices`); returns how many did not fit.
@@ -655,7 +676,8 @@ class PlayerEntity extends NodeBody implements Target {
   }
 
   /// Uses a lever, a store, a station or a block that turns (a door) under
-  /// the crosshair, else scoops or pours with the bucket in hand, works the aimed
+  /// the crosshair, else lights a portal's frame with its lighter in hand
+  /// (`PortalSpec.lighter`), scoops or pours with the bucket in hand, works the aimed
   /// block with the tool in hand (`BlockType.turnsWith`), eats or puts on the
   /// item in hand, else places its block. What turns, fills, pours, is worked,
   /// eaten or put on is used on a [pressed] only: holding the button does not
@@ -692,6 +714,14 @@ class PlayerEntity extends NodeBody implements Target {
     }
     final item = _heldType;
     if (item == null) return;
+    // A portal's lighter lights the frame whose hollow is in front of the aimed face.
+    if (_game.portals.lights(item.id)) {
+      if (!pressed || hit == null || !_game.portals.lightWith(item.id, hit.block + hit.normal)) return;
+      _swingArm();
+      _game.playSound('click', at: Vector3(hit.block.x + 0.5, hit.block.y + 0.5, hit.block.z + 0.5), volumeDb: -4.0);
+      if (!spec.creative && item.durability > 0) inventory.wear(selectedSlot);
+      return;
+    }
     final bucket = item.bucket;
     if (bucket != null) {
       if (pressed && (bucket.isFull ? _pour(bucket, hit) : _scoop(bucket))) _swingArm();

@@ -21,7 +21,9 @@ Vector3 _vec(Object? o) {
 
 /// A networked game's side of the conversation, ticked last in every step of
 /// the game. The block edits of a step leave together at its end, as one
-/// `edits` message (x, y, z and id per edit, in the order they were made).
+/// `edits` message per dimension (its number, then x, y, z and id per edit, in
+/// the order they were made). Every peer runs the same spec, so a dimension's
+/// number is the same everywhere.
 abstract class GameSession implements GameSystem {
   /// Stops talking.
   Future<void> close();
@@ -32,35 +34,38 @@ abstract class GameSession implements GameSystem {
   /// The other players, by peer.
   final Map<int, RemotePlayer> players = {};
 
-  final List<int> _edits = [];
+  final Map<int, List<int>> _edits = {};
 
-  void _queueEdit(IVec3 cell, int id) => _edits
+  void _queueEdit(int dimension, IVec3 cell, int id) => (_edits[dimension] ??= [])
     ..add(cell.x)
     ..add(cell.y)
     ..add(cell.z)
     ..add(id);
 
-  /// Sends the edits queued since the last call as one message, if any.
+  /// Sends the edits queued since the last call, a message per dimension.
   void _sendEdits(void Function(NetMessage message) send) {
-    if (_edits.isEmpty) return;
-    send({'t': 'edits', 'e': _edits});
+    for (final e in _edits.entries) {
+      send({'t': 'edits', 'd': e.key, 'e': e.value});
+    }
     _edits.clear();
   }
 
   /// Calls [edit] with each edit of an `edits` message, in order.
-  static void _forEachEdit(NetMessage m, void Function(IVec3 cell, int id) edit) {
+  static void _forEachEdit(NetMessage m, void Function(int dimension, IVec3 cell, int id) edit) {
+    final d = m['d']! as int;
     final e = m['e']! as List<Object?>;
     for (var i = 0; i < e.length; i += 4) {
-      edit(IVec3(e[i]! as int, e[i + 1]! as int, e[i + 2]! as int), e[i + 3]! as int);
+      edit(d, IVec3(e[i]! as int, e[i + 1]! as int, e[i + 2]! as int), e[i + 3]! as int);
     }
   }
 }
 
-/// The authoritative side. Clients join with a hello (the seed and every edit
-/// so far); the host sends each step's block edits, and 20 times a second the
-/// players and the mobs. A client's edits, poses and hits come back to it; a
-/// remote player is a target its mobs hunt, and the damage it takes goes to
-/// its peer.
+/// The authoritative side. Clients join with a hello (the seed, the
+/// dimensions and every edit so far); the host sends each step's block edits,
+/// and 20 times a second the players (each with its dimension) and the mobs
+/// (of the host's dimension, where they live). A client's edits, poses and
+/// hits come back to it; a remote player in the host's dimension is a target
+/// its mobs hunt, and the damage it takes goes to its peer.
 class HostSession extends GameSession {
   /// Hosts [game] on [net].
   HostSession(this.game, this.net) {
@@ -88,8 +93,11 @@ class HostSession extends GameSession {
     peer.send({
       't': 'hello',
       'peer': peer.id,
-      'seed': game.world.generator.seed,
-      'edits': base64Encode(WorldSaves.codec.encode(game.world.generator.seed, game.world.edits)),
+      'seed': game.world.generators.seed,
+      'dimensions': game.spec.dimensionIds,
+      'edits': base64Encode(
+        WorldSaves.codecFor(game.spec.dimensionIds.length).encode(game.world.generators.seed, game.world.edits),
+      ),
       'time': game.time,
       'tod': game.timeOfDay,
       'spawn': _v(game.player.spawnPoint),
@@ -105,6 +113,7 @@ class HostSession extends GameSession {
           (m['yaw']! as num).toDouble(),
           held: m['held']! as String,
           dead: m['dead'] == true,
+          dimension: m['d']! as int,
         );
       case 'edits':
         GameSession._forEachEdit(m, _storeClientEdit);
@@ -130,16 +139,17 @@ class HostSession extends GameSession {
     net.broadcast({'t': 'bye', 'peer': peer.id});
   }
 
-  void _edited(IVec3 cell, int old, int id) => _queueEdit(cell, id);
+  void _edited(IVec3 cell, int old, int id) => _queueEdit(game.world.dimension, cell, id);
 
   /// Stores a client's edit. Where the host has the chunk, the write runs the
-  /// listeners and [_edited] passes it on; where it has not, the edit is only
-  /// recorded for when the chunk generates, so it is passed on here, or the
-  /// other clients would never hear of it.
-  void _storeClientEdit(IVec3 cell, int id) {
-    final loaded = game.world.isLoaded(cell);
-    game.world.storeEdit(cell, id);
-    if (!loaded) _queueEdit(cell, id);
+  /// listeners and [_edited] passes it on; where it has not (or the edit is
+  /// of a dimension the host is not in), the edit is only recorded for when
+  /// the chunk generates there, so it is passed on here, or the other clients
+  /// would never hear of it.
+  void _storeClientEdit(int dimension, IVec3 cell, int id) {
+    final live = dimension == game.world.dimension && game.world.isLoaded(cell);
+    game.world.storeEditIn(dimension, cell, id);
+    if (!live) _queueEdit(dimension, cell, id);
   }
 
   @override
@@ -154,10 +164,11 @@ class HostSession extends GameSession {
       'time': game.time,
       'tod': game.timeOfDay,
       'players': [
-        {'id': 1, 'p': _v(p.position), 'yaw': p.yaw, 'held': p.heldItem, 'dead': p.isDead},
+        {'id': 1, 'p': _v(p.position), 'yaw': p.yaw, 'held': p.heldItem, 'dead': p.isDead, 'd': game.world.dimension},
         for (final r in players.values)
-          {'id': r.peer, 'p': _v(r.position), 'yaw': r.yaw, 'held': r.heldItem, 'dead': r.isDead},
+          {'id': r.peer, 'p': _v(r.position), 'yaw': r.yaw, 'held': r.heldItem, 'dead': r.isDead, 'd': r.dimension},
       ],
+      'd': game.world.dimension,
       'mobs': [
         for (final m in game.mobs)
           {'n': m.netId, 's': m.spec.id, 'p': _v(m.position), 'yaw': m.facing, 'hp': m.hp, 'dead': m.isDead},
@@ -196,20 +207,21 @@ class ClientSession extends GameSession {
   double _clock = 0.0;
 
   void _edited(IVec3 cell, int old, int id) {
-    if (!_applying) _queueEdit(cell, id);
+    if (!_applying) _queueEdit(game.world.dimension, cell, id);
   }
 
   void _message(NetMessage m) {
     switch (m['t']) {
       case 'edits':
         _applying = true;
-        GameSession._forEachEdit(m, game.world.storeEdit);
+        GameSession._forEachEdit(m, game.world.storeEditIn);
         _applying = false;
       case 'state':
         game.time = (m['time']! as num).toDouble();
         game.timeOfDay = (m['tod']! as num).toDouble();
         _players(m['players']! as List<Object?>);
-        _mobsState(m['mobs']! as List<Object?>);
+        // The host's mobs live in its dimension: elsewhere there are none.
+        _mobsState(m['d'] == game.world.dimension ? m['mobs']! as List<Object?> : const []);
       case 'hurt':
         game.player.takeDamage(
           Damage(
@@ -232,7 +244,13 @@ class ClientSession extends GameSession {
       seen.add(id);
       final at = _vec(r['p']);
       final puppet = players[id] ??= game.add(RemotePlayer(id, at));
-      puppet.setPose(at, (r['yaw']! as num).toDouble(), held: r['held']! as String, dead: r['dead'] == true);
+      puppet.setPose(
+        at,
+        (r['yaw']! as num).toDouble(),
+        held: r['held']! as String,
+        dead: r['dead'] == true,
+        dimension: r['d']! as int,
+      );
     }
     for (final id in players.keys.where((k) => !seen.contains(k)).toList()) {
       players.remove(id)!.removed = true;
@@ -276,7 +294,14 @@ class ClientSession extends GameSession {
     if (_clock < 0.05) return;
     _clock = 0.0;
     final p = game.player;
-    connection.send({'t': 'pose', 'p': _v(p.position), 'yaw': p.yaw, 'held': p.heldItem, 'dead': p.isDead});
+    connection.send({
+      't': 'pose',
+      'p': _v(p.position),
+      'yaw': p.yaw,
+      'held': p.heldItem,
+      'dead': p.isDead,
+      'd': game.world.dimension,
+    });
   }
 
   @override
@@ -287,7 +312,9 @@ class ClientSession extends GameSession {
 }
 
 /// Joins the host at [address]:[port]: says hello and waits for the host's
-/// world. Returns the hello, whose seed and edits start the client's world.
+/// world. Returns the hello, whose seed and edits start the client's world;
+/// its edits are numbered as the host's dimensions, which the client's spec
+/// must declare (`SavedWorld.editsFor` throws otherwise).
 Future<({NetConnection connection, int peer, SavedWorld world, Vector3 spawn})> joinHost(
   String address, {
   int port = 7777,
@@ -296,11 +323,12 @@ Future<({NetConnection connection, int peer, SavedWorld world, Vector3 spawn})> 
   final m = await c.next().timeout(const Duration(seconds: 15));
   if (m['t'] != 'hello') throw StateError('the host answered ${m['t']} before hello');
   final seed = (m['seed']! as num).toInt();
-  final edits = WorldSaves.codec.decode(base64Decode(m['edits']! as String)).edits;
+  final dimensions = [for (final d in m['dimensions']! as List<Object?>) d! as String];
+  final edits = WorldSaves.codecFor(dimensions.length).decode(base64Decode(m['edits']! as String)).edits;
   return (
     connection: c,
     peer: (m['peer']! as num).toInt(),
-    world: SavedWorld(seed, edits, {'time': m['time'], 'timeOfDay': m['tod']}),
+    world: SavedWorld(seed, edits, {'time': m['time'], 'timeOfDay': m['tod']}, dimensions: dimensions),
     spawn: _vec(m['spawn']),
   );
 }

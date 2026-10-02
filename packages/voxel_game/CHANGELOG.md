@@ -2,6 +2,60 @@
 
 ## Unreleased
 
+- **Dimensions and portals (VA10).** `VoxelGameSpec.dimensions` (new, `{id: WorldGenSpec}`,
+  empty by default): the worlds beside `world`, whose id is `VoxelGameSpec.mainDimension`
+  (`'world'`; a dimension of that name throws); `dimensionIds` and `dimensionWorlds` number
+  them, `world` first. Every dimension is generated from the game's seed; one streams at a
+  time.
+  - `GameWorld(blocks, dimensions, seed)` and `GameWorld.headless` take every dimension's
+    spec (was one `WorldGenSpec`): `generators` (voxel_engine's `DimensionGenerator`),
+    `dimension`, `generator` the streaming one's. `switchDimension(d)` drops every chunk,
+    mesh and light of the one streaming, its edits kept, and the liquids' queue;
+    `storeEditIn(d, cell, id)` keeps an edit for a dimension not streaming, which lands when
+    it streams that chunk; `editCountIn(d)`; `arrivalAt(x, z)`: the feet's cell nearest the
+    column's surface with two clear cells over firm ground, in the column or the nearest
+    four out, a pocket of the dimension's stone and air carved above its sea where there is
+    none.
+  - `VoxelGame.travel(dimension, at:, through:)` takes the player there: the creatures and
+    the items of the dimension left are dropped, a store's screen shuts, the player waits
+    off the ground (`ready` false; `PlayerEntity.hold` / `placeAt`, new) while the world
+    keeps stepping, then stands at `at` or at its column's arrival. `VoxelGame.dimension`
+    (the id), `travelState` (a `Travel`, new, sealed: `Staying`, `Charging` with its
+    `progress`, `Arriving`, `Lingering` — in a portal after a trip, which charges only once
+    the player has stepped out). A respawn from another dimension travels to the spawn in
+    the main world.
+  - `VoxelGameSpec.portals` (new) of `PortalSpec` (new): a `frame` block around a hollow
+    `width` × `height` (2 × 3) in either vertical plane, the `lighter` item that fills a
+    closed one with `portal` blocks (used on it: `PlayerEntity`'s use, so every input
+    device), `from` (the main world) and `to`. Standing in one for `seconds` (2) goes to its
+    other end, to the same column; a return portal is built in front of the arrival unless
+    a lit one lies within `search` blocks. `VoxelGame.portals` (`Portals`, new: `at`,
+    `lights`, `lightWith`, `light`, `build`, `nearest`). `VoxelGameSpec.checkDimensions`
+    (new; `VoxelGame` runs it) throws for a portal of an undeclared dimension, from and to
+    one, of unknown or solid portal blocks, two of one block, or an unknown lighter.
+  - Each dimension keeps its own crops, stores and circuits: `BlockRules.growing` and
+    `stores` are the streaming dimension's, `growingIn(d)` / `storesIn(d)` any one's,
+    `restoreGrowing` / `restoreStores` take a `dimension:`; `VoxelGame.signals` is now the
+    streaming dimension's network (a getter; was a field).
+  - The save: `game.json` version 5 adds the dimensions in the order `edits.bin` holds them,
+    the player's dimension, and the crops and stores by dimension; `edits.bin` is version 2,
+    every dimension (`WorldSaves.codecFor(n)`, new, replaces `WorldSaves.codec`). A version
+    4 save and its version 1 `edits.bin` still load, all of the main world.
+    `SavedWorld.dimensions` (new) names the dimensions its `edits` number, and
+    `editsFor(ids)` renumbers them for a game (a dimension it does not declare throws).
+  - The network: an `edits` message carries its dimension (`d`), and a host stores and
+    passes on a client's edit of a dimension it is not in; the hello names the dimensions;
+    a player's pose carries its dimension (`RemotePlayer.dimension`, new), so another
+    dimension's players are not drawn nor hunted (`VoxelGame.playersHere`, new; what
+    `allTargets` and `targetsOf` read); the host's mobs are its dimension's, and a client
+    elsewhere sees none. A host steps only its own dimension: a client in another has no
+    liquids, block rules or mobs there until VA16.
+  - `Weather(spec, worlds, seed:)` takes every dimension's spec (was one), so a biome of any
+    of them may have its own odds.
+- The example has an underworld: a cavern of hellstone over a lava sea, soul sand where it is
+  wet, glowstone hanging, reached through an obsidian portal lit with flint and steel (both
+  crafted).
+
 - **Weather (VA9).** `SkySpec.weather` (a `WeatherSpec`, new; null, the default, keeps a
   sky that is always clear): a sky rolled every `minSpell`..`maxSpell` seconds from
   `WeatherOdds` (new: clear, rain, storm weights; `WeatherOdds.alwaysClear`) or a biome's own

@@ -11,6 +11,7 @@ export 'src/worldgen/features/scatter_grid.dart';
 export 'src/worldgen/features/structure_grid.dart';
 export 'src/worldgen/features/tree_canvas.dart';
 export 'src/worldgen/features/trees.dart';
+export 'src/worldgen/spec/dimension_generator.dart';
 export 'src/worldgen/spec/spec_generator.dart';
 export 'src/worldgen/spec/structure_site.dart';
 export 'src/worldgen/spec/world_gen_spec.dart';

@@ -34,8 +34,11 @@ import '../spec/voxel_game_spec.dart';
 import '../ui/damage_numbers.dart';
 import '../ui/game_screen.dart';
 import '../ui/notices.dart';
+import '../spec/portal_spec.dart';
 import '../world/block_rules.dart';
 import '../world/game_world.dart';
+import '../world/portals.dart';
+import '../world/travel.dart';
 import '../weather/weather.dart';
 import '../world/world_save.dart';
 
@@ -59,9 +62,11 @@ class VoxelGame {
        input = InputMap<VoxelAction>(VoxelAction.defaultBindings),
        recipes = RecipeBook(spec.recipes),
        timeOfDay = spec.sky.startTime,
-       weather = Weather(spec.sky.weather, spec.world, seed: spec.seed),
+       weather = Weather(spec.sky.weather, spec.dimensionWorlds, seed: spec.seed),
        _settings = ValueNotifier(settings) {
     assert(settings.renderDistance == world.loadRadius, 'the world streams the settings\' render distance');
+    spec.checkDimensions(blocks, items);
+    portals = Portals(world, spec.portals);
     _applyLive(settings);
     pathCosts = blocks.pathCosts(avoidLiquids: const {'lava'});
     player = PlayerEntity(
@@ -80,8 +85,8 @@ class VoxelGame {
     blockRules.attach();
     final s = spec.signals;
     if (s != null) {
-      final net = signals = SignalNetwork(world, _signalRules(s));
-      world.addListener(net.touch);
+      _signals = _signalRules(s);
+      world.addListener((cell, old, id) => signals!.touch(cell, old, id));
       _plates = {for (final p in s.plates) blocks.indexOf(p)};
     }
   }
@@ -128,8 +133,15 @@ class VoxelGame {
     );
   }
 
-  /// The circuits; null when the spec declares none.
-  SignalNetwork? signals;
+  /// The circuits of the dimension streaming; null when the spec declares
+  /// none, or on a client (the host runs them). Each dimension keeps its own.
+  SignalNetwork? get signals {
+    final rules = _signals;
+    return rules == null ? null : _networks.putIfAbsent(world.dimension, () => SignalNetwork(world, rules));
+  }
+
+  SignalRules? _signals;
+  final Map<int, SignalNetwork> _networks = {};
 
   Set<int> _plates = const {};
 
@@ -150,7 +162,7 @@ class VoxelGame {
     final chosen = settings ?? GameSettings.of(spec);
     final world = GameWorld(
       blocks,
-      spec.world,
+      spec.dimensionWorlds,
       save?.seed ?? spec.seed,
       loadRadius: chosen.renderDistance,
       liquids: spec.liquids,
@@ -196,7 +208,7 @@ class VoxelGame {
     final blocks = spec.buildBlocks();
     final world = GameWorld.headless(
       blocks,
-      spec.world,
+      spec.dimensionWorlds,
       save?.seed ?? spec.seed,
       loadRadius: loadRadius,
       liquids: spec.liquids,
@@ -216,7 +228,7 @@ class VoxelGame {
   }
 
   void _begin(SavedWorld? save) {
-    if (save != null) world.replaceEdits(save.edits);
+    if (save != null) world.replaceEdits(save.editsFor(spec.dimensionIds));
     player.attach(this);
     scene?.add(player.node);
     // The spawn: the nearest dry column to the origin along a spiral.
@@ -233,6 +245,89 @@ class VoxelGame {
     _spawnColumn = spawn;
     player.position = Vector3(spawn.x + 0.5, g.surfaceHeight(spawn.x, spawn.z).toDouble(), spawn.z + 0.5);
     if (save != null) WorldSaves.restore(this, save);
+  }
+
+  /// The id of the dimension the player is in (`VoxelGameSpec.dimensionIds`).
+  String get dimension => spec.dimensionIds[world.dimension];
+
+  /// The portals of the spec, in this world.
+  late final Portals portals;
+
+  /// Where the player stands between dimensions: in one, in a portal, or
+  /// arriving in another.
+  Travel get travelState => _travel;
+  Travel _travel = const Staying();
+
+  /// Takes the player to [dimension]: to [at] exactly, or to the arrival of
+  /// its present column there (`GameWorld.arrivalAt`), with a return portal
+  /// when it went [through] a portal and none is near. The creatures and the
+  /// items of the dimension left are left behind for good; a store's screen
+  /// shuts. The player waits off the ground ([ready] false) until the world
+  /// is loaded around it. Throws for the dimension the player is in, one the
+  /// spec does not declare, and during another arrival.
+  void travel(String dimension, {Vector3? at, PortalSpec? through}) {
+    final d = spec.dimensionIds.indexOf(dimension);
+    if (d < 0) throw ArgumentError.value(dimension, 'dimension', 'the spec declares no such dimension');
+    if (d == world.dimension) throw ArgumentError.value(dimension, 'dimension', 'the player is there');
+    if (_travel is Arriving) throw StateError('the player is arriving already');
+    for (final m in mobs) {
+      m.removed = true;
+    }
+    for (final e in entities) {
+      if (e is! RemotePlayer) e.removed = true;
+    }
+    _prune();
+    if (_screen.value is StorageScreen) closeScreen();
+    final from = player.position;
+    final x = (at?.x ?? from.x).floor(), z = (at?.z ?? from.z).floor();
+    world.switchDimension(d);
+    player.hold(at ?? Vector3(x + 0.5, world.generator.surfaceHeight(x, z).toDouble(), z + 0.5));
+    _travel = Arriving(dimension, x, z, exactly: at?.clone(), portal: through);
+  }
+
+  /// Stands the arriving player on the ground once the chunks around its
+  /// column are loaded, building the return portal it may need.
+  void _arrive(Arriving a) {
+    final here = ChunkStreamer.chunkOfXZ(a.x, a.z);
+    for (final o in ChunkStreamer.ring) {
+      if (!world.isLoaded(IVec3((here.x + o.x) * ChunkSize.sizeX, 0, (here.z + o.z) * ChunkSize.sizeZ))) return;
+    }
+    final at = a.exactly;
+    if (at != null) {
+      player.placeAt(at);
+    } else {
+      final feet = world.arrivalAt(a.x, a.z);
+      player.placeAt(Vector3(feet.x + 0.5, feet.y.toDouble(), feet.z + 0.5));
+      final portal = a.portal;
+      if (portal != null && portals.nearest(portal, feet, portal.search) == null) {
+        portals.build(portal, feet - const IVec3(0, 0, 2), world.generator.spec.stone);
+      }
+    }
+    _travel = const Lingering();
+  }
+
+  /// One step of the portal underfoot: standing in one long enough takes
+  /// the player to its other end.
+  void _portalStep(double dt) {
+    final feet = IVec3.floor(player.position + Vector3(0, 0.3, 0));
+    final under = player.isDead ? null : portals.at(feet);
+    final to = under?.otherEnd(dimension);
+    switch (_travel) {
+      case Arriving():
+        return;
+      case Lingering():
+        if (under == null) _travel = const Staying();
+      case Staying():
+        if (under != null && to != null) _travel = Charging(under, 0.0);
+      case Charging(:final portal, :final seconds):
+        if (under != portal || to == null) {
+          _travel = const Staying();
+        } else if (seconds + dt < portal.seconds) {
+          _travel = Charging(portal, seconds + dt);
+        } else {
+          travel(to, through: portal);
+        }
+    }
   }
 
   /// Hosts this game on [port] (0 picks a free one): other games join it with
@@ -448,6 +543,8 @@ class VoxelGame {
     if (!canRespawn) throw StateError('the player cannot stand up yet');
     player.respawn();
     _screen.value = null;
+    // The spawn is in the main world.
+    if (world.dimension != 0) travel(VoxelGameSpec.mainDimension, at: player.spawnPoint);
   }
 
   /// The store open beside the bag ([StorageScreen]), or null.
@@ -632,7 +729,12 @@ class VoxelGame {
         // Jump stands up: the respawn of a keyboard and a pad.
         if (canRespawn && input.justPressed(VoxelAction.jump)) respawn();
     }
-    if (!player.placed) {
+    final trip = _travel;
+    if (trip is Arriving) {
+      // An arrival keeps the world going; only the player waits.
+      _arrive(trip);
+    } else if (!player.placed) {
+      // The first stand: the world waits for the player.
       player.tryPlace(_spawnColumn.x, _spawnColumn.z);
       input.endTick();
       return;
@@ -641,7 +743,10 @@ class VoxelGame {
     time += dt;
     if (spec.sky.cycle) timeOfDay = (timeOfDay + dt / spec.sky.dayLength) % 1.0;
     weather.tick(this, dt);
-    player.tick(this, dt, gameplay: gameplay);
+    if (player.placed) {
+      player.tick(this, dt, gameplay: gameplay);
+      _portalStep(dt);
+    }
     for (final m in List.of(mobs)) {
       m.tick(this, dt);
     }
@@ -719,17 +824,21 @@ class VoxelGame {
   /// The other players of a networked game.
   Iterable<RemotePlayer> get remotePlayers => session?.players.values ?? const <RemotePlayer>[];
 
-  /// Every living thing a projectile can hit: the players and the creatures.
+  /// The other players in the player's dimension.
+  Iterable<RemotePlayer> get playersHere => remotePlayers.where((r) => r.dimension == world.dimension);
+
+  /// Every living thing a projectile can hit: the players and the creatures
+  /// of the dimension.
   Iterable<Target> get allTargets sync* {
     yield player;
-    yield* remotePlayers;
+    yield* playersHere;
     yield* mobs;
   }
 
   /// What a hunter looks for: the players, and the creatures named in [prey].
   Iterable<Target> targetsOf(List<String> prey) sync* {
     if (!player.isDead) yield player;
-    for (final r in remotePlayers) {
+    for (final r in playersHere) {
       if (!r.isDead) yield r;
     }
     if (prey.isEmpty) return;
