@@ -5,6 +5,8 @@ import 'package:voxel_engine/worldgen.dart';
 
 import '../core/voxel_game.dart';
 import '../entities/game_entity.dart';
+import '../entities/projectile.dart';
+import '../mobs/behaviors.dart';
 import '../mobs/mob.dart';
 import '../mobs/mob_spec.dart';
 import '../player/player_spec.dart';
@@ -275,7 +277,8 @@ class VoxelGameSpec {
 
   /// Throws [ArgumentError] for two mobs of one id, and for a mob whose loot
   /// names an item not in [items], that splits into a mob not declared, whose
-  /// strike leaves an effect not in [effects], that is worth experience
+  /// strike or shot (a `RangedAttack`'s `ProjectileSpec.onHit`) leaves an
+  /// effect not in [effects], that is worth experience
   /// when the player gains none (`PlayerSpec.xp`), that is tamed with an
   /// unknown item, at a chance outside (0, 1], or with no `tamedBrain`,
   /// and for a ghost that does not fly.
@@ -294,6 +297,11 @@ class VoxelGameSpec {
       }
       if (m.onHit case final hit? when !effectIds.contains(hit.effect)) {
         throw ArgumentError.value(hit.effect, m.id, 'the mob\'s strike leaves an effect the spec does not declare');
+      }
+      for (final b in [...m.brain, ...m.tamedBrain]) {
+        if (b case RangedAttack(projectile: ProjectileSpec(onHit: final hit?)) when !effectIds.contains(hit.effect)) {
+          throw ArgumentError.value(hit.effect, m.id, 'the mob\'s shot leaves an effect the spec does not declare');
+        }
       }
       for (final item in m.tameWith) {
         if (!items.has(item)) {

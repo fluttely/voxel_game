@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:vector_math/vector_math.dart';
 import 'package:voxel_engine/core.dart';
+import 'package:voxel_scene/voxel_scene.dart';
 
 import '../core/voxel_game.dart';
 import '../entities/game_entity.dart';
@@ -15,8 +16,14 @@ import 'rig.dart';
 
 /// A living creature of a [MobSpec]: a body that thinks with its spec's
 /// behaviours, moves by its gait, can be hurt, grows with its [level], burns
-/// by day when its spec says so, and dies into its loot, its experience and
-/// what it splits into.
+/// by day when its spec says so (or when set alight, [ignite]), and dies into
+/// its loot, its experience and what it splits into.
+///
+/// A blow is felt: its pose holds for [hitStop] ([frozen]), it shows white
+/// for [hitFlash] ([flashing]) and it shakes; a shove carries it off its feet
+/// for a moment (`CharacterMotor.shove`). It dies by toppling over in
+/// [toppleSeconds] and fading out in [fadeSeconds]. Its rig is drawn in its
+/// [tint]: a ghost see-through, a burning one orange.
 ///
 /// Behaviours steer it through [walkTo], [walkDirection], [halt] and
 /// [lookAt]; they read [target], [lastHurtBy], [sinceHurt] and [home], and
@@ -99,11 +106,95 @@ class Mob extends GameEntity implements Target {
   bool _dead = false;
   double _deathTime = 0.0;
   double _hurtFlash = 0.0;
+  double _freeze = 0.0;
+  double _flash = 0.0;
   double _burnClock = 0.0;
+  double _fire = 0.0;
+  int _painted = fadeSteps;
 
-  /// Whether the day burns it now (`MobSpec.burnsInDaylight`), as last
-  /// looked at: twice a second.
+  /// Whether it burns now: under the open noon sky
+  /// (`MobSpec.burnsInDaylight`) or set alight ([ignite]); looked at twice a
+  /// second, and at once when it catches fire.
   bool burning = false;
+
+  /// Seconds a blow holds its pose (the hit-stop): its body still moves.
+  static const double hitStop = 0.06;
+
+  /// Seconds a blow shows it white.
+  static const double hitFlash = 0.1;
+
+  /// Seconds it takes to topple over when it dies, and then to fade out.
+  static const double toppleSeconds = 0.4, fadeSeconds = 0.3;
+
+  /// The steps a fade's see-through goes by: each one material every dying
+  /// creature shares (`VoxelModelMesh.tinted`).
+  static const int fadeSteps = 16;
+
+  /// How see-through a ghost is (`MobSpec.ghost`): the alpha of its [tint].
+  static const double ghostAlpha = 0.45;
+
+  /// The colour of the embers a burning creature sheds.
+  static final Vector3 emberColor = Vector3(1.0, 0.5, 0.1);
+
+  /// Whether its pose holds now: the [hitStop] of a blow.
+  bool get frozen => _freeze > 0.0;
+
+  /// Whether it shows white now: the [hitFlash] of a blow.
+  bool get flashing => _flash > 0.0;
+
+  /// What its rig's colours are multiplied by, RGBA: a burning creature's
+  /// orange, a ghost's pale blue at [ghostAlpha], white otherwise; and once
+  /// it has toppled over, its alpha falls to 0 in [fadeSeconds], by
+  /// [fadeSteps].
+  Vector4 get tint => _tintOf(_appearance, _opacityStep);
+
+  /// What it looks like, but for its fade: plain, ghost, burning or a
+  /// burning ghost (0..3).
+  int get _appearance => (spec.ghost ? 1 : 0) + (burning && !_dead ? 2 : 0);
+
+  /// How opaque it is, in [fadeSteps]: all of them until it has toppled.
+  int get _opacityStep => _dead ? _stepAfterDeath(_deathTime) : fadeSteps;
+
+  /// How opaque a creature is [seconds] after it died, 1..0: whole while it
+  /// topples ([toppleSeconds]), then down to nothing over [fadeSeconds], by
+  /// [fadeSteps]. Gone then (headless, at once).
+  static double opacityAfterDeath(double seconds) => _stepAfterDeath(seconds) / fadeSteps;
+
+  static int _stepAfterDeath(double seconds) {
+    final faded = ((seconds - toppleSeconds) / fadeSeconds).clamp(0.0, 1.0);
+    return ((1.0 - faded) * fadeSteps).round();
+  }
+
+  static Vector4 _tintOf(int appearance, int step) {
+    final a = (appearance.isOdd ? ghostAlpha : 1.0) * step / fadeSteps;
+    if (appearance >= 2) return Vector4(1.0, 0.55, 0.15, a);
+    if (appearance == 1) return Vector4(0.85, 0.92, 1.0, a);
+    return Vector4(1.0, 1.0, 1.0, a);
+  }
+
+  /// Draws its rig in its look now: the white of a blow, else its [tint].
+  /// Only a change of look reaches the rig.
+  void _paint() {
+    final r = rig;
+    if (r == null) return;
+    final shown = flashing ? -1 : _appearance * (fadeSteps + 1) + _opacityStep;
+    if (shown == _painted) return;
+    _painted = shown;
+    r.paint(shown < 0 ? VoxelModelMesh.flash() : VoxelModelMesh.tinted(tint));
+  }
+
+  /// A blow lands: the shake, the hit-stop and the white.
+  void _feel() {
+    _hurtFlash = 0.25;
+    _freeze = hitStop;
+    _flash = hitFlash;
+  }
+
+  void _settle(double dt) {
+    _hurtFlash = math.max(_hurtFlash - dt, 0.0);
+    _freeze = math.max(_freeze - dt, 0.0);
+    _flash = math.max(_flash - dt, 0.0);
+  }
 
   /// Who tamed it, or null for a wild creature.
   Target? get owner => _owner;
@@ -191,6 +282,7 @@ class Mob extends GameEntity implements Target {
     if (_netTo != null && health < hp) {
       _game.damageNumbers.add(_numberAt(), hp - health);
       sinceHurt = 0.0;
+      _feel();
     }
     _netTo = at.clone();
     facing = yaw;
@@ -277,8 +369,9 @@ class Mob extends GameEntity implements Target {
   void tick(VoxelGame game, double dt) {
     if (_dead) {
       _deathTime += dt;
-      rig?.place(Vector3.zero(), topple: math.min(_deathTime * 4.0, math.pi / 2));
-      if (_deathTime > 1.2) removed = true;
+      rig?.place(Vector3.zero(), topple: math.pi / 2 * math.min(_deathTime / toppleSeconds, 1.0));
+      _paint();
+      if (_deathTime >= toppleSeconds + fadeSeconds) removed = true;
       return;
     }
     if (replica) {
@@ -287,18 +380,16 @@ class Mob extends GameEntity implements Target {
       final before = position.clone();
       position = position + (to - position) * math.min(1.0, dt * 12.0);
       velocity = (position - before) / math.max(dt, 1e-6);
-      _hurtFlash = math.max(_hurtFlash - dt, 0.0);
+      _settle(dt);
       _animate(dt);
       syncNode(yaw: rig?.yaw);
       return;
     }
     if (!game.world.isLoaded(IVec3.floor(position))) return;
     sinceHurt += dt;
-    _hurtFlash = math.max(_hurtFlash - dt, 0.0);
-    if (spec.burnsInDaylight && !tamed) {
-      _burn(game, dt);
-      if (_dead) return;
-    }
+    _settle(dt);
+    _burn(game, dt);
+    if (_dead) return;
     if (rider != null) {
       // Its rider moved it this step (carry); it only shows it.
       _animate(dt);
@@ -429,23 +520,27 @@ class Mob extends GameEntity implements Target {
   void _animate(double dt) {
     final r = rig;
     if (r == null) return;
-    final look = _look;
-    double? lookYaw;
-    if (look != null) {
-      final to = look - position;
-      var want = math.atan2(-to.x, -to.z) - r.yaw;
-      want = (want + math.pi) % (math.pi * 2) - math.pi;
-      lookYaw = want;
+    // The hit-stop: the pose holds, the body still moves.
+    if (!frozen) {
+      final look = _look;
+      double? lookYaw;
+      if (look != null) {
+        final to = look - position;
+        var want = math.atan2(-to.x, -to.z) - r.yaw;
+        want = (want + math.pi) % (math.pi * 2) - math.pi;
+        lookYaw = want;
+      }
+      r.animate(
+        dt,
+        speed: math.sqrt(velocity.x * velocity.x + velocity.z * velocity.z),
+        targetYaw: facing,
+        onFloor: onFloor,
+        flying: spec.gait == Gait.fly,
+        lookYaw: lookYaw,
+        verticalSpeed: velocity.y,
+      );
     }
-    r.animate(
-      dt,
-      speed: math.sqrt(velocity.x * velocity.x + velocity.z * velocity.z),
-      targetYaw: facing,
-      onFloor: onFloor,
-      flying: spec.gait == Gait.fly,
-      lookYaw: lookYaw,
-      verticalSpeed: velocity.y,
-    );
+    _paint();
     r.place(
       Vector3.zero(),
       scale: 1.0 + swell * 0.25,
@@ -453,20 +548,27 @@ class Mob extends GameEntity implements Target {
     );
   }
 
+  /// Takes [damage]: a blow from outside is felt ([frozen], [flashing], a
+  /// shake), a burn's only shakes it. A replica only feels it and sends it to
+  /// the host.
   @override
   double takeDamage(Damage damage) {
     if (_dead) return 0.0;
     if (replica) {
-      _hurtFlash = 0.25;
+      _feel();
       _game.playSound(spec.hurtSound ?? _defaultHurt, at: centre(), volumeDb: -4.0);
       _game.session?.hitMob(this, damage);
       return 0.0;
     }
     final taken = math.min(hp, damage.amount);
     hp -= damage.amount;
-    if (taken > 0.0) _game.damageNumbers.add(_numberAt(), taken);
+    if (taken > 0.0) _game.damageNumbers.add(_numberAt(), taken, crit: damage.crit);
     sinceHurt = 0.0;
-    _hurtFlash = 0.25;
+    if (damage.internal) {
+      _hurtFlash = 0.25;
+    } else {
+      _feel();
+    }
     lastHurtBy = damage.attacker;
     lastHurtFrom = damage.from?.clone();
     _game.playSound(spec.hurtSound ?? _defaultHurt, at: centre(), volumeDb: -4.0);
@@ -482,21 +584,41 @@ class Mob extends GameEntity implements Target {
     return taken;
   }
 
-  /// Seconds between two looks at the sky of a creature that burns by day,
-  /// and the health each burning look takes.
+  /// Seconds between two looks at whether it burns, and the health each
+  /// burning look takes.
   static const double burnEvery = 0.5, burnDamage = 0.5;
 
-  /// The daylight rule: twice a second, a creature whose head cell sees the
-  /// full sky (light 15) while the [VoxelGame.daylight] is 0.9 or more, out
-  /// of liquid, burns for [burnDamage]. A cavern dimension has no sky, so
-  /// nothing burns there.
+  /// Sets it alight for [seconds] (a fire shot's `ProjectileSpec.burns`), or
+  /// as long as it burns already if that is longer: it is [burning] at once
+  /// and loses [burnDamage] every [burnEvery] seconds. Liquid puts it out,
+  /// and nothing in liquid or dead catches fire.
+  void ignite(double seconds) {
+    if (!(seconds > 0.0)) throw ArgumentError.value(seconds, 'seconds', 'a fire lasts some time');
+    if (_dead || inLiquid) return;
+    _fire = math.max(_fire, seconds);
+    burning = true;
+  }
+
+  /// Twice a second, whether it burns: set alight and not yet out
+  /// ([ignite]), or by the daylight rule — a creature that burns by day,
+  /// untamed, whose head cell sees the full sky (light 15) while the
+  /// [VoxelGame.daylight] is 0.9 or more, out of liquid (a cavern dimension has
+  /// no sky, so nothing burns there by day). Burning, it loses [burnDamage]
+  /// and sheds an ember.
   void _burn(VoxelGame game, double dt) {
+    _fire = inLiquid ? 0.0 : math.max(_fire - dt, 0.0);
     _burnClock -= dt;
     if (_burnClock > 0.0) return;
     _burnClock = burnEvery;
+    burning = _fire > 0.0 || spec.burnsInDaylight && !tamed && _sunBurns(game);
+    if (!burning) return;
+    takeDamage(const Damage(burnDamage, source: 'burning', internal: true));
+    game.debris.burst(position + Vector3(0, height * 0.8, 0), emberColor, count: 1, speed: 0.6);
+  }
+
+  bool _sunBurns(VoxelGame game) {
     final head = IVec3.floor(position + Vector3(0, height - 0.15, 0));
-    burning = !inLiquid && game.daylight >= 0.9 && game.world.lightAt(head).sky >= 15;
-    if (burning) takeDamage(const Damage(burnDamage, source: 'burning', internal: true));
+    return !inLiquid && game.daylight >= 0.9 && game.world.lightAt(head).sky >= 15;
   }
 
   /// Deals [damage] to [t] and leaves the spec's `onHit` effect on it when
@@ -520,6 +642,10 @@ class Mob extends GameEntity implements Target {
     if (_dead) return;
     _dead = true;
     hp = 0.0;
+    // The fade starts from its own look, not a blow's white.
+    _flash = 0.0;
+    _freeze = 0.0;
+    _fire = 0.0;
     _brain.reset();
     if (dropLoot) {
       for (final s in spec.loot.roll(_game.random)) {

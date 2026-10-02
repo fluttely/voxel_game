@@ -128,6 +128,7 @@ class HostSession extends GameSession {
                 from: m['from'] == null ? null : _vec(m['from']),
                 knockback: (m['kb'] as num?)?.toDouble() ?? 6.0,
                 attacker: puppet,
+                crit: m['crit'] == true,
               ),
             );
           }
@@ -286,6 +287,7 @@ class ClientSession extends GameSession {
     'dmg': damage.amount,
     if (damage.from != null) 'from': _v(damage.from!),
     'kb': damage.knockback,
+    if (damage.crit) 'crit': true,
   });
 
   @override

@@ -2,6 +2,17 @@
 
 ## 0.3.0-dev
 
+- `VoxelModelMesh.flash()` (new): the white a model turns for a moment when it is hit,
+  unlit, one material for every model. `VoxelModelMesh.tinted(rgba)` (new): the shared
+  material multiplied by a tint, see-through (the translucent pass, no shadow) when its
+  alpha is under 1; one material a tint, so the models in it still batch. White and whole
+  is `material()` itself. A ghost's see-through and a death's fade in voxel_game ride on it
+  (VA14, `KL-015`).
+- `DebrisParticles` (new): chips and embers, small spinning squares of a colour thrown out
+  of a point that fall and are gone in 0.6 s, all in one of flutter_scene's
+  `ParticleSystem`s, so every chip is one draw. `burst(at, color, count:, speed:)` throws
+  them from anywhere; a full pool throws what fits.
+
 - `DayNightSky.update` takes the weather (VA9): `overcast` (0..1) greys the sky, dims the
   sun, the ambient and the sky light it returns, and pulls the fog's end in; `flash` (0..1)
   lights all of it white for a lightning bolt. The numbers are `SkyLook.at` (new), pure, so

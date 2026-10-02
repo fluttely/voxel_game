@@ -154,7 +154,16 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
 - Taming (`tameWith`, `tameChance`, `tamedBrain`): companions that `PetFight` and `Heel`,
   and mounts (`MountSpec`, `MountWait`) the owner rides with a use and leaves with sneak.
   A tamed creature, and one declared `persistent`, is never despawned and is kept in the
-  save; a `ghost` flies through walls.
+  save; a `ghost` flies through walls, drawn see-through.
+- Combat that is felt: a blow holds its victim's pose for a moment (the hit-stop), shows it
+  white and shakes it, and its shove carries it off its feet; the player's camera shakes by
+  the damage taken. A creature dies by toppling over and fading out. `PlayerSpec.critChance`
+  makes some of the player's blows critical (`critMultiplier`, the number yellow with a `!`).
+  A creature set alight (`Mob.ignite`) burns orange and sheds embers. Blocks chip as they are
+  mined and burst as they break (`VoxelGame.debris`, one particle system).
+- `ProjectileSpec` for `RangedAttack` and `VoxelGame.shoot`: an `arrow`, a `bolt` and a
+  `fireball`, or your own; a shot can carry a `light`, leave a `trail`, set the creature it
+  hits burning (`burns`) and leave an effect on the player (`onHit`).
 - `SpawnRule.daylight()` / `SpawnRule.dark()` / `SpawnRule.cave()`, on the surface or in
   caves (`SpawnPlace`), weighted by biome (`biomeWeights`).
 - Save slots, and `hostPort` / `join` for multiplayer.

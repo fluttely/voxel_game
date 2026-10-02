@@ -371,7 +371,10 @@ class RigInstance {
       final pivot = Node();
       final g = p.shape.geometry;
       final mesh = Node()..scale = p.shape.shrink.clone();
-      if (g != null) mesh.mesh = Mesh(g, VoxelModelMesh.material());
+      if (g != null) {
+        mesh.mesh = Mesh(g, _paint);
+        _meshes.add((mesh, g));
+      }
       pivot.add(mesh);
       root.add(pivot);
       parts[p.name] = RigPart(pivot, p.base)
@@ -403,6 +406,28 @@ class RigInstance {
   /// The posable parts by name (`body`, `head`, `leg0`.., `arm0`, `arm1`,
   /// `wing0`, `wing1`, `tail`).
   final Map<String, RigPart> parts = {};
+
+  final List<(Node, MeshGeometry)> _meshes = [];
+  Material _paint = VoxelModelMesh.material();
+
+  /// What its parts are drawn in: `VoxelModelMesh.material()`, its colours,
+  /// unless [paint] said otherwise.
+  Material get painted => _paint;
+
+  /// Draws every part in [material] from now on: one every rig shares (a
+  /// hit's `VoxelModelMesh.flash()`, a ghost's or a fade's
+  /// `VoxelModelMesh.tinted`), so the creatures in it still batch. What a
+  /// fist holds keeps its own. Painting it what it is in already does
+  /// nothing.
+  void paint(Material material) {
+    if (identical(material, _paint)) return;
+    _paint = material;
+    // flutter_scene copies a primitive's material into its render item when
+    // the mesh is set: a new mesh over the same geometry is what reaches it.
+    for (final (node, geometry) in _meshes) {
+      node.mesh = Mesh(geometry, material);
+    }
+  }
 
   /// What poses [parts] every frame.
   late final RigAnimator animator = RigAnimator(rig.kind, parts, armRest: _armRest, legFan: model.legFan);

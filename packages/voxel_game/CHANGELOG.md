@@ -2,6 +2,35 @@
 
 ## Unreleased
 
+- **Combat feel (VA14).** A blow from outside is felt: its victim's pose holds for
+  `Mob.hitStop` (0.06 s, `frozen`), it shows white for `Mob.hitFlash` (0.1 s, `flashing`)
+  and shakes, and a shove carries it as before (`CharacterMotor.shove`'s stagger); a burn's
+  or an effect's tick only shakes it. The same on a client's replicas, and on the player's
+  own model in third person. The player's camera shakes by the damage taken
+  (`PlayerEntity.shake`: the damage over 10, at most 0.3 m, over 0.15 s) and no longer by an
+  effect's tick or hunger. A creature that dies topples over in `Mob.toppleSeconds` (0.4 s)
+  and fades out in `fadeSeconds` (0.3 s), gone at 0.7 s (it lay 1.2 s before, never fading;
+  `Mob.opacityAfterDeath`). `PlayerSpec.critChance` (0, none, by default) and
+  `critMultiplier` (1.5): a swing or a shot of the player's may be critical
+  (`PlayerEntity.critical`, the damage multiplied and rounded), `Damage.crit` carries it to
+  the victim and over the network, and its number is yellow, ending in `!`
+  (`DamageNumbers.add(crit:)`, `DamageNumber.crit`, `DamageNumbers.label(crit:)`).
+  `Mob.ignite`: a creature set alight burns for that long (`burning` at once, 0.5 a half
+  second, the daylight rule's numbers); liquid puts it out. Burning, a creature is drawn
+  orange and sheds an ember a burn. `Mob.tint` is what a rig's colours are multiplied by: a
+  burn's orange, a ghost's see-through pale blue (`MobSpec.ghost` is drawn see-through now:
+  `KL-015` closed), and a death's fade. `RigInstance.paint` draws a rig in one of
+  voxel_scene's shared materials (`VoxelModelMesh.flash`, `tinted`), so creatures in one
+  look still batch. `VoxelGame.debris` (voxel_scene's `DebrisParticles`): a block mined
+  sheds two chips a dig and a dozen when it breaks by the player's hand (`VoxelGame.chip`,
+  shaded by the light on the block's faces); a blast's blocks shed none.
+  `ProjectileSpec.light` (the reach of a light in its colour), `trail` (a see-through
+  streak behind it), `burns` (seconds a creature it hits burns) and `onHit` (a `HitEffect`
+  left on the player it hurts; `checkMobs` refuses one the spec does not declare);
+  `ProjectileSpec.bolt` now lights its way and trails, and `ProjectileSpec.fireball` is new.
+  The example's player has a crit chance of 0.1, and a wisp (a see-through ghost) comes at
+  night to throw fire, which burns the player through the example's `burning` effect.
+
 - **Creatures grow, last part: kept in the save (VA13c).** `MobSpec.persistent`: the
   spawner never takes it away (nor counts it), however far the player goes. `MobSpec.ghost`:
   it passes through blocks (`noclip`); a ghost must fly (`Gait.fly`), or `checkMobs` throws.

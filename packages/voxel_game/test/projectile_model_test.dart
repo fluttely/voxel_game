@@ -29,4 +29,22 @@ void main() {
     final ball = ProjectileModel.of(const ProjectileSpec(thickness: 0.4, length: 0.4, color: 0xFF6020, glow: true));
     expect(ball.size, Vector3.all(0.4));
   });
+
+  test('a trail is part of the look: one more model, not one a shot', () {
+    final bolt = ProjectileModel.of(ProjectileSpec.bolt);
+    expect(bolt.trail, 1.6);
+    expect(ProjectileModel.of(ProjectileSpec.arrow).trail, 0.0);
+    // The bolt's box and colour without its streak.
+    final bare = ProjectileModel.of(
+      const ProjectileSpec(kind: 'bolt', thickness: 0.5, length: 0.5, color: 0x70A0FF, glow: true),
+    );
+    expect(bare, isNot(same(bolt)));
+    // A light, a fire or an effect changes what it does, not how it is drawn.
+    expect(
+      ProjectileModel.of(const ProjectileSpec(light: 6.0, burns: 3.0)),
+      same(ProjectileModel.of(ProjectileSpec.arrow)),
+    );
+    expect(ProjectileSpec.fireball.burns, greaterThan(0.0));
+    expect(ProjectileModel.of(ProjectileSpec.fireball).rgb.x, 1.0);
+  });
 }

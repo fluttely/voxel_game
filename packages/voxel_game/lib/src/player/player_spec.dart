@@ -39,7 +39,10 @@ class PlayerSpec {
     this.armorSlots = const ['head', 'chest', 'legs', 'feet'],
     this.armorPerPoint = 0.4,
     this.armorFloor = 0.35,
-  }) : assert(armorPerPoint >= 0.0 && armorFloor >= 0.0 && armorFloor <= 1.0);
+    this.critChance = 0.0,
+    this.critMultiplier = 1.5,
+  }) : assert(armorPerPoint >= 0.0 && armorFloor >= 0.0 && armorFloor <= 1.0),
+       assert(critChance >= 0.0 && critChance <= 1.0 && critMultiplier >= 1.0);
 
   /// Health.
   final double hp;
@@ -118,6 +121,14 @@ class PlayerSpec {
   /// The share of a blow that always lands, however much armour is worn.
   final double armorFloor;
 
+  /// The chance, 0..1, that a blow of the player's (a swing, a shot) is
+  /// critical: [critMultiplier] times the damage, rounded, its number marked.
+  /// 0, the default, never rolls.
+  final double critChance;
+
+  /// What a critical blow multiplies the damage by.
+  final double critMultiplier;
+
   /// This player with the given fields replaced: a world's mode, say
   /// (`WorldInfo.applyTo`). A field that may be null is given as a getter of
   /// its new value, so null can be asked for, as in `VoxelGameSpec.copyWith`.
@@ -146,6 +157,8 @@ class PlayerSpec {
     List<String>? armorSlots,
     double? armorPerPoint,
     double? armorFloor,
+    double? critChance,
+    double? critMultiplier,
   }) => PlayerSpec(
     hp: hp ?? this.hp,
     reach: reach ?? this.reach,
@@ -171,5 +184,7 @@ class PlayerSpec {
     armorSlots: armorSlots ?? this.armorSlots,
     armorPerPoint: armorPerPoint ?? this.armorPerPoint,
     armorFloor: armorFloor ?? this.armorFloor,
+    critChance: critChance ?? this.critChance,
+    critMultiplier: critMultiplier ?? this.critMultiplier,
   );
 }

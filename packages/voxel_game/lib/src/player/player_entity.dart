@@ -126,9 +126,27 @@ class PlayerEntity extends NodeBody implements Target {
   /// The outline around what the crosshair rests on; null headless.
   SelectionOutline? outline;
 
-  /// 1 the moment the player is hurt, fading to 0: the HUD's red flash and
-  /// the camera's jolt.
+  /// 1 the moment the player is hurt, fading to 0: the HUD's red flash.
   double hurtFlash = 0.0;
+
+  /// Seconds a blow shakes the camera for.
+  static const double shakeSeconds = 0.15;
+
+  /// Metres the camera shakes by now, either way across the view: a blow's
+  /// damage over 10, at most 0.3, dying out over [shakeSeconds]. A hurt from
+  /// within (an effect's tick, hunger) does not shake it. The aim never moves.
+  double get shake => _shakeAmp * (_shakeLeft / shakeSeconds);
+  double _shakeLeft = 0.0;
+  double _shakeAmp = 0.0;
+
+  /// Whether the model's pose holds now (third person): a blow's hit-stop,
+  /// `Mob.hitStop`.
+  bool get frozen => _freeze > 0.0;
+  double _freeze = 0.0;
+
+  /// Whether the model shows white now: a blow's `Mob.hitFlash`.
+  bool get flashing => _flash > 0.0;
+  double _flash = 0.0;
 
   bool _dead = false;
   double _deadFor = 0.0;
@@ -270,7 +288,13 @@ class PlayerEntity extends NodeBody implements Target {
         : math.max(damage.amount - armor * spec.armorPerPoint, damage.amount * spec.armorFloor);
     final taken = math.min(hp, amount);
     hp -= amount;
-    if (!damage.internal) _invulnerable = 0.4;
+    if (!damage.internal) {
+      _invulnerable = 0.4;
+      _shakeLeft = shakeSeconds;
+      _shakeAmp = math.min(amount / 10.0, 0.3);
+      _freeze = Mob.hitStop;
+      _flash = Mob.hitFlash;
+    }
     hurtFlash = 1.0;
     _game.playSound('hurt', volumeDb: -3.0);
     final from = damage.from;
@@ -310,6 +334,9 @@ class PlayerEntity extends NodeBody implements Target {
     final input = game.input;
     _invulnerable = math.max(_invulnerable - dt, 0.0);
     hurtFlash = math.max(hurtFlash - dt * 2.5, 0.0);
+    _shakeLeft = math.max(_shakeLeft - dt, 0.0);
+    _freeze = math.max(_freeze - dt, 0.0);
+    _flash = math.max(_flash - dt, 0.0);
     if (_dead) {
       _deadFor += dt;
       return;
@@ -717,6 +744,15 @@ class PlayerEntity extends NodeBody implements Target {
     return id.isEmpty || !_game.items.has(id) ? null : _game.items[id];
   }
 
+  /// [damage] of a blow of the player's, rolled for a critical one
+  /// ([PlayerSpec.critChance]): [PlayerSpec.critMultiplier] times it, rounded.
+  /// With no chance declared nothing is rolled.
+  ({double amount, bool crit}) critical(double damage) {
+    final chance = spec.critChance;
+    if (chance <= 0.0 || _game.random.nextDouble() >= chance) return (amount: damage, crit: false);
+    return (amount: (damage * spec.critMultiplier).roundToDouble(), crit: true);
+  }
+
   void _attack(double dt, bool pressed) {
     final mob = aimedMob;
     if (mob != null) {
@@ -726,8 +762,8 @@ class PlayerEntity extends NodeBody implements Target {
       _swingArm();
       final item = _heldType;
       final base = item == null || item.tool == null ? spec.handDamage : item.damage.toDouble();
-      final damage = base * effects.multiplier(damageStat);
-      mob.takeDamage(Damage(damage, from: position, knockback: 6.0, attacker: this));
+      final (:amount, :crit) = critical(base * effects.multiplier(damageStat));
+      mob.takeDamage(Damage(amount, from: position, knockback: 6.0, attacker: this, crit: crit));
       if (item != null && item.durability > 0) inventory.wear(selectedSlot);
       return;
     }
@@ -756,6 +792,7 @@ class PlayerEntity extends NodeBody implements Target {
       _digTimer = 0.25;
       _swingArm();
       _game.playSound('dig', at: Vector3(hit.block.x + 0.5, hit.block.y + 0.5, hit.block.z + 0.5), volumeDb: -10.0);
+      _game.chip(hit.block, block, count: 2, speed: 0.7);
     }
     mineProgress += time == 0.0 ? 1.0 : dt / time;
     if (mineProgress < 1.0) return;
@@ -917,7 +954,9 @@ class PlayerEntity extends NodeBody implements Target {
     final speed = math.sqrt(velocity.x * velocity.x + velocity.z * velocity.z);
     final flat = Vector3(velocity.x, 0, velocity.z);
     final face = speed > 0.5 ? math.atan2(-flat.x, -flat.z) : yaw;
-    r.animate(dt, speed: seated ? 0.0 : speed, targetYaw: face, onFloor: seated || onFloor);
+    // The hit-stop: the pose holds, the body still moves.
+    if (!frozen) r.animate(dt, speed: seated ? 0.0 : speed, targetYaw: face, onFloor: seated || onFloor);
+    r.paint(flashing ? VoxelModelMesh.flash() : VoxelModelMesh.material());
     r.place(Vector3.zero());
   }
 }

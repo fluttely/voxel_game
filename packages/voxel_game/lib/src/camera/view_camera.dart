@@ -10,8 +10,8 @@ import 'shoulder_orbit.dart';
 import 'view_bob.dart';
 
 /// The player's camera: the eye in first person, a [ShoulderOrbit] in third
-/// person that is pulled in by walls, and a [ViewBob] on foot; as wide as the
-/// player's `GameSettings.fov`.
+/// person that is pulled in by walls, a [ViewBob] on foot and a blow's shake
+/// (`PlayerEntity.shake`); as wide as the player's `GameSettings.fov`.
 class ViewCamera {
   /// The third-person seat.
   final ShoulderOrbit orbit = ShoulderOrbit();
@@ -49,11 +49,9 @@ class ViewCamera {
       enabled: bob,
     );
     var sway = viewBob.offset;
-    // A hit jolts the eye (never the aim) and dies out.
-    if (p.hurtFlash > 0.0) {
-      final k = 0.08 * p.hurtFlash;
-      sway += right * ((_jolt.nextDouble() * 2 - 1) * k) + up * ((_jolt.nextDouble() * 2 - 1) * k);
-    }
+    // A blow shakes the eye (never the aim) by its damage, and dies out.
+    final k = p.shake;
+    if (k > 0.0) sway += right * ((_jolt.nextDouble() * 2 - 1) * k) + up * ((_jolt.nextDouble() * 2 - 1) * k);
     final Vector3 eye;
     if (p.cameraMode == CameraMode.firstPerson) {
       eye = p.drawnEye + sway;

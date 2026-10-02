@@ -241,6 +241,7 @@ class VoxelGame {
     );
     game.scene!.add(world.root!);
     if (spec.sky.weather != null) game.scene!.add((game.weatherParticles = WeatherParticles()).node);
+    game.scene!.add(game.debris.node);
     game._begin(save);
     game.firstPerson = FirstPersonView(game);
     await world.start();
@@ -612,6 +613,30 @@ class VoxelGame {
   /// for empty text.
   void notify(String text) => notices.add(text);
 
+  /// The chips off broken blocks and the embers off burning creatures, all in
+  /// one particle system ([chip] throws a block's). Its node steps it every
+  /// frame; headless, nothing does.
+  final DebrisParticles debris = DebrisParticles();
+
+  /// How much of its sky light the world shows this frame (the sky's, 1 at
+  /// noon), for what is coloured by hand rather than lit: the [chip]s.
+  double _skyLight = 1.0;
+
+  /// Throws [count] chips of block [id]'s colour out of [cell], [speed] times
+  /// as fast as a break's: as bright as the brightest light on the cell's
+  /// faces (a solid block's own cell is dark), since the chips are not lit by
+  /// the world.
+  void chip(IVec3 cell, int id, {int count = 12, double speed = 1.0}) {
+    final t = blocks[id];
+    var k = 0.15;
+    for (final c in [cell, cell + IVec3.up, cell + IVec3.down, for (final s in IVec3.sides) cell + s]) {
+      final light = world.lightAt(c);
+      k = math.max(k, math.max(light.sky / 15.0 * _skyLight, light.block / 15.0));
+    }
+    final at = Vector3(cell.x + 0.5, cell.y + 0.5, cell.z + 0.5);
+    debris.burst(at, Vector3(t.r * k, t.g * k, t.b * k), count: count, speed: speed);
+  }
+
   /// The damage dealt to creatures, a number over each for a second: a
   /// creature's hit adds one where it is the [authority], and a replica's
   /// lost health where it is not. [frame] ages it.
@@ -694,7 +719,8 @@ class VoxelGame {
     final s = sky;
     if (s != null) {
       final w = weather;
-      world.setSkyIntensity(s.update(timeOfDay, fogDistance: viewDistance, overcast: w.overcast, flash: w.flash));
+      _skyLight = s.update(timeOfDay, fogDistance: viewDistance, overcast: w.overcast, flash: w.flash);
+      world.setSkyIntensity(_skyLight);
       weatherParticles?.update(player.eyePosition, rainShare: w.rainShare, snowShare: w.snowShare);
     }
     notices.advance(dt);
@@ -976,7 +1002,8 @@ class VoxelGame {
 
   /// Breaks the block at [cell]: air in its place, and its drop on the ground
   /// when [dropFor] (the tool held, or null for the hand) earns one: its
-  /// `loot` rolled, or else its `drop`.
+  /// `loot` rolled, or else its `drop`. Broken [byPlayer], it bursts into
+  /// a dozen [chip]s (a blast's blocks do not: a crater would be thousands).
   void breakBlock(IVec3 cell, {ItemType? dropFor, bool drop = true, bool byPlayer = false}) {
     final id = world.getBlock(cell);
     if (id == BlockRegistry.air || blocks[id].isLiquid) return;
@@ -984,6 +1011,7 @@ class VoxelGame {
     if (!world.setBlock(cell, BlockRegistry.air)) return;
     final centre = Vector3(cell.x + 0.5, cell.y + 0.3, cell.z + 0.5);
     playSound('break_${soundFamily(id)}', at: centre, volumeDb: -4.0);
+    if (byPlayer) chip(cell, id);
     if (drop && spec.mining.drops(type, dropFor)) {
       final loot = type.loot;
       if (loot != null) {

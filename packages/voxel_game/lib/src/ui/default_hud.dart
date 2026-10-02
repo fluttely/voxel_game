@@ -26,7 +26,8 @@ typedef _EffectChip = ({String id, int power, int seconds});
 /// **Over the world**, projected through the frame's camera
 /// (`VoxelGame.camera`): a health bar over each creature hurt in the last
 /// [barSeconds] or under the crosshair, and the damage each hit dealt
-/// (`VoxelGame.damageNumbers`), rising and fading. While the camera is in a
+/// (`VoxelGame.damageNumbers`), rising and fading; a critical blow's in
+/// yellow, ending in `!`. While the camera is in a
 /// liquid the screen is washed in its colour (`LiquidSpec.tint`); while a
 /// boss lives (`MobSpec.boss`) the nearest one's health is a bar at the top;
 /// with `GameSettings.showFps` the frame rate is at the top left.
@@ -579,6 +580,9 @@ class _WorldMarks extends CustomPainter {
 
   final VoxelGame game;
 
+  /// A critical blow's number: yellow, and a quarter bigger.
+  static const _critColor = Color(0xFFFFE633);
+
   /// Whether [mob] shows its bar: alive, in [DefaultHud.barRange], and hurt
   /// in the last [DefaultHud.barSeconds] or under the crosshair.
   static bool barred(VoxelGame game, Mob mob) =>
@@ -614,11 +618,11 @@ class _WorldMarks extends CustomPainter {
       final a = DamageNumbers.opacityAt(n.age);
       final text = TextPainter(
         text: TextSpan(
-          text: DamageNumbers.label(n.amount),
+          text: DamageNumbers.label(n.amount, crit: n.crit),
           style: TextStyle(
-            fontSize: fontSize,
+            fontSize: n.crit ? fontSize * 1.25 : fontSize,
             fontWeight: FontWeight.bold,
-            color: Colors.white.withValues(alpha: a),
+            color: (n.crit ? _critColor : Colors.white).withValues(alpha: a),
             shadows: [
               Shadow(
                 color: Colors.black.withValues(alpha: a),

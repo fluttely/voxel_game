@@ -310,6 +310,8 @@ const game = VoxelGameSpec(
   effects: [
     EffectType('regeneration', 'Regeneration', 0.9, 0.35, 0.55, period: 2.0, heal: 1.0),
     EffectType('poison', 'Poison', 0.3, 0.6, 0.2, period: 1.5, damage: 1.0, bad: true),
+    // What the wisp's fire does to the player (a creature it hits burns by the kit's own rule).
+    EffectType('burning', 'Burning', 1.0, 0.45, 0.1, period: 1.0, damage: 1.0, bad: true),
   ],
   // 3. The world: biomes chosen by climate (the first that holds), what covers their ground, the trees they
   //    grow by weight and the plants, dark stone in the deep, ores, and structures built of the game's blocks.
@@ -435,11 +437,13 @@ const game = VoxelGameSpec(
   ),
   // The weather: rain and storms rolled every few minutes (snow where a biome's precipitation is snow).
   sky: SkySpec(weather: WeatherSpec()),
-  // 4. The player: what they start with, hunger that food fills, and experience (a kill's, below).
+  // 4. The player: what they start with, hunger that food fills, experience (a kill's, below), and one blow in
+  //    ten a critical one.
   player: PlayerSpec(
     startingItems: {'wooden_pickaxe': 1, 'planks': 16, 'torch': 8, 'apple': 4, 'wool_cap': 1},
     hunger: HungerSpec(),
     xp: XpSpec(),
+    critChance: 0.1,
   ),
   // 5. Creatures: a body, a brain (goals; the lower priority wins), loot, experience and when they spawn.
   mobs: [
@@ -539,6 +543,24 @@ const game = VoxelGameSpec(
       brain: [MeleeAttack(damage: 1), Hunt(range: 10), Wander()],
       xp: 2,
     ),
+    // A wisp of the night: a ghost, drawn see-through, that drifts through walls and keeps its distance to throw
+    // fire, which lights its way and sets the player burning.
+    MobSpec(
+      'wisp',
+      hp: 10,
+      speed: 3.0,
+      height: 1.5,
+      rig: Rig.humanoid(skin: 0xDCEAF4, shirt: 0xB4CCE4, pants: 0x94ACCC, redEyes: true),
+      gait: Gait.fly,
+      ghost: true,
+      brain: [
+        RangedAttack(projectile: _wispFire, range: 14),
+        Hunt(range: 18),
+        Wander(),
+      ],
+      xp: 12,
+      spawn: SpawnRule.dark(weight: 2, maxAlive: 2),
+    ),
     // A boss: rare, at night, one at a time; while it is about, its health is a bar at the top.
     MobSpec(
       'brute',
@@ -557,6 +579,23 @@ const game = VoxelGameSpec(
   ],
   // 6. Screens of the game's own: this one is a button in the game menu (Esc, or ⏸ on a phone).
   screens: {'controls': ScreenSpec(_controls, menu: 'Controls')},
+);
+
+// The kit's fireball, burning the player through the game's own effect as well as any creature it hits.
+const _wispFire = ProjectileSpec(
+  kind: 'fire',
+  speed: 16.0,
+  gravity: 0.0,
+  damage: 3.0,
+  radius: 0.25,
+  thickness: 0.4,
+  length: 0.4,
+  color: 0xFF5A0D,
+  glow: true,
+  light: 4.0,
+  trail: 1.6,
+  burns: 4.0,
+  onHit: HitEffect('burning', seconds: 4.0),
 );
 
 // The stock structures, each built of the game's blocks by name; a block left out is left out of the structure.

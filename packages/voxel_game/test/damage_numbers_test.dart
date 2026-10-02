@@ -41,4 +41,13 @@ void main() {
     expect(DamageNumbers.label(12.4), '12');
     expect(DamageNumbers.label(0.96), '1');
   });
+
+  test("a critical blow's number is marked, and says so with a !", () {
+    final n = DamageNumbers()
+      ..add(Vector3.zero(), 2)
+      ..add(Vector3.zero(), 3, crit: true);
+    expect([for (final d in n.shown) d.crit], [false, true]);
+    expect(DamageNumbers.label(3, crit: true), '3!');
+    expect(DamageNumbers.label(2.5, crit: true), '2.5!');
+  });
 }

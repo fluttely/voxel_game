@@ -6,10 +6,13 @@ import 'package:voxel_engine/core.dart';
 import 'package:voxel_scene/voxel_scene.dart';
 
 import '../core/voxel_game.dart';
+import '../mobs/hit_effect.dart';
+import '../mobs/mob.dart';
 import 'game_entity.dart';
 import 'target.dart';
 
-/// What is shot: how fast, how it falls, what it does on a hit.
+/// What is shot: how fast, how it falls, what it does on a hit, and how it
+/// looks in flight (a [light] it carries, a [trail] behind it).
 class ProjectileSpec {
   /// A shot of [speed] metres a second dealing [damage].
   const ProjectileSpec({
@@ -24,12 +27,16 @@ class ProjectileSpec {
     this.color = 0xC8B090,
     this.glow = false,
     this.life = 6.0,
-  });
+    this.light = 0.0,
+    this.trail = 0.0,
+    this.burns = 0.0,
+    this.onHit,
+  }) : assert(light >= 0.0 && trail >= 0.0 && burns >= 0.0);
 
   /// An arrow: fast, falling, wooden.
   static const ProjectileSpec arrow = ProjectileSpec();
 
-  /// A bolt of magic: straight, glowing.
+  /// A bolt of magic: straight, glowing, lighting its way and trailing.
   static const ProjectileSpec bolt = ProjectileSpec(
     kind: 'bolt',
     speed: 18.0,
@@ -40,6 +47,27 @@ class ProjectileSpec {
     length: 0.5,
     color: 0x70A0FF,
     glow: true,
+    light: 4.0,
+    trail: 1.6,
+  );
+
+  /// A fireball: a bolt of fire that sets the creature it hits burning for 4
+  /// seconds. The player has no burning of the kit's: a game that wants its
+  /// fire to burn the player declares its own shot like this one, with an
+  /// [onHit] effect of its own.
+  static const ProjectileSpec fireball = ProjectileSpec(
+    kind: 'fire',
+    speed: 16.0,
+    gravity: 0.0,
+    damage: 4.0,
+    radius: 0.25,
+    thickness: 0.4,
+    length: 0.4,
+    color: 0xFF5A0D,
+    glow: true,
+    light: 4.0,
+    trail: 1.6,
+    burns: 4.0,
   );
 
   /// What a hit reports as the damage source.
@@ -74,27 +102,44 @@ class ProjectileSpec {
 
   /// Seconds before it vanishes.
   final double life;
+
+  /// The reach, in metres, of the light in its [color] it carries (lighting
+  /// the ground and the creatures it passes); 0 for none.
+  final double light;
+
+  /// The length, in metres, of the see-through streak of its [color] it
+  /// leaves behind it; 0 for none.
+  final double trail;
+
+  /// Seconds a creature it hits burns for (`Mob.ignite`); 0 for none.
+  final double burns;
+
+  /// The status effect it leaves on the player when it hurts them, or null:
+  /// what a fire shot does to the player, since the kit gives the player no
+  /// burning of its own.
+  final HitEffect? onHit;
 }
 
-/// The look of a shot, built once ([of]): its geometry and its material, made
-/// the first time one is drawn. flutter_scene batches only draws sharing both,
-/// so every shot of one size and colour hangs its own node on these two and is
-/// drawn once a pass, instanced, instead of once a shot.
+/// The look of a shot, built once ([of]): its geometry and its material, and
+/// its trail's, made the first time one is drawn. flutter_scene batches only
+/// draws sharing both, so every shot of one size and colour hangs its own node
+/// on these and is drawn once a pass, instanced, instead of once a shot.
 class ProjectileModel {
-  ProjectileModel._(this.size, this.color, this.glow);
+  ProjectileModel._(this.size, this.color, this.glow, this.trail);
 
   /// The model of [spec]'s shots: the same object for every spec of the same
-  /// size, colour and glow.
+  /// size, colour, glow and trail.
   factory ProjectileModel.of(ProjectileSpec spec) {
     assert(spec.thickness > 0.0 && spec.length > 0.0, 'a shot of no size: ${spec.kind}');
-    return _built[(spec.thickness, spec.length, spec.color, spec.glow)] ??= ProjectileModel._(
+    return _built[(spec.thickness, spec.length, spec.color, spec.glow, spec.trail)] ??= ProjectileModel._(
       Vector3(spec.thickness, spec.thickness, spec.length),
       spec.color,
       spec.glow,
+      spec.trail,
     );
   }
 
-  static final Map<(double, double, int, bool), ProjectileModel> _built = {};
+  static final Map<(double, double, int, bool, double), ProjectileModel> _built = {};
 
   /// The box, in metres, its length along -z.
   final Vector3 size;
@@ -105,20 +150,40 @@ class ProjectileModel {
   /// Drawn unlit, bright.
   final bool glow;
 
+  /// The length of the streak behind it, metres; 0 for none.
+  final double trail;
+
+  /// The colour, linear RGB 0..1.
+  Vector3 get rgb => Vector3(((color >> 16) & 0xFF) / 255.0, ((color >> 8) & 0xFF) / 255.0, (color & 0xFF) / 255.0);
+
   /// The box, one for every shot of this model.
   late final Geometry geometry = CuboidGeometry(size);
 
   /// The material, one for every shot of this model.
   late final Material material = _material();
 
+  /// The streak behind it, [trail] long and 0.8 of its width, one for every
+  /// shot of this model; null for none.
+  late final Geometry? trailGeometry = trail > 0.0 ? CuboidGeometry(Vector3(size.x * 0.8, size.y * 0.8, trail)) : null;
+
+  /// The streak's material: its colour, unlit, see-through. Null for none.
+  late final Material? trailMaterial = trail > 0.0
+      ? (UnlitMaterial()
+          ..baseColorFactor = Vector4(rgb.x, rgb.y, rgb.z, 0.45)
+          ..alphaMode = AlphaMode.blend)
+      : null;
+
   Material _material() {
-    final c = Vector4(((color >> 16) & 0xFF) / 255.0, ((color >> 8) & 0xFF) / 255.0, (color & 0xFF) / 255.0, 1);
+    final c = Vector4(rgb.x, rgb.y, rgb.z, 1);
     return glow ? (UnlitMaterial()..baseColorFactor = c) : (PhysicallyBasedMaterial()..baseColorFactor = c);
   }
 }
 
 /// A shot in flight: swept each step against bodies (any [Target] but its
-/// owner) and blocks, so a fast one cannot pass through a thin thing.
+/// owner) and blocks, so a fast one cannot pass through a thin thing. A shot
+/// of the player's may be critical (`PlayerEntity.critical`); one that hits a
+/// creature sets it burning ([ProjectileSpec.burns]); one that hurts the
+/// player leaves its [ProjectileSpec.onHit].
 class Projectile extends GameEntity {
   /// A [spec] from [from] with [velocity0], shot by [owner], its damage
   /// multiplied by [power].
@@ -140,12 +205,28 @@ class Projectile extends GameEntity {
 
   double _age = 0.0;
 
+  /// How bright its [ProjectileSpec.light] is: the radiance a metre away.
+  static const double lightIntensity = 6.0;
+
   @override
   void attached(VoxelGame game) {
     setup(game.world, spec.radius, spec.radius * 2);
     if (game.headless) return;
     final model = ProjectileModel.of(spec);
     node.add(MirroredCamera.primitiveNode(Mesh(model.geometry, model.material), castsShadows: false));
+    final trail = model.trailGeometry;
+    if (trail != null) {
+      // Behind it: the box's length runs along -z, the way it flies.
+      node.add(
+        MirroredCamera.primitiveNode(Mesh(trail, model.trailMaterial!), castsShadows: false)
+          ..position = Vector3(0, 0, spec.trail * 0.5),
+      );
+    }
+    if (spec.light > 0.0) {
+      node.addComponent(
+        PointLightComponent(PointLight(color: model.rgb, intensity: lightIntensity, range: spec.light)),
+      );
+    }
     _face(velocity.normalized());
   }
 
@@ -177,9 +258,18 @@ class Projectile extends GameEntity {
       }
     }
     if (hit != null) {
-      hit.takeDamage(
-        Damage(spec.damage * power, source: spec.kind, from: position, knockback: spec.knockback, attacker: owner),
+      final player = game.player;
+      final (:amount, :crit) = identical(owner, player)
+          ? player.critical(spec.damage * power)
+          : (amount: spec.damage * power, crit: false);
+      final taken = hit.takeDamage(
+        Damage(amount, source: spec.kind, from: position, knockback: spec.knockback, attacker: owner, crit: crit),
       );
+      if (spec.burns > 0.0 && hit is Mob) hit.ignite(spec.burns);
+      final effect = spec.onHit;
+      if (effect != null && taken > 0.0 && identical(hit, player)) {
+        player.effects.apply(effect.effect, effect.seconds, effect.power);
+      }
       removed = true;
       return;
     }
