@@ -307,7 +307,10 @@ const game = VoxelGameSpec(
     Recipe('powered_rail', 6, {'planks': 2, 'cobblestone': 4, 'wire': 1}),
   ],
   // Status effects: what a food starts, what the player carries.
-  effects: [EffectType('regeneration', 'Regeneration', 0.9, 0.35, 0.55, period: 2.0, heal: 1.0)],
+  effects: [
+    EffectType('regeneration', 'Regeneration', 0.9, 0.35, 0.55, period: 2.0, heal: 1.0),
+    EffectType('poison', 'Poison', 0.3, 0.6, 0.2, period: 1.5, damage: 1.0, bad: true),
+  ],
   // 3. The world: biomes chosen by climate (the first that holds), what covers their ground, the trees they
   //    grow by weight and the plants, dark stone in the deep, ores, and structures built of the game's blocks.
   world: WorldGenSpec(
@@ -438,8 +441,7 @@ const game = VoxelGameSpec(
     hunger: HungerSpec(),
     xp: XpSpec(),
   ),
-  onMobKilled: _killed,
-  // 5. Creatures: a body, a brain (goals; the lower priority wins), drops and when they spawn.
+  // 5. Creatures: a body, a brain (goals; the lower priority wins), loot, experience and when they spawn.
   mobs: [
     MobSpec(
       'sheep',
@@ -449,7 +451,8 @@ const game = VoxelGameSpec(
       height: 1.2,
       rig: Rig.quadruped(body: 0xEEEEEE, head: 0xD8C8B0),
       brain: [FleeWhenHurt(), LookAtPlayer(), Wander()],
-      drops: [Drop('wool', 1, 2), Drop('mutton', 1, 2)],
+      loot: LootTable([LootEntry('wool', 1, 2, 1.0), LootEntry('mutton', 1, 2, 1.0)]),
+      xp: 5,
       spawn: SpawnRule.daylight(),
     ),
     MobSpec(
@@ -458,7 +461,51 @@ const game = VoxelGameSpec(
       speed: 2.6,
       rig: Rig.humanoid(skin: 0x5E9A5A, shirt: 0x3A6A9A, armsForward: true, redEyes: true),
       brain: [MeleeAttack(damage: 3), Hunt(range: 18), Wander()],
+      xp: 15,
+      // Grows with the player (tougher in caves), and burns under the noon sky.
+      levels: MobLevels(),
+      burnsInDaylight: true,
       spawn: SpawnRule.dark(),
+    ),
+    // A spider of the caves: its bite poisons.
+    MobSpec(
+      'cave_spider',
+      hp: 10,
+      speed: 4.0,
+      halfWidth: 0.55,
+      height: 0.7,
+      rig: Rig.spider(),
+      brain: [MeleeAttack(damage: 2), Hunt(range: 14), Wander()],
+      loot: LootTable([LootEntry('wire', 0, 1, 0.5)]),
+      xp: 10,
+      levels: MobLevels(),
+      onHit: HitEffect('poison', seconds: 6.0),
+      spawn: SpawnRule.cave(),
+    ),
+    // A slime of the night, thickest in the swamp: it dies into two small ones.
+    MobSpec(
+      'slime',
+      hp: 12,
+      speed: 2.4,
+      halfWidth: 0.5,
+      height: 1.0,
+      rig: Rig.blob(),
+      gait: Gait.hop,
+      brain: [MeleeAttack(damage: 2), Hunt(range: 14), Wander()],
+      xp: 8,
+      splitsInto: MobSplit('small_slime'),
+      spawn: SpawnRule.dark(weight: 4, biomeWeights: {'swamp': 4.0}),
+    ),
+    MobSpec(
+      'small_slime',
+      hp: 4,
+      speed: 2.8,
+      halfWidth: 0.25,
+      height: 0.5,
+      rig: Rig.blob(),
+      gait: Gait.hop,
+      brain: [MeleeAttack(damage: 1), Hunt(range: 10), Wander()],
+      xp: 2,
     ),
     // A boss: rare, at night, one at a time; while it is about, its health is a bar at the top.
     MobSpec(
@@ -469,7 +516,8 @@ const game = VoxelGameSpec(
       height: 2.4,
       rig: Rig.humanoid(skin: 0x4A6A3A, shirt: 0x5A2A2A, armsForward: true, redEyes: true),
       brain: [MeleeAttack(damage: 6), Hunt(range: 24), Wander()],
-      drops: [Drop('coal', 2, 5)],
+      loot: LootTable([LootEntry('coal', 2, 5, 1.0)]),
+      xp: 60,
       spawn: SpawnRule.dark(weight: 1, maxAlive: 1),
       knockbackResistance: 0.6,
       boss: true,
@@ -525,12 +573,6 @@ const _ruins = Ruins(
   chest: 'chest',
 );
 const _well = Well(rim: 'cobblestone', water: 'water', posts: 'fence', roof: 'planks');
-
-void _killed(VoxelGame game, Mob mob) => game.player.gainXp(switch (mob.spec.id) {
-  'brute' => 60,
-  'zombie' => 15,
-  _ => 5,
-});
 
 Widget _controls(BuildContext context, VoxelGame game) => ColoredBox(
   color: Colors.black54,

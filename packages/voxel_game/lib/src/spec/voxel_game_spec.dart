@@ -273,6 +273,32 @@ class VoxelGameSpec {
     return ItemRegistry(byId.values);
   }
 
+  /// Throws [ArgumentError] for two mobs of one id, and for a mob whose loot
+  /// names an item not in [items], that splits into a mob not declared, whose
+  /// strike leaves an effect not in [effects], or that is worth experience
+  /// when the player gains none (`PlayerSpec.xp`).
+  void checkMobs(ItemRegistry<ItemType> items) {
+    final ids = <String>{};
+    for (final m in mobs) {
+      if (!ids.add(m.id)) throw ArgumentError.value(m.id, 'mobs', 'two mobs of one id');
+    }
+    final effectIds = {for (final e in effects) e.id};
+    for (final m in mobs) {
+      for (final e in m.loot.entries) {
+        if (!items.has(e.item)) throw ArgumentError.value(e.item, m.id, 'the mob drops an item that does not exist');
+      }
+      if (m.splitsInto case final split? when !ids.contains(split.mob)) {
+        throw ArgumentError.value(split.mob, m.id, 'the mob splits into a mob not declared');
+      }
+      if (m.onHit case final hit? when !effectIds.contains(hit.effect)) {
+        throw ArgumentError.value(hit.effect, m.id, 'the mob\'s strike leaves an effect the spec does not declare');
+      }
+      if (m.xp > 0 && player.xp == null) {
+        throw ArgumentError.value(m.xp, m.id, 'the mob is worth experience and the player gains none');
+      }
+    }
+  }
+
   /// Throws [ArgumentError] for a dimension named [mainDimension], and for a
   /// portal between dimensions not declared (or one and the same), of blocks
   /// not in [registry], a solid portal block or one another portal has, or a

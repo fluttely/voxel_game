@@ -236,7 +236,7 @@ void main() {
       hp: 6,
       speed: 3.0,
       brain: [MeleeAttack(damage: 2), Hunt(range: 20), Wander()],
-      drops: [Drop('dirt', 2, 2)],
+      loot: LootTable([LootEntry('dirt', 2, 2, 1.0)]),
     );
     final game = await _start(
       _flat(

@@ -531,7 +531,7 @@ class DefaultHud extends StatelessWidget {
     frames: game.frames,
     select: () {
       final b = game.boss;
-      return b == null ? null : (name: b.spec.name, hp: b.hp.ceil(), max: b.spec.hp);
+      return b == null ? null : (name: b.spec.name, hp: b.hp.ceil(), max: b.maxHp);
     },
     builder: (context, b) => b == null
         ? const SizedBox.shrink()
@@ -598,7 +598,7 @@ class _WorldMarks extends CustomPainter {
       if (at == null) continue;
       final w = (480.0 / math.max(top.distanceTo(eye), 4.0)).clamp(28.0, 90.0);
       final h = math.max(4.0, w * 0.12);
-      final left = (m.hp / m.spec.hp).clamp(0.0, 1.0);
+      final left = (m.hp / m.maxHp).clamp(0.0, 1.0);
       canvas
         ..drawRect(Rect.fromCenter(center: at, width: w, height: h), back)
         ..drawRect(

@@ -66,6 +66,7 @@ class VoxelGame {
        _settings = ValueNotifier(settings) {
     assert(settings.renderDistance == world.loadRadius, 'the world streams the settings\' render distance');
     spec.checkDimensions(blocks, items);
+    spec.checkMobs(items);
     portals = Portals(world, spec.portals);
     _applyLive(settings);
     pathCosts = blocks.pathCosts(avoidLiquids: const {'lava'});
@@ -951,8 +952,15 @@ class VoxelGame {
     );
   }
 
-  /// Shoots [projectile] from [from] toward [at], by [owner].
-  Projectile shoot(ProjectileSpec projectile, {required Vector3 from, required Vector3 at, Target? owner}) {
+  /// Shoots [projectile] from [from] toward [at], by [owner], its damage
+  /// multiplied by [power].
+  Projectile shoot(
+    ProjectileSpec projectile, {
+    required Vector3 from,
+    required Vector3 at,
+    Target? owner,
+    double power = 1.0,
+  }) {
     playSound('shoot', at: from, volumeDb: -4.0);
     final to = at - from;
     final d = to.length;
@@ -963,7 +971,7 @@ class VoxelGame {
       dir.y += 0.5 * projectile.gravity * t * t / math.max(d, 0.001);
       dir.normalize();
     }
-    return add(Projectile(projectile, from, dir * projectile.speed, owner));
+    return add(Projectile(projectile, from, dir * projectile.speed, owner, power: power));
   }
 
   /// Breaks the block at [cell]: air in its place, and its drop on the ground

@@ -148,7 +148,11 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
 - `MobSpec` with a `Rig` (humanoid, quadruped, bird, blob), a `Gait` and a brain of goals:
   `Wander`, `Hunt`, `MeleeAttack`, `RangedAttack`, `FleeWhenHurt`, `Explode`, `LookAtPlayer`, or `Behavior.custom`.
 - `Goal` / `GoalSelector`: the same goal system for your own creature classes.
-- `SpawnRule.daylight()` / `SpawnRule.dark()`, `Drop`s.
+- A creature drops a `LootTable` and is worth `xp`; it can grow with the player
+  (`MobLevels`), burn by day (`burnsInDaylight`), split when it dies (`MobSplit`) and leave
+  an effect with its strike (`HitEffect`).
+- `SpawnRule.daylight()` / `SpawnRule.dark()` / `SpawnRule.cave()`, on the surface or in
+  caves (`SpawnPlace`), weighted by biome (`biomeWeights`).
 - Save slots, and `hostPort` / `join` for multiplayer.
 - Hooks: `onBlockBroken`, `onBlockPlaced`, `onMobKilled`, `onTick`, and `GameSystem`s.
 - `GraphicsSpec`: render scale, a pixel-ratio cap, anti-aliasing and the sun's shadows, with

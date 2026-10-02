@@ -119,7 +119,8 @@ class HostSession extends GameSession {
         GameSession._forEachEdit(m, _storeClientEdit);
       case 'hit':
         final n = (m['n']! as num).toInt();
-        for (final mob in game.mobs) {
+        // A copy: a death may split into new creatures.
+        for (final mob in List.of(game.mobs)) {
           if (mob.netId == n) {
             mob.takeDamage(
               Damage(

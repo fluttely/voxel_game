@@ -120,8 +120,9 @@ class ProjectileModel {
 /// A shot in flight: swept each step against bodies (any [Target] but its
 /// owner) and blocks, so a fast one cannot pass through a thin thing.
 class Projectile extends GameEntity {
-  /// A [spec] from [from] with [velocity0], shot by [owner].
-  Projectile(this.spec, Vector3 from, Vector3 velocity0, this.owner) {
+  /// A [spec] from [from] with [velocity0], shot by [owner], its damage
+  /// multiplied by [power].
+  Projectile(this.spec, Vector3 from, Vector3 velocity0, this.owner, {this.power = 1.0}) {
     position = from.clone();
     velocity = velocity0.clone();
     halfWidth = spec.radius;
@@ -133,6 +134,9 @@ class Projectile extends GameEntity {
 
   /// Who shot it; it never hits them.
   final Target? owner;
+
+  /// What its spec's damage is multiplied by (a shooter's level).
+  final double power;
 
   double _age = 0.0;
 
@@ -174,7 +178,7 @@ class Projectile extends GameEntity {
     }
     if (hit != null) {
       hit.takeDamage(
-        Damage(spec.damage, source: spec.kind, from: position, knockback: spec.knockback, attacker: owner),
+        Damage(spec.damage * power, source: spec.kind, from: position, knockback: spec.knockback, attacker: owner),
       );
       removed = true;
       return;

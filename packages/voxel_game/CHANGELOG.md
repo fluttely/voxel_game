@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+- **Creatures grow, first part (VA13a).** **Breaking:** `Drop` is gone; a creature's
+  `MobSpec.loot` is a voxel_engine `LootTable`, rolled once when it dies (`drops:
+  [Drop('wool', 1, 2)]` becomes `loot: LootTable([LootEntry('wool', 1, 2, 1.0)])`).
+  `MobSpec.xp`: the experience the player gains when their blow kills it (a spec with a
+  creature worth some and no `PlayerSpec.xp` throws at start). `MobSpec.levels`
+  (`MobLevels`): a natural spawn comes at the player's level plus one, give or take
+  `spread`, plus `caveBonus` in a cave, and each level adds a share of the health, of every
+  strike's damage (melee, a shot's, a blast's) and of the experience; `Mob.level`,
+  `growTo`, `maxHp`, `damageScale`, `xpWorth`. `MobSpec.burnsInDaylight`: under the open
+  noon sky (head at sky light 15, daylight 0.9 or more), out of liquid, half a point twice a
+  second (`Mob.burning`). `MobSpec.splitsInto` (`MobSplit`): it dies into `count` of another
+  mob at its level. `MobSpec.onHit` (`HitEffect`): its strike leaves a status effect on the
+  player (`Mob.strike`, which every strike of a behaviour goes through). `SpawnRule.place`
+  (`SpawnPlace`: surface, cave, anywhere; it replaces `onSurfaceOnly`, which nothing read),
+  `SpawnRule.cave()`, `SpawnRule.biomeWeights` (`weightIn`): while the player is
+  `MobSpawner.caveDepth` under the ground of their column, `caveShare` of the tries are a
+  pocket of air near their height; in a dimension that is all cavern every try is. `dark()`
+  now spawns in caves too. `VoxelGame.shoot` and `Projectile` take a `power`.
+  `VoxelGameSpec.checkMobs` (run at start): two mobs of one id, unknown loot, an undeclared
+  split or effect throw. The default HUD reads a creature's `maxHp`. The example's
+  creatures carry their loot and experience as rows (its `onMobKilled` is gone), its zombie
+  grows and burns, and it gains a poisonous cave spider and a slime that splits, thickest
+  in the swamp.
+
 - **Pistons and powered rails (VA12).** `SignalSpec.pistons` (new, retracted to extended):
   powered, a piston pushes the block in front of it one cell on when that block breaks
   (hardness ≥ 0), holds no store, is one cell high and the cell past it takes a block (air,

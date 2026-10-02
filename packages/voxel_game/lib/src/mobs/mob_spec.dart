@@ -1,5 +1,11 @@
+import 'package:voxel_engine/content.dart';
+
 import 'behaviors.dart';
+import 'hit_effect.dart';
+import 'mob_levels.dart';
 import 'rig.dart';
+import 'spawn_place.dart';
+import 'mob_split.dart';
 
 /// How a creature gets about.
 enum Gait {
@@ -13,52 +19,65 @@ enum Gait {
   fly,
 }
 
-/// What a mob drops when it dies.
-class Drop {
-  /// [min]..[max] of [item], with [chance] 0..1 to drop at all.
-  const Drop(this.item, this.min, this.max, {this.chance = 1.0});
-
-  /// The item.
-  final String item;
-
-  /// The fewest.
-  final int min;
-
-  /// The most.
-  final int max;
-
-  /// The chance to drop at all.
-  final double chance;
-}
-
 /// Where and when a mob appears by itself.
 class SpawnRule {
   /// A rule: [weight] against the other candidates, in [biomes] (any when
-  /// null), where the light is between [minLight] and [maxLight] (block light
-  /// plus sky light scaled by the day, 0..15), in groups of [group].
+  /// null), the weight multiplied in a biome of [biomeWeights], where the
+  /// light is between [minLight] and [maxLight] (block light plus sky light
+  /// scaled by the day, 0..15), on the [place] it allows, in groups of
+  /// [group].
   const SpawnRule({
     this.weight = 10,
     this.biomes,
+    this.biomeWeights = const {},
     this.minLight = 0,
     this.maxLight = 15,
     this.group = (1, 1),
-    this.onSurfaceOnly = true,
+    this.place = SpawnPlace.surface,
     this.maxAlive = 8,
   });
 
-  /// The creatures of the night: only in the dark (light 7 or less).
-  const SpawnRule.dark({int weight = 10, List<String>? biomes, (int, int) group = (1, 1), int maxAlive = 12})
-    : this(weight: weight, biomes: biomes, maxLight: 7, group: group, maxAlive: maxAlive);
+  /// The creatures of the night: only in the dark (light 7 or less), on the
+  /// surface and in caves.
+  const SpawnRule.dark({
+    int weight = 10,
+    List<String>? biomes,
+    Map<String, double> biomeWeights = const {},
+    (int, int) group = (1, 1),
+    int maxAlive = 12,
+  }) : this(
+         weight: weight,
+         biomes: biomes,
+         biomeWeights: biomeWeights,
+         maxLight: 7,
+         group: group,
+         place: SpawnPlace.anywhere,
+         maxAlive: maxAlive,
+       );
 
   /// The animals of the day: only in daylight (light 9 or more).
-  const SpawnRule.daylight({int weight = 10, List<String>? biomes, (int, int) group = (2, 4), int maxAlive = 10})
-    : this(weight: weight, biomes: biomes, minLight: 9, group: group, maxAlive: maxAlive);
+  const SpawnRule.daylight({
+    int weight = 10,
+    List<String>? biomes,
+    Map<String, double> biomeWeights = const {},
+    (int, int) group = (2, 4),
+    int maxAlive = 10,
+  }) : this(weight: weight, biomes: biomes, biomeWeights: biomeWeights, minLight: 9, group: group, maxAlive: maxAlive);
+
+  /// The creatures of the caves: only in a pocket of air underground, at any
+  /// light (a bat, a cave slime).
+  const SpawnRule.cave({int weight = 10, List<String>? biomes, (int, int) group = (1, 1), int maxAlive = 8})
+    : this(weight: weight, biomes: biomes, group: group, place: SpawnPlace.cave, maxAlive: maxAlive);
 
   /// How likely against the other candidates of a spot.
   final int weight;
 
   /// The biome names it appears in, or null for any.
   final List<String>? biomes;
+
+  /// A multiplier on [weight] by biome name (a swamp night crawls with
+  /// spiders); 1 in a biome not named.
+  final Map<String, double> biomeWeights;
 
   /// The dimmest light it appears in.
   final int minLight;
@@ -69,15 +88,21 @@ class SpawnRule {
   /// How many appear together, fewest and most.
   final (int, int) group;
 
-  /// Only on the ground under open sky (not in caves).
-  final bool onSurfaceOnly;
+  /// On the surface, in caves, or either.
+  final SpawnPlace place;
 
   /// It stops appearing while this many of it are alive.
   final int maxAlive;
+
+  /// Its weight in [biome].
+  double weightIn(String biome) => weight * (biomeWeights[biome] ?? 1.0);
 }
 
 /// A creature, declared: how it looks ([rig]), how big it is, how it moves
-/// ([gait]) and thinks ([brain]), what it drops and where it spawns.
+/// ([gait]) and thinks ([brain]), what it drops ([loot]) and is worth
+/// ([xp]), how it grows with the player ([levels]), what it does to what it
+/// strikes ([onHit]) and becomes when it dies ([splitsInto]), and where it
+/// spawns.
 ///
 /// ```dart
 /// MobSpec('zombie', hp: 20, speed: 3.2,
@@ -97,7 +122,12 @@ class MobSpec {
     this.rig = const Rig.humanoid(),
     this.gait = Gait.walk,
     this.brain = const [Wander()],
-    this.drops = const [],
+    this.loot = const LootTable([]),
+    this.xp = 0,
+    this.levels,
+    this.burnsInDaylight = false,
+    this.splitsInto,
+    this.onHit,
     this.spawn,
     this.knockbackResistance = 0.0,
     this.hurtSound,
@@ -133,8 +163,26 @@ class MobSpec {
   /// What it does, as behaviours; see [Behavior] for how they share the body.
   final List<Behavior> brain;
 
-  /// What it drops.
-  final List<Drop> drops;
+  /// What it drops when it dies, rolled once.
+  final LootTable loot;
+
+  /// The experience the player gains for killing it (`PlayerSpec.xp` must
+  /// be declared when any creature is worth some).
+  final int xp;
+
+  /// How it grows with the player, or null to stay as declared.
+  final MobLevels? levels;
+
+  /// Whether it burns under the open noon sky, out of liquid: a point of
+  /// health a second while its head sees full sky light and the daylight is
+  /// 0.9 or more.
+  final bool burnsInDaylight;
+
+  /// What it becomes when it dies, or null.
+  final MobSplit? splitsInto;
+
+  /// The status effect its strike leaves on the player, or null.
+  final HitEffect? onHit;
 
   /// Where it appears by itself; null for never (placed by the game).
   final SpawnRule? spawn;

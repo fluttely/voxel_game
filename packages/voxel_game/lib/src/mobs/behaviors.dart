@@ -164,8 +164,9 @@ class Hunt extends Behavior {
   static double _dist(Mob mob, Target t) => mob.position.distanceTo(t.position);
 }
 
-/// Strikes its [Mob.target] for [damage] when it is within [reach] and in
-/// sight, once per [cooldown].
+/// Strikes its [Mob.target] for [damage] (grown by the mob's level) when it
+/// is within [reach] and in sight, once per [cooldown]; the strike leaves the
+/// spec's `onHit` effect on the player.
 class MeleeAttack extends Behavior {
   /// A bite, a punch, a kick.
   const MeleeAttack({
@@ -206,7 +207,7 @@ class MeleeAttack extends Behavior {
     mob.lookAt(t.centre());
     if (mob.cooldown(this, dt, cooldown)) {
       mob.rig?.swing();
-      t.takeDamage(Damage(damage, from: mob.position, knockback: knockback, attacker: mob));
+      mob.strike(t, Damage(damage * mob.damageScale, from: mob.position, knockback: knockback, attacker: mob));
     }
   }
 }
@@ -265,7 +266,7 @@ class RangedAttack extends Behavior {
     if (mob.cooldown(this, dt, cooldown)) {
       mob.rig?.swing();
       final from = mob.eye();
-      game.shoot(projectile, from: from, at: t.centre(), owner: mob);
+      game.shoot(projectile, from: from, at: t.centre(), owner: mob, power: mob.damageScale);
     }
   }
 }
@@ -369,7 +370,13 @@ class Explode extends Behavior {
     s.fuse += dt;
     mob.swell = s.fuse / fuse;
     if (s.fuse >= fuse) {
-      game.explode(mob.centre(), radius: radius, damage: damage, breaksBlocks: breaksBlocks, source: mob);
+      game.explode(
+        mob.centre(),
+        radius: radius,
+        damage: damage * mob.damageScale,
+        breaksBlocks: breaksBlocks,
+        source: mob,
+      );
       mob.kill(dropLoot: false);
     }
   }

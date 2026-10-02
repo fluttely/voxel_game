@@ -9,11 +9,14 @@ import '../entities/target.dart';
 import '../player/character_motor.dart';
 import 'behaviors.dart';
 import 'goal.dart';
+import 'mob_levels.dart';
 import 'mob_spec.dart';
 import 'rig.dart';
 
 /// A living creature of a [MobSpec]: a body that thinks with its spec's
-/// behaviours, moves by its gait, can be hurt and dies into its drops.
+/// behaviours, moves by its gait, can be hurt, grows with its [level], burns
+/// by day when its spec says so, and dies into its loot, its experience and
+/// what it splits into.
 ///
 /// Behaviours steer it through [walkTo], [walkDirection], [halt] and
 /// [lookAt]; they read [target], [lastHurtBy], [sinceHurt] and [home], and
@@ -36,6 +39,34 @@ class Mob extends GameEntity implements Target {
 
   /// Its health.
   double hp;
+
+  /// Its level, from 1: what its health, its strikes and its experience
+  /// grow by (`MobSpec.levels`). Set it with [growTo].
+  int get level => _level;
+  int _level = 1;
+
+  /// Its most health: the spec's, grown by its [level].
+  double get maxHp => spec.hp * _scale((l) => l.hp);
+
+  /// What its strikes' damage is multiplied by at its [level].
+  double get damageScale => _scale((l) => l.damage);
+
+  /// The experience it is worth at its [level].
+  int get xpWorth => (spec.xp * _scale((l) => l.xp)).round();
+
+  double _scale(double Function(MobLevels l) share) {
+    final levels = spec.levels;
+    return levels == null ? 1.0 : MobLevels.scale(share(levels), _level);
+  }
+
+  /// Puts it at [level] (1 or more), whole. Throws for a spec without
+  /// `MobSpec.levels`.
+  void growTo(int level) {
+    if (spec.levels == null) throw StateError('${spec.id} declares no levels');
+    if (level < 1) throw ArgumentError.value(level, 'level', 'levels start at 1');
+    _level = level;
+    hp = maxHp;
+  }
 
   /// Where it wanders around.
   Vector3 home;
@@ -68,6 +99,11 @@ class Mob extends GameEntity implements Target {
   bool _dead = false;
   double _deathTime = 0.0;
   double _hurtFlash = 0.0;
+  double _burnClock = 0.0;
+
+  /// Whether the day burns it now (`MobSpec.burnsInDaylight`), as last
+  /// looked at: twice a second.
+  bool burning = false;
 
   Vector3? _goal;
   Vector3 _direction = Vector3.zero();
@@ -209,6 +245,10 @@ class Mob extends GameEntity implements Target {
     if (!game.world.isLoaded(IVec3.floor(position))) return;
     sinceHurt += dt;
     _hurtFlash = math.max(_hurtFlash - dt, 0.0);
+    if (spec.burnsInDaylight) {
+      _burn(game, dt);
+      if (_dead) return;
+    }
     _look = null;
     _brain.think(this, game);
     if (_brain.holding(BehaviorSlot.move) == null) halt();
@@ -383,23 +423,65 @@ class Mob extends GameEntity implements Target {
     return taken;
   }
 
+  /// Seconds between two looks at the sky of a creature that burns by day,
+  /// and the health each burning look takes.
+  static const double burnEvery = 0.5, burnDamage = 0.5;
+
+  /// The daylight rule: twice a second, a creature whose head cell sees the
+  /// full sky (light 15) while the [VoxelGame.daylight] is 0.9 or more, out
+  /// of liquid, burns for [burnDamage]. A cavern dimension has no sky, so
+  /// nothing burns there.
+  void _burn(VoxelGame game, double dt) {
+    _burnClock -= dt;
+    if (_burnClock > 0.0) return;
+    _burnClock = burnEvery;
+    final head = IVec3.floor(position + Vector3(0, height - 0.15, 0));
+    burning = !inLiquid && game.daylight >= 0.9 && game.world.lightAt(head).sky >= 15;
+    if (burning) takeDamage(const Damage(burnDamage, source: 'burning', internal: true));
+  }
+
+  /// Deals [damage] to [t] and leaves the spec's `onHit` effect on it when
+  /// it is the player and the strike took health. Every strike of a
+  /// behaviour goes through here.
+  double strike(Target t, Damage damage) {
+    final taken = t.takeDamage(damage);
+    final effect = spec.onHit;
+    if (effect != null && taken > 0.0 && identical(t, _game.player)) {
+      _game.player.effects.apply(effect.effect, effect.seconds, effect.power);
+    }
+    return taken;
+  }
+
   /// Where a hit's number starts: over its head.
   Vector3 _numberAt() => position + Vector3(0, height + 0.2, 0);
 
-  /// Dies at once; with [dropLoot], into its drops.
+  /// Dies at once; with [dropLoot], into its loot, the experience it is
+  /// worth when the player dealt the last blow, and what it splits into.
   void kill({bool dropLoot = true}) {
     if (_dead) return;
     _dead = true;
     hp = 0.0;
     _brain.reset();
     if (dropLoot) {
-      for (final d in spec.drops) {
-        if (_game.random.nextDouble() >= d.chance) continue;
-        final n = d.min + _game.random.nextInt(d.max - d.min + 1);
-        if (n > 0) _game.dropItem(d.item, n, centre());
+      for (final s in spec.loot.roll(_game.random)) {
+        _game.dropItem(s.id, s.count, centre());
       }
+      if (xpWorth > 0 && identical(lastHurtBy, _game.player)) _game.player.gainXp(xpWorth);
+      final split = spec.splitsInto;
+      if (split != null) _split(split.mob, split.count);
     }
     _game.mobDied(this);
     if (rig == null) removed = true;
+  }
+
+  /// [count] of [id] at its level, tossed out from where it fell.
+  void _split(String id, int count) {
+    final at = position;
+    for (var i = 0; i < count; i++) {
+      final a = math.pi * 2 * i / count + _game.random.nextDouble() * 0.5;
+      final child = _game.spawnMob(id, at + Vector3(math.cos(a) * 0.4, 0.2, math.sin(a) * 0.4));
+      if (child.spec.levels != null) child.growTo(_level);
+      child.velocity = Vector3(math.cos(a) * 3.0, 5.0, math.sin(a) * 3.0);
+    }
   }
 }
