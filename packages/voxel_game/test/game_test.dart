@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:ui' show Size;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -72,7 +73,11 @@ void main() {
     game.input
       ..touchMove(0.0, 0.0)
       ..setTouchHeld(VoxelAction.sprint, false);
-    expect(((p.position - from)..y = 0).length, greaterThan(walked), reason: 'a second of running outruns one of walking');
+    expect(
+      ((p.position - from)..y = 0).length,
+      greaterThan(walked),
+      reason: 'a second of running outruns one of walking',
+    );
   });
 
   test('the player stands on the ground, walks forward and jumps', () async {
@@ -651,5 +656,62 @@ void main() {
     // A press is spent once: the steps that follow read nothing.
     await _run(game, 0.2);
     expect(game.screen.value, isNull);
+  });
+
+  test('a frame builds one camera, the one the scene and the HUD project through', () async {
+    final game = await _start(_flat());
+    final p = game.player;
+    p.pitch = 0.0;
+    await _run(game, 0.1);
+    final camera = game.camera();
+    expect(game.camera(), same(camera), reason: 'asked twice in a frame, the same view');
+    const size = Size(800, 600);
+    final ahead = camera.worldToScreen(camera.position + p.forward * 5.0, size)!;
+    expect(ahead.dx, closeTo(400, 1));
+    expect(ahead.dy, closeTo(300, 1));
+    final right = camera.worldToScreen(camera.position + p.forward * 5.0 + p.right, size)!;
+    expect(right.dx, greaterThan(400), reason: 'the mirrored lens keeps right on the right');
+    game.frame(1 / 60);
+    expect(game.camera(), isNot(same(camera)));
+    game.dispose();
+  });
+
+  test('a hit on a creature shows what it took', () async {
+    const cow = MobSpec('cow', hp: 5, brain: []);
+    final game = await _start(_flat(mobs: const [cow]));
+    final m = game.spawnMob('cow', game.player.position + Vector3(0, 0, -3));
+    m.takeDamage(const Damage(3));
+    m.takeDamage(const Damage(4));
+    expect([for (final n in game.damageNumbers.shown) n.amount], [3, 2], reason: 'no more than it had');
+    expect(game.damageNumbers.shown.first.at.y, greaterThan(m.position.y + m.height), reason: 'over its head');
+    await _run(game, DamageNumbers.seconds + 0.05);
+    expect(game.damageNumbers.shown, isEmpty);
+    game.dispose();
+  });
+
+  test('the boss is the nearest living one', () async {
+    const cow = MobSpec('cow', brain: []);
+    const brute = MobSpec('brute', hp: 40, brain: [], boss: true);
+    final game = await _start(_flat(mobs: const [cow, brute]));
+    final at = game.player.position;
+    game.spawnMob('cow', at + Vector3(0, 0, -2));
+    expect(game.boss, isNull);
+    final far = game.spawnMob('brute', at + Vector3(0, 0, -12));
+    final near = game.spawnMob('brute', at + Vector3(0, 0, 6));
+    expect(game.boss, same(near));
+    near.kill();
+    expect(game.boss, same(far));
+    game.dispose();
+  });
+
+  test('the camera in a liquid is in its block', () async {
+    final game = await _start(_flat());
+    await _run(game, 0.1);
+    expect(game.eyeLiquid, isNull);
+    game.world.setBlockNamed(IVec3.floor(game.camera().position), 'water');
+    expect(game.eyeLiquid?.id, 'water');
+    expect(game.liquid('water').tint, 0.25);
+    expect(game.liquid('lava').tint, 0.55, reason: 'a kind not declared takes its default');
+    game.dispose();
   });
 }

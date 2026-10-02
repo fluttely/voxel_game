@@ -240,12 +240,30 @@ const game = VoxelGameSpec(
       brain: [MeleeAttack(damage: 3), Hunt(range: 18), Wander()],
       spawn: SpawnRule.dark(),
     ),
+    // A boss: rare, at night, one at a time; while it is about, its health is a bar at the top.
+    MobSpec(
+      'brute',
+      hp: 80,
+      speed: 2.2,
+      halfWidth: 0.5,
+      height: 2.4,
+      rig: Rig.humanoid(skin: 0x4A6A3A, shirt: 0x5A2A2A, armsForward: true, redEyes: true),
+      brain: [MeleeAttack(damage: 6), Hunt(range: 24), Wander()],
+      drops: [Drop('coal', 2, 5)],
+      spawn: SpawnRule.dark(weight: 1, maxAlive: 1),
+      knockbackResistance: 0.6,
+      boss: true,
+    ),
   ],
   // 6. Screens of the game's own: this one is a button in the game menu (Esc, or ⏸ on a phone).
   screens: {'controls': ScreenSpec(_controls, menu: 'Controls')},
 );
 
-void _killed(VoxelGame game, Mob mob) => game.player.gainXp(mob.spec.id == 'zombie' ? 15 : 5);
+void _killed(VoxelGame game, Mob mob) => game.player.gainXp(switch (mob.spec.id) {
+  'brute' => 60,
+  'zombie' => 15,
+  _ => 5,
+});
 
 Widget _controls(BuildContext context, VoxelGame game) => ColoredBox(
   color: Colors.black54,

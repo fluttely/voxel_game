@@ -101,6 +101,7 @@ class MobSpec {
     this.spawn,
     this.knockbackResistance = 0.0,
     this.hurtSound,
+    this.boss = false,
   });
 
   /// The id.
@@ -144,4 +145,8 @@ class MobSpec {
   /// The sound it makes when hurt; by default by its build (a small one
   /// squeaks, a big one groans, a flier chirps).
   final String? hurtSound;
+
+  /// Whether it is a boss: while one lives in the loaded world, the default
+  /// HUD shows the nearest one's health in a bar at the top of the screen.
+  final bool boss;
 }

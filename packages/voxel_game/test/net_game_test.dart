@@ -69,10 +69,14 @@ void main() {
     final replica = client.mobs.singleWhere((m) => m.netId == dummy.netId);
     expect(replica.replica, isTrue);
     expect(replica.position.distanceTo(dummy.position), lessThan(0.5));
+    expect(client.damageNumbers.shown, isEmpty, reason: 'the first state is where a replica starts, not a hit');
     replica.takeDamage(Damage(4, from: client.player.position, attacker: client.player));
     await _run([host, client], 0.3);
     expect(dummy.hp, 6);
     expect(replica.hp, 6, reason: "the host's health comes back");
+    expect([for (final n in host.damageNumbers.shown) n.amount], [4]);
+    expect([for (final n in client.damageNumbers.shown) n.amount], [4], reason: 'the health it lost is the hit');
+    expect(replica.sinceHurt, lessThan(0.3));
 
     // A host hunter bites the client's player through its puppet (the host's
     // own player walked away, or it would be bitten first).

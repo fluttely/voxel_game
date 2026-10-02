@@ -30,6 +30,7 @@ import '../player/player_entity.dart';
 import '../spec/graphics_spec.dart';
 import '../spec/signal_spec.dart';
 import '../spec/voxel_game_spec.dart';
+import '../ui/damage_numbers.dart';
 import '../ui/game_screen.dart';
 import '../ui/notices.dart';
 import '../world/block_rules.dart';
@@ -409,6 +410,14 @@ class VoxelGame {
   /// for empty text.
   void notify(String text) => notices.add(text);
 
+  /// The damage dealt to creatures, a number over each for a second: a
+  /// creature's hit adds one where it is the [authority], and a replica's
+  /// lost health where it is not. [frame] ages it.
+  final DamageNumbers damageNumbers = DamageNumbers();
+
+  /// Whether the HUD shows the frame rate ([FrameStats.fps]).
+  bool showFps = false;
+
   /// The frames drawn so far: moves once at the end of every [frame]. A HUD
   /// listens to it to check what it shows (`HudSelector`).
   ValueListenable<int> get frames => _frames;
@@ -457,6 +466,7 @@ class VoxelGame {
     final steps = _loop.advance(dt, step);
     world.update(player.position);
     _draw(_loop.alpha);
+    _camera = view.camera(this);
     firstPerson?.update(dt);
     final s = sky;
     if (s != null) {
@@ -464,6 +474,7 @@ class VoxelGame {
       world.setSkyIntensity(intensity);
     }
     notices.advance(dt);
+    damageNumbers.advance(dt);
     _frameWatch.stop();
     stats.addFrame(seconds: dt, simMs: _frameWatch.elapsedMicroseconds / 1000.0, steps: steps);
     _frames.value++;
@@ -593,8 +604,37 @@ class VoxelGame {
     }
   }
 
-  /// The camera for this frame.
-  Camera camera() => view.camera(this);
+  /// The camera this frame draws with: built once a [frame], after the
+  /// bodies are placed, so the scene and whatever a HUD projects from the
+  /// world (`Camera.worldToScreen`) see the same view. Before the first frame,
+  /// the view as it stands.
+  Camera camera() => _camera ??= view.camera(this);
+  Camera? _camera;
+
+  /// The liquid block the [camera] is in, or null: what the default HUD
+  /// washes the screen with (`LiquidSpec.tint`).
+  BlockType? get eyeLiquid {
+    final t = blocks[world.getBlock(IVec3.floor(camera().position))];
+    return t.isLiquid ? t : null;
+  }
+
+  /// How liquid [kind] flows and looks: the spec's, or its default.
+  LiquidSpec liquid(String kind) => spec.liquids[kind] ?? LiquidSpec.defaultFor(kind);
+
+  /// The nearest living boss (`MobSpec.boss`) to the player, or null.
+  Mob? get boss {
+    Mob? best;
+    var bestD = double.infinity;
+    for (final m in mobs) {
+      if (!m.spec.boss || m.isDead) continue;
+      final d = m.position.distanceToSquared(player.position);
+      if (d < bestD) {
+        best = m;
+        bestD = d;
+      }
+    }
+    return best;
+  }
 
   /// The other players of a networked game.
   Iterable<RemotePlayer> get remotePlayers => session?.players.values ?? const <RemotePlayer>[];

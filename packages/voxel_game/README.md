@@ -40,6 +40,14 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
   them, the experience bar under them, the effects with their time left at the top left.
 - `VoxelGame.notify('Night falls')` tells the player something for a few seconds; the default
   HUD shows it at the right, over what the player just picked up (`+5 Dirt`).
+- The default HUD also reads the world through the frame's camera (`VoxelGame.camera`, the
+  one the scene draws with, so `worldToScreen` lands where the scene does): a bar over each
+  creature hurt in the last few seconds or under the crosshair, and each hit's damage rising
+  over it (`VoxelGame.damageNumbers`). The crosshair turns red on a creature in reach, a ring
+  around it fills as a block is mined, a worn tool shows what is left of it under its slot,
+  the screen takes the colour of the liquid the camera is in (`LiquidSpec(tint: 0.25)`), a
+  `MobSpec(boss: true)` that lives puts its health at the top, and `VoxelGame.showFps` the
+  frame rate at the top left.
 - Blocks that do things, each a field of its row: sand `falls` to where it lands, a torch
   with a `support` drops once its floor or wall goes and is never placed where it would not
   stand, a torch put against a wall becomes its `onWall` form, a block with `loot` drops

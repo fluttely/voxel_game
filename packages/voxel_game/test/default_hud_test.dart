@@ -1,6 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:vector_math/vector_math.dart' show Vector3;
 import 'package:voxel_game/voxel_game.dart';
 
 const _spec = VoxelGameSpec(
@@ -239,6 +240,123 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('A chest is full'), findsNothing);
     expect(find.text('+5 Dirt'), findsNothing);
+    game.dispose();
+  });
+
+  // The creature [id] of [game] spawned 2 m in front of the player, aimed at.
+  Mob aimedAt(VoxelGame game, String id) {
+    final p = game.player..pitch = 0.0;
+    final m = game.spawnMob(id, p.position + Vector3(0, 0, -2));
+    p.yaw = 0.0;
+    return m;
+  }
+
+  testWidgets('the crosshair turns red on a creature, and a ring around it fills as a block is mined', (tester) async {
+    final game = await start(tester, _spec.copyWith(mobs: const [MobSpec('cow', brain: [])]));
+    Color crosshair() => tester.widget<Icon>(find.byIcon(Icons.add)).color!;
+    await step(tester, game);
+    expect(crosshair(), Colors.white70);
+    aimedAt(game, 'cow');
+    await step(tester, game);
+    expect(game.player.aimedMob, isNotNull);
+    expect(crosshair(), Colors.redAccent);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    // A frame with no step, so the mining is not reset under the hold.
+    game.player.mineProgress = 0.4;
+    game.frame(0);
+    await tester.pump();
+    expect(tester.widget<CircularProgressIndicator>(find.byType(CircularProgressIndicator)).value, 0.4);
+    game.dispose();
+  });
+
+  testWidgets('a worn tool shows what is left of it under its slot', (tester) async {
+    final game = await start(
+      tester,
+      _spec.copyWith(items: const [ItemType('pick', color: 0xB08850, tool: 'pickaxe', stack: 1, durability: 60)]),
+    );
+    final inv = game.player.inventory..add('pick', 1);
+    await step(tester, game);
+    Iterable<FractionallySizedBox> bars() =>
+        tester.widgetList(find.descendant(of: find.byType(DefaultHud), matching: find.byType(FractionallySizedBox)));
+    expect(bars(), isEmpty, reason: 'a tool never used shows no bar');
+    inv.wear(0, 15);
+    await step(tester, game);
+    expect(bars().single.widthFactor, 0.75);
+    game.dispose();
+  });
+
+  testWidgets('a hurt creature shows its bar and the damage over it, until they fade', (tester) async {
+    final game = await start(tester, _spec.copyWith(mobs: const [MobSpec('cow', brain: [])]));
+    final marks = find.descendant(
+      of: find.byType(DefaultHud),
+      matching: find.byWidgetPredicate((w) => w is CustomPaint && '${w.painter.runtimeType}' == '_WorldMarks'),
+    );
+    final m = game.spawnMob('cow', game.player.position + Vector3(4, 0, -4));
+    await step(tester, game);
+    expect(marks, findsNothing, reason: 'nothing hurt, nothing aimed: nothing painted');
+    m.takeDamage(const Damage(3));
+    await step(tester, game);
+    expect(marks, findsOneWidget);
+    for (var i = 0; i < (DefaultHud.barSeconds * 60).ceil(); i++) {
+      game.frame(1 / 60);
+    }
+    await tester.pump();
+    expect(marks, findsNothing, reason: 'the number faded, and the bar is down');
+    game.dispose();
+  });
+
+  testWidgets('the screen is washed in the colour of the liquid the camera is in', (tester) async {
+    final game = await start(tester);
+    Iterable<Color> washes() => tester
+        .widgetList<ColoredBox>(find.descendant(of: find.byType(DefaultHud), matching: find.byType(ColoredBox)))
+        .map((b) => b.color)
+        .where((c) => c.a > 0.2 && c.a < 0.3);
+    await step(tester, game);
+    expect(washes(), isEmpty);
+    game.world.setBlockNamed(IVec3.floor(game.camera().position), 'water');
+    await step(tester, game);
+    expect(washes().single, const Color(0xFF3366CC).withValues(alpha: 0.25));
+    game.dispose();
+  });
+
+  testWidgets('a liquid with no tint washes nothing', (tester) async {
+    final game = await start(tester, _spec.copyWith(liquids: const {'water': LiquidSpec(tint: 0)}));
+    game.world.setBlockNamed(IVec3.floor(game.camera().position), 'water');
+    await step(tester, game);
+    expect(game.eyeLiquid, isNotNull);
+    expect(
+      tester
+          .widgetList<ColoredBox>(find.descendant(of: find.byType(DefaultHud), matching: find.byType(ColoredBox)))
+          .where((b) => b.color.b > b.color.r),
+      isEmpty,
+    );
+    game.dispose();
+  });
+
+  testWidgets('a boss shows its health at the top while it lives', (tester) async {
+    final game = await start(tester, _spec.copyWith(mobs: const [MobSpec('brute', hp: 40, brain: [], boss: true)]));
+    await step(tester, game);
+    expect(find.textContaining('Brute'), findsNothing);
+    final b = game.spawnMob('brute', game.player.position + Vector3(0, 0, -10));
+    await step(tester, game);
+    expect(find.text('Brute   40 / 40'), findsOneWidget);
+    b.takeDamage(const Damage(10));
+    await step(tester, game);
+    expect(find.text('Brute   30 / 40'), findsOneWidget);
+    expect(tester.widget<LinearProgressIndicator>(find.byType(LinearProgressIndicator)).value, 0.75);
+    b.kill();
+    await step(tester, game);
+    expect(find.textContaining('Brute'), findsNothing);
+    game.dispose();
+  });
+
+  testWidgets('the frame rate shows only when asked for', (tester) async {
+    final game = await start(tester);
+    await step(tester, game);
+    expect(find.textContaining('FPS'), findsNothing);
+    game.showFps = true;
+    await step(tester, game);
+    expect(find.textContaining('FPS'), findsOneWidget);
     game.dispose();
   });
 }

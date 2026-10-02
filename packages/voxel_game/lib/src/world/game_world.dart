@@ -10,17 +10,27 @@ import 'package:voxel_engine/worldgen.dart';
 /// Called after a block changes: the cell, what was there, what is there now.
 typedef BlockChangedListener = void Function(IVec3 cell, int oldId, int newId);
 
-/// How one liquid kind flows in a [GameWorld].
+/// How one liquid kind flows in a [GameWorld], and how it looks from inside.
 class LiquidSpec {
   /// A liquid stepping every [period] seconds, spreading [reach] cells from a
-  /// source.
-  const LiquidSpec({this.period = 0.25, this.reach = 4});
+  /// source, washing the screen at [tint] opacity while the camera is in it.
+  const LiquidSpec({this.period = 0.25, this.reach = 4, this.tint = 0.25})
+    : assert(tint >= 0.0 && tint <= 1.0, 'LiquidSpec.tint is an opacity, 0..1');
+
+  /// What a kind not in `VoxelGameSpec.liquids` does: lava is slow, short and
+  /// thick, any other flows like water.
+  static LiquidSpec defaultFor(String kind) =>
+      kind == 'lava' ? const LiquidSpec(period: 0.6, reach: 2, tint: 0.55) : const LiquidSpec();
 
   /// Seconds between steps.
   final double period;
 
   /// Cells a source feeds sideways.
   final int reach;
+
+  /// How opaque the wash over the screen is while the camera is in it, in the
+  /// colour of the block it is in (the default HUD's); 0 for none.
+  final double tint;
 }
 
 /// The world of a game: blocks streamed around a focus point, generated from
@@ -45,8 +55,8 @@ class GameWorld implements VoxelEditor {
           _hasFlowingForm(kind)
               ? LiquidRule(
                   flowingId: blocks.flowingOf(kind),
-                  period: (liquids[kind] ?? _defaultLiquid(kind)).period,
-                  reach: (liquids[kind] ?? _defaultLiquid(kind)).reach,
+                  period: (liquids[kind] ?? LiquidSpec.defaultFor(kind)).period,
+                  reach: (liquids[kind] ?? LiquidSpec.defaultFor(kind)).reach,
                 )
               // A liquid without a flowing form stays where it is put.
               : LiquidRule(flowingId: blocks.indexOf(kind), period: double.infinity, reach: 0),
@@ -87,9 +97,6 @@ class GameWorld implements VoxelEditor {
       liquids: liquids,
     );
   }
-
-  static LiquidSpec _defaultLiquid(String kind) =>
-      kind == 'lava' ? const LiquidSpec(period: 0.6, reach: 2) : const LiquidSpec();
 
   bool _hasFlowingForm(String kind) => blocks.types.any((t) => t.liquid == kind && !t.liquidSource);
 

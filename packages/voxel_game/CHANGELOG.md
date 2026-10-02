@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+- **The default HUD reads the world (VA4, the rest).**
+  - `VoxelGame.camera()` is the camera of the frame: `frame` builds it once, after the bodies
+    are placed, and the scene and the HUD both read it, so a point projected with
+    `Camera.worldToScreen` lands where the scene draws it, in the same frame. It used to be
+    built anew on each call, by the scene's paint, after the HUD had already built.
+  - `DamageNumbers` (new, exported) in `VoxelGame.damageNumbers`, aged by `frame`: a hit on a
+    creature adds what it took where the game is the authority, and on a client a replica's
+    lost health is the hit (its first state is not one). A replica's `sinceHurt` now counts.
+  - The default HUD paints over each creature hurt in the last `DefaultHud.barSeconds` (or
+    under the crosshair, within `DefaultHud.barRange`) a health bar, and each hit's number
+    rising a metre and fading over a second. It paints nothing, and repaints nothing, while
+    there is none.
+  - The crosshair turns red on a creature in reach; the mining bar under it is a ring around
+    it; a worn tool shows a bar under its slot, green to red.
+  - `LiquidSpec.tint` (new, 0.25; lava's default 0.55): the opacity of the wash over the
+    screen, in the block's colour, while the camera is in it (`VoxelGame.eyeLiquid`). 0 for
+    none. `LiquidSpec.defaultFor(kind)` and `VoxelGame.liquid(kind)` (new) say what a kind
+    not in `VoxelGameSpec.liquids` does.
+  - `MobSpec.boss` (new): the nearest living one (`VoxelGame.boss`) shows its name and
+    health in a bar at the top of the screen.
+  - `VoxelGame.showFps` (new, off): the frame rate (`FrameStats.fps`) at the top left.
+  - The example has a boss, the brute: rare, at night, one at a time.
 - **The default HUD shows survival and tells the player things (VA4).** Each survival piece
   only as the spec declares it:
   - hunger beside the hearts with `PlayerSpec.hunger`, two points an icon;

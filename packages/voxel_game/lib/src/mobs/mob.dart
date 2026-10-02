@@ -98,8 +98,14 @@ class Mob extends GameEntity implements Target {
   double get facing => _facing;
 
   /// A replica's state from the host: where it is, facing where, its health,
-  /// and whether it died.
+  /// and whether it died. Health lost since the last state is a hit, here as
+  /// on the host: its number shows over it, and [sinceHurt] starts again.
   void applyNetState(Vector3 at, double yaw, double health, {bool dead = false}) {
+    // The first state is where the replica starts, not a hit.
+    if (_netTo != null && health < hp) {
+      _game.damageNumbers.add(_numberAt(), hp - health);
+      sinceHurt = 0.0;
+    }
     _netTo = at.clone();
     _facing = yaw;
     hp = health;
@@ -190,6 +196,7 @@ class Mob extends GameEntity implements Target {
       return;
     }
     if (replica) {
+      sinceHurt += dt;
       final to = _netTo ?? position;
       final before = position.clone();
       position = position + (to - position) * math.min(1.0, dt * 12.0);
@@ -358,6 +365,7 @@ class Mob extends GameEntity implements Target {
     }
     final taken = math.min(hp, damage.amount);
     hp -= damage.amount;
+    if (taken > 0.0) _game.damageNumbers.add(_numberAt(), taken);
     sinceHurt = 0.0;
     _hurtFlash = 0.25;
     lastHurtBy = damage.attacker;
@@ -374,6 +382,9 @@ class Mob extends GameEntity implements Target {
     if (hp <= 0.0) kill();
     return taken;
   }
+
+  /// Where a hit's number starts: over its head.
+  Vector3 _numberAt() => position + Vector3(0, height + 0.2, 0);
 
   /// Dies at once; with [dropLoot], into its drops.
   void kill({bool dropLoot = true}) {

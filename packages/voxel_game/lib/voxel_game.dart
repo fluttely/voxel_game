@@ -55,6 +55,7 @@ export 'src/spec/sky_spec.dart';
 export 'src/spec/touch_controls_spec.dart';
 export 'src/spec/voxel_game_spec.dart';
 export 'src/world/game_world.dart';
+export 'src/ui/damage_numbers.dart';
 export 'src/ui/death_menu.dart';
 export 'src/ui/default_hud.dart';
 export 'src/ui/game_screen.dart';

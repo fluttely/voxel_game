@@ -1,20 +1,34 @@
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:vector_math/vector_math.dart' show Vector3;
 
 import '../core/voxel_game.dart';
 import '../input/input_device.dart';
 import '../input/voxel_action.dart';
+import '../mobs/mob.dart';
+import 'damage_numbers.dart';
 import 'hud_selector.dart';
 import 'notices.dart';
 
 /// One status effect as the HUD shows it.
 typedef _EffectChip = ({String id, int power, int seconds});
 
-/// The kit's HUD: a crosshair, the hotbar with counts, health, how far the
-/// aimed block is mined, and "click to play" while the mouse is free and no
-/// screen is open (the death screen is one: `DeathMenu`). Pass
+/// The kit's HUD: a crosshair that turns red on a creature in reach, a ring
+/// around it filling as the aimed block is mined, the hotbar with counts and
+/// what is left of a worn tool, health, and "click to play" while the mouse is
+/// free and no screen is open (the death screen is one: `DeathMenu`). Pass
 /// your own `HudBuilder` to replace it, or build on its pieces.
+///
+/// **Over the world**, projected through the frame's camera
+/// (`VoxelGame.camera`): a health bar over each creature hurt in the last
+/// [barSeconds] or under the crosshair, and the damage each hit dealt
+/// (`VoxelGame.damageNumbers`), rising and fading. While the camera is in a
+/// liquid the screen is washed in its colour (`LiquidSpec.tint`); while a
+/// boss lives (`MobSpec.boss`) the nearest one's health is a bar at the top;
+/// with `VoxelGame.showFps` the frame rate is at the top left.
 ///
 /// **What the spec declares, it shows, and nothing else**: the hunger beside
 /// the hearts only with `PlayerSpec.hunger`, the experience bar and level only
@@ -47,6 +61,12 @@ class DefaultHud extends StatelessWidget {
   /// The game shown.
   final VoxelGame game;
 
+  /// Seconds a creature's bar stays up after it is hurt.
+  static const double barSeconds = 4.0;
+
+  /// Metres past which a creature shows no bar.
+  static const double barRange = 40.0;
+
   static const _shadow = [Shadow(offset: Offset(1, 1), blurRadius: 2)];
 
   static Color _color(double r, double g, double b) =>
@@ -68,25 +88,58 @@ class DefaultHud extends StatelessWidget {
             children: [
               HudSelector(
                 frames: frames,
+                select: () => game.eyeLiquid?.id,
+                builder: (context, id) {
+                  if (id == null) return const SizedBox.shrink();
+                  final t = game.blocks[game.blocks.indexOf(id)];
+                  final tint = game.liquid(t.liquid!).tint;
+                  return tint > 0.0
+                      ? ColoredBox(color: _color(t.r, t.g, t.b).withValues(alpha: tint))
+                      : const SizedBox.shrink();
+                },
+              ),
+              HudSelector(
+                frames: frames,
+                select: _marksShown,
+                builder: (context, shown) =>
+                    shown ? RepaintBoundary(child: CustomPaint(painter: _WorldMarks(game))) : const SizedBox.shrink(),
+              ),
+              HudSelector(
+                frames: frames,
                 select: () => p.hurtFlash,
                 builder: (context, flash) => flash > 0.0
                     ? ColoredBox(color: Colors.red.withValues(alpha: 0.35 * flash))
                     : const SizedBox.shrink(),
               ),
-              const Center(child: Icon(Icons.add, color: Colors.white70, size: 22)),
-              Align(
-                alignment: const Alignment(0, 0.12),
+              Center(
+                child: HudSelector(
+                  frames: frames,
+                  select: () => p.aimedMob != null,
+                  builder: (context, onCreature) =>
+                      Icon(Icons.add, color: onCreature ? Colors.redAccent : Colors.white70, size: 22),
+                ),
+              ),
+              Center(
                 child: HudSelector(
                   frames: frames,
                   select: () => p.mineProgress,
                   builder: (context, progress) => progress > 0.0
                       ? SizedBox(
-                          width: 60,
-                          height: 4,
-                          child: LinearProgressIndicator(value: progress, backgroundColor: Colors.black38),
+                          width: 34,
+                          height: 34,
+                          child: CircularProgressIndicator(
+                            value: progress,
+                            strokeWidth: 3,
+                            color: Colors.white.withValues(alpha: 0.9),
+                            backgroundColor: Colors.black26,
+                          ),
                         )
                       : const SizedBox.shrink(),
                 ),
+              ),
+              Align(
+                alignment: Alignment.topCenter,
+                child: Padding(padding: const EdgeInsets.only(top: 12), child: _bossBar()),
               ),
               HudSelector(
                 frames: frames,
@@ -100,9 +153,7 @@ class DefaultHud extends StatelessWidget {
                         child: Padding(
                           padding: const EdgeInsets.only(top: 80),
                           child: Text(
-                            s.touch
-                                ? 'Tap to play'
-                                : 'Click to play  -  WASD move, Space jump, mouse look, left mine, right place, V view, E bag, Esc menu',
+                            s.touch ? 'Tap to play' : 'Click to play  -  WASD move, Space jump, mouse look, left mine, right place, V view, E bag, Esc menu',
                             style: const TextStyle(fontSize: 14, shadows: _shadow),
                           ),
                         ),
@@ -112,11 +163,32 @@ class DefaultHud extends StatelessWidget {
                 alignment: const Alignment(1, -0.3),
                 child: Padding(padding: const EdgeInsets.only(right: 16), child: _notices()),
               ),
-              if (game.spec.effects.isNotEmpty)
-                Align(
-                  alignment: Alignment.topLeft,
-                  child: Padding(padding: const EdgeInsets.all(12), child: _effects()),
+              Align(
+                alignment: Alignment.topLeft,
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      HudSelector(
+                        frames: frames,
+                        select: () => game.showFps ? game.stats.fps.round() : null,
+                        builder: (context, fps) => fps == null
+                            ? const SizedBox.shrink()
+                            : Padding(
+                                padding: const EdgeInsets.only(bottom: 6),
+                                child: Text(
+                                  'FPS $fps',
+                                  style: const TextStyle(fontSize: 13, color: Color(0xE6FFFF99), shadows: _shadow),
+                                ),
+                              ),
+                      ),
+                      if (game.spec.effects.isNotEmpty) _effects(),
+                    ],
+                  ),
                 ),
+              ),
             ],
           ),
         ),
@@ -135,9 +207,10 @@ class DefaultHud extends StatelessWidget {
                     for (var i = 0; i < inv.hotbarSize; i++)
                       HudSelector(
                         frames: frames,
-                        select: () => (id: inv.idAt(i), count: inv.countAt(i), selected: i == p.selectedSlot),
+                        select: () =>
+                            (id: inv.idAt(i), count: inv.countAt(i), uses: inv.durAt(i), selected: i == p.selectedSlot),
                         builder: (context, slot) {
-                          final face = _slot(slot.id, slot.count, selected: slot.selected);
+                          final face = _slot(slot.id, slot.count, slot.uses, selected: slot.selected);
                           if (touch == null) return face;
                           return _touchable(
                             onTap: () => game.input.touchDigit(i),
@@ -280,9 +353,7 @@ class DefaultHud extends StatelessWidget {
           for (var i = 0; i < (max / 2).ceil(); i++)
             Icon(
               of >= (i + 1) * 2 ? full : half,
-              color: of >= (i + 1) * 2
-                  ? color
-                  : (of > i * 2 ? color.withValues(alpha: 0.5) : Colors.white24),
+              color: of >= (i + 1) * 2 ? color : (of > i * 2 ? color.withValues(alpha: 0.5) : Colors.white24),
               size: 18,
             ),
         ],
@@ -343,7 +414,10 @@ class DefaultHud extends StatelessWidget {
               margin: const EdgeInsets.only(bottom: 4),
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               color: Colors.black45,
-              child: Text(n.text, style: TextStyle(fontSize: 15, color: color, shadows: _shadow)),
+              child: Text(
+                n.text,
+                style: TextStyle(fontSize: 15, color: color, shadows: _shadow),
+              ),
             ),
           ),
       ],
@@ -406,8 +480,9 @@ class DefaultHud extends StatelessWidget {
     );
   }
 
-  /// A hotbar slot holding [count] of item [id] (`''` for an empty one).
-  Widget _slot(String id, int count, {required bool selected}) => _box(
+  /// A hotbar slot holding [count] of item [id] (`''` for an empty one), a
+  /// worn one with [uses] left (`Inventory.durAt`) showing a bar under it.
+  Widget _slot(String id, int count, int uses, {required bool selected}) => _box(
     selected: selected,
     child: id.isEmpty
         ? null
@@ -429,7 +504,65 @@ class DefaultHud extends StatelessWidget {
                   bottom: 1,
                   child: Text('$count', style: const TextStyle(fontSize: 12, shadows: _shadow)),
                 ),
+              if (_wear(id, uses) case final left?)
+                Positioned(
+                  left: 5,
+                  right: 5,
+                  bottom: 4,
+                  height: 4,
+                  child: ColoredBox(
+                    color: Colors.black87,
+                    child: FractionallySizedBox(
+                      alignment: Alignment.centerLeft,
+                      widthFactor: left,
+                      child: ColoredBox(color: Color.lerp(Colors.red, Colors.greenAccent.shade400, left)!),
+                    ),
+                  ),
+                ),
             ],
+          ),
+  );
+
+  /// What is left of item [id] with [uses] left, 0..1, or null for one that
+  /// never wears or is not worn yet.
+  double? _wear(String id, int uses) {
+    final full = game.items[id].durability;
+    return full > 0 && uses < full ? uses / full : null;
+  }
+
+  /// Whether anything is projected over the world: a creature's bar or a
+  /// damage number. Nothing is painted, and nothing repaints, while not.
+  bool _marksShown() => game.damageNumbers.shown.isNotEmpty || game.mobs.any((m) => _WorldMarks.barred(game, m));
+
+  /// The nearest boss's name and health, at the top, while one lives.
+  Widget _bossBar() => HudSelector(
+    frames: game.frames,
+    select: () {
+      final b = game.boss;
+      return b == null ? null : (name: b.spec.name, hp: b.hp.ceil(), max: b.spec.hp);
+    },
+    builder: (context, b) => b == null
+        ? const SizedBox.shrink()
+        : FractionallySizedBox(
+            widthFactor: 0.45,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '${b.name}   ${b.hp} / ${b.max.ceil()}',
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, shadows: _shadow),
+                ),
+                const SizedBox(height: 3),
+                SizedBox(
+                  height: 10,
+                  child: LinearProgressIndicator(
+                    value: (b.hp / b.max).clamp(0.0, 1.0),
+                    color: const Color(0xFFB31A80),
+                    backgroundColor: Colors.black54,
+                  ),
+                ),
+              ],
+            ),
           ),
   );
 
@@ -444,4 +577,72 @@ class DefaultHud extends StatelessWidget {
     ),
     child: child,
   );
+}
+
+/// What the HUD projects from the world through the frame's camera: a bar
+/// over each creature [barred], and the [DamageNumbers]. Repaints every frame
+/// it is shown, never rebuilds.
+class _WorldMarks extends CustomPainter {
+  _WorldMarks(this.game) : super(repaint: game.frames);
+
+  final VoxelGame game;
+
+  /// Whether [mob] shows its bar: alive, in [DefaultHud.barRange], and hurt
+  /// in the last [DefaultHud.barSeconds] or under the crosshair.
+  static bool barred(VoxelGame game, Mob mob) =>
+      !mob.isDead &&
+      (mob.sinceHurt < DefaultHud.barSeconds || identical(game.player.aimedMob, mob)) &&
+      mob.position.distanceTo(game.player.position) < DefaultHud.barRange;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final camera = game.camera();
+    final eye = camera.position;
+    final back = Paint()..color = const Color(0xB3000000);
+    for (final m in game.mobs) {
+      if (!barred(game, m)) continue;
+      final top = m.drawnPosition + Vector3(0, m.height + 0.35, 0);
+      final at = camera.worldToScreen(top, size);
+      if (at == null) continue;
+      final w = (480.0 / math.max(top.distanceTo(eye), 4.0)).clamp(28.0, 90.0);
+      final h = math.max(4.0, w * 0.12);
+      final left = (m.hp / m.spec.hp).clamp(0.0, 1.0);
+      canvas
+        ..drawRect(Rect.fromCenter(center: at, width: w, height: h), back)
+        ..drawRect(
+          Rect.fromLTWH(at.dx - w * 0.48, at.dy - h * 0.33, w * 0.96 * left, h * 0.66),
+          Paint()..color = Color.lerp(Colors.redAccent, Colors.greenAccent.shade400, left)!,
+        );
+    }
+    for (final n in game.damageNumbers.shown) {
+      final from = n.at + Vector3(0, DamageNumbers.risenAt(n.age), 0);
+      final at = camera.worldToScreen(from, size);
+      if (at == null) continue;
+      final fontSize = (156.0 / math.max(from.distanceTo(eye), 3.0)).clamp(12.0, 34.0);
+      final a = DamageNumbers.opacityAt(n.age);
+      final text = TextPainter(
+        text: TextSpan(
+          text: DamageNumbers.label(n.amount),
+          style: TextStyle(
+            fontSize: fontSize,
+            fontWeight: FontWeight.bold,
+            color: Colors.white.withValues(alpha: a),
+            shadows: [
+              Shadow(
+                color: Colors.black.withValues(alpha: a),
+                offset: const Offset(1, 1),
+                blurRadius: 2,
+              ),
+            ],
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      text.paint(canvas, at - Offset(text.width / 2, text.height / 2));
+      text.dispose();
+    }
+  }
+
+  @override
+  bool shouldRepaint(_WorldMarks old) => !identical(old.game, game);
 }
