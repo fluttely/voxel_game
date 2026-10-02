@@ -17,6 +17,7 @@ export 'package:voxel_engine/worldgen.dart'
         Climate,
         Ore,
         Plant,
+        Precipitation,
         StructureSite,
         StructureSpec,
         TerrainRecipe,
@@ -55,8 +56,12 @@ export 'src/spec/graphics_spec.dart';
 export 'src/spec/screen_spec.dart';
 export 'src/spec/sky_spec.dart';
 export 'src/spec/title_spec.dart';
+export 'src/spec/weather_odds.dart';
+export 'src/spec/weather_spec.dart';
 export 'src/spec/touch_controls_spec.dart';
 export 'src/spec/voxel_game_spec.dart';
+export 'src/weather/weather.dart';
+export 'src/weather/weather_kind.dart';
 export 'src/world/game_world.dart';
 export 'src/ui/credits_roll.dart';
 export 'src/ui/damage_numbers.dart';

@@ -24,8 +24,8 @@ void _hut(StructureSite s) {
 const WorldGenSpec _world = WorldGenSpec(
   bedrock: 'bedrock',
   biomes: [
-    Biome('tundra', top: 'snow', climate: Climate.cold, ice: 'ice'),
-    Biome('desert', top: 'sand', climate: Climate.hotDry),
+    Biome('tundra', top: 'snow', climate: Climate.cold, ice: 'ice', precipitation: Precipitation.snow),
+    Biome('desert', top: 'sand', climate: Climate.hotDry, precipitation: Precipitation.none),
     Biome(
       'plains',
       top: 'grass',
@@ -67,6 +67,23 @@ void main() {
     expect(c[ChunkSize.index(3, 19, 3)], _ids['grass']);
     expect(c[ChunkSize.index(3, 20, 3)], 0);
     expect(g.biomeAt(0, 0).name, 'plains');
+  });
+
+  test('a biome says what falls on it, rain unless it says otherwise', () {
+    final g = _world.compile(_ids, 7);
+    final seen = <String, Precipitation>{};
+    for (var x = -4000; x <= 4000 && seen.length < 4; x += 37) {
+      for (var z = -4000; z <= 4000 && seen.length < 4; z += 173) {
+        final b = g.biomeAt(x, z);
+        seen[b.name] = b.precipitation;
+      }
+    }
+    expect(seen, {
+      'tundra': Precipitation.snow,
+      'desert': Precipitation.none,
+      'plains': Precipitation.rain,
+      'beach': Precipitation.rain,
+    });
   });
 
   test('a missing block fails at compile time, naming it', () {

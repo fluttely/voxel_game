@@ -2,6 +2,14 @@
 
 ## 0.3.0-dev
 
+- `DayNightSky.update` takes the weather (VA9): `overcast` (0..1) greys the sky, dims the
+  sun, the ambient and the sky light it returns, and pulls the fog's end in; `flash` (0..1)
+  lights all of it white for a lightning bolt. The numbers are `SkyLook.at` (new), pure, so
+  they are checked with no GPU. A change of the weather rebuilds the ambient whatever the
+  clock did.
+- `WeatherParticles` (new): rain and snow on flutter_scene's `ParticleSystem`, falling
+  through a box around a point; `update(around, rainShare:, snowShare:)` once a frame.
+
 - `ItemMesh` (new): the mesh of an `ItemModel` (voxel_engine, unreleased), built the
   first time it is drawn, one per model (`ItemMesh.of`). Everything drawing the item hangs
   its own `node()` on the one geometry and the shared `VoxelModelMesh.material`, so

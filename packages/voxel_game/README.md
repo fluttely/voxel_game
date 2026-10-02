@@ -44,6 +44,12 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
   its icon in the hotbar and the bag (`ItemIcon`). An item's block, tool, food, armour or
   bucket picks it, or the item declares one (`ItemType(shape: ItemShape.cap)`, or a
   `CustomItemShape` of its own voxels).
+- Weather, declared: `SkySpec(weather: WeatherSpec())` rolls clear, rain or a storm every
+  few minutes (`WeatherOdds`, or a biome's own in `WeatherSpec.biomes`), eased in; rain and
+  storms grey the sky and pull the fog in, a storm strikes with lightning and thunder, and
+  what falls is the biome's (`Biome(precipitation: Precipitation.snow)`, or `none` for a
+  desert). `VoxelGame.weather` tells what it is and `set`s a spell from code; the player's
+  `GameSettings.weather` turns it off. Only a lone game or a host rolls it.
 - `VoxelGame.notify('Night falls')` tells the player something for a few seconds; the default
   HUD shows it at the right, over what the player just picked up (`+5 Dirt`).
 - The default HUD also reads the world through the frame's camera (`VoxelGame.camera`, the

@@ -179,6 +179,13 @@ class Bench {
       reach: aim ? aimReach : example.game.player.reach,
     ),
     onTick: () => _tick,
+    // The example's day with no weather: a storm rolled mid-run would be
+    // measured as a regression of whatever the run compares.
+    sky: SkySpec(
+      dayLength: example.game.sky.dayLength,
+      startTime: example.game.sky.startTime,
+      cycle: example.game.sky.cycle,
+    ),
   );
 
   final Stopwatch _clock = Stopwatch();

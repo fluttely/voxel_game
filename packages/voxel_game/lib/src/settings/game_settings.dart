@@ -2,7 +2,8 @@ import '../spec/voxel_game_spec.dart';
 
 /// What the player sets for themselves, as opposed to what the game declares:
 /// how far they see, how fast the view turns, how wide it is, how loud the
-/// game is, whether the eye bobs and whether the frame rate shows.
+/// game is, whether the eye bobs, whether the frame rate shows and whether
+/// the weather turns.
 ///
 /// The spec's values are the defaults ([GameSettings.of]); `VoxelGame`
 /// applies a change at once ([VoxelGame.applySettings]), and a
@@ -19,6 +20,7 @@ class GameSettings {
     required this.musicVolume,
     this.viewBob = true,
     this.showFps = false,
+    this.weather = true,
   }) {
     if (renderDistance < minRenderDistance || renderDistance > maxRenderDistance) {
       throw ArgumentError.value(renderDistance, 'renderDistance', 'not in $minRenderDistance..$maxRenderDistance');
@@ -31,7 +33,7 @@ class GameSettings {
 
   /// The spec's defaults: its render distance, its player's field of view, its
   /// music's loudness; the turn at its stock speed, full volume, the eye
-  /// bobbing, no frame rate.
+  /// bobbing, no frame rate, the weather on.
   factory GameSettings.of(VoxelGameSpec spec) =>
       GameSettings(renderDistance: spec.renderDistance, fov: spec.player.fov, musicVolume: spec.sounds.musicVolume);
 
@@ -80,6 +82,9 @@ class GameSettings {
   /// Whether the HUD shows the frame rate.
   final bool showFps;
 
+  /// Whether the weather turns (`SkySpec.weather`); off, the sky stays clear.
+  final bool weather;
+
   /// These settings with the given values replaced.
   GameSettings copyWith({
     int? renderDistance,
@@ -89,6 +94,7 @@ class GameSettings {
     double? musicVolume,
     bool? viewBob,
     bool? showFps,
+    bool? weather,
   }) => GameSettings(
     renderDistance: renderDistance ?? this.renderDistance,
     lookSpeed: lookSpeed ?? this.lookSpeed,
@@ -97,10 +103,11 @@ class GameSettings {
     musicVolume: musicVolume ?? this.musicVolume,
     viewBob: viewBob ?? this.viewBob,
     showFps: showFps ?? this.showFps,
+    weather: weather ?? this.weather,
   );
 
-  /// The version of the JSON [toJson] writes.
-  static const version = 1;
+  /// The version of the JSON [toJson] writes: 2 added [weather].
+  static const version = 2;
 
   /// These settings as JSON, with their [version].
   Map<String, Object?> toJson() => {
@@ -112,13 +119,15 @@ class GameSettings {
     'musicVolume': musicVolume,
     'viewBob': viewBob,
     'showFps': showFps,
+    'weather': weather,
   };
 
-  /// Settings read from [toJson]'s JSON; throws for another version, a value
-  /// missing or one out of its range.
+  /// Settings read from [toJson]'s JSON, of this [version] or version 1 (the
+  /// weather on); throws for another version, a value missing or one out of
+  /// its range.
   factory GameSettings.fromJson(Map<String, Object?> json) {
     final v = (json['version']! as num).toInt();
-    if (v != version) throw StateError('settings version $v: this kit reads $version');
+    if (v != 1 && v != version) throw StateError('settings version $v: this kit reads 1 and $version');
     return GameSettings(
       renderDistance: (json['renderDistance']! as num).toInt(),
       lookSpeed: (json['lookSpeed']! as num).toDouble(),
@@ -127,6 +136,7 @@ class GameSettings {
       musicVolume: (json['musicVolume']! as num).toDouble(),
       viewBob: json['viewBob']! as bool,
       showFps: json['showFps']! as bool,
+      weather: v == 1 || json['weather']! as bool,
     );
   }
 
@@ -139,10 +149,11 @@ class GameSettings {
       other.volume == volume &&
       other.musicVolume == musicVolume &&
       other.viewBob == viewBob &&
-      other.showFps == showFps;
+      other.showFps == showFps &&
+      other.weather == weather;
 
   @override
-  int get hashCode => Object.hash(renderDistance, lookSpeed, fov, volume, musicVolume, viewBob, showFps);
+  int get hashCode => Object.hash(renderDistance, lookSpeed, fov, volume, musicVolume, viewBob, showFps, weather);
 
   @override
   String toString() => 'GameSettings${toJson()}';

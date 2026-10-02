@@ -2,6 +2,9 @@
 
 ## 0.3.0-dev
 
+- `Biome.precipitation` (a `Precipitation`, new: `rain`, the default, `snow` or `none`):
+  what falls on a biome when the weather turns (VA9). The generator does not read it.
+
 - `Inventory.put(stack)` (new): a new stack tops up stacks as `add` does, a worn or
   bonused one takes an empty slot whole as `addStack` does; returns what did not fit.
 - What an item looks like (VA5): `ItemType.shape` (an `ItemShape`, new, null by default)

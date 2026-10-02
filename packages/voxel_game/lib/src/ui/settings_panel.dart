@@ -9,7 +9,8 @@ import '../spec/voxel_game_spec.dart';
 /// (`SettingsMenu`) and a screen with none alike.
 ///
 /// What [spec] declares, it offers: the volume only with `SoundSpec.enabled`,
-/// the music's only when the game has music.
+/// the music's only when the game has music, the weather only when its sky
+/// has some.
 class SettingsPanel extends StatelessWidget {
   /// The settings [value] of a game of [spec], each change to [onChanged].
   const SettingsPanel({super.key, required this.spec, required this.value, required this.onChanged});
@@ -80,6 +81,7 @@ class SettingsPanel extends StatelessWidget {
           ),
         _switch('View bobbing', value.viewBob, (on) => value.copyWith(viewBob: on)),
         _switch('Show FPS', value.showFps, (on) => value.copyWith(showFps: on)),
+        if (spec.sky.weather != null) _switch('Weather', value.weather, (on) => value.copyWith(weather: on)),
       ],
     );
   }

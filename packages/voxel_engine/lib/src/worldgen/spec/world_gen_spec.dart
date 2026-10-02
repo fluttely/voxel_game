@@ -205,7 +205,20 @@ class Climate {
       (maxHeight == null || height <= maxHeight!);
 }
 
-/// One biome: what covers the ground, what grows on it.
+/// What falls from a biome's sky when the weather turns: Minecraft's own
+/// three. A game reads it; the generator does not.
+enum Precipitation {
+  /// Rain, and in a storm, lightning.
+  rain,
+
+  /// Snow, whatever the storm.
+  snow,
+
+  /// Nothing: the sky stays clear (a desert).
+  none,
+}
+
+/// One biome: what covers the ground, what grows on it, what falls on it.
 class Biome {
   /// A biome named [name] with [top] on its surface over [under] soil
   /// [underDepth] deep. [treeChance] is the per cent of tree patches (7 x 7
@@ -220,6 +233,7 @@ class Biome {
     this.treeChance = 0,
     this.plants = const [],
     this.ice,
+    this.precipitation = Precipitation.rain,
   }) : under = under ?? top;
 
   /// The biome's name, what [SpecGenerator.biomeAt] answers.
@@ -248,6 +262,9 @@ class Biome {
 
   /// The block the sea's surface freezes to here, or null for open water.
   final String? ice;
+
+  /// What falls here when the weather turns.
+  final Precipitation precipitation;
 
   /// Every block this biome places.
   Set<String> get blockNames => {

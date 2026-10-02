@@ -36,6 +36,7 @@ import '../ui/game_screen.dart';
 import '../ui/notices.dart';
 import '../world/block_rules.dart';
 import '../world/game_world.dart';
+import '../weather/weather.dart';
 import '../world/world_save.dart';
 
 /// A running game made from a [VoxelGameSpec]: the world, the player, the
@@ -58,6 +59,7 @@ class VoxelGame {
        input = InputMap<VoxelAction>(VoxelAction.defaultBindings),
        recipes = RecipeBook(spec.recipes),
        timeOfDay = spec.sky.startTime,
+       weather = Weather(spec.sky.weather, spec.world, seed: spec.seed),
        _settings = ValueNotifier(settings) {
     assert(settings.renderDistance == world.loadRadius, 'the world streams the settings\' render distance');
     _applyLive(settings);
@@ -175,6 +177,7 @@ class VoxelGame {
       sunStepDegrees: shadows.sunStepDegrees,
     );
     game.scene!.add(world.root!);
+    if (spec.sky.weather != null) game.scene!.add((game.weatherParticles = WeatherParticles()).node);
     game._begin(save);
     game.firstPerson = FirstPersonView(game);
     await world.start();
@@ -291,6 +294,14 @@ class VoxelGame {
 
   /// The sky, sun and fog; null headless.
   DayNightSky? sky;
+
+  /// The rain, storms and snow (`SkySpec.weather`): always clear when the
+  /// spec declares none.
+  final Weather weather;
+
+  /// The rain and snow falling around the player; null headless or with no
+  /// weather declared.
+  WeatherParticles? weatherParticles;
 
   /// The player's controls. A widget feeds it; code can [InputMap.hold].
   final InputMap<VoxelAction> input;
@@ -459,14 +470,16 @@ class VoxelGame {
   final DamageNumbers damageNumbers = DamageNumbers();
 
   /// What the player has set: the render distance, the turn, the field of
-  /// view, the volumes, the bob, the frame rate. [applySettings] changes it.
+  /// view, the volumes, the bob, the frame rate, the weather. [applySettings]
+  /// changes it.
   ValueListenable<GameSettings> get settings => _settings;
   final ValueNotifier<GameSettings> _settings;
 
   /// Puts [next] in force at once: the world streams to its render distance
   /// (cut back now when it is nearer), the view turns at its speed and bobs
   /// or not, the next frame's camera takes its field of view, the next sound
-  /// its volume, the HUD shows the frame rate or not. The music follows it
+  /// its volume, the HUD shows the frame rate or not, the sky clears or is
+  /// let turn. The music follows it
   /// where it plays (`VoxelGameWidget`), listening to [settings].
   void applySettings(GameSettings next) {
     if (next.renderDistance != world.loadRadius) world.loadRadius = next.renderDistance;
@@ -477,6 +490,7 @@ class VoxelGame {
   void _applyLive(GameSettings s) {
     input.lookScale = s.lookSpeed;
     view.bob = s.viewBob;
+    weather.enabled = s.weather;
   }
 
   /// The frames drawn so far: moves once at the end of every [frame]. A HUD
@@ -506,7 +520,7 @@ class VoxelGame {
   }
 
   /// Advances by [dt] seconds of real time: the look, whole fixed steps, the
-  /// chunk streaming, the sky; then draws every body between its last two
+  /// chunk streaming, the sky and its weather; then draws every body between its last two
   /// steps, [alpha] of the way.
   ///
   /// The look is drained here, once a frame and before the steps, not by a
@@ -531,8 +545,9 @@ class VoxelGame {
     firstPerson?.update(dt);
     final s = sky;
     if (s != null) {
-      final intensity = s.update(timeOfDay, fogDistance: viewDistance);
-      world.setSkyIntensity(intensity);
+      final w = weather;
+      world.setSkyIntensity(s.update(timeOfDay, fogDistance: viewDistance, overcast: w.overcast, flash: w.flash));
+      weatherParticles?.update(player.eyePosition, rainShare: w.rainShare, snowShare: w.snowShare);
     }
     notices.advance(dt);
     damageNumbers.advance(dt);
@@ -591,8 +606,9 @@ class VoxelGame {
   /// records.
   final FrameStats stats = FrameStats();
 
-  /// One fixed step of [dt]: the player, the creatures, the items, the
-  /// liquids, spawning, then the spec's systems and hook. Every body's pose
+  /// One fixed step of [dt]: the clock and the weather, the player, the
+  /// creatures, the items, the liquids, spawning, then the spec's systems and
+  /// hook. Every body's pose
   /// before it is kept first, for the frames to draw from.
   void step(double dt) {
     _beginStep();
@@ -624,6 +640,7 @@ class VoxelGame {
     searchesLeft = Mob.searchesPerStep;
     time += dt;
     if (spec.sky.cycle) timeOfDay = (timeOfDay + dt / spec.sky.dayLength) % 1.0;
+    weather.tick(this, dt);
     player.tick(this, dt, gameplay: gameplay);
     for (final m in List.of(mobs)) {
       m.tick(this, dt);

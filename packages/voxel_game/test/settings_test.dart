@@ -59,6 +59,7 @@ void main() {
       expect(s.volume, 1.0);
       expect(s.viewBob, isTrue);
       expect(s.showFps, isFalse);
+      expect(s.weather, isTrue);
     });
 
     test('a value out of its range throws', () {
@@ -86,10 +87,40 @@ void main() {
         musicVolume: 0.9,
         viewBob: false,
         showFps: true,
+        weather: false,
       );
+      expect(s.toJson()['version'], 2);
       expect(GameSettings.fromJson(s.toJson()), s);
-      expect(() => GameSettings.fromJson({...s.toJson(), 'version': 2}), throwsStateError);
+      expect(() => GameSettings.fromJson({...s.toJson(), 'version': 3}), throwsStateError);
       expect(() => GameSettings.fromJson({...s.toJson()}..remove('fov')), throwsA(isA<TypeError>()));
+      expect(() => GameSettings.fromJson({...s.toJson()}..remove('weather')), throwsA(isA<TypeError>()));
+    });
+
+    test('a version 1 file still loads, the weather on', () {
+      final v1 = {
+        'version': 1,
+        'renderDistance': 4,
+        'lookSpeed': 1.5,
+        'fov': 95,
+        'volume': 0.4,
+        'musicVolume': 0.9,
+        'viewBob': false,
+        'showFps': true,
+      };
+      final s = GameSettings.fromJson(v1);
+      expect(s.weather, isTrue);
+      expect(
+        s,
+        GameSettings.of(_spec).copyWith(
+          renderDistance: 4,
+          lookSpeed: 1.5,
+          fov: 95,
+          volume: 0.4,
+          musicVolume: 0.9,
+          viewBob: false,
+          showFps: true,
+        ),
+      );
     });
   });
 

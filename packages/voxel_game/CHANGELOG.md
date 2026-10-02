@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+- **Weather (VA9).** `SkySpec.weather` (a `WeatherSpec`, new; null, the default, keeps a
+  sky that is always clear): a sky rolled every `minSpell`..`maxSpell` seconds from
+  `WeatherOdds` (new: clear, rain, storm weights; `WeatherOdds.alwaysClear`) or a biome's own
+  (`WeatherSpec.biomes`, by `Biome.name`; a name the world lacks throws), eased in over
+  `fadeSeconds`. `VoxelGame.weather` (a `Weather`, new): the sky's `spell`, the `kind` where
+  the player stands (`WeatherKind`, new: clear, rain, storm, snow — a rain or storm over a
+  biome whose `precipitation` is snow snows, over one whose is none nothing falls but the
+  sky still greys), `intensity`, `overcast`, `flash`, `rainShare` / `snowShare`, and `set`
+  (a spell from code, eased or `now`). The frame greys and dims the sky, sun, ambient and
+  sky light and pulls the fog in by `overcast` (voxel_scene's `DayNightSky`), and the rain
+  and snow fall around the player (`VoxelGame.weatherParticles`, voxel_scene's
+  `WeatherParticles`); a storm strikes every `minBolt`..`maxBolt` seconds, a white flash and
+  `WeatherSpec.thunder`. Only an `authority` rolls: a client's sky stays clear until the host
+  sends its own (VA16). Not saved: a world loads clear.
+- `GameSettings.weather` (new, on by default): off clears the sky at once and holds it; the
+  `SettingsPanel` offers it when the spec declares weather. `settings.json` is version 2; a
+  version 1 file still loads, the weather on.
+- The example's sky has weather; its benchmark pins the example's day with none, so a storm
+  is never measured as a regression.
+
 - **Worlds and the title (VA8).** A game opts in with `runVoxelGame(spec, menu:
   TitleSpec(...))` and opens on its title; without `menu` it still drops straight into its
   world.

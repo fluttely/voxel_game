@@ -212,6 +212,8 @@ const game = VoxelGameSpec(
     beach: Biome('beach', top: 'sand'),
     ores: [Ore('coal_ore', share: 0.11)],
   ),
+  // The weather: rain and storms rolled every few minutes (snow where a biome's precipitation is snow).
+  sky: SkySpec(weather: WeatherSpec()),
   // 4. The player: what they start with, hunger that food fills, and experience (a kill's, below).
   player: PlayerSpec(
     startingItems: {'wooden_pickaxe': 1, 'planks': 16, 'torch': 8, 'apple': 4, 'wool_cap': 1},
