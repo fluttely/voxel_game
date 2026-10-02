@@ -75,11 +75,7 @@ class Minecart extends Vehicle {
   }
 
   @override
-  void tick(VoxelGame game, double dt) {
-    // Its rider moved it this step (carry).
-    if (rider != null) return;
-    _roll(dt, 0.0);
-  }
+  void alone(VoxelGame game, double dt) => _roll(dt, 0.0);
 
   @override
   void carry(double dt, RideInput input) {

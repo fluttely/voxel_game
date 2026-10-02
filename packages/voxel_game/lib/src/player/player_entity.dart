@@ -858,8 +858,14 @@ class PlayerEntity extends NodeBody implements Target {
       if (_attackCooldown > 0.0) return;
       _attackCooldown = 0.4;
       _swingArm();
-      // One swing breaks one nobody rides; the host owns them (VA16).
-      if (vehicle.rider == null && _game.authority) vehicle.breakApart(drop: !spec.creative);
+      // One swing breaks one nobody rides; the host breaks its own.
+      if (vehicle.rider == null) {
+        if (vehicle.replica) {
+          _game.session!.breakVehicle(vehicle, drop: !spec.creative);
+        } else {
+          vehicle.breakApart(drop: !spec.creative);
+        }
+      }
       return;
     }
     final mob = aimedMob;
@@ -916,7 +922,8 @@ class PlayerEntity extends NodeBody implements Target {
 
   /// Uses the creature under the crosshair when the item in hand tames it
   /// or it is the player's mount to ride ([usableOn]), or rides the vehicle
-  /// under it when it takes the player ([Vehicle.takes]); else a lever, a store,
+  /// under it when it takes the player ([Vehicle.takes]; a replica once the
+  /// host says so, `GameSession.boardVehicle`); else a lever, a store,
   /// a station or a block that turns (a door) under the crosshair, else lights a portal's frame with its lighter in hand
   /// (`PortalSpec.lighter`), scoops or pours with the bucket in hand, works the aimed
   /// block with the tool in hand (`BlockType.turnsWith`), eats or puts on the
@@ -934,7 +941,11 @@ class PlayerEntity extends NodeBody implements Target {
     if (vehicle != null && riding == null && vehicle.takes(this)) {
       if (pressed) {
         _swingArm();
-        ride(vehicle);
+        if (vehicle.replica) {
+          _game.session!.boardVehicle(vehicle);
+        } else {
+          ride(vehicle);
+        }
       }
       return;
     }
@@ -984,8 +995,7 @@ class PlayerEntity extends NodeBody implements Target {
     }
     final vehicleSpec = _game.vehicleFor(item.id);
     if (vehicleSpec != null) {
-      // The host owns the vehicles (VA16): a client puts none down.
-      if (pressed && _game.authority) _placeVehicle(vehicleSpec);
+      if (pressed) _placeVehicle(vehicleSpec);
       return;
     }
     final bucket = item.bucket;
@@ -1044,6 +1054,7 @@ class PlayerEntity extends NodeBody implements Target {
   /// Puts a vehicle of [vehicle] down where its kind goes along the aim (a
   /// boat on water, a minecart on a rail), pointing the way the player looks, one of its item used up (not in
   /// creative); tells the player where it goes when there is no such place.
+  /// A client's goes to the host (`VoxelGame.placeVehicle`).
   void _placeVehicle(VehicleSpec vehicle) {
     final at = switch (vehicle) {
       BoatSpec() => _boatPlace(),

@@ -54,11 +54,7 @@ class Boat extends Vehicle {
   }
 
   @override
-  void tick(VoxelGame game, double dt) {
-    // Its rider moved it this step (carry).
-    if (rider != null) return;
-    _float(dt, forward: 0.0, turn: 0.0, rowed: false);
-  }
+  void alone(VoxelGame game, double dt) => _float(dt, forward: 0.0, turn: 0.0, rowed: false);
 
   @override
   void carry(double dt, RideInput input) => _float(dt, forward: input.forward, turn: input.turn, rowed: true);

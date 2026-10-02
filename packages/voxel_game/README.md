@@ -294,7 +294,9 @@ Dart SDK `^3.13.0`.
    bag takes it. The stores are the host's too: a client's edit of a slot stands only on what
    the slot held, and only with what the client holds, so two players never take one stack.
    A client tames the host's creatures (the host rolls the chance) and rides its own mount
-   with no lag: while it rides, its copy is the one that moves.
+   with no lag: while it rides, its copy is the one that moves. The vehicles are the
+   host's as well: a client's boat or minecart is put down there, a seat is the host's to
+   give (one rider each), and the rider drives with no lag, as on a mount.
 
 7. **Open on a title (optional):** `runVoxelGame(spec, menu: TitleSpec(name: 'My game'))`
    lets the player make, pick, host and join worlds instead of dropping into one slot.

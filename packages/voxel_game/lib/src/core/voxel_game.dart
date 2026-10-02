@@ -339,7 +339,8 @@ class VoxelGame {
   /// what it rides first. The creatures and the items of the dimension left
   /// are left behind for good; its vehicles stay where they were left: parked
   /// ([parkedVehicles]) and put back when the player comes back, a mount
-  /// ridden in being a creature and so left behind. A store's screen shuts.
+  /// ridden in being a creature and so left behind. A client's replicas of
+  /// the host's vehicles are not its own to park: the host sends them again. A store's screen shuts.
   /// The player waits off the ground ([ready] false) until the world is
   /// loaded around it. Throws for the dimension the player is in, one the
   /// spec does not declare, and during another arrival.
@@ -349,7 +350,7 @@ class VoxelGame {
     if (d == world.dimension) throw ArgumentError.value(dimension, 'dimension', 'the player is there');
     if (_travel is Arriving) throw StateError('the player is arriving already');
     if (player.riding != null) player.dismount();
-    final left = [for (final v in vehicles) v.row];
+    final left = [for (final v in _ownVehicles) v.row];
     if (left.isNotEmpty) _parked[this.dimension] = left;
     for (final m in mobs) {
       m.removed = true;
@@ -374,11 +375,14 @@ class VoxelGame {
   final Map<String, List<Map<String, Object?>>> _parked = {};
 
   /// Every vehicle's save row by dimension id: the vehicles in the world, in
-  /// the player's dimension, and the parked ones of the others.
+  /// the player's dimension, and the parked ones of the others; a client's
+  /// replicas of the host's are not among them.
   Map<String, List<Map<String, Object?>>> get vehicleRows => {
     ..._parked,
-    dimension: [for (final v in vehicles) v.row],
+    dimension: [for (final v in _ownVehicles) v.row],
   };
+
+  Iterable<Vehicle> get _ownVehicles => vehicles.where((v) => !v.replica);
 
   /// Puts back [dimension]'s vehicles from their save [rows] (`Vehicle.row`,
   /// read back by `Vehicle.restoreRow`): in the world when the player is
@@ -393,14 +397,7 @@ class VoxelGame {
       if (rows.isNotEmpty) _parked[dimension] = [..._parked[dimension] ?? const [], ...rows];
       return;
     }
-    for (final r in rows) {
-      final p = [for (final e in r['pos']! as List<Object?>) (e! as num).toDouble()];
-      placeVehicle(
-        r['item']! as String,
-        Vector3(p[0], p[1], p[2]),
-        facing: (r['yaw']! as num).toDouble(),
-      ).restoreRow(r);
-    }
+    rows.forEach(vehicleFrom);
   }
 
   /// Stands the arriving player on the ground once the chunks around its
@@ -470,7 +467,14 @@ class VoxelGame {
         ? await startHeadless(spec, save: hello.world, authority: false)
         : await start(spec, save: hello.world, settings: settings, authority: false);
     game.player.restore(hello.spawn, hello.spawn);
-    game.session = ClientSession(game, hello.connection, hello.peer, drops: hello.drops, weather: hello.weather);
+    game.session = ClientSession(
+      game,
+      hello.connection,
+      hello.peer,
+      drops: hello.drops,
+      vehicles: hello.vehicles,
+      weather: hello.weather,
+    );
     return game;
   }
 
@@ -567,17 +571,37 @@ class VoxelGame {
 
   /// Puts a vehicle of [item]'s down at [at], pointing [facing] (radians, as
   /// `PlayerEntity.yaw`); a minecart on the rail at [at], heading for its end
-  /// nearest [facing]. Throws for an item that is no vehicle, and on a
-  /// client: the host owns the vehicles (VA16).
-  Vehicle placeVehicle(String item, Vector3 at, {double facing = 0.0}) {
-    if (!authority) throw StateError('a client puts no vehicle down: the host owns them');
-    final v = vehicleFor(item);
-    if (v == null) throw ArgumentError.value(item, 'item', 'no vehicle is put down with it');
-    return add(switch (v) {
-      BoatSpec() => Boat(v, at, facing: facing),
-      CartSpec() => Minecart(v, at, facing: facing),
-    });
+  /// nearest [facing]. On a client where the host is, the host puts it down
+  /// (`GameSession.handOffVehicle`), and this returns null: the host's
+  /// vehicle comes back as a replica. Anywhere else it is put down here and
+  /// returned. Throws for an item that is no vehicle.
+  Vehicle? placeVehicle(String item, Vector3 at, {double facing = 0.0}) {
+    final v = _vehicleSpec(item);
+    if (session?.handOffVehicle(item, at, facing) ?? false) return null;
+    return _makeVehicle(v, at, facing);
   }
+
+  /// A vehicle made here from its [row] (`Vehicle.row`, read back by
+  /// `Vehicle.restoreRow`): what a load, a trip back and a client's replica
+  /// of the host's are made from. Throws for an item that is no vehicle.
+  Vehicle vehicleFrom(Map<String, Object?> row) {
+    final p = [for (final e in row['pos']! as List<Object?>) (e! as num).toDouble()];
+    final v = _makeVehicle(
+      _vehicleSpec(row['item']! as String),
+      Vector3(p[0], p[1], p[2]),
+      (row['yaw']! as num).toDouble(),
+    );
+    v.restoreRow(row);
+    return v;
+  }
+
+  VehicleSpec _vehicleSpec(String item) =>
+      vehicleFor(item) ?? (throw ArgumentError.value(item, 'item', 'no vehicle is put down with it'));
+
+  Vehicle _makeVehicle(VehicleSpec v, Vector3 at, double facing) => add(switch (v) {
+    BoatSpec() => Boat(v, at, facing: facing),
+    CartSpec() => Minecart(v, at, facing: facing),
+  });
 
   /// The camera's rig.
   final ViewCamera view = ViewCamera();

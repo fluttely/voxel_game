@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+- **Net catches up, sixth part: vehicles (VA16f).** A client puts down, gets on, drives,
+  gets off and breaks the host's vehicles. The host numbers every vehicle of its dimension
+  (`Vehicle.netId`, new) and sends it (`vehicles`: its save row and its rider's peer, with
+  the hello, on a client's arrival in the host's dimension, and 20 times a second for those
+  that moved or changed rider); a client draws `Vehicle.replica`s (new) and drops them on
+  `vehicles_gone`. `VoxelGame.placeVehicle` on a client where the host is hands the vehicle
+  to the host (`GameSession.handOffVehicle`, new) and returns null (it returns `Vehicle?`
+  now, as `dropStack` does); a vehicle put down from another dimension goes back to the bag.
+  A use on a replica asks for the seat (`GameSession.boardVehicle`, new; `vehicle_board`):
+  the host gives it when nobody has it, the client hears where the vehicle stands
+  (`vehicle_boarded`) and gets on from there. As VAD9 says, the rider drives: the client's
+  copy is the live one, its `pose` carries the vehicle's row, and the host's copy follows it
+  (`Vehicle.followRow`, new, which a replica also follows the host's by). Getting off is a
+  `vehicle_leave` with where it was left, and the host's copy goes on from there, a cart at
+  the speed it had (`Vehicle.takeOver`, new); a peer that leaves gets off where it last
+  drove. A swing at a replica nobody rides asks the host to break it
+  (`GameSession.breakVehicle`, new). `Vehicle.takes`, `placeVehicle` and the swing lose their
+  `authority` gates; a replica is never broken, parked or saved by the client
+  (`breakApart` throws for one), and `VoxelGame.vehicleFrom` (new) makes a vehicle from its
+  row, as a load, a trip back and a replica do. A kind's move without a rider is
+  `Vehicle.alone` (was `tick`). A pose driving a vehicle the peer did not get on, or a row
+  of another vehicle's item, throws.
+
 - **Net catches up, fifth part: creatures (VA16e).** A client tames and rides. A use with
   what tames the host's creature (`PlayerEntity.usableOn` now takes a replica) spends the
   item on the client and asks the host (`tame`, through `GameSession.tameMob`, new); the host

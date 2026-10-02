@@ -94,6 +94,85 @@ const _petSpec = VoxelGameSpec(
   ],
 );
 
+BlockType _rail(String id, BlockShape shape) =>
+    BlockType(id, color: 0x8A8478, shape: shape, solid: false, opaque: false, hardness: 0.7, drop: 'rail');
+
+/// [_spec]'s ground with rails, a boat and a minecart (two boats and a cart
+/// for every player), and a nether to travel to.
+final _rideSpec = VoxelGameSpec(
+  blocks: [
+    ..._blocks,
+    const BlockType('rail', color: 0x8A8478, shape: BlockShape.railEw, solid: false, opaque: false, hardness: 0.7),
+    _rail('rail_ns', BlockShape.railNs),
+    _rail('rail_ne', BlockShape.railNe),
+    _rail('rail_nw', BlockShape.railNw),
+    _rail('rail_se', BlockShape.railSe),
+    _rail('rail_sw', BlockShape.railSw),
+    _rail('rail_slope_n', BlockShape.railSlopeN),
+    _rail('rail_slope_e', BlockShape.railSlopeE),
+    _rail('rail_slope_s', BlockShape.railSlopeS),
+    _rail('rail_slope_w', BlockShape.railSlopeW),
+  ],
+  world: const WorldGenSpec(
+    terrain: TerrainRecipe.flat(20),
+    seaLevel: 5,
+    caves: CaveSpec.none,
+    biomes: [Biome('plains', top: 'grass', under: 'dirt')],
+  ),
+  dimensions: const {
+    'nether': WorldGenSpec(
+      terrain: TerrainRecipe.flat(30),
+      seaLevel: 5,
+      caves: CaveSpec.none,
+      biomes: [Biome('wastes', top: 'stone', precipitation: Precipitation.none)],
+    ),
+  },
+  sky: SkySpec.alwaysDay,
+  items: const [ItemType('boat', color: 0x8C6133, stack: 1), ItemType('minecart', color: 0x8C8C94, stack: 1)],
+  vehicles: const [
+    BoatSpec(item: 'boat'),
+    CartSpec(item: 'minecart'),
+  ],
+  player: const PlayerSpec(startingItems: {'boat': 2, 'minecart': 1}),
+);
+
+/// A pond three deep the host digs east of its player (water at y 17..19),
+/// x +2..+13 and z -24..+4 from its feet; returns a top water cell 6 north
+/// of its middle row.
+IVec3 _pond(VoxelGame host) {
+  final feet = IVec3.floor(host.player.position);
+  for (var x = 2; x <= 13; x++) {
+    for (var z = -24; z <= 4; z++) {
+      for (var y = 17; y <= 19; y++) {
+        host.world.setBlockNamed(IVec3(feet.x + x, y, feet.z + z), 'water');
+      }
+    }
+  }
+  return IVec3(feet.x + 8, 19, feet.z - 6);
+}
+
+/// Where a boat floats over [cell]: its top's surface.
+Vector3 _over(IVec3 cell) => Vector3(cell.x + 0.5, cell.y + 0.9, cell.z + 0.5);
+
+/// Turns [game]'s player to look at [at].
+void _lookAt(VoxelGame game, Vector3 at) {
+  final p = game.player;
+  final to = at - p.eyePosition;
+  p.yaw = math.atan2(-to.x, -to.z);
+  p.pitch = math.atan2(to.y, Vector3(to.x, 0, to.z).length);
+}
+
+/// Stands [game]'s player on the ground 2.5 m west of [at], looking at it.
+Future<void> _standBy(List<VoxelGame> games, VoxelGame game, Vector3 at) async {
+  game.player.position = Vector3(at.x - 2.5, 20.0, at.z);
+  await _run(games, 0.1);
+  _lookAt(game, at + Vector3(0, 0.25, 0));
+  await _run(games, 0.05);
+}
+
+/// [game]'s replica of the host's vehicle [v].
+Vehicle _copyOf(VoxelGame game, Vehicle v) => game.vehicles.singleWhere((c) => c.netId == v.netId);
+
 /// Turns [game]'s player to look at [m]'s middle.
 void _face(VoxelGame game, Mob m) {
   final p = game.player;
@@ -854,4 +933,211 @@ void main() {
     expect(seen.owner, isNot(same(b.player)));
     await _close(session, [b]);
   });
+
+  test("a client's vehicle is put down by the host: every client draws it, and the hello brings it", () async {
+    final (host, session, clients) = await _session(2, spec: _rideSpec);
+    final [a, b] = clients;
+    final pond = _pond(host);
+    await _run([host, ...clients], 0.3);
+    final all = [host, ...clients];
+    await _standBy(all, a, _over(pond));
+    a.player.selectedSlot = a.player.inventory.find('boat');
+    a.input.tap(VoxelAction.use);
+    await _run(all, 0.05);
+    expect(a.vehicles, isEmpty, reason: 'the host puts it down');
+    expect(a.player.inventory.countOf('boat'), 1, reason: 'its item spent on the client');
+    await _run(all, 0.5);
+    final boat = host.vehicles.single;
+    expect(IVec3.floor(boat.position).x, pond.x);
+    expect(boat.position.y, closeTo(pond.y + 0.9, 0.1), reason: 'on the surface');
+    for (final c in clients) {
+      final copy = _copyOf(c, boat);
+      expect(copy.replica, isTrue);
+      expect(copy.position.distanceTo(boat.position), lessThan(0.05));
+      expect(copy.facing, closeTo(boat.facing, 1e-9));
+    }
+    expect(b.player.inventory.countOf('boat'), 2);
+
+    final late = await VoxelGame.joinGame(_rideSpec, '127.0.0.1', port: session.net.port, headless: true);
+    expect(_copyOf(late, boat).position.distanceTo(boat.position), lessThan(0.05), reason: 'the hello brings it');
+    expect(late.vehicleRows['world'], isEmpty, reason: "a replica is the host's, not the client's to save");
+    await _close(session, [...clients, late]);
+  });
+
+  test(
+    'a client gets on by asking, and drives: the host follows, a second asking is refused, getting off hands it back',
+    () async {
+      final (host, session, clients) = await _session(2, spec: _rideSpec);
+      final [a, b] = clients;
+      final all = [host, ...clients];
+      final boat = host.placeVehicle('boat', _over(_pond(host)))!;
+      await _run(all, 1.0);
+      final mine = _copyOf(a, boat), theirs = _copyOf(b, boat);
+      await _standBy(all, a, mine.position);
+      expect(a.player.aimedVehicle, same(mine));
+      a.input.tap(VoxelAction.use);
+      a.frame(1 / 60);
+      expect(a.player.riding, isNull, reason: 'it asked; the host has not said yet');
+      await _run(all, 0.3);
+      expect(a.player.riding, same(mine));
+      final puppet = session.players[_client(a).peer]!;
+      expect(boat.rider, same(puppet));
+      expect(theirs.rider, same(b.session!.players[_client(a).peer]), reason: "the row names the rider's peer");
+      expect(boat.takes(host.player), isFalse, reason: "the host's player does not take a client's seat");
+      b.session!.boardVehicle(theirs);
+      await _run(all, 0.3);
+      expect(b.player.riding, isNull, reason: 'the seat is taken: the host refuses');
+      expect(boat.rider, same(puppet));
+
+      a.player.yaw = 0.0;
+      final from = mine.position.clone();
+      a.input.hold(VoxelAction.moveForward, true);
+      await _run(all, 1.0);
+      a.input.hold(VoxelAction.moveForward, false);
+      expect(from.z - mine.position.z, greaterThan(3.0), reason: "the client's copy is the live one");
+      expect(a.player.position.distanceTo(mine.seat()), lessThan(1e-6));
+      await _run(all, 0.3);
+      expect(boat.position.distanceTo(mine.position), lessThan(0.5), reason: "the host's copy follows its rider's");
+      expect(theirs.position.distanceTo(mine.position), lessThan(1.0), reason: 'two hops behind, still coasting');
+      await _run(all, 3.0);
+      expect(boat.position.distanceTo(mine.position), lessThan(0.05), reason: 'at rest, where its rider is');
+      expect(theirs.position.distanceTo(mine.position), lessThan(0.05));
+
+      a.input.hold(VoxelAction.moveForward, true);
+      await _run(all, 0.5);
+      a.input.hold(VoxelAction.moveForward, false);
+      a.input.tap(VoxelAction.sneak);
+      a.frame(1 / 60);
+      expect(a.player.riding, isNull);
+      final left = mine.position.clone();
+      await _settle(() => boat.rider == null);
+      expect(boat.position.distanceTo(left), lessThan(1e-3), reason: 'getting off hands it back where it was left');
+      await _run(all, 0.3);
+      expect(theirs.rider, isNull);
+      expect(left.z - boat.position.z, greaterThan(0.3), reason: 'coasting on from there');
+      await _run(all, 3.0);
+      expect(mine.position.distanceTo(boat.position), lessThan(0.05), reason: 'the replica follows the host again');
+      expect(theirs.position.distanceTo(boat.position), lessThan(0.05));
+      await _close(session, clients);
+    },
+  );
+
+  test(
+    "a client's swing breaks the host's vehicle nobody rides: gone everywhere, its item dropped; one ridden is not",
+    () async {
+      final (host, session, clients) = await _session(2, spec: _rideSpec);
+      final [a, b] = clients;
+      final all = [host, ...clients];
+      final pond = _pond(host);
+      final ridden = host.placeVehicle('boat', _over(pond) + Vector3(0, 0, 4))!;
+      final boat = host.placeVehicle('boat', _over(pond))!;
+      host.player.ride(ridden);
+      await _run(all, 1.0);
+      a.session!.breakVehicle(_copyOf(a, ridden), drop: true);
+      await _run(all, 0.3);
+      expect(ridden.removed, isFalse, reason: 'the host breaks none that is ridden');
+
+      await _standBy(all, a, _copyOf(a, boat).position);
+      expect(a.player.aimedVehicle, same(_copyOf(a, boat)));
+      a.input.tap(VoxelAction.attack);
+      await _run(all, 0.5);
+      expect(boat.removed, isTrue);
+      for (final c in clients) {
+        expect(c.vehicles.map((v) => v.netId), [ridden.netId], reason: 'gone everywhere');
+      }
+      expect(host.entities.whereType<ItemPickup>().where((d) => d.stack.id == 'boat'), hasLength(1));
+      expect(
+        b.entities.whereType<ItemPickup>().where((d) => d.stack.id == 'boat'),
+        hasLength(1),
+        reason: "the host's drop",
+      );
+      await _close(session, clients);
+    },
+  );
+
+  test(
+    "a client's minecart: driven along the rails, and left rolling, the host's rolls on as fast from there",
+    () async {
+      final (host, session, clients) = await _session(1, spec: _rideSpec);
+      final [a] = clients;
+      final all = [host, a];
+      final base = IVec3.floor(host.player.position) + const IVec3(2, 0, 3);
+      for (var i = 0; i < 40; i++) {
+        host.world.setBlockNamed(base + IVec3(i, 0, 0), 'rail');
+      }
+      final east = math.atan2(-1.0, 0.0);
+      final cart =
+          host.placeVehicle('minecart', Vector3(base.x + 2.5, base.y + Minecart.railTop, base.z + 0.5), facing: east)!
+              as Minecart;
+      await _run(all, 0.5);
+      final mine = _copyOf(a, cart) as Minecart;
+      a.session!.boardVehicle(mine);
+      await _run(all, 0.3);
+      expect(a.player.riding, same(mine));
+      expect(mine.cell, cart.cell, reason: 'it gets on where the host says it stands');
+      a.player.yaw = east;
+      a.input.hold(VoxelAction.moveForward, true);
+      await _run(all, 1.5);
+      a.input.hold(VoxelAction.moveForward, false);
+      expect(mine.speed, greaterThan(1.0));
+      expect(mine.cell.x - base.x, greaterThan(3), reason: 'pushed east along the line');
+      await _run(all, 0.2);
+      expect(cart.position.distanceTo(mine.position), lessThan(0.5));
+
+      a.input.tap(VoxelAction.sneak);
+      await _run(all, 1 / 60);
+      final speed = mine.speed;
+      await _run(all, 0.2);
+      expect(cart.rider, isNull);
+      expect(cart.speed, closeTo(speed, 0.5), reason: "the client's speed comes back in its row");
+      final at = cart.position.x;
+      await _run(all, 0.5);
+      expect(cart.position.x, greaterThan(at + 0.3), reason: 'the host rolls it on');
+      await _run(all, 0.3);
+      expect(mine.position.distanceTo(cart.position), lessThan(0.3), reason: 'and the client follows it');
+      await _close(session, clients);
+    },
+  );
+
+  test(
+    "a client aboard that leaves hands the vehicle back; the host's trip parks it, and its rider gets off",
+    () async {
+      final (host, session, clients) = await _session(2, spec: _rideSpec);
+      final [a, b] = clients;
+      final all = [host, ...clients];
+      final pond = _pond(host);
+      final boat = host.placeVehicle('boat', _over(pond))!;
+      final other = host.placeVehicle('boat', _over(pond) + Vector3(0, 0, -6))!;
+      await _run(all, 1.0);
+      a.session!.boardVehicle(_copyOf(a, boat));
+      b.session!.boardVehicle(_copyOf(b, other));
+      await _run(all, 0.3);
+      expect(boat.rider, same(session.players[_client(a).peer]));
+      a.player.yaw = 0.0;
+      a.input.hold(VoxelAction.moveForward, true);
+      await _run(all, 0.5);
+      final left = _copyOf(a, boat).position.clone();
+      await a.session!.close();
+      await _settle(() => boat.rider == null);
+      expect(
+        boat.position.distanceTo(left),
+        lessThan(0.5),
+        reason: 'a peer that leaves gets off, where it last drove it',
+      );
+
+      expect(b.player.riding, same(_copyOf(b, other)));
+      host.travel('nether');
+      await _run([host, b], 0.3);
+      expect(b.player.riding, isNull, reason: 'the host parked it: it is gone where the client is');
+      expect(b.vehicles, isEmpty);
+      expect(host.parkedVehicles['world'], hasLength(2));
+      for (var i = 0; i < 600 && host.travelState is Arriving; i++) {
+        await _run([host, b], 1 / 60);
+      }
+      host.travel('world');
+      await _run([host, b], 0.5);
+      expect(b.vehicles, hasLength(2), reason: 'back with the host');
+      await _close(session, [b]);
+    },
+  );
 }

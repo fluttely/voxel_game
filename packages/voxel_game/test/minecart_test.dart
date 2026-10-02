@@ -185,7 +185,7 @@ void main() {
       expect(cart.speed, 0.0);
       expect(p.inventory.countOf('minecart'), 1);
 
-      final west = game.placeVehicle('minecart', _on(base + _east * 4), facing: _yawAlong(const IVec3(-1, 0, 0)));
+      final west = game.placeVehicle('minecart', _on(base + _east * 4), facing: _yawAlong(const IVec3(-1, 0, 0)))!;
       expect((west as Minecart).heading, const IVec3(-1, 0, 0));
       expect(west.facing, closeTo(math.pi / 2, 1e-9), reason: 'pointing along its line');
     },
@@ -199,7 +199,7 @@ void main() {
     game.world.setBlockNamed(top + IVec3.up, 'rail');
     _line(game, top - _east, const IVec3(-1, 0, 0), 20);
     expect(game.world.blockNameAt(top - _east), 'rail_slope_e');
-    final cart = game.placeVehicle('minecart', _on(top - _east), facing: _yawAlong(_east)) as Minecart;
+    final cart = game.placeVehicle('minecart', _on(top - _east), facing: _yawAlong(_east))! as Minecart;
     await _run(game, 0.1);
     expect(cart.heading, const IVec3(-1, 0, 0), reason: 'headed uphill, it turns and rolls down');
     await _run(game, 0.7);
@@ -216,7 +216,7 @@ void main() {
     final game = await _start();
     final base = _ground(game, 2, 0);
     _line(game, base, _east, 12);
-    final cart = game.placeVehicle('minecart', _on(base + _east * 3), facing: _yawAlong(_east)) as Minecart;
+    final cart = game.placeVehicle('minecart', _on(base + _east * 3), facing: _yawAlong(_east))! as Minecart;
     final p = game.player
       ..ride(cart)
       ..yaw = _yawAlong(_east);
@@ -251,7 +251,7 @@ void main() {
     await _run(game, 0.5);
     expect(game.world.blockNameAt(base + _east), 'powered_rail_on');
     expect(game.world.blockNameAt(base + _east * 12), 'powered_rail', reason: 'past the run\'s reach');
-    final cart = game.placeVehicle('minecart', _on(base + _east), facing: _yawAlong(_east)) as Minecart;
+    final cart = game.placeVehicle('minecart', _on(base + _east), facing: _yawAlong(_east))! as Minecart;
     var fastest = 0.0;
     for (var i = 0; i < 300; i++) {
       await _run(game, 1 / 60);
@@ -268,7 +268,7 @@ void main() {
     _line(game, base, _east, 6);
     _line(game, base + _east * 5 + _north, _north, 10);
     expect(game.world.blockNameAt(base + _east * 5), 'rail_nw');
-    final cart = game.placeVehicle('minecart', _on(base + _east), facing: _yawAlong(_east)) as Minecart;
+    final cart = game.placeVehicle('minecart', _on(base + _east), facing: _yawAlong(_east))! as Minecart;
     game.player
       ..ride(cart)
       ..yaw = _yawAlong(_east);
@@ -286,7 +286,7 @@ void main() {
     // way the new one goes.
     final cell = base + const IVec3(0, 0, 4);
     game.world.setBlockNamed(cell, 'rail');
-    final alone = game.placeVehicle('minecart', _on(cell), facing: _yawAlong(_east)) as Minecart;
+    final alone = game.placeVehicle('minecart', _on(cell), facing: _yawAlong(_east))! as Minecart;
     game.world.setBlockNamed(cell + _north, 'rail');
     game.world.setBlockNamed(cell - _north, 'rail');
     expect(game.world.blockNameAt(cell), 'rail_ns');
@@ -309,7 +309,7 @@ void main() {
     final game = await _start();
     final base = _ground(game, 2, 0);
     _line(game, base, _east, 30);
-    final cart = game.placeVehicle('minecart', _on(base + _east * 2), facing: _yawAlong(_east)) as Minecart;
+    final cart = game.placeVehicle('minecart', _on(base + _east * 2), facing: _yawAlong(_east))! as Minecart;
     game.player
       ..ride(cart)
       ..yaw = _yawAlong(_east);

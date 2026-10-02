@@ -115,8 +115,8 @@ void main() {
   test('a boat floats on water and settles at its surface; on land it falls and rests', () async {
     final game = await _start(_spec());
     final pond = _pond(game);
-    final boat = game.placeVehicle('boat', _over(pond) + Vector3(0, 0.4, 0)) as Boat;
-    final land = game.placeVehicle('boat', game.player.position + Vector3(-3, 2, 0));
+    final boat = game.placeVehicle('boat', _over(pond) + Vector3(0, 0.4, 0))! as Boat;
+    final land = game.placeVehicle('boat', game.player.position + Vector3(-3, 2, 0))!;
     await _run(game, 6.0);
     final ys = <double>[];
     for (var i = 0; i < 60; i++) {
@@ -134,7 +134,7 @@ void main() {
   test('its rider rows it forward and steers it; without a rider it coasts to rest', () async {
     final game = await _start(_spec());
     final pond = _pond(game);
-    final boat = game.placeVehicle('boat', _over(pond));
+    final boat = game.placeVehicle('boat', _over(pond))!;
     await _run(game, 2.0);
     final p = game.player..ride(boat);
     expect(p.riding, same(boat));
@@ -167,7 +167,7 @@ void main() {
   test('a use boards it, a sneak gets off beside it, and a seat taken throws', () async {
     final game = await _start(_spec());
     final pond = _pond(game);
-    final boat = game.placeVehicle('boat', _over(pond));
+    final boat = game.placeVehicle('boat', _over(pond))!;
     await _run(game, 1.0);
     await _standBy(game, boat.position);
     final p = game.player;
@@ -197,7 +197,7 @@ void main() {
     for (final creative in [false, true]) {
       final game = await _start(_spec(creative: creative));
       final pond = _pond(game);
-      final boat = game.placeVehicle('boat', _over(pond));
+      final boat = game.placeVehicle('boat', _over(pond))!;
       await _run(game, 1.0);
       await _standBy(game, boat.position);
       expect(game.player.aimedVehicle, same(boat));
@@ -235,36 +235,43 @@ void main() {
     expect(p.inventory.countOf('boat'), 1);
   });
 
-  test('a client neither puts one down nor boards nor breaks one: the host owns them', () async {
-    final game = await _start(_spec(), authority: false);
-    final pond = _pond(game);
-    final p = game.player;
-    p.selectedSlot = p.inventory.find('boat');
-    expect(() => game.placeVehicle('boat', _over(pond)), throwsStateError);
-    await _standBy(game, Vector3(pond.x + 0.5, 20.0, pond.z + 0.5));
-    game.input.tap(VoxelAction.use);
-    await _run(game, 0.05);
-    expect(game.vehicles, isEmpty);
-    expect(p.inventory.countOf('boat'), 2);
-
-    // One that reached it some other way (VA16's): neither boarded nor broken.
-    final boat = game.add(Boat(_boat, _over(pond)));
-    await _run(game, 0.5);
-    await _standBy(game, boat.position);
-    expect(p.aimedVehicle, same(boat));
-    expect(boat.takes(p), isFalse);
-    game.input.tap(VoxelAction.use);
-    await _run(game, 0.05);
-    expect(p.riding, isNull);
-    game.input.tap(VoxelAction.attack);
-    await _run(game, 0.05);
-    expect(boat.removed, isFalse);
-  });
+  test(
+    "a replica of the host's follows its rows, is boarded by asking, and is never broken, parked or saved here",
+    () async {
+      final game = await _start(_spec());
+      final pond = _pond(game);
+      final own = game.placeVehicle('boat', _over(pond))!;
+      final at = _over(pond) + Vector3(0, 0, 3);
+      final replica =
+          game.vehicleFrom({
+              'item': 'boat',
+              'pos': [at.x, at.y, at.z],
+              'yaw': 0.3,
+            })
+            ..replica = true
+            ..netId = 4;
+      await _run(game, 1.0);
+      expect(replica.position, at, reason: 'it moves by the host\'s word only, not by floating here');
+      replica.followRow({
+        'item': 'boat',
+        'pos': [at.x + 2, at.y, at.z],
+        'yaw': 1.0,
+      });
+      await _run(game, 0.5);
+      expect(replica.position.distanceTo(at + Vector3(2, 0, 0)), lessThan(0.01), reason: 'drawn going there');
+      expect(replica.facing, 1.0);
+      expect(replica.takes(game.player), isTrue, reason: 'no authority gate: the host says whether (its session)');
+      expect(() => replica.breakApart(drop: true), throwsStateError, reason: 'the host breaks it');
+      expect(game.vehicleRows['world'], [own.row], reason: 'the save keeps this game\'s own');
+      game.travel('nether');
+      expect(game.parkedVehicles['world'], hasLength(1), reason: 'the host sends its own again on the way back');
+    },
+  );
 
   test('a trip gets the rider off; the boat stays where it was left and is there on the way back', () async {
     final game = await _start(_spec());
     final pond = _pond(game);
-    final boat = game.placeVehicle('boat', _over(pond), facing: 0.7);
+    final boat = game.placeVehicle('boat', _over(pond), facing: 0.7)!;
     await _run(game, 1.0);
     game.player.ride(boat);
     await _run(game, 0.1);
@@ -299,7 +306,7 @@ void main() {
       final spec = _spec();
       final game = await _start(spec);
       final pond = _pond(game);
-      final boat = game.placeVehicle('boat', _over(pond), facing: -1.25);
+      final boat = game.placeVehicle('boat', _over(pond), facing: -1.25)!;
       await _run(game, 1.0);
       game.player.ride(boat);
       game.restoreVehicles('nether', [
@@ -330,7 +337,7 @@ void main() {
       final (saves, dir) = newSaves();
       final spec = _spec();
       final game = await _start(spec);
-      game.placeVehicle('boat', _over(_pond(game)));
+      game.placeVehicle('boat', _over(_pond(game)))!;
       saves.save(game, 'old');
       final file = File('${dir.path}/old/game.json');
       final s = jsonDecode(file.readAsStringSync()) as Map<String, Object?>;

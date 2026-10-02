@@ -13,6 +13,7 @@ import '../entities/item_pickup.dart';
 import '../entities/target.dart';
 import '../mobs/mob.dart';
 import '../ui/game_screen.dart';
+import '../vehicles/vehicle.dart';
 import '../weather/weather.dart';
 import '../weather/weather_kind.dart';
 import '../world/world_save.dart';
@@ -84,6 +85,15 @@ typedef _StoreEdit = ({int n, int opening, int slot, ItemStack? before, ItemStac
 /// `tamed`, or hands the stack back when the creature is gone or someone
 /// else's. A client riding its own pet drives it: its `pose` carries the
 /// mount's (`m`), which the host's copy follows until a pose without it.
+/// The host keeps the vehicles where it is: each has a number, and
+/// `vehicles` makes it on a client (a replica) or moves it (its save row
+/// and its rider's peer, 20 times a second for those that moved or changed
+/// rider), `vehicles_gone` takes it. A client asks to put one down
+/// (`vehicle_put`), to break one (`vehicle_break`), to get on
+/// (`vehicle_board`, which the host answers with `vehicle_boarded`: whether
+/// it may, and where the vehicle stands) and off (`vehicle_leave`, with
+/// where it left it); while it rides, it drives, its `pose` carrying the
+/// vehicle's row (`v`), which the host's copy follows.
 /// Every peer runs the same spec, so a dimension's number is the same
 /// everywhere, and a message no peer of that spec would send throws.
 abstract class GameSession implements GameSystem {
@@ -104,6 +114,21 @@ abstract class GameSession implements GameSystem {
 
   /// The host's player's peer number in a `state`.
   static const int hostPeer = 1;
+
+  /// Takes the vehicle of [item] the game is putting down at [at], pointing
+  /// [facing]: true when it went to the host (a client where the host is),
+  /// false when the game puts it down here.
+  bool handOffVehicle(String item, Vector3 at, double facing) => false;
+
+  /// The local player asks to get on the host's vehicle [vehicle] (a
+  /// replica), and gets on when the host says it may. The host's player
+  /// gets on its own at once.
+  void boardVehicle(Vehicle vehicle) => throw StateError('the host boards its own vehicles, not through its session');
+
+  /// The local player breaks the host's vehicle [vehicle] (a replica), its
+  /// item dropped when [drop]. The host breaks its own at once.
+  void breakVehicle(Vehicle vehicle, {required bool drop}) =>
+      throw StateError('the host breaks its own vehicles, not through its session');
 
   /// Takes the drop of [stack] at [at], moving at [velocity], that the game
   /// is making: true when it went to the host (a client where the host is),
@@ -178,6 +203,14 @@ abstract class GameSession implements GameSystem {
   /// A `store` message of [store], which stands at [cell].
   static NetMessage _storeMessage(IVec3 cell, Inventory store) => {'t': 'store', 'c': _c(cell), 's': store.toJson()};
 
+  /// [row], which a peer sent as a vehicle's of [item]: a save row
+  /// (`Vehicle.row`) of that vehicle.
+  static Map<String, Object?> _vehicleRow(Object? row, String item) {
+    final r = row! as Map<String, Object?>;
+    if (r['item'] != item) throw FormatException('a row of ${r['item']} for a $item');
+    return r;
+  }
+
   /// Calls [edit] with each edit of an `edits` message, in order.
   void _forEachEdit(NetMessage m, void Function(int dimension, IVec3 cell, int id) edit) {
     final d = m['d']! as int;
@@ -200,8 +233,12 @@ abstract class GameSession implements GameSystem {
 /// the damage it takes goes to its peer, as do the drops it reaches. A
 /// client follows the host's sky. A creature a client offers what tames it
 /// is rolled here and owned by its puppet; while the client rides it, it
-/// follows the client's poses, and its brain rests. A client opens the
-/// stores of the host's dimension only, and its edit of a
+/// follows the client's poses, and its brain rests. The vehicles of the
+/// host's dimension are the host's: a client's is put down here (one from
+/// another dimension goes back to its bag); a client gets on one nobody
+/// rides when it asks, and while it rides, the host's copy follows its
+/// poses; getting off, the host's copy starts where the client left it. A
+/// client opens the stores of the host's dimension only, and its edit of a
 /// slot stands only on the slot it saw (compare-and-set) and when what it
 /// puts in is paid for: out of what it took from that store since it opened
 /// it, then out of what it last declared it holds.
@@ -239,6 +276,13 @@ class HostSession extends GameSession {
   String _weatherSent = '';
   // The creature each peer rides, by peer.
   final Map<int, Mob> _mounts = {};
+  int _nextVehicle = 1;
+  final Map<int, Vehicle> _vehicles = {};
+  // What each vehicle's `vehicles` last said: where, the way it pointed, and
+  // its rider's peer.
+  final Map<int, ({Vector3 at, double yaw, int? rider})> _vehicleSent = {};
+  // The vehicle each peer rides, by peer.
+  final Map<int, Vehicle> _aboard = {};
 
   /// The peer number of player [t]: the host's own or a puppet's.
   int _peerOf(Target t) => switch (t) {
@@ -257,6 +301,33 @@ class HostSession extends GameSession {
   }
 
   static String _kind(ItemStack s) => '${s.id}/${s.bonus}/${s.dur}';
+
+  /// The host's vehicle numbered [n], or null for one gone (broken, or
+  /// parked by the host's trip, since the peer saw it).
+  Vehicle? _liveVehicle(int n) {
+    final v = _vehicles[n];
+    return v == null || v.removed ? null : v;
+  }
+
+  /// Numbers the vehicles the game put down since the last call.
+  void _trackVehicles() {
+    for (final v in game.vehicles) {
+      if (v.netId != 0) continue;
+      v.netId = _nextVehicle++;
+      _vehicles[v.netId] = v;
+    }
+  }
+
+  /// A `vehicles` message of [vehicles], those not gone, in the host's
+  /// dimension: each one's number, save row and rider's peer.
+  NetMessage _vehiclesMessage(Iterable<Vehicle> vehicles) => {
+    't': 'vehicles',
+    'd': game.world.dimension,
+    'l': [
+      for (final v in vehicles)
+        if (!v.removed) {'n': v.netId, 'v': v.row, if (v.rider case final r?) 'r': _peerOf(r)},
+    ],
+  };
 
   /// Numbers the drops the game made since the last call: each its own
   /// number, announced at the end of the step.
@@ -298,6 +369,7 @@ class HostSession extends GameSession {
     players[peer.id] = puppet;
     game.add(puppet);
     _trackDrops();
+    _trackVehicles();
     peer.send({
       't': 'hello',
       'peer': peer.id,
@@ -310,6 +382,7 @@ class HostSession extends GameSession {
       'tod': game.timeOfDay,
       'spawn': _v(game.player.spawnPoint),
       'drops': _dropsMessage(_drops.values),
+      'vehicles': _vehiclesMessage(_vehicles.values),
       if (game.weather.spec != null) 'weather': GameSession._weatherMessage(game.weather),
     });
   }
@@ -327,10 +400,13 @@ class HostSession extends GameSession {
           dimension: _dimension(m['d']! as int),
         );
         _ridden(puppet, m['m']);
-        // A peer arriving where the host is draws the drops there.
+        _driven(puppet, m['v']);
+        // A peer arriving where the host is draws the drops and vehicles there.
         if (puppet.dimension != before && puppet.dimension == game.world.dimension) {
           _trackDrops();
+          _trackVehicles();
           peer.send(_dropsMessage(_drops.values));
+          peer.send(_vehiclesMessage(_vehicles.values));
         }
       case 'bag':
         puppet!.carried = m['c'] == null ? null : _stack(m['c']);
@@ -378,6 +454,22 @@ class HostSession extends GameSession {
         });
       case 'tame':
         _tame(peer, puppet!, m);
+      case 'vehicle_put':
+        final item = m['i']! as String;
+        if (game.vehicleFor(item) == null) throw FormatException('vehicle $item, which the spec does not declare');
+        if (_dimension(m['d']! as int) == game.world.dimension) {
+          game.placeVehicle(item, _vec(m['p']), facing: (m['yaw']! as num).toDouble());
+        } else if (!game.spec.player.creative) {
+          _handBack(peer, ItemStack(item, 1));
+        }
+      case 'vehicle_board':
+        _board(peer, puppet!, m['n']! as int);
+      case 'vehicle_leave':
+        _leaveVehicle(peer.id, m);
+      case 'vehicle_break':
+        // One gone or ridden meanwhile is not broken.
+        final v = _liveVehicle(m['n']! as int);
+        if (v != null && v.rider == null) v.breakApart(drop: m['drop'] == true);
       case 'store_open':
         _openStore(peer, _dimension(m['d']! as int), _cell(m['c']));
       case 'store_close':
@@ -446,6 +538,52 @@ class HostSession extends GameSession {
 
   /// [peer]'s mount, if any, is the host's again.
   void _releaseMount(int peer) => _mounts.remove(peer)?.rider = null;
+
+  /// [peer] asks to get on vehicle [n]: it may when the vehicle is here and
+  /// nobody rides it (or the peer does already), and the peer rides no
+  /// other. The seat is the peer's from now; the peer hears whether, and
+  /// where the vehicle stands.
+  void _board(NetPeer peer, RemotePlayer puppet, int n) {
+    final v = _liveVehicle(n);
+    final aboard = _aboard[peer.id];
+    final ok = v != null && (aboard == null || identical(aboard, v)) && (v.rider == null || identical(v.rider, puppet));
+    if (ok) _aboard[peer.id] = v..rider = puppet;
+    peer.send({'t': 'vehicle_boarded', 'n': n, 'ok': ok, if (ok) 'v': v.row});
+  }
+
+  /// [puppet]'s peer drives the vehicle its pose names ([o], null for none):
+  /// the host's copy follows the row sent with it. One gone here meanwhile
+  /// is driven no more; the peer hears it go and gets off.
+  void _driven(RemotePlayer puppet, Object? o) {
+    final r = o as Map<String, Object?>?;
+    if (r == null) return;
+    final v = _liveVehicle(r['n']! as int);
+    if (v == null) return;
+    if (!identical(v.rider, puppet)) {
+      throw FormatException('peer ${puppet.peer} drives ${v.spec.item} ${v.netId}, which it did not get on');
+    }
+    v.followRow(GameSession._vehicleRow(r['v'], v.spec.item));
+  }
+
+  /// [peer] got off the vehicle a `vehicle_leave` ([m]) names, where its
+  /// row says: the host's again from there. One gone here meanwhile is
+  /// nobody's to leave.
+  void _leaveVehicle(int peer, NetMessage m) {
+    final v = _aboard[peer];
+    if (v == null) return;
+    if (v.netId != m['n']) throw FormatException('peer $peer leaves vehicle ${m['n']}, riding ${v.netId}');
+    v.followRow(GameSession._vehicleRow(m['v'], v.spec.item));
+    _releaseVehicle(peer);
+  }
+
+  /// [peer]'s vehicle, if any, is the host's again, from where the peer last
+  /// put it.
+  void _releaseVehicle(int peer) {
+    final v = _aboard.remove(peer);
+    if (v == null) return;
+    v.rider = null;
+    if (!v.removed) v.takeOver();
+  }
 
   /// [peer] opens the store at [cell] in [dimension]: sent to it, or shut
   /// at once where the host keeps none (another dimension, a block broken
@@ -537,6 +675,7 @@ class HostSession extends GameSession {
   void _leave(NetPeer peer) {
     _closeStore(peer.id);
     _releaseMount(peer.id);
+    _releaseVehicle(peer.id);
     players.remove(peer.id)?.removed = true;
     net.broadcast({'t': 'bye', 'peer': peer.id});
   }
@@ -574,6 +713,7 @@ class HostSession extends GameSession {
     _clock += dt;
     if (_clock < 0.05) return;
     _clock = 0.0;
+    _vehiclesTick();
     final p = game.player;
     net.broadcast({
       't': 'state',
@@ -606,6 +746,37 @@ class HostSession extends GameSession {
           },
       ],
     });
+  }
+
+  /// The vehicles put down since the last time and those that moved more
+  /// than 2 cm, turned more than 0.01 rad or changed rider go out; then
+  /// those gone (broken, or parked by the host's trip).
+  void _vehiclesTick() {
+    _trackVehicles();
+    _aboard.removeWhere((_, v) => v.removed);
+    final gone = [
+      for (final e in _vehicles.entries)
+        if (e.value.removed) e.key,
+    ];
+    for (final n in gone) {
+      _vehicles.remove(n);
+      _vehicleSent.remove(n);
+    }
+    final changed = <Vehicle>[];
+    for (final v in _vehicles.values) {
+      final rider = v.rider == null ? null : _peerOf(v.rider!);
+      final was = _vehicleSent[v.netId];
+      if (was != null &&
+          was.at.distanceTo(v.position) <= 0.02 &&
+          (was.yaw - v.facing).abs() <= 0.01 &&
+          was.rider == rider) {
+        continue;
+      }
+      _vehicleSent[v.netId] = (at: v.position.clone(), yaw: v.facing, rider: rider);
+      changed.add(v);
+    }
+    if (changed.isNotEmpty) net.broadcast(_vehiclesMessage(changed));
+    if (gone.isNotEmpty) net.broadcast({'t': 'vehicles_gone', 'n': gone});
   }
 
   /// The sky goes out when it turned: a new spell, a new last rain or a new
@@ -680,16 +851,27 @@ class HostSession extends GameSession {
 /// it tames is the host's roll; one it owns and rides it drives itself, the
 /// mount's pose sent with its own, and a replica's owner and rider are the
 /// host's word (a peer gone since stands in as a player no longer there).
+/// The host's vehicles are replicas it draws, where the host is, and asks
+/// the host to put down, break, get on and off; the one it rides it drives,
+/// its row sent with each pose. Elsewhere its vehicles are its own, as its
+/// drops are.
 class ClientSession extends GameSession {
   /// A client of [game] on [connection], known to the host as [peer], the
-  /// host's [drops] drawn and its [weather] followed (the hello's; no
-  /// weather for a spec that declares none).
-  ClientSession(this.game, this.connection, this.peer, {required NetMessage drops, NetMessage? weather})
-    : _hostDimension = drops['d']! as int {
+  /// host's [drops] and [vehicles] drawn and its [weather] followed (the
+  /// hello's; no weather for a spec that declares none).
+  ClientSession(
+    this.game,
+    this.connection,
+    this.peer, {
+    required NetMessage drops,
+    required NetMessage vehicles,
+    NetMessage? weather,
+  }) : _hostDimension = drops['d']! as int {
     game.world.addListener(_edited);
     game.screen.addListener(_screenChanged);
     connection.listen(_message);
     _dropsIn(drops);
+    _vehiclesIn(vehicles);
     if ((weather == null) != (game.weather.spec == null)) throw FormatException('a hello with weather $weather');
     if (weather != null) GameSession._follow(game.weather, weather);
   }
@@ -721,6 +903,9 @@ class ClientSession extends GameSession {
   final Map<int, Mob> _mobs = {};
   final Map<int, RemotePlayer> _departed = {};
   final Map<int, ItemPickup> _drops = {};
+  final Map<int, Vehicle> _vehicles = {};
+  // The host's vehicle the player rides, until the host hears it got off.
+  Vehicle? _aboard;
   int _hostDimension;
   String _bagSent = '';
   double _bagClock = 0.0;
@@ -880,6 +1065,72 @@ class ClientSession extends GameSession {
     }
   }
 
+  /// The host's vehicles of a `vehicles` message, where the client is in
+  /// the host's dimension: each one drawn, or moved where the host says,
+  /// with its rider (the player's own seat being this side's).
+  void _vehiclesIn(NetMessage m) {
+    _hostDimension = _dimension(m['d']! as int);
+    if (!hostHere) return;
+    for (final o in m['l']! as List<Object?>) {
+      final e = o! as Map<String, Object?>;
+      final n = e['n']! as int;
+      final row = e['v']! as Map<String, Object?>;
+      var v = _vehicles[n];
+      if (v == null || v.removed) {
+        v = game.vehicleFrom(row)
+          ..replica = true
+          ..netId = n;
+        _vehicles[n] = v;
+      }
+      v.followRow(GameSession._vehicleRow(row, v.spec.item));
+      final rider = e['r'] as int?;
+      if (!identical(v.rider, game.player)) v.rider = rider == null || rider == peer ? null : _player(rider);
+    }
+  }
+
+  /// The player is off the host's vehicle it rode: the host hears where it
+  /// left it.
+  void _leftVehicle() {
+    final v = _aboard;
+    if (v == null || identical(game.player.riding, v)) return;
+    _aboard = null;
+    connection.send({'t': 'vehicle_leave', 'n': v.netId, 'v': v.row});
+  }
+
+  /// The host lets the player on vehicle [n] (`vehicle_boarded`'s [row],
+  /// where it stands there): it gets on from there, unless it may no longer
+  /// (the vehicle gone, the player dead or on another seat), when the seat
+  /// goes back to the host at once.
+  void _boarded(int n, Map<String, Object?> row) {
+    final v = _vehicles[n], p = game.player;
+    if (v != null && !v.removed && p.riding == null && !p.isDead && v.takes(p)) {
+      v
+        ..followRow(GameSession._vehicleRow(row, v.spec.item))
+        ..takeOver();
+      p.ride(v);
+      _aboard = v;
+    } else {
+      connection.send({'t': 'vehicle_leave', 'n': n, 'v': row});
+    }
+  }
+
+  @override
+  bool handOffVehicle(String item, Vector3 at, double facing) {
+    if (!hostHere) return false;
+    connection.send({'t': 'vehicle_put', 'd': game.world.dimension, 'i': item, 'p': _v(at), 'yaw': facing});
+    return true;
+  }
+
+  @override
+  void boardVehicle(Vehicle vehicle) {
+    _leftVehicle();
+    connection.send({'t': 'vehicle_board', 'n': vehicle.netId});
+  }
+
+  @override
+  void breakVehicle(Vehicle vehicle, {required bool drop}) =>
+      connection.send({'t': 'vehicle_break', 'n': vehicle.netId, 'drop': drop});
+
   void _edited(IVec3 cell, int old, int id) {
     if (_applying) return;
     final d = game.world.dimension;
@@ -921,6 +1172,19 @@ class ClientSession extends GameSession {
         for (final n in GameSession._ints(m, 'n', 1)) {
           _drops.remove(n)?.removed = true;
         }
+      case 'vehicles':
+        _vehiclesIn(m);
+      case 'vehicles_gone':
+        // The player on one gets off at its next step; the host has no
+        // seat left to hear of.
+        for (final n in GameSession._ints(m, 'n', 1)) {
+          final v = _vehicles.remove(n);
+          if (v == null) continue;
+          if (identical(v, _aboard)) _aboard = null;
+          v.removed = true;
+        }
+      case 'vehicle_boarded':
+        if (m['ok'] == true) _boarded(m['n']! as int, m['v']! as Map<String, Object?>);
       case 'give':
         final stack = _stack(m['s']);
         final left = game.player.pickUpStack(stack);
@@ -1056,8 +1320,10 @@ class ClientSession extends GameSession {
       connection.send({'t': 'requests', 'd': e.key, 'e': e.value});
     }
     _requests.clear();
+    _leftVehicle();
     // A trip took the replicas of the dimension left.
     _drops.removeWhere((_, d) => d.removed);
+    _vehicles.removeWhere((_, v) => v.removed);
     _bagClock += dt;
     if (_bagClock >= 0.2) {
       _bagClock = 0.0;
@@ -1081,6 +1347,7 @@ class ClientSession extends GameSession {
       'dead': p.isDead,
       'd': game.world.dimension,
       if (p.riding case final Mob mount) 'm': {'n': mount.netId, 'p': _v(mount.position), 'yaw': mount.facing},
+      if (p.riding case final Vehicle v when v.replica) 'v': {'n': v.netId, 'v': v.row},
     });
   }
 
@@ -1097,9 +1364,20 @@ class ClientSession extends GameSession {
 /// its edits are numbered as the host's dimensions, which the client's spec
 /// must declare (`SavedWorld.editsFor` throws otherwise). Its [drops] are the
 /// items on the ground where the host is, a `drops` message for
-/// [ClientSession], and its [weather] the host's sky as it stands, a
-/// `weather` message (null where the spec declares none).
-Future<({NetConnection connection, int peer, SavedWorld world, Vector3 spawn, NetMessage drops, NetMessage? weather})>
+/// [ClientSession], its [vehicles] the host's vehicles there, a `vehicles`
+/// message, and its [weather] the host's sky as it stands, a `weather`
+/// message (null where the spec declares none).
+Future<
+  ({
+    NetConnection connection,
+    int peer,
+    SavedWorld world,
+    Vector3 spawn,
+    NetMessage drops,
+    NetMessage vehicles,
+    NetMessage? weather,
+  })
+>
 joinHost(String address, {int port = 7777}) async {
   final c = await connectToHost(address, port: port);
   final m = await c.next().timeout(const Duration(seconds: 15));
@@ -1113,6 +1391,7 @@ joinHost(String address, {int port = 7777}) async {
     world: SavedWorld(seed, edits, {'time': m['time'], 'timeOfDay': m['tod']}, dimensions: dimensions),
     spawn: _vec(m['spawn']),
     drops: m['drops']! as NetMessage,
+    vehicles: m['vehicles']! as NetMessage,
     weather: m['weather'] as NetMessage?,
   );
 }
