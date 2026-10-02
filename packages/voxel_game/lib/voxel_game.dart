@@ -59,6 +59,7 @@ export 'src/mobs/mob.dart';
 export 'src/mobs/mob_levels.dart';
 export 'src/mobs/mob_spec.dart';
 export 'src/mobs/mob_split.dart';
+export 'src/mobs/mount_spec.dart';
 export 'src/mobs/rig.dart';
 export 'src/mobs/rig_animator.dart';
 export 'src/mobs/spawn_place.dart';

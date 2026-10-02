@@ -12,8 +12,8 @@ import 'spawn_place.dart';
 /// [maxDistance] around the player is tried, the specs whose [SpawnRule]
 /// accepts its place, biome and light are weighed (`SpawnRule.weightIn`),
 /// and a group appears, each at its level when its spec grows
-/// (`MobSpec.levels`). Creatures farther than [despawnDistance] from the
-/// player vanish; at most [cap] live at once.
+/// (`MobSpec.levels`). Wild creatures farther than [despawnDistance] from
+/// the player vanish; at most [cap] wild ones live at once.
 ///
 /// The spot is on the surface, or, while the player is [caveDepth] or more
 /// under the ground of their column, [caveShare] of the time a pocket of air
@@ -58,7 +58,7 @@ class MobSpawner implements GameSystem {
     final p = game.player.position;
     var alive = 0;
     for (final m in game.mobs) {
-      if (m.spec.spawn == null) continue;
+      if (m.spec.spawn == null || m.tamed) continue;
       if (m.position.distanceTo(p) > despawnDistance) {
         m.removed = true;
       } else {

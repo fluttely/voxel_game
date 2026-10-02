@@ -3,9 +3,10 @@ import 'package:voxel_engine/content.dart';
 import 'behaviors.dart';
 import 'hit_effect.dart';
 import 'mob_levels.dart';
+import 'mob_split.dart';
+import 'mount_spec.dart';
 import 'rig.dart';
 import 'spawn_place.dart';
-import 'mob_split.dart';
 
 /// How a creature gets about.
 enum Gait {
@@ -101,8 +102,9 @@ class SpawnRule {
 /// A creature, declared: how it looks ([rig]), how big it is, how it moves
 /// ([gait]) and thinks ([brain]), what it drops ([loot]) and is worth
 /// ([xp]), how it grows with the player ([levels]), what it does to what it
-/// strikes ([onHit]) and becomes when it dies ([splitsInto]), and where it
-/// spawns.
+/// strikes ([onHit]) and becomes when it dies ([splitsInto]), how it is
+/// tamed ([tameWith]) and then thinks ([tamedBrain]) and carries a rider
+/// ([mount]), and where it spawns.
 ///
 /// ```dart
 /// MobSpec('zombie', hp: 20, speed: 3.2,
@@ -128,6 +130,10 @@ class MobSpec {
     this.burnsInDaylight = false,
     this.splitsInto,
     this.onHit,
+    this.tameWith = const [],
+    this.tameChance = 1.0,
+    this.tamedBrain = const [],
+    this.mount,
     this.spawn,
     this.knockbackResistance = 0.0,
     this.hurtSound,
@@ -183,6 +189,21 @@ class MobSpec {
 
   /// The status effect its strike leaves on the player, or null.
   final HitEffect? onHit;
+
+  /// The items that tame it, used on it one at a time; empty for a creature
+  /// that is never tamed by hand.
+  final List<String> tameWith;
+
+  /// The chance, 0..1, that one of [tameWith] tames it.
+  final double tameChance;
+
+  /// What it does once tamed, replacing [brain]: a companion's
+  /// `[MeleeAttack(...), PetFight(), Heel()]`, a mount's `[MountWait()]`.
+  final List<Behavior> tamedBrain;
+
+  /// How it carries a rider once tamed (its owner rides it by using it), or
+  /// null for a creature that is never ridden.
+  final MountSpec? mount;
 
   /// Where it appears by itself; null for never (placed by the game).
   final SpawnRule? spawn;

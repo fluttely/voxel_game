@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+- **Creatures grow, second part: tamed, companions and mounts (VA13b).** `MobSpec.tameWith`
+  (items) and `tameChance`: a use with one in hand on the creature spends it and, at that
+  chance, tames it (`Mob.tame`, `owner`, `tamed`); it then thinks with
+  `MobSpec.tamedBrain`, never burns by day and is never despawned. Three new behaviours:
+  `PetFight` (the nearest wild creature hunting the owner or hurt by them in the last ten
+  seconds becomes its `target`, for a `MeleeAttack` beside it), `Heel` (follows past 4 m,
+  stops within 2, is carried beside the owner past 30, `Mob.teleport`) and `MountWait`
+  (trots after the owner 4 to 20 m away). `MobSpec.mount` (`MountSpec`: seat, pace, sprint,
+  jump): the owner rides it by a use (`PlayerEntity.ride`, `riding`, `Mob.rider`,
+  `Mob.carry`, `Mob.seat`); the move, sprint and jump go to the mount, and a press of sneak
+  gets off (`dismount`), as does the mount's death or the rider's. `PlayerEntity.usableOn`:
+  a finger's tap on a creature the hand can use uses it rather than swinging. A client
+  neither tames nor rides the host's creatures yet. `checkMobs` also rejects an unknown
+  taming item, a chance outside (0, 1] and a tameable creature with no `tamedBrain`. The
+  example gains a wolf (mutton tames it into a companion) and a horse (an apple, then ride).
+
 - **Creatures grow, first part (VA13a).** **Breaking:** `Drop` is gone; a creature's
   `MobSpec.loot` is a voxel_engine `LootTable`, rolled once when it dies (`drops:
   [Drop('wool', 1, 2)]` becomes `loot: LootTable([LootEntry('wool', 1, 2, 1.0)])`).

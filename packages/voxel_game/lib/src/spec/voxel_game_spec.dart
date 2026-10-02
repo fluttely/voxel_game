@@ -275,8 +275,9 @@ class VoxelGameSpec {
 
   /// Throws [ArgumentError] for two mobs of one id, and for a mob whose loot
   /// names an item not in [items], that splits into a mob not declared, whose
-  /// strike leaves an effect not in [effects], or that is worth experience
-  /// when the player gains none (`PlayerSpec.xp`).
+  /// strike leaves an effect not in [effects], that is worth experience
+  /// when the player gains none (`PlayerSpec.xp`), that is tamed with an
+  /// unknown item, at a chance outside (0, 1], or with no `tamedBrain`.
   void checkMobs(ItemRegistry<ItemType> items) {
     final ids = <String>{};
     for (final m in mobs) {
@@ -292,6 +293,17 @@ class VoxelGameSpec {
       }
       if (m.onHit case final hit? when !effectIds.contains(hit.effect)) {
         throw ArgumentError.value(hit.effect, m.id, 'the mob\'s strike leaves an effect the spec does not declare');
+      }
+      for (final item in m.tameWith) {
+        if (!items.has(item)) {
+          throw ArgumentError.value(item, m.id, 'the mob is tamed with an item that does not exist');
+        }
+      }
+      if (m.tameWith.isNotEmpty && m.tamedBrain.isEmpty) {
+        throw ArgumentError.value(m.id, 'tamedBrain', 'a mob that is tamed needs a brain to think with then');
+      }
+      if (m.tameChance <= 0.0 || m.tameChance > 1.0) {
+        throw ArgumentError.value(m.tameChance, m.id, 'the chance to tame is above 0 and at most 1');
       }
       if (m.xp > 0 && player.xp == null) {
         throw ArgumentError.value(m.xp, m.id, 'the mob is worth experience and the player gains none');

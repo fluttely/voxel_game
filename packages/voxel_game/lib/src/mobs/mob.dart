@@ -95,7 +95,7 @@ class Mob extends GameEntity implements Target {
   late VoxelGame _game;
   final Map<Behavior, Object> _memory = {};
   final Map<Behavior, double> _cooldowns = {};
-  late final GoalSelector<Mob, VoxelGame> _brain = GoalSelector(spec.brain);
+  late GoalSelector<Mob, VoxelGame> _brain = GoalSelector(spec.brain);
   bool _dead = false;
   double _deathTime = 0.0;
   double _hurtFlash = 0.0;
@@ -104,6 +104,59 @@ class Mob extends GameEntity implements Target {
   /// Whether the day burns it now (`MobSpec.burnsInDaylight`), as last
   /// looked at: twice a second.
   bool burning = false;
+
+  /// Who tamed it, or null for a wild creature.
+  Target? get owner => _owner;
+  Target? _owner;
+
+  /// Whether it is tamed: it thinks with `MobSpec.tamedBrain`, never burns
+  /// and never despawns.
+  bool get tamed => _owner != null;
+
+  /// Who rides it, or null. The rider moves it ([carry]); its brain rests.
+  Target? rider;
+
+  bool _snap = false;
+
+  /// Tames it for [by]: it forgets its quarrels and thinks with
+  /// `MobSpec.tamedBrain` from now on. Throws for one tamed already.
+  void tame(Target by) {
+    if (tamed) throw StateError('${spec.id} is tamed already');
+    _owner = by;
+    _brain.stopAll(this, _game);
+    _brain = GoalSelector(spec.tamedBrain);
+    target = null;
+    lastHurtBy = null;
+    lastHurtFrom = null;
+    halt();
+  }
+
+  /// Where its rider's feet go (`MountSpec.seat`).
+  Vector3 seat() => position + Vector3(0, spec.mount!.seat, 0);
+
+  /// One step of [dt] under its rider: walks along [wish] at its ridden pace
+  /// (`MobSpec.mount`), faster with [sprint], jumping with [jump].
+  void carry(double dt, Vector3 wish, {bool sprint = false, bool jump = false}) {
+    final mount = spec.mount!;
+    motor.step(
+      dt,
+      wish: wish,
+      speed: spec.speed * mount.speed * (sprint ? mount.sprint : 1.0),
+      jump: jump || motor.swimming && headInLiquid,
+      jumpSpeed: mount.jumpVelocity,
+      leaveWater: true,
+    );
+    if (wish.x * wish.x + wish.z * wish.z > 0.01) _facing = math.atan2(-wish.x, -wish.z);
+  }
+
+  /// Puts it at [at] at once, still: a pet carried to its owner. It is drawn
+  /// there, not on the way.
+  void teleport(Vector3 at) {
+    position = at.clone();
+    velocity = Vector3.zero();
+    halt();
+    _snap = true;
+  }
 
   Vector3? _goal;
   Vector3 _direction = Vector3.zero();
@@ -245,9 +298,15 @@ class Mob extends GameEntity implements Target {
     if (!game.world.isLoaded(IVec3.floor(position))) return;
     sinceHurt += dt;
     _hurtFlash = math.max(_hurtFlash - dt, 0.0);
-    if (spec.burnsInDaylight) {
+    if (spec.burnsInDaylight && !tamed) {
       _burn(game, dt);
       if (_dead) return;
+    }
+    if (rider != null) {
+      // Its rider moved it this step (carry); it only shows it.
+      _animate(dt);
+      syncNode(yaw: rig?.yaw);
+      return;
     }
     _look = null;
     _brain.think(this, game);
@@ -256,7 +315,8 @@ class Mob extends GameEntity implements Target {
     _locomote(game, dt);
     _animate(dt);
     if (position.y < -10.0) removed = true;
-    syncNode(yaw: rig?.yaw);
+    syncNode(yaw: rig?.yaw, snap: _snap);
+    _snap = false;
   }
 
   /// The behaviours running now.

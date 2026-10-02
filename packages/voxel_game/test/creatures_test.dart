@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vector_math/vector_math.dart';
 import 'package:voxel_game/voxel_game.dart';
@@ -12,7 +14,11 @@ const _blocks = [
 const _effects = [EffectType('poison', 'Poison', 0.3, 0.6, 0.2, period: 1.0, damage: 1.0, bad: true)];
 
 /// Level grass at y 20 (the first air cell), no caves, no trees.
-VoxelGameSpec _flat({List<MobSpec> mobs = const [], SkySpec sky = SkySpec.alwaysDay}) => VoxelGameSpec(
+VoxelGameSpec _flat({
+  List<MobSpec> mobs = const [],
+  SkySpec sky = SkySpec.alwaysDay,
+  Map<String, int> start = const {},
+}) => VoxelGameSpec(
   blocks: _blocks,
   world: const WorldGenSpec(
     terrain: TerrainRecipe.flat(20),
@@ -20,8 +26,9 @@ VoxelGameSpec _flat({List<MobSpec> mobs = const [], SkySpec sky = SkySpec.always
     caves: CaveSpec.none,
     biomes: [Biome('plains', top: 'grass', under: 'dirt')],
   ),
+  items: const [ItemType('bone', color: 0xEEEEDD)],
   effects: _effects,
-  player: const PlayerSpec(xp: XpSpec()),
+  player: PlayerSpec(xp: const XpSpec(), startingItems: start),
   mobs: mobs,
   sky: sky,
 );
@@ -44,6 +51,35 @@ Future<void> _run(VoxelGame game, double seconds) async {
     await Future<void>.delayed(Duration.zero);
   }
 }
+
+/// Turns the player to look at [m]'s middle.
+void _face(VoxelGame game, Mob m) {
+  final p = game.player;
+  final to = m.centre() - p.eyePosition;
+  p.yaw = -Vector3(0, 0, -1).angleToSigned(Vector3(to.x, 0, to.z).normalized(), Vector3(0, 1, 0));
+  p.pitch = math.atan2(to.y, Vector3(to.x, 0, to.z).length);
+}
+
+const _wolf = MobSpec(
+  'wolf',
+  hp: 12,
+  speed: 4.0,
+  brain: [Wander()],
+  tameWith: ['bone'],
+  tamedBrain: [MeleeAttack(damage: 4), PetFight(), Heel()],
+);
+
+const _horse = MobSpec(
+  'horse',
+  hp: 20,
+  speed: 5.0,
+  halfWidth: 0.5,
+  height: 1.6,
+  brain: [],
+  tameWith: ['bone'],
+  tamedBrain: [MountWait()],
+  mount: MountSpec(seat: 1.0),
+);
 
 int _dropped(VoxelGame game, String item) =>
     game.entities.whereType<ItemPickup>().where((d) => d.stack.id == item).fold(0, (n, d) => n + d.stack.count);
@@ -209,6 +245,128 @@ void main() {
     expect(() => check(_flat(mobs: const [MobSpec('pig'), MobSpec('pig')])), throwsArgumentError);
     expect(
       () => check(_flat(mobs: const [MobSpec('pig', xp: 3)]).copyWith(player: const PlayerSpec())),
+      throwsArgumentError,
+    );
+  });
+
+  test('a use with what tames a creature tames it: it follows its owner, and past thirty metres is carried', () async {
+    final game = await _start(_flat(mobs: const [_wolf], start: const {'bone': 3}));
+    final p = game.player;
+    final wolf = game.spawnMob('wolf', p.position + Vector3(0, 0, -2));
+    _face(game, wolf);
+    await _run(game, 0.1);
+    expect(p.aimedMob, same(wolf));
+    expect(p.usableOn(wolf), isTrue);
+    expect(game.input.touchTapPrimary, isFalse, reason: 'a finger\'s tap on it uses, as the right button does');
+    game.input.tap(VoxelAction.use);
+    await _run(game, 0.1);
+    expect(wolf.tamed, isTrue);
+    expect(wolf.owner, same(p));
+    expect(p.inventory.countOf('bone'), 2, reason: 'one bone went');
+    expect(p.usableOn(wolf), isFalse, reason: 'a companion is not ridden');
+    expect(wolf.running.whereType<Heel>(), isNotEmpty);
+
+    p.position = p.position + Vector3(10, 0, 0);
+    await _run(game, 4.0);
+    expect(wolf.position.distanceTo(p.position), lessThan(4.5), reason: 'it walked after its owner');
+    p.position = p.position + Vector3(0, 0, 34);
+    await _run(game, 0.5);
+    expect(wolf.position.distanceTo(p.position), lessThan(3.0), reason: 'carried beside its owner');
+  });
+
+  test('a taming that does not take still uses up what was offered', () async {
+    const shy = MobSpec('shy', hp: 4, brain: [], tameWith: ['bone'], tameChance: 1e-9, tamedBrain: [Heel()]);
+    final game = await _start(_flat(mobs: const [shy], start: const {'bone': 1}));
+    final m = game.spawnMob('shy', game.player.position + Vector3(0, 0, -2));
+    _face(game, m);
+    await _run(game, 0.1);
+    game.input.tap(VoxelAction.use);
+    await _run(game, 0.1);
+    expect(m.tamed, isFalse);
+    expect(game.player.inventory.countOf('bone'), 0);
+  });
+
+  test('a companion fights what hunts its owner', () async {
+    const zombie = MobSpec('zombie', hp: 30, speed: 1.0, brain: [Hunt(range: 30)]);
+    final game = await _start(_flat(mobs: const [_wolf, zombie]));
+    final p = game.player;
+    final wolf = game.spawnMob('wolf', p.position + Vector3(2, 0, 0))..tame(p);
+    final z = game.spawnMob('zombie', p.position + Vector3(0, 0, -10));
+    await _run(game, 4.0);
+    expect(wolf.target, same(z));
+    expect(z.hp, lessThan(30.0), reason: 'the companion bit it');
+  });
+
+  test('a tamed mount is ridden by a use, walks by the rider\'s input, and a sneak gets off', () async {
+    final game = await _start(_flat(mobs: const [_horse]));
+    final p = game.player;
+    final horse = game.spawnMob('horse', p.position + Vector3(0, 0, -2.5));
+    _face(game, horse);
+    await _run(game, 0.1);
+    expect(p.usableOn(horse), isFalse, reason: 'a wild mount is not ridden, and the hand holds nothing that tames it');
+    horse.tame(p);
+    await _run(game, 0.1);
+    expect(p.aimedMob, same(horse));
+    expect(p.usableOn(horse), isTrue);
+    game.input.tap(VoxelAction.use);
+    await _run(game, 0.1);
+    expect(p.riding, same(horse));
+    expect(horse.rider, same(p));
+    expect(p.position.distanceTo(horse.seat()), lessThan(1e-6));
+    p.yaw = 0.0;
+    final from = horse.position.clone();
+    game.input.hold(VoxelAction.moveForward, true);
+    await _run(game, 1.0);
+    game.input.hold(VoxelAction.moveForward, false);
+    expect(from.z - horse.position.z, greaterThan(3.0), reason: 'a second forward at its pace');
+    expect(p.position.distanceTo(horse.seat()), lessThan(1e-6), reason: 'the rider sits on it');
+    expect(p.aimedMob, isNot(same(horse)), reason: 'the rider does not aim at their own mount');
+    game.input.tap(VoxelAction.sneak);
+    await _run(game, 0.1);
+    expect(p.riding, isNull);
+    expect(horse.rider, isNull);
+    expect(p.onFloor || p.velocity.y <= 0.0, isTrue);
+  });
+
+  test('a mount that dies throws its rider off; tamed creatures neither burn nor wander off the spawner', () async {
+    const undead = MobSpec(
+      'undead',
+      hp: 20,
+      brain: [],
+      burnsInDaylight: true,
+      tameWith: ['bone'],
+      tamedBrain: [MountWait()],
+      mount: MountSpec(seat: 1.0),
+      spawn: SpawnRule(maxAlive: 1),
+    );
+    final game = await _start(_flat(mobs: const [undead]));
+    final p = game.player;
+    final m = game.spawnMob('undead', p.position + Vector3(0, 0, -2))..tame(p);
+    await _run(game, 2.0);
+    expect(m.hp, 20.0, reason: 'a tamed creature does not burn');
+    p.ride(m);
+    m.takeDamage(const Damage(100));
+    await _run(game, 0.1);
+    expect(p.riding, isNull);
+    final far = game.spawnMob('undead', p.position + Vector3(0, 0, -20))..tame(p);
+    game.spawner
+      ..enabled = true
+      ..despawnDistance = 5;
+    await _run(game, 2.0);
+    expect(far.removed, isFalse, reason: 'the spawner leaves a tamed creature alone');
+  });
+
+  test('a spec\'s tameable creatures are checked', () {
+    void check(MobSpec m) {
+      final spec = _flat(mobs: [m]);
+      spec.checkMobs(spec.buildItems(spec.buildBlocks()));
+    }
+
+    check(_wolf);
+    expect(() => check(const MobSpec('wolf', tameWith: ['steak'], tamedBrain: [Heel()])), throwsArgumentError);
+    expect(() => check(const MobSpec('wolf', tameWith: ['bone'])), throwsArgumentError);
+    expect(
+      () => check(const MobSpec('wolf', tameWith: ['bone'], tameChance: 0.0, tamedBrain: [Heel()])),
       throwsArgumentError,
     );
   });

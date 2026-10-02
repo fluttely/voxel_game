@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:vector_math/vector_math.dart';
+import 'package:voxel_engine/core.dart';
 
 import '../core/voxel_game.dart';
 import '../entities/projectile.dart';
@@ -405,4 +406,144 @@ class LookAtPlayer extends Behavior {
 
   @override
   void tick(Mob mob, VoxelGame game, double dt) => mob.lookAt(game.player.centre());
+}
+
+/// A companion fights what its owner fights: the nearest wild creature
+/// within [range] that hunts the owner or that the owner hurt in the last
+/// ten seconds, chased until it dies or gets [giveUpRange] away. It sets
+/// [Mob.target], which the attacks read: a pet's brain strikes with a
+/// [MeleeAttack] beside it.
+class PetFight extends Behavior {
+  /// A companion's fight.
+  const PetFight({super.priority = 20, this.range = 12.0, this.giveUpRange = 24.0});
+
+  /// How far from it a foe is noticed.
+  final double range;
+
+  /// How far it chases before giving up.
+  final double giveUpRange;
+
+  @override
+  bool canStart(Mob mob, VoxelGame game) {
+    final owner = mob.owner;
+    if (owner == null) return false;
+    Mob? best;
+    var bestD = range;
+    for (final m in game.mobs) {
+      if (m == mob || m.isDead || m.tamed) continue;
+      final foe = identical(m.target, owner) || identical(m.lastHurtBy, owner) && m.sinceHurt < 10.0;
+      if (!foe) continue;
+      final d = m.position.distanceTo(mob.position);
+      if (d < bestD) {
+        bestD = d;
+        best = m;
+      }
+    }
+    if (best == null) return false;
+    mob.target = best;
+    return true;
+  }
+
+  @override
+  bool canContinue(Mob mob, VoxelGame game) {
+    final t = mob.target;
+    return t != null && !t.isDead && mob.position.distanceTo(t.position) < giveUpRange;
+  }
+
+  @override
+  void tick(Mob mob, VoxelGame game, double dt) => mob.walkTo(mob.target!.position);
+
+  @override
+  void stop(Mob mob, VoxelGame game) => mob.target = null;
+}
+
+class _HeelState {
+  bool walking = false;
+}
+
+/// A companion heels: it walks after its owner once they are [follow]
+/// away, stops within [stay], and is carried beside them past [teleport]
+/// (the first of the four sides of their feet where it stands clear, or
+/// their own spot).
+class Heel extends Behavior {
+  /// A companion's heel.
+  const Heel({super.priority = 90, this.follow = 4.0, this.stay = 2.0, this.teleport = 30.0, this.speed = 1.0});
+
+  /// How far the owner goes before it follows.
+  final double follow;
+
+  /// How near it stops.
+  final double stay;
+
+  /// How far the owner goes before it is carried to them.
+  final double teleport;
+
+  /// Its pace, as a share of the mob's speed.
+  final double speed;
+
+  @override
+  bool canStart(Mob mob, VoxelGame game) {
+    final owner = mob.owner;
+    return owner != null && !owner.isDead;
+  }
+
+  @override
+  void tick(Mob mob, VoxelGame game, double dt) {
+    final owner = mob.owner!;
+    final s = mob.memory(this, _HeelState.new);
+    final d = mob.position.distanceTo(owner.position);
+    if (d > teleport) {
+      mob.teleport(_besideOf(game, owner.position));
+      s.walking = false;
+      return;
+    }
+    if (d > follow) s.walking = true;
+    if (d < stay) s.walking = false;
+    if (s.walking) {
+      mob.walkTo(owner.position, speed: speed);
+    } else {
+      mob.halt();
+    }
+  }
+
+  static Vector3 _besideOf(VoxelGame game, Vector3 feet) {
+    final w = game.world;
+    for (final side in const [IVec3(1, 0, 0), IVec3(-1, 0, 0), IVec3(0, 0, 1), IVec3(0, 0, -1)]) {
+      final cell = IVec3.floor(feet + Vector3(0, 0.1, 0)) + side;
+      if (!w.isSolid(cell) && !w.isSolid(cell + IVec3.up) && w.isSolid(cell + IVec3.down)) {
+        return Vector3(cell.x + 0.5, cell.y.toDouble(), cell.z + 0.5);
+      }
+    }
+    return feet.clone();
+  }
+}
+
+/// A tamed mount waits for its owner: it trots after them while they are
+/// [follow]..[leash] away and stands otherwise; it never fights.
+class MountWait extends Behavior {
+  /// A mount's wait.
+  const MountWait({super.priority = 90, this.follow = 4.0, this.stay = 2.5, this.leash = 20.0});
+
+  /// How far the owner goes before it trots after them.
+  final double follow;
+
+  /// How near it stops.
+  final double stay;
+
+  /// How far the owner goes before it stays where it is.
+  final double leash;
+
+  @override
+  bool canStart(Mob mob, VoxelGame game) => mob.owner != null;
+
+  @override
+  void tick(Mob mob, VoxelGame game, double dt) {
+    final owner = mob.owner!;
+    final d = mob.position.distanceTo(owner.position);
+    if (d > leash || d < stay || owner.isDead) {
+      mob.halt();
+    } else if (d > follow) {
+      mob.walkTo(owner.position);
+    }
+  }
 }
