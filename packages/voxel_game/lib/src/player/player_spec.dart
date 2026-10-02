@@ -80,7 +80,8 @@ class PlayerSpec {
   /// The starting view.
   final CameraMode camera;
 
-  /// Vertical field of view, degrees.
+  /// Vertical field of view, degrees: the default of the player's
+  /// `GameSettings.fov`, which the camera reads.
   final double fov;
 
   /// What the player starts with: item id to count.

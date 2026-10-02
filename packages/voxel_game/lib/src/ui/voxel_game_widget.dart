@@ -13,6 +13,8 @@ import 'package:voxel_engine/core.dart' show IVec3;
 import 'package:voxel_scene/voxel_scene.dart';
 
 import '../core/voxel_game.dart';
+import '../settings/game_settings.dart';
+import '../settings/settings_store.dart';
 import '../spec/voxel_game_spec.dart';
 import 'default_hud.dart';
 import 'game_screen.dart';
@@ -44,6 +46,9 @@ import '../world/world_save.dart';
 /// when the widget goes away. With [hostPort] others can join the game on
 /// that port; with [join] (`'192.168.0.10'`, or `'host:port'`) this game
 /// joins one instead.
+///
+/// The player's settings (`GameSettings`) are kept in the same folder,
+/// `settings.json` beside `worlds`, whether or not the world is.
 ///
 /// On a desktop the game menu's Quit saves the world and closes the app; a
 /// phone or tablet has no Quit, as its apps are left from the system.
@@ -108,6 +113,7 @@ class VoxelGameWidget extends StatefulWidget {
     this.onReady,
     this.saveSlot,
     this.saves,
+    this.settings,
     this.autosave = const Duration(minutes: 1),
     this.hostPort,
     this.join,
@@ -145,12 +151,21 @@ class VoxelGameWidget extends StatefulWidget {
   /// Where the slots are; the app support folder's `worlds` when null.
   final WorldSaves? saves;
 
+  /// Where the player's settings are kept, read before the game starts and
+  /// written as they change; [defaultSettings] when null.
+  final SettingsStore? settings;
+
   /// How often the world is saved while it runs.
   final Duration autosave;
 
   /// The app's default saves: `<application support>/worlds`.
   static Future<WorldSaves> defaultSaves() async =>
       WorldSaves(Directory('${(await getApplicationSupportDirectory()).path}/worlds'));
+
+  /// The app's default settings: `<application support>/settings.json`,
+  /// beside [defaultSaves]' folder.
+  static Future<SettingsStore> defaultSettings() async =>
+      SettingsStore(File('${(await getApplicationSupportDirectory()).path}/settings.json'));
 
   /// Loads flutter_scene's static resources and the terrain shader.
   static Future<void> loadResources() async {
@@ -176,6 +191,8 @@ class _VoxelGameWidgetState extends State<VoxelGameWidget> with SingleTickerProv
   SoundBank? _bank;
   MusicDirector? _music;
   Timer? _moodTimer;
+  SettingsStore? _settingsStore;
+  Timer? _settingsWrite;
 
   @override
   void initState() {
@@ -185,11 +202,18 @@ class _VoxelGameWidgetState extends State<VoxelGameWidget> with SingleTickerProv
   }
 
   Future<void> _start() async {
+    final store = _settingsStore = widget.settings ?? await VoxelGameWidget.defaultSettings();
+    final settings = store.read(GameSettings.of(widget.spec));
     final join = widget.join;
     final VoxelGame game;
     if (join != null) {
       final parts = join.split(':');
-      game = await VoxelGame.joinGame(widget.spec, parts[0], port: parts.length > 1 ? int.parse(parts[1]) : 7777);
+      game = await VoxelGame.joinGame(
+        widget.spec,
+        parts[0],
+        port: parts.length > 1 ? int.parse(parts[1]) : 7777,
+        settings: settings,
+      );
     } else {
       final slot = widget.saveSlot;
       SavedWorld? saved;
@@ -197,7 +221,7 @@ class _VoxelGameWidgetState extends State<VoxelGameWidget> with SingleTickerProv
         final saves = _saves = widget.saves ?? await VoxelGameWidget.defaultSaves();
         if (saves.exists(slot)) saved = saves.read(slot);
       }
-      game = await VoxelGame.start(widget.spec, save: saved);
+      game = await VoxelGame.start(widget.spec, save: saved, settings: settings);
       final port = widget.hostPort;
       if (port != null) await game.host(port: port);
     }
@@ -206,6 +230,7 @@ class _VoxelGameWidgetState extends State<VoxelGameWidget> with SingleTickerProv
       return;
     }
     SchedulerBinding.instance.addTimingsCallback(game.stats.addTimings);
+    game.settings.addListener(_settingsChanged);
     game.input.attachDevices();
     setState(() {
       _game = game;
@@ -225,8 +250,19 @@ class _VoxelGameWidgetState extends State<VoxelGameWidget> with SingleTickerProv
     _bank = bank;
     game.sounds = bank;
     if (sound.music.isEmpty) return;
-    final music = _music = MusicDirector(sound.music, gain: sound.musicVolume);
+    final music = _music = MusicDirector(sound.music, gain: _musicGain(game.settings.value));
     _moodTimer = Timer.periodic(const Duration(seconds: 1), (_) => music.setMood(_moodOf(game, sound.music)));
+  }
+
+  static double _musicGain(GameSettings s) => s.volume * s.musicVolume;
+
+  // The music takes a change at once; the file, once a slider has come to
+  // rest, so a drag writes it once and not on every step it passes.
+  void _settingsChanged() {
+    final settings = _game!.settings.value;
+    _music?.setGain(_musicGain(settings));
+    _settingsWrite?.cancel();
+    _settingsWrite = Timer(const Duration(milliseconds: 500), () => _settingsStore!.write(settings));
   }
 
   /// The music's mood: the cave underground, the biome's own track, else day
@@ -283,6 +319,9 @@ class _VoxelGameWidgetState extends State<VoxelGameWidget> with SingleTickerProv
     _loadingTicker.dispose();
     _autosave?.cancel();
     _moodTimer?.cancel();
+    final unwritten = _settingsWrite?.isActive ?? false;
+    _settingsWrite?.cancel();
+    if (unwritten) _settingsStore!.write(_game!.settings.value);
     _music?.setMood(null);
     _bank?.dispose();
     _save();

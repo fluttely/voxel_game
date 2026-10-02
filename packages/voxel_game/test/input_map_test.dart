@@ -68,6 +68,20 @@ void main() {
       input.dispose();
     });
 
+    test('the look scale speeds a drag and a look from code, never a turn', () {
+      final input = map()
+        ..wantCapture = true
+        ..lookScale = 2.0;
+      input.onPointerDown(touchDown(1));
+      input.onPointerMove(touchMove(1, const Offset(460, 300), const Offset(60, 0)));
+      expect(input.takeLook(0.0).dx, closeTo(120 * input.lookSensitivity, 1e-9));
+      input.look(10, 0);
+      expect(input.takeLook(0.0).dx, closeTo(20 * input.lookSensitivity, 1e-9));
+      input.turn(0.5, 0);
+      expect(input.takeLook(0.1).dx, closeTo(0.05, 1e-12), reason: 'a turn is a rate the code chose');
+      input.dispose();
+    });
+
     test('staying put holds the primary button, and is not also a tap', () async {
       final input = map();
       input.onPointerDown(touchDown(1));

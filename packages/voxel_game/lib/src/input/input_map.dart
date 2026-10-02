@@ -101,6 +101,11 @@ class InputMap<A extends Object> {
   /// Radians per pixel of mouse motion.
   double lookSensitivity;
 
+  /// How fast the view turns, times the stock speed: scales the mouse, a
+  /// finger's drag, [look] and the right stick alike, but not a [turn] (the
+  /// player's `GameSettings.lookSpeed`).
+  double lookScale = 1.0;
+
   /// Radians a second at full right-stick deflection.
   double stickTurnRate;
 
@@ -507,10 +512,10 @@ class InputMap<A extends Object> {
     d += _drag;
     _drag = Offset.zero;
     if (pointerLockSupported && wantCapture) d += PointerLock.instance.takeDelta();
-    var rad = d * lookSensitivity + _scriptTurn * dt;
+    var rad = d * (lookSensitivity * lookScale);
     final gx = _pad.axisValue(GamepadAxis.rightStickX), gy = _pad.axisValue(GamepadAxis.rightStickY);
-    if (gx.abs() > deadzone || gy.abs() > deadzone) rad += Offset(gx, -gy) * (stickTurnRate * dt);
-    return rad;
+    if (gx.abs() > deadzone || gy.abs() > deadzone) rad += Offset(gx, -gy) * (stickTurnRate * lookScale * dt);
+    return rad + _scriptTurn * dt;
   }
 
   /// Forgets this step's presses; the game calls it after every step.

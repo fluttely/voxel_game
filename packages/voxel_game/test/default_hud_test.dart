@@ -354,7 +354,7 @@ void main() {
     final game = await start(tester);
     await step(tester, game);
     expect(find.textContaining('FPS'), findsNothing);
-    game.showFps = true;
+    game.applySettings(game.settings.value.copyWith(showFps: true));
     await step(tester, game);
     expect(find.textContaining('FPS'), findsOneWidget);
     game.dispose();

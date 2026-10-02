@@ -10,7 +10,8 @@ import 'shoulder_orbit.dart';
 import 'view_bob.dart';
 
 /// The player's camera: the eye in first person, a [ShoulderOrbit] in third
-/// person that is pulled in by walls, and a [ViewBob] on foot.
+/// person that is pulled in by walls, and a [ViewBob] on foot; as wide as the
+/// player's `GameSettings.fov`.
 class ViewCamera {
   /// The third-person seat.
   final ShoulderOrbit orbit = ShoulderOrbit();
@@ -18,7 +19,7 @@ class ViewCamera {
   /// The walk's sway of the eye.
   final ViewBob viewBob = ViewBob();
 
-  /// Whether the view bobs.
+  /// Whether the view bobs: the player's `GameSettings.viewBob`.
   bool bob = true;
 
   double? _lastTime;
@@ -74,7 +75,7 @@ class ViewCamera {
       position: eye,
       target: eye + fwd + up * viewBob.pitch,
       up: up + right * viewBob.roll,
-      fovRadiansY: p.spec.fov * math.pi / 180.0,
+      fovRadiansY: game.settings.value.fov * math.pi / 180.0,
       fovNear: 0.05,
       // Past the fog's end every pixel is fog: the far plane stops there (and a
       // chunk further, for the corners of the view), so the ring of loaded but

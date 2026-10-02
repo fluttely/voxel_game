@@ -33,6 +33,7 @@ class SoundSpec {
   /// underground it is cave.
   final Map<String, String> music;
 
-  /// The music's loudness, linear.
+  /// The music's loudness, linear: the default of the player's
+  /// `GameSettings.musicVolume`, which the music plays at.
   final double musicVolume;
 }

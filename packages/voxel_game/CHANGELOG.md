@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+- **Settings (VA7).** `GameSettings` (new): what the player sets for themselves — render
+  distance, look speed, field of view, volume, music volume, view bobbing, the frame rate —
+  each checked against its range (a value out of it throws, read from a file or built in
+  code). `GameSettings.of(spec)` takes the spec's `renderDistance`, `PlayerSpec.fov` and
+  `SoundSpec.musicVolume` as the defaults.
+  - `VoxelGame.settings` / `applySettings` put a change in force at once: the world streams
+    to the new distance (`GameWorld.loadRadius` now cuts a nearer window back on the spot and
+    streams a further one from the next update), the view turns at `InputMap.lookScale`
+    (new: the mouse, a finger's drag, `look` and the right stick alike, never a `turn`),
+    `ViewCamera` reads the field of view from the settings instead of `PlayerSpec.fov`,
+    `ViewCamera.bob` follows `viewBob`, `playSound` plays under `volume` and not at all at 0.
+  - `VoxelGame.start` and `joinGame` take `settings:`; `startHeadless` takes the spec's at its
+    `loadRadius`.
+  - **Breaking:** `VoxelGame.showFps` is gone; the HUD reads `GameSettings.showFps`.
+  - `SettingsScreen` (new `GameScreen`): Settings in the game menu opens it; Done and a press
+    of pause go back to the menu. `SettingsMenu` shows it, over `SettingsPanel` (new: the
+    rows alone, a value in and a change out, offering the volume only with sound and the
+    music's only with music), scrolling on a phone held sideways.
+  - `VoxelGameWidget` keeps them in a `SettingsStore` (new; `settings:`, by default
+    `defaultSettings()`: `<application support>/settings.json`, beside `worlds`), read
+    before the game starts and written half a second after a change comes to rest; the music
+    plays at `volume × musicVolume`.
 - **The bag grows (VA6).** `InventoryScreen`:
   - the held stack follows the pointer, drawn `InventoryScreen.fingerLift` above a finger,
     instead of sitting in a "Cursor" row; only it and the tooltip rebuild as the pointer

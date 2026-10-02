@@ -7,6 +7,7 @@ import 'default_hud.dart';
 import 'game_screen.dart';
 import 'inventory_screen.dart';
 import 'pause_menu.dart';
+import 'settings_menu.dart';
 import 'touch_controls.dart';
 
 /// Builds an overlay over the running game. It is called when the widget
@@ -149,6 +150,7 @@ class _GameSurfaceState extends State<GameSurface> {
         onClose: game.closeScreen,
       ),
       PauseScreen() => PauseMenu(game, onQuit: widget.onQuit),
+      SettingsScreen() => SettingsMenu(game),
       DeathScreen() => DeathMenu(game),
       DeclaredScreen(:final id) => game.spec.screens[id]!.build(context, game),
     };

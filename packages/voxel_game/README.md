@@ -52,8 +52,8 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
   over it (`VoxelGame.damageNumbers`). The crosshair turns red on a creature in reach, a ring
   around it fills as a block is mined, a worn tool shows what is left of it under its slot,
   the screen takes the colour of the liquid the camera is in (`LiquidSpec(tint: 0.25)`), a
-  `MobSpec(boss: true)` that lives puts its health at the top, and `VoxelGame.showFps` the
-  frame rate at the top left.
+  `MobSpec(boss: true)` that lives puts its health at the top, and the player's
+  `GameSettings.showFps` the frame rate at the top left.
 - Blocks that do things, each a field of its row: sand `falls` to where it lands, a torch
   with a `support` drops once its floor or wall goes and is never placed where it would not
   stand, a torch put against a wall becomes its `onWall` form, a block with `loot` drops
@@ -70,12 +70,20 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
   opens no store until the net carries them (VA16).
 - Screens as one state machine: `VoxelGame.screen` holds the `GameScreen` open, or null
   while playing — the bag (`BagScreen`, crafting in the hand or at a station), a store beside
-  it (`StorageScreen`), the game menu (`PauseScreen`: resume, your screens, quit), the death
+  it (`StorageScreen`), the game menu (`PauseScreen`: resume, settings, your screens, quit),
+  the settings (`SettingsScreen`, back to the menu), the death
   screen (`DeathScreen`, left only by a respawn: its button, or jump) and your own
   (`DeclaredScreen('journal')`, built by `VoxelGameSpec.screens: {'journal':
   ScreenSpec(buildJournal, menu: 'Journal')}`). `openScreen`, `closeScreen` and `respawn`
   change it and refuse what cannot be. A screen gates the controls, never the world: the
   game keeps stepping behind every one.
+- The player's settings (`GameSettings`): render distance, look speed (mouse, finger and
+  stick alike), field of view, volume, music volume, view bobbing and the frame rate. The
+  spec's values are the defaults (`renderDistance`, `PlayerSpec.fov`,
+  `SoundSpec.musicVolume`); `VoxelGame.applySettings` puts a change in force at once — the
+  world streams further or is cut back on the spot — and `VoxelGameWidget` keeps them in
+  `settings.json` beside `worlds` (`SettingsStore`). `SettingsPanel` is the rows alone, for
+  a screen with no game running.
 - The bag (`InventoryScreen`): a click or a tap picks a stack up or puts it down, a
   right-click or a long press takes half or leaves one; the held stack follows the pointer
   (above a finger), a tooltip reads the item's row (tool and tier, damage, uses left, food,

@@ -92,7 +92,8 @@ class VoxelGameSpec {
   /// The world seed.
   final int seed;
 
-  /// How many chunks are streamed around the player.
+  /// How many chunks are streamed around the player: the default of the
+  /// player's `GameSettings.renderDistance`, which the world streams.
   final int renderDistance;
 
   /// How the world is drawn; null for [GraphicsSpec.phone] on iOS and Android

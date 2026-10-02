@@ -157,6 +157,17 @@ void main() {
     expect(game.screen.value, isNull);
   });
 
+  test('the settings open from the game menu, and pause goes back to it', () async {
+    final game = await _start();
+    await _press(game, VoxelAction.pause);
+    game.openScreen(const SettingsScreen());
+    await _press(game, VoxelAction.pause);
+    expect(game.screen.value, const PauseScreen(), reason: 'back to the menu, not to the world');
+    await _press(game, VoxelAction.pause);
+    expect(game.screen.value, isNull);
+    game.dispose();
+  });
+
   test('a screen that cannot be is refused', () async {
     final game = await _start();
     expect(game.closeScreen, throwsStateError, reason: 'nothing is open');
@@ -222,6 +233,48 @@ void main() {
       await tester.tap(find.text('Quit'));
       expect(quits, 1);
       quitting.dispose();
+    });
+
+    testWidgets('the settings change the game as they are set, and Done goes back to the menu', (tester) async {
+      final game = await mount(tester);
+      game.openScreen(const PauseScreen());
+      await tester.pump();
+      await tester.tap(find.text('Settings'));
+      await tester.pump();
+      expect(game.screen.value, const SettingsScreen());
+      expect(find.text('Render distance'), findsOneWidget);
+      expect(find.text('Volume'), findsOneWidget);
+      expect(find.text('Music'), findsNothing, reason: 'a game with no music has no music to set');
+      await tester.tap(find.text('Show FPS'));
+      await tester.pump();
+      expect(game.settings.value.showFps, isTrue);
+      expect(tester.widget<SwitchListTile>(find.byType(SwitchListTile).last).value, isTrue);
+      // Dragged to the right end, the render distance is in force before the screen closes.
+      final slider = find.byType(Slider).first;
+      await tester.drag(slider, const Offset(1000, 0));
+      await tester.pump();
+      expect(game.settings.value.renderDistance, GameSettings.maxRenderDistance);
+      expect(game.world.loadRadius, GameSettings.maxRenderDistance);
+      expect(find.text('${GameSettings.maxRenderDistance} chunks'), findsOneWidget);
+      await tester.tap(find.text('Done'));
+      await tester.pump();
+      expect(game.screen.value, const PauseScreen());
+      game.dispose();
+    });
+
+    testWidgets('the settings fit a phone held sideways: the rows scroll, Done stays', (tester) async {
+      tester.view
+        ..physicalSize = const Size(640, 300)
+        ..devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      final game = await mount(tester);
+      game.openScreen(const SettingsScreen());
+      await tester.pump();
+      expect(tester.takeException(), isNull, reason: 'nothing overflows');
+      expect(find.text('Done').hitTestable(), findsOneWidget);
+      await tester.scrollUntilVisible(find.text('Show FPS'), 40);
+      expect(find.text('Show FPS').hitTestable(), findsOneWidget);
+      game.dispose();
     });
 
     testWidgets('the death screen wakes its respawn after the delay', (tester) async {

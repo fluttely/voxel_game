@@ -27,6 +27,7 @@ import '../mobs/spawner.dart';
 import '../net/remote_player.dart';
 import '../net/sessions.dart';
 import '../player/player_entity.dart';
+import '../settings/game_settings.dart';
 import '../spec/graphics_spec.dart';
 import '../spec/signal_spec.dart';
 import '../spec/voxel_game_spec.dart';
@@ -45,11 +46,21 @@ import '../world/world_save.dart';
 /// Headless ([VoxelGame.startHeadless]) it has no scene, no worker isolates and no
 /// visuals, and steps as fast as it is asked: tests, bots and servers.
 class VoxelGame {
-  VoxelGame._(this.spec, this.blocks, this.items, this.world, {required this.headless, this.authority = true})
-    : random = math.Random(spec.seed),
-      input = InputMap<VoxelAction>(VoxelAction.defaultBindings),
-      recipes = RecipeBook(spec.recipes),
-      timeOfDay = spec.sky.startTime {
+  VoxelGame._(
+    this.spec,
+    this.blocks,
+    this.items,
+    this.world,
+    GameSettings settings, {
+    required this.headless,
+    this.authority = true,
+  }) : random = math.Random(spec.seed),
+       input = InputMap<VoxelAction>(VoxelAction.defaultBindings),
+       recipes = RecipeBook(spec.recipes),
+       timeOfDay = spec.sky.startTime,
+       _settings = ValueNotifier(settings) {
+    assert(settings.renderDistance == world.loadRadius, 'the world streams the settings\' render distance');
+    _applyLive(settings);
     pathCosts = blocks.pathCosts(avoidLiquids: const {'lava'});
     player = PlayerEntity(
       spec.player,
@@ -125,17 +136,32 @@ class VoxelGame {
   /// must be loaded first (`VoxelGameWidget` does both).
   ///
   /// With [save] the world is the saved one: its seed, its edits, its clock
-  /// and its player.
-  static Future<VoxelGame> start(VoxelGameSpec spec, {SavedWorld? save, bool authority = true}) async {
+  /// and its player. With [settings] the player's own ([GameSettings.of] the
+  /// spec when null).
+  static Future<VoxelGame> start(
+    VoxelGameSpec spec, {
+    SavedWorld? save,
+    GameSettings? settings,
+    bool authority = true,
+  }) async {
     final blocks = spec.buildBlocks();
+    final chosen = settings ?? GameSettings.of(spec);
     final world = GameWorld(
       blocks,
       spec.world,
       save?.seed ?? spec.seed,
-      loadRadius: spec.renderDistance,
+      loadRadius: chosen.renderDistance,
       liquids: spec.liquids,
     );
-    final game = VoxelGame._(spec, blocks, spec.buildItems(blocks), world, headless: false, authority: authority);
+    final game = VoxelGame._(
+      spec,
+      blocks,
+      spec.buildItems(blocks),
+      world,
+      chosen,
+      headless: false,
+      authority: authority,
+    );
     final g = game.graphics, shadows = g.shadows;
     game.scene = MeasuredScene(game.stats)
       ..antiAliasingMode = g.antiAliasing
@@ -156,7 +182,8 @@ class VoxelGame {
   }
 
   /// A game with no renderer and no isolates: chunks are generated as they
-  /// are needed, on this isolate. [loadRadius] chunks around the player.
+  /// are needed, on this isolate. [loadRadius] chunks around the player: its
+  /// [settings] are the spec's at that render distance.
   static Future<VoxelGame> startHeadless(
     VoxelGameSpec spec, {
     int loadRadius = 2,
@@ -171,7 +198,15 @@ class VoxelGame {
       loadRadius: loadRadius,
       liquids: spec.liquids,
     );
-    final game = VoxelGame._(spec, blocks, spec.buildItems(blocks), world, headless: true, authority: authority);
+    final game = VoxelGame._(
+      spec,
+      blocks,
+      spec.buildItems(blocks),
+      world,
+      GameSettings.of(spec).copyWith(renderDistance: loadRadius),
+      headless: true,
+      authority: authority,
+    );
     game._begin(save);
     await world.start();
     return game;
@@ -206,17 +241,18 @@ class VoxelGame {
   }
 
   /// Joins the game hosted at [address]:[port]: its world, its players, its
-  /// mobs. [headless] for a test or a bot.
+  /// mobs, seen with this player's [settings]. [headless] for a test or a bot.
   static Future<VoxelGame> joinGame(
     VoxelGameSpec spec,
     String address, {
     int port = 7777,
+    GameSettings? settings,
     bool headless = false,
   }) async {
     final hello = await joinHost(address, port: port);
     final game = headless
         ? await startHeadless(spec, save: hello.world, authority: false)
-        : await start(spec, save: hello.world, authority: false);
+        : await start(spec, save: hello.world, settings: settings, authority: false);
     game.player.restore(hello.spawn, hello.spawn);
     game.session = ClientSession(game, hello.connection, hello.peer);
     return game;
@@ -321,10 +357,12 @@ class VoxelGame {
   });
 
   /// Plays [name] as heard from [at] by the player: quieter with distance,
-  /// nothing past 32 m; at the player when [at] is null.
+  /// nothing past 32 m; at the player when [at] is null. All of it under the
+  /// player's [GameSettings.volume], and nothing at 0.
   void playSound(String name, {Vector3? at, double volumeDb = 0.0, double pitch = 1.0}) {
-    if (!spec.sounds.enabled) return;
-    var db = volumeDb;
+    final volume = settings.value.volume;
+    if (!spec.sounds.enabled || volume == 0.0) return;
+    var db = volumeDb + 20.0 * math.log(volume) / math.ln10;
     if (at != null) {
       final d = at.distanceTo(player.eyePosition);
       if (d > 32.0) return;
@@ -375,7 +413,7 @@ class VoxelGame {
         throw ArgumentError.value(cell, 'cell', 'no store there: ${world.blockNameAt(cell)}');
       case DeclaredScreen(:final id) when !spec.screens.containsKey(id):
         throw ArgumentError.value(id, 'id', 'the spec declares no such screen');
-      case BagScreen() || StorageScreen() || PauseScreen() || DeclaredScreen():
+      case BagScreen() || StorageScreen() || PauseScreen() || SettingsScreen() || DeclaredScreen():
         _screen.value = next;
     }
   }
@@ -420,8 +458,26 @@ class VoxelGame {
   /// lost health where it is not. [frame] ages it.
   final DamageNumbers damageNumbers = DamageNumbers();
 
-  /// Whether the HUD shows the frame rate ([FrameStats.fps]).
-  bool showFps = false;
+  /// What the player has set: the render distance, the turn, the field of
+  /// view, the volumes, the bob, the frame rate. [applySettings] changes it.
+  ValueListenable<GameSettings> get settings => _settings;
+  final ValueNotifier<GameSettings> _settings;
+
+  /// Puts [next] in force at once: the world streams to its render distance
+  /// (cut back now when it is nearer), the view turns at its speed and bobs
+  /// or not, the next frame's camera takes its field of view, the next sound
+  /// its volume, the HUD shows the frame rate or not. The music follows it
+  /// where it plays (`VoxelGameWidget`), listening to [settings].
+  void applySettings(GameSettings next) {
+    if (next.renderDistance != world.loadRadius) world.loadRadius = next.renderDistance;
+    _applyLive(next);
+    _settings.value = next;
+  }
+
+  void _applyLive(GameSettings s) {
+    input.lookScale = s.lookSpeed;
+    view.bob = s.viewBob;
+  }
 
   /// The frames drawn so far: moves once at the end of every [frame]. A HUD
   /// listens to it to check what it shows (`HudSelector`).
@@ -554,6 +610,8 @@ class VoxelGame {
         if (input.justPressed(VoxelAction.inventory) || input.justPressed(VoxelAction.pause)) closeScreen();
       case PauseScreen() || DeclaredScreen():
         if (input.justPressed(VoxelAction.pause)) closeScreen();
+      case SettingsScreen():
+        if (input.justPressed(VoxelAction.pause)) openScreen(const PauseScreen());
       case DeathScreen():
         // Jump stands up: the respawn of a keyboard and a pad.
         if (canRespawn && input.justPressed(VoxelAction.jump)) respawn();
@@ -798,6 +856,7 @@ class VoxelGame {
     input.dispose();
     _frames.dispose();
     _screen.dispose();
+    _settings.dispose();
   }
 
   /// The spec of mob [id].

@@ -13,8 +13,10 @@ import 'package:voxel_engine/core.dart' show IVec3;
 /// | none | [StorageScreen] | use on a block with a `storage` |
 /// | none | [PauseScreen] | a press of pause; the pointer lost |
 /// | none | [DeclaredScreen] | the game's code; a button in the game menu |
+/// | none, [PauseScreen] | [SettingsScreen] | the game's code; Settings in the game menu |
 /// | [BagScreen], [StorageScreen] | none | a press of inventory or pause; its close button |
 /// | [PauseScreen], [DeclaredScreen] | none | a press of pause; its own buttons |
+/// | [SettingsScreen] | [PauseScreen] | a press of pause; its Done |
 /// | [StorageScreen] | none | its block broken |
 /// | any | [DeathScreen] | the player dies |
 /// | [DeathScreen] | none | a respawn, and only that |
@@ -53,7 +55,8 @@ final class StorageScreen extends GameScreen {
   int get hashCode => Object.hash(StorageScreen, cell);
 }
 
-/// The game menu: resume, the game's own screens (`ScreenSpec.menu`), quit.
+/// The game menu: resume, the settings, the game's own screens
+/// (`ScreenSpec.menu`), quit.
 final class PauseScreen extends GameScreen {
   /// The game menu.
   const PauseScreen();
@@ -63,6 +66,19 @@ final class PauseScreen extends GameScreen {
 
   @override
   int get hashCode => (PauseScreen).hashCode;
+}
+
+/// The player's settings (`GameSettings`), each change in force as it is
+/// made. It goes back to the game menu, not to the world.
+final class SettingsScreen extends GameScreen {
+  /// The settings.
+  const SettingsScreen();
+
+  @override
+  bool operator ==(Object other) => other is SettingsScreen;
+
+  @override
+  int get hashCode => (SettingsScreen).hashCode;
 }
 
 /// The player is dead. Only the player's death opens it, and only a respawn

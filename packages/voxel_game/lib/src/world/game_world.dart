@@ -149,13 +149,18 @@ class GameWorld implements VoxelEditor {
     _streamer.jobs = null;
   }
 
-  /// How far chunks are kept around the focus, in chunks.
+  /// How far chunks are kept around the focus, in chunks. A change takes
+  /// at once: a nearer window drops what lies past it now, a further one
+  /// streams what it gained from the next [update].
   int get loadRadius => _streamer.loadRadius;
 
   set loadRadius(int value) {
+    if (value < 1) throw ArgumentError.value(value, 'loadRadius', 'at least one chunk');
     _streamer
       ..loadRadius = value
-      ..unloadRadius = value + 2;
+      ..unloadRadius = value + 2
+      ..trimWindow()
+      ..refresh();
   }
 
   /// Streams the window around [focus], lands the jobs that finished and
