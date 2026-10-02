@@ -110,6 +110,34 @@ class VoxelGame {
         reactions[e.value] = door;
       }
     }
+    if (s.pistons.isNotEmpty) {
+      final pairs = {for (final e in s.pistons.entries) id(e.key): id(e.value)};
+      final pushes = _pistonFacings(s);
+      final piston = SignalReactions.piston(
+        pairs,
+        facing: (piston) => pushes[piston]!,
+        pushable: (b) => blocks[b].hardness >= 0 && !blocks[b].isLiquid && blocks[b].storage == null && !blocks[b].tall,
+        givesWay: blocks.isReplaceable,
+        onExtend: (c) => playSound(
+          'place_${soundFamily(world.getBlock(c))}',
+          at: Vector3(c.x + 0.5, c.y + 0.5, c.z + 0.5),
+          volumeDb: -8,
+          pitch: 0.7,
+        ),
+      );
+      for (final e in pairs.entries) {
+        reactions[e.key] = piston;
+        reactions[e.value] = piston;
+      }
+    }
+    if (s.poweredRails.isNotEmpty) {
+      final pairs = {for (final e in s.poweredRails.entries) id(e.key): id(e.value)};
+      final run = SignalReactions.poweredRun(pairs, reach: s.railReach);
+      for (final e in pairs.entries) {
+        reactions[e.key] = run;
+        reactions[e.value] = run;
+      }
+    }
     for (final e in s.explosives.entries) {
       reactions[id(e.key)] = SignalReactions.trigger((c) {
         world.setBlock(c, BlockRegistry.air);
@@ -131,6 +159,28 @@ class VoxelGame {
       buttons: {for (final e in s.buttons.entries) id(e.key): (pressed: id(e.value.$1), seconds: e.value.$2)},
       reactions: reactions,
     );
+  }
+
+  /// The way each of [s]'s pistons pushes, retracted and extended, by id: the
+  /// compass side its retracted block is a variant of.
+  Map<int, IVec3> _pistonFacings(SignalSpec s) {
+    final sides = <String, IVec3>{};
+    for (final b in blocks.types) {
+      final f = b.facing;
+      if (f == null || f.north == null) continue;
+      sides[f.north!] = const IVec3(0, 0, -1);
+      sides[f.east!] = const IVec3(1, 0, 0);
+      sides[f.south!] = const IVec3(0, 0, 1);
+      sides[f.west!] = const IVec3(-1, 0, 0);
+    }
+    final out = <int, IVec3>{};
+    for (final e in s.pistons.entries) {
+      final side = sides[e.key];
+      if (side == null) throw ArgumentError('piston ${e.key} is no variant of a Facing.compass: it faces nowhere');
+      out[blocks.indexOf(e.key)] = side;
+      out[blocks.indexOf(e.value)] = side;
+    }
+    return out;
   }
 
   /// The circuits of the dimension streaming; null when the spec declares

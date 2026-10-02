@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- **Pistons and powered rails (VA12).** `SignalSpec.pistons` (new, retracted to extended):
+  powered, a piston pushes the block in front of it one cell on when that block breaks
+  (hardness ≥ 0), holds no store, is one cell high and the cell past it takes a block (air,
+  a plant, a liquid); else it stays in. Unpowered, the head goes back and pulls nothing. It
+  pushes the way its retracted block faces in a `Facing.compass` (north -Z, east +X), so a
+  placed piston pushes away from the player; a piston that is no compass variant throws an
+  `ArgumentError` when the game starts. `SignalSpec.poweredRails` (new, unpowered to
+  powered) and `railReach` (8): rails joined side by side are a run, lit within `railReach`
+  rails of a powered one. Both over voxel_engine's `SignalReactions.piston` / `poweredRun`.
+  The example declares circuits for the first time: a wire, a lever, a lamp, four pistons and
+  powered rails along either axis, each with a recipe; its blocks are appended, so a save
+  made before keeps its ids.
+
 - **A richer world (VA11).** The kit re-exports voxel_engine's new world rows — `Stratum`,
   `Cover`, `Pools`, `Structure`, `CustomStructure` and the stock structures `Dungeon`,
   `Tower`, `Well`, `Camp`, `Ruins`, `Mine`, `Village`, `VillageFarm` — and with them the new

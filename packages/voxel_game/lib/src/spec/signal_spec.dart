@@ -9,6 +9,8 @@
 ///   levers: {'lever': 'lever_on'},
 ///   lamps: {'lamp': 'lamp_lit'},
 ///   explosives: {'tnt': 4.0},
+///   pistons: {'piston': 'piston_out', 'piston_e': 'piston_e_out', ...},
+///   poweredRails: {'powered_rail': 'powered_rail_on'},
 /// ),
 /// ```
 class SignalSpec {
@@ -22,6 +24,9 @@ class SignalSpec {
     this.lamps = const {},
     this.doors = const {},
     this.explosives = const {},
+    this.pistons = const {},
+    this.poweredRails = const {},
+    this.railReach = 8,
   });
 
   /// The wire, unpowered and powered.
@@ -47,4 +52,23 @@ class SignalSpec {
 
   /// Blocks that blow up when powered, and how far the blast reaches.
   final Map<String, double> explosives;
+
+  /// Pistons: retracted to extended. Powered, a piston pushes the block in
+  /// front of it one cell on, when that block can move (it breaks, holds no
+  /// store and is one cell high) and the cell past it takes a block (air, a
+  /// plant, a liquid); a blocked piston stays retracted. Unpowered, it pulls
+  /// back its head and nothing else.
+  ///
+  /// A piston pushes the way it faces: its retracted block is one of the
+  /// variants of a `Facing.compass` (north is -Z, east +X), so it is placed
+  /// pushing away from whoever places it.
+  final Map<String, String> pistons;
+
+  /// Powered rails: unpowered to powered. Rails joined side by side are one
+  /// run, and every rail of it within [railReach] rails of a powered one is
+  /// on.
+  final Map<String, String> poweredRails;
+
+  /// How far along a run a powered rail passes the power on.
+  final int railReach;
 }

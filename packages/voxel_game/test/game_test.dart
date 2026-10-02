@@ -535,6 +535,120 @@ void main() {
     expect(w.blockNameAt(base + const IVec3(2, -1, 1)), 'air', reason: 'the ground under it went with it');
   });
 
+  const pistonBlocks = [
+    ..._blocks,
+    BlockType('wire', color: 0x701010, shape: BlockShape.wire, solid: false, hardness: 0),
+    BlockType('wire_lit', color: 0xFF3020, shape: BlockShape.wire, solid: false, hardness: 0, light: 3),
+    BlockType('lever', color: 0x806040, shape: BlockShape.torch, solid: false, hardness: 0),
+    BlockType('lever_on', color: 0xA08060, shape: BlockShape.torch, solid: false, hardness: 0),
+    BlockType(
+      'piston',
+      color: 0x9E8056,
+      hardness: 1.5,
+      facing: Facing.compass(north: 'piston', east: 'piston_e', south: 'piston_s', west: 'piston_w'),
+    ),
+    BlockType('piston_e', color: 0x9E8056, hardness: 1.5, drop: 'piston'),
+    BlockType('piston_s', color: 0x9E8056, hardness: 1.5, drop: 'piston'),
+    BlockType('piston_w', color: 0x9E8056, hardness: 1.5, drop: 'piston'),
+    BlockType('piston_out', color: 0x808088, hardness: 1.5, drop: 'piston'),
+    BlockType('piston_e_out', color: 0x808088, hardness: 1.5, drop: 'piston'),
+    BlockType('piston_s_out', color: 0x808088, hardness: 1.5, drop: 'piston'),
+    BlockType('piston_w_out', color: 0x808088, hardness: 1.5, drop: 'piston'),
+    BlockType('bedrock', color: 0x2A2A2E, hardness: -1),
+    BlockType('chest', color: 0x8A5A2A, hardness: 2.0, storage: Storage()),
+    BlockType('powered_rail', color: 0xB09048, shape: BlockShape.railEw, solid: false, hardness: 0.5),
+    BlockType('powered_rail_on', color: 0xFF8C40, shape: BlockShape.railEw, solid: false, hardness: 0.5, light: 4),
+  ];
+  const pistonSignals = SignalSpec(
+    wire: ('wire', 'wire_lit'),
+    levers: {'lever': 'lever_on'},
+    pistons: {
+      'piston': 'piston_out',
+      'piston_e': 'piston_e_out',
+      'piston_s': 'piston_s_out',
+      'piston_w': 'piston_w_out',
+    },
+    poweredRails: {'powered_rail': 'powered_rail_on'},
+  );
+  VoxelGameSpec pistonSpec({List<BlockType> blocks = pistonBlocks, SignalSpec signals = pistonSignals}) {
+    final flat = _flat();
+    return VoxelGameSpec(blocks: blocks, world: flat.world, sky: flat.sky, signals: signals);
+  }
+
+  test('declared pistons push the way they face, pull their head back, and stop at what will not move', () async {
+    final game = await _start(pistonSpec());
+    final w = game.world;
+    final base = IVec3.floor(game.player.position) + const IVec3(3, 0, 0);
+
+    // East: a lever behind, a cobblestone in front.
+    w.setBlockNamed(base, 'lever');
+    w.setBlockNamed(base + const IVec3(1, 0, 0), 'piston_e');
+    w.setBlockNamed(base + const IVec3(2, 0, 0), 'cobblestone');
+    await _run(game, 0.3);
+    expect(w.blockNameAt(base + const IVec3(1, 0, 0)), 'piston_e');
+    game.signals!.use(base);
+    await _run(game, 0.3);
+    expect(w.blockNameAt(base + const IVec3(1, 0, 0)), 'piston_e_out');
+    expect(w.blockNameAt(base + const IVec3(2, 0, 0)), 'air');
+    expect(w.blockNameAt(base + const IVec3(3, 0, 0)), 'cobblestone', reason: 'pushed one cell east');
+    game.signals!.use(base);
+    await _run(game, 0.3);
+    expect(w.blockNameAt(base + const IVec3(1, 0, 0)), 'piston_e', reason: 'unpowered, the head goes back');
+    expect(w.blockNameAt(base + const IVec3(3, 0, 0)), 'cobblestone', reason: 'and pulls nothing with it');
+
+    // North (the compass's first variant): bedrock, a chest, or a wall past the block keep it retracted.
+    for (final (i, front, past) in [(0, 'bedrock', 'air'), (1, 'chest', 'air'), (2, 'cobblestone', 'stone')]) {
+      final at = base + IVec3(-4 + i * 3, 0, 5);
+      w.setBlockNamed(at + const IVec3(0, 0, 1), 'lever');
+      w.setBlockNamed(at, 'piston');
+      w.setBlockNamed(at + const IVec3(0, 0, -1), front);
+      w.setBlockNamed(at + const IVec3(0, 0, -2), past);
+      game.signals!.use(at + const IVec3(0, 0, 1));
+      await _run(game, 0.3);
+      expect(w.blockNameAt(at), 'piston', reason: '$front before $past does not move');
+      expect(w.blockNameAt(at + const IVec3(0, 0, -1)), front);
+    }
+
+    // Nothing in front: the head comes out all the same.
+    final free = base + const IVec3(0, 0, 10);
+    w.setBlockNamed(free + const IVec3(0, 0, -1), 'lever_on');
+    w.setBlockNamed(free, 'piston_s');
+    await _run(game, 0.3);
+    expect(w.blockNameAt(free), 'piston_s_out');
+  });
+
+  test('a declared run of powered rails is lit as far as its reach from the power', () async {
+    final game = await _start(pistonSpec());
+    final w = game.world;
+    final base = IVec3.floor(game.player.position) + const IVec3(3, 0, 2);
+    w.setBlockNamed(base, 'lever');
+    for (var i = 1; i <= 12; i++) {
+      w.setBlockNamed(base + IVec3(i, 0, 0), 'powered_rail');
+    }
+    await _run(game, 0.3);
+    game.signals!.use(base);
+    await _run(game, 0.3);
+    for (var i = 1; i <= 12; i++) {
+      expect(
+        w.blockNameAt(base + IVec3(i, 0, 0)),
+        i <= 9 ? 'powered_rail_on' : 'powered_rail',
+        reason: 'rail $i: the first is powered, eight more carry it',
+      );
+    }
+    game.signals!.use(base);
+    await _run(game, 0.3);
+    for (var i = 1; i <= 12; i++) {
+      expect(w.blockNameAt(base + IVec3(i, 0, 0)), 'powered_rail');
+    }
+  });
+
+  test('a declared piston must face somewhere', () async {
+    final blocks = [
+      for (final b in pistonBlocks) b.id == 'piston' ? const BlockType('piston', color: 0x9E8056, hardness: 1.5) : b,
+    ];
+    await expectLater(VoxelGame.startHeadless(pistonSpec(blocks: blocks)), throwsArgumentError);
+  });
+
   test('the shoulder orbit comes in at once at a wall and goes out gently', () {
     final orbit = ShoulderOrbit();
     final pivot = Vector3(0.5, 1.5, 0.5), right = Vector3(1, 0, 0), up = Vector3(0, 1, 0), back = Vector3(0, 0, 1);

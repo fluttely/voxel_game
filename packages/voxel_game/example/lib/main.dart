@@ -173,6 +173,89 @@ const game = VoxelGameSpec(
     BlockType('slab', color: 0xB08850, shape: BlockShape.slab, opaque: false, hardness: 2.0, tool: 'axe'),
     BlockType('glass', color: 0xCDE6F0, alpha: 0.35, hardness: 0.3, drop: ''),
     BlockType('rail', color: 0x8A8478, shape: BlockShape.railEw, solid: false, opaque: false, hardness: 0.7),
+    // Circuits (the `signals` below): a wire, a lever, a lamp, pistons and powered rails, each state a block.
+    BlockType('wire', color: 0x701010, shape: BlockShape.wire, solid: false, hardness: 0, support: Support.below()),
+    BlockType(
+      'wire_lit',
+      color: 0xFF3020,
+      shape: BlockShape.wire,
+      solid: false,
+      hardness: 0,
+      light: 3,
+      drop: 'wire',
+      support: Support.below(),
+    ),
+    BlockType('lever', color: 0x806040, shape: BlockShape.torch, solid: false, hardness: 0, support: Support.below()),
+    BlockType(
+      'lever_on',
+      color: 0xE04030,
+      shape: BlockShape.torch,
+      solid: false,
+      hardness: 0,
+      light: 4,
+      drop: 'lever',
+      support: Support.below(),
+    ),
+    BlockType('lamp', color: 0x6A4A2A, hardness: 0.3),
+    BlockType('lamp_lit', color: 0xFFD080, hardness: 0.3, light: 15, drop: 'lamp'),
+    // A piston pushes away from whoever places it; out, it is the grey block.
+    BlockType(
+      'piston',
+      color: 0x9E8056,
+      hardness: 1.5,
+      tool: 'pickaxe',
+      facing: Facing.compass(north: 'piston', east: 'piston_e', south: 'piston_s', west: 'piston_w'),
+    ),
+    BlockType('piston_e', color: 0x9E8056, hardness: 1.5, tool: 'pickaxe', drop: 'piston'),
+    BlockType('piston_s', color: 0x9E8056, hardness: 1.5, tool: 'pickaxe', drop: 'piston'),
+    BlockType('piston_w', color: 0x9E8056, hardness: 1.5, tool: 'pickaxe', drop: 'piston'),
+    BlockType('piston_out', color: 0x808087, hardness: 1.5, tool: 'pickaxe', drop: 'piston'),
+    BlockType('piston_e_out', color: 0x808087, hardness: 1.5, tool: 'pickaxe', drop: 'piston'),
+    BlockType('piston_s_out', color: 0x808087, hardness: 1.5, tool: 'pickaxe', drop: 'piston'),
+    BlockType('piston_w_out', color: 0x808087, hardness: 1.5, tool: 'pickaxe', drop: 'piston'),
+    // A powered rail runs the way you look; a run of them lights eight rails on from the power.
+    BlockType(
+      'powered_rail',
+      color: 0xB09048,
+      shape: BlockShape.railEw,
+      solid: false,
+      opaque: false,
+      hardness: 0.5,
+      support: Support.below(),
+      facing: Facing.axis(x: 'powered_rail', z: 'powered_rail_ns'),
+    ),
+    BlockType(
+      'powered_rail_ns',
+      color: 0xB09048,
+      shape: BlockShape.railNs,
+      solid: false,
+      opaque: false,
+      hardness: 0.5,
+      drop: 'powered_rail',
+      support: Support.below(),
+    ),
+    BlockType(
+      'powered_rail_on',
+      color: 0xFF8C40,
+      shape: BlockShape.railEw,
+      solid: false,
+      opaque: false,
+      hardness: 0.5,
+      light: 4,
+      drop: 'powered_rail',
+      support: Support.below(),
+    ),
+    BlockType(
+      'powered_rail_ns_on',
+      color: 0xFF8C40,
+      shape: BlockShape.railNs,
+      solid: false,
+      opaque: false,
+      hardness: 0.5,
+      light: 4,
+      drop: 'powered_rail',
+      support: Support.below(),
+    ),
   ],
   // 2. Items that are not blocks — tools, food (eaten with use), armour (worn with use), a door
   //    (placing its block), buckets, a hoe, seeds (placing wheat) — and how to craft things.
@@ -217,6 +300,11 @@ const game = VoxelGameSpec(
     Recipe('chest', 1, {'planks': 8}),
     Recipe('obsidian', 1, {'cobblestone': 4}),
     Recipe('flint_and_steel', 1, {'coal': 1, 'cobblestone': 1}),
+    Recipe('wire', 8, {'coal': 2}),
+    Recipe('lever', 1, {'cobblestone': 1, 'planks': 1}),
+    Recipe('lamp', 1, {'torch': 1, 'planks': 4}),
+    Recipe('piston', 1, {'planks': 3, 'cobblestone': 4, 'wire': 1}),
+    Recipe('powered_rail', 6, {'planks': 2, 'cobblestone': 4, 'wire': 1}),
   ],
   // Status effects: what a food starts, what the player carries.
   effects: [EffectType('regeneration', 'Regeneration', 0.9, 0.35, 0.55, period: 2.0, heal: 1.0)],
@@ -328,6 +416,20 @@ const game = VoxelGameSpec(
   // The way there: an obsidian frame around a hollow 2 wide and 3 tall, lit with flint and steel; two seconds
   // in it and the player crosses, a frame built on the far side for the way back.
   portals: [PortalSpec(frame: 'obsidian', portal: 'portal', lighter: 'flint_and_steel', to: 'underworld')],
+  // Circuits: a lever powers a wire, and what the wire touches answers — a lamp lights, a piston pushes the block
+  // in front of it, a run of powered rails lights up.
+  signals: SignalSpec(
+    wire: ('wire', 'wire_lit'),
+    levers: {'lever': 'lever_on'},
+    lamps: {'lamp': 'lamp_lit'},
+    pistons: {
+      'piston': 'piston_out',
+      'piston_e': 'piston_e_out',
+      'piston_s': 'piston_s_out',
+      'piston_w': 'piston_w_out',
+    },
+    poweredRails: {'powered_rail': 'powered_rail_on', 'powered_rail_ns': 'powered_rail_ns_on'},
+  ),
   // The weather: rain and storms rolled every few minutes (snow where a biome's precipitation is snow).
   sky: SkySpec(weather: WeatherSpec()),
   // 4. The player: what they start with, hunger that food fills, and experience (a kill's, below).

@@ -66,6 +66,11 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
   for the way back unless one is near. `VoxelGame.travel('underworld')` goes from code, and
   a death elsewhere respawns in the main world. The save and the network carry the
   dimension.
+- Circuits, declared by block name: `SignalSpec(wire: ('wire', 'wire_lit'), levers: {'lever':
+  'lever_on'}, ...)` — levers, buttons, plates and sources power a wire, and what it touches
+  answers: lamps light, iron doors open, TNT blows, `pistons` (`{'piston': 'piston_out', ...}`)
+  push the block in front of them the way their `Facing.compass` points, and a run of
+  `poweredRails` lights `railReach` rails on from the power.
 - `VoxelGame.notify('Night falls')` tells the player something for a few seconds; the default
   HUD shows it at the right, over what the player just picked up (`+5 Dirt`).
 - The default HUD also reads the world through the frame's camera (`VoxelGame.camera`, the
