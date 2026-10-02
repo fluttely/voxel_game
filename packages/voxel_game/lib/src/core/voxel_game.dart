@@ -470,7 +470,7 @@ class VoxelGame {
         ? await startHeadless(spec, save: hello.world, authority: false)
         : await start(spec, save: hello.world, settings: settings, authority: false);
     game.player.restore(hello.spawn, hello.spawn);
-    game.session = ClientSession(game, hello.connection, hello.peer, drops: hello.drops);
+    game.session = ClientSession(game, hello.connection, hello.peer, drops: hello.drops, weather: hello.weather);
     return game;
   }
 

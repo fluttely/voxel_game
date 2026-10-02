@@ -45,6 +45,23 @@ const _storeSpec = VoxelGameSpec(
   sky: SkySpec.alwaysDay,
 );
 
+/// [_spec] under a sky that stays clear until the host sets it, each spell
+/// held for a long while.
+const _skySpec = VoxelGameSpec(
+  blocks: _blocks,
+  world: WorldGenSpec(
+    terrain: TerrainRecipe.flat(20),
+    seaLevel: 5,
+    caves: CaveSpec.none,
+    biomes: [Biome('plains', top: 'grass', under: 'dirt')],
+  ),
+  sky: SkySpec(
+    startTime: 0.5,
+    cycle: false,
+    weather: WeatherSpec(odds: WeatherOdds(clear: 1, rain: 0, storm: 0), minSpell: 1000, maxSpell: 1000),
+  ),
+);
+
 /// A chest the host places beside its player, with [stone] stone in its
 /// first slot, every game told of it.
 Future<IVec3> _chest(VoxelGame host, List<VoxelGame> clients, {int stone = 10}) async {
@@ -469,11 +486,11 @@ void main() {
       expect(b.openStorage!.countOf('stone'), 0, reason: 'the other screen open on it sees it go');
 
       // Into a's bag, then half of it back into the store: what left this
-    // store in this opening pays for it.
-    a.player.clickSlot(a.player.inventory, 3, one: false);
-    expect(a.player.carried, isNull);
-    a.player.clickSlot(a.player.inventory, 3, one: true);
-    final half = a.player.carried!.count;
+      // store in this opening pays for it.
+      a.player.clickSlot(a.player.inventory, 3, one: false);
+      expect(a.player.carried, isNull);
+      a.player.clickSlot(a.player.inventory, 3, one: true);
+      final half = a.player.carried!.count;
       a.player.clickSlot(a.openStorage!, 4, one: false);
       await _run([host, a, b], 0.3);
       expect(_client(a).storeRefusals, 0);
@@ -578,4 +595,78 @@ void main() {
       await _close(session, [a]);
     },
   );
+
+  test(
+    "a client follows the host's sky: a storm eases in as the host's does, clears with it, and jumps as it jumps",
+    () async {
+      final (host, session, [client]) = await _session(1, spec: _skySpec);
+      expect(client.weather.kind, WeatherKind.clear);
+      host.weather.set(WeatherKind.storm);
+      await _run([host, client], 2.0);
+      expect(client.weather.spell, WeatherKind.storm);
+      expect(host.weather.intensity, closeTo(0.5, 0.05));
+      expect(client.weather.intensity, closeTo(host.weather.intensity, 0.05), reason: 'eased, not at once');
+      await _run([host, client], 3.0);
+      expect(client.weather.kind, WeatherKind.storm);
+      expect(client.weather.overcast, closeTo(0.75, 1e-9));
+
+      host.weather.set(WeatherKind.rain, intensity: 0.6);
+      await _run([host, client], 5.0);
+      expect([client.weather.kind, client.weather.target, client.weather.intensity], [WeatherKind.rain, 0.6, 0.6]);
+
+      host.weather.set(WeatherKind.clear);
+      await _run([host, client], 1.0);
+      expect(client.weather.spell, WeatherKind.clear);
+      expect(client.weather.kind, WeatherKind.rain, reason: 'the rain falls on while it fades out');
+      await _run([host, client], 4.0);
+      expect(client.weather.kind, WeatherKind.clear);
+      expect(client.weather.overcast, 0.0);
+
+      host.weather.set(WeatherKind.storm, now: true);
+      await _run([host, client], 0.2);
+      expect(client.weather.intensity, 1.0, reason: 'a sky set at once on the host is at once here too');
+      await _close(session, [client]);
+    },
+  );
+
+  test('a client joining a storm has it at once, and strikes on its own clock', () async {
+    final host = await VoxelGame.startHeadless(_skySpec);
+    host.spawner.enabled = false;
+    await _run([host], 1.0);
+    host.weather.set(WeatherKind.storm, now: true);
+    final session = await host.host(port: 0);
+    final client = await VoxelGame.joinGame(_skySpec, '127.0.0.1', port: session.net.port, headless: true);
+
+    // Before the client's first step.
+    expect(
+      [client.weather.spell, client.weather.kind, client.weather.intensity],
+      [WeatherKind.storm, WeatherKind.storm, 1.0],
+    );
+    expect(client.weather.overcast, closeTo(0.75, 1e-9));
+    final hostBolts = <int>[], clientBolts = <int>[];
+    for (var i = 0; i < 30 * 60; i++) {
+      host.frame(1 / 60);
+      client.frame(1 / 60);
+      if (host.weather.flash == 1.0) hostBolts.add(i);
+      if (client.weather.flash == 1.0) clientBolts.add(i);
+      if (i % 30 == 0) await Future<void>.delayed(const Duration(milliseconds: 1));
+    }
+    expect(clientBolts, isNotEmpty, reason: 'a bolt every 4 to 14 s');
+    expect(hostBolts, isNotEmpty);
+    expect(clientBolts, isNot(hostBolts), reason: 'each side keeps its own bolt clock');
+    await _close(session, [client]);
+  });
+
+  test("a client whose player turned the weather off stays clear, and takes the host's sky back on", () async {
+    final (host, session, [client]) = await _session(1, spec: _skySpec);
+    client.applySettings(client.settings.value.copyWith(weather: false));
+    host.weather.set(WeatherKind.rain, intensity: 0.6, now: true);
+    await _run([host, client], 1.0);
+    expect(client.weather.kind, WeatherKind.clear);
+    expect(client.weather.overcast, 0.0);
+    client.applySettings(client.settings.value.copyWith(weather: true));
+    await _run([host, client], 5.0);
+    expect([client.weather.kind, client.weather.intensity], [WeatherKind.rain, 0.6]);
+    await _close(session, [client]);
+  });
 }

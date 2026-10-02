@@ -170,6 +170,24 @@ void main() {
     game.dispose();
   });
 
+  test("a client follows the host's sky, and a sky no host sends throws", () async {
+    final game = await _start(_spec(), authority: false);
+    final w = game.weather;
+    w.follow(WeatherKind.clear, wet: WeatherKind.storm, target: 0.0, intensity: 0.5);
+    expect([w.spell, w.kind, w.intensity, w.overcast], [WeatherKind.clear, WeatherKind.storm, 0.5, 0.375]);
+    _run(game, 2.1);
+    expect(w.kind, WeatherKind.clear, reason: 'faded out as the host fades it');
+    expect(() => w.follow(WeatherKind.snow, wet: WeatherKind.rain, target: 1.0), throwsFormatException);
+    expect(() => w.follow(WeatherKind.rain, wet: WeatherKind.clear, target: 1.0), throwsFormatException);
+    expect(() => w.follow(WeatherKind.rain, wet: WeatherKind.rain, target: 0.0), throwsFormatException);
+    expect(() => w.follow(WeatherKind.clear, wet: WeatherKind.rain, target: 0.5), throwsFormatException);
+    expect(() => w.follow(WeatherKind.rain, wet: WeatherKind.rain, target: 1.5), throwsFormatException);
+    game.dispose();
+    final none = await _start(_spec(weather: null), authority: false);
+    expect(() => none.weather.follow(WeatherKind.clear, wet: WeatherKind.rain, target: 0.0), throwsStateError);
+    none.dispose();
+  });
+
   testWidgets('the settings offer the weather only to a game that has some', (tester) async {
     final rainy = _spec();
     var value = GameSettings.of(rainy);

@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- **Net catches up, fourth part: the sky (VA16d).** A client's weather is the host's. The
+  host sends its sky (`weather`: the spell, the last rain or storm, the intensity it eases
+  toward and the one it stands at) with the hello and each time it turns; the client
+  `Weather.follow`s it (new, with `Weather.wet` and `target`), starting where the host's
+  stands and easing as the host's does, so a joiner under a storm has it at once and a sky
+  the host sets at once is at once everywhere. What falls is still the client's own biome's,
+  and each side strikes its bolts on its own clock. A client whose player turned the weather
+  off stays clear and eases into the host's sky when it is turned on. A sky no host sends
+  (snow as a spell, an intensity out of range) throws.
+
 - **Net catches up, third part: stores (VA16c).** A client opens a store where the host is
   (`VoxelGame.storesHere`, new; `openScreen(StorageScreen)` no longer throws on a client
   there): `store_open` / `store_close` as its screen opens and shuts. The host keeps the

@@ -49,7 +49,8 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
   storms grey the sky and pull the fog in, a storm strikes with lightning and thunder, and
   what falls is the biome's (`Biome(precipitation: Precipitation.snow)`, or `none` for a
   desert). `VoxelGame.weather` tells what it is and `set`s a spell from code; the player's
-  `GameSettings.weather` turns it off. Only a lone game or a host rolls it.
+  `GameSettings.weather` turns it off. Only a lone game or a host rolls it; a client follows
+  the host's sky (`Weather.follow`) and strikes on its own clock.
 - A world dressed by rows: `WorldGenSpec(strata: [Stratum('dark_stone', belowY: 22)])`,
   a biome's `covers` (`Cover('snow', minHeight: 101)`), `pools` (`Pools(bed: 'mud')`), trees
   by `weight`, plants that stand `maxHeight` tall, `spread` into patches or grow `byWater`;

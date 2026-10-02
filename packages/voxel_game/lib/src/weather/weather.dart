@@ -14,7 +14,8 @@ import 'weather_kind.dart';
 ///
 /// `VoxelGame.step` ticks it; `VoxelGame.frame` lights the sky by [overcast]
 /// and [flash] and lets the rain and snow fall by [rainShare] and
-/// [snowShare]. With no [spec] the sky stays clear.
+/// [snowShare]. With no [spec] the sky stays clear. A client rolls nothing:
+/// it [follow]s the host's sky, and strikes on its own clock.
 class Weather {
   /// The weather of [spec] over the biomes of [worlds] (a game's
   /// dimensions), rolled by [seed]'s own random numbers. Throws
@@ -42,7 +43,9 @@ class Weather {
   WeatherKind get spell => _spell;
   WeatherKind _spell = WeatherKind.clear;
 
-  /// The last rain or storm, which keeps falling while it fades out.
+  /// The last rain or storm: what falls while it is the [spell], and while
+  /// a clear sky fades it out.
+  WeatherKind get wet => _wet;
   WeatherKind _wet = WeatherKind.rain;
 
   /// What the weather does where the player stands: clear once nothing
@@ -61,6 +64,9 @@ class Weather {
   /// How hard it falls, 0 (nothing) .. 1, eased toward the spell's.
   double get intensity => _intensity;
   double _intensity = 0.0;
+
+  /// The intensity the spell eases toward: 0 for a clear sky.
+  double get target => _target;
   double _target = 0.0;
 
   /// How much cloud hides the sky, 0 clear .. 0.75 a full storm: [intensity]
@@ -87,9 +93,13 @@ class Weather {
   double _biomeLeft = 0.0;
   String _biome = '';
 
+  /// The host's sky as last [follow]ed, or null where nothing is followed.
+  ({WeatherKind spell, WeatherKind wet, double target})? _followed;
+
   /// Whether the player lets the weather turn (`GameSettings.weather`).
   /// Turned off, the sky clears at once and holds until it is turned on,
-  /// when the next roll comes within half a minute.
+  /// when the next roll comes within half a minute, or a client's sky eases
+  /// back into the host's.
   bool get enabled => _enabled;
   bool _enabled = true;
   set enabled(bool on) {
@@ -98,6 +108,9 @@ class Weather {
     if (!on) {
       _spell = WeatherKind.clear;
       _target = _intensity = _flash = 0.0;
+    } else if (_followed case final f?) {
+      _begin(spec!, f.spell, f.target);
+      _wet = f.wet;
     } else {
       _spellLeft = math.min(_spellLeft, 30.0);
     }
@@ -122,6 +135,32 @@ class Weather {
     if (now) {
       _intensity = _target;
       _darkness = _darknessOf(_wet);
+    }
+  }
+
+  /// Follows the host's sky: its [spell], its last rain or storm ([wet]),
+  /// and the [target] intensity it eases toward, which this side eases
+  /// toward too, from [intensity] when given (where the host's stands). A storm that goes on keeps this side's bolt clock. Turned off
+  /// ([enabled]), the sky stays clear and takes the host's when turned on.
+  /// Throws [StateError] with no [spec], and [FormatException] for a sky no
+  /// host sends: snow, a [wet] that is not rain or a storm, a [target] out of
+  /// 0..1, or 0 under rain.
+  void follow(WeatherKind spell, {required WeatherKind wet, required double target, double? intensity}) {
+    final s = spec;
+    if (s == null) throw StateError('the spec declares no weather');
+    if (spell == WeatherKind.snow) throw FormatException('a spell of snow');
+    if (wet != WeatherKind.rain && wet != WeatherKind.storm) throw FormatException('a last rain of $wet');
+    if (!(target >= 0.0 && target <= 1.0) || (target == 0.0) != (spell == WeatherKind.clear)) {
+      throw FormatException('$spell at $target');
+    }
+    if (intensity != null && !(intensity >= 0.0 && intensity <= 1.0)) throw FormatException('intensity $intensity');
+    _followed = (spell: spell, wet: wet, target: target);
+    if (!_enabled) return;
+    _begin(s, spell, target);
+    _wet = wet;
+    if (intensity != null) {
+      _intensity = intensity;
+      _darkness = _darknessOf(wet);
     }
   }
 

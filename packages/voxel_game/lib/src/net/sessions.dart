@@ -13,6 +13,8 @@ import '../entities/item_pickup.dart';
 import '../entities/target.dart';
 import '../mobs/mob.dart';
 import '../ui/game_screen.dart';
+import '../weather/weather.dart';
+import '../weather/weather_kind.dart';
 import '../world/world_save.dart';
 import 'block_prediction.dart';
 import 'remote_player.dart';
@@ -73,7 +75,10 @@ typedef _StoreEdit = ({int n, int opening, int slot, ItemStack? before, ItemStac
 /// shuts a store gone (`store_shut`); each slot a client edits is a
 /// `store_set` (its number, the slot, what it held before and after), which
 /// the host answers with the store and a `store_ack` (the number, and
-/// whether it stood). Every peer runs the same spec, so a dimension's number
+/// whether it stood). The host's sky goes out as `weather` (its spell, its
+/// last rain or storm, the intensity it eases toward and the one it stands
+/// at) with the hello and when it turns. Every peer runs
+/// the same spec, so a dimension's number
 /// is the same everywhere, and a message no peer of that spec would send
 /// throws.
 abstract class GameSession implements GameSystem {
@@ -133,6 +138,29 @@ abstract class GameSession implements GameSystem {
   /// The slot a peer sent as [o]: null for an empty one.
   ItemStack? _slot(Object? o) => (o! as Map<String, Object?>).isEmpty ? null : _stack(o);
 
+  /// [i], which a peer sent as a weather's.
+  static WeatherKind _weatherKind(int i) {
+    if (i < 0 || i >= WeatherKind.values.length) throw FormatException('weather $i');
+    return WeatherKind.values[i];
+  }
+
+  /// A `weather` message of [weather]'s sky.
+  static NetMessage _weatherMessage(Weather weather) => {
+    't': 'weather',
+    's': weather.spell.index,
+    'w': weather.wet.index,
+    'i': weather.target,
+    'now': weather.intensity,
+  };
+
+  /// [weather] follows the sky of a `weather` message.
+  static void _follow(Weather weather, NetMessage m) => weather.follow(
+    _weatherKind(m['s']! as int),
+    wet: _weatherKind(m['w']! as int),
+    target: (m['i']! as num).toDouble(),
+    intensity: (m['now']! as num).toDouble(),
+  );
+
   /// A `store` message of [store], which stands at [cell].
   static NetMessage _storeMessage(IVec3 cell, Inventory store) => {'t': 'store', 'c': _c(cell), 's': store.toJson()};
 
@@ -156,7 +184,7 @@ abstract class GameSession implements GameSystem {
 /// no world, goes back to the peer's bag); its poses and hits come back to
 /// it; a remote player in the host's dimension is a target its mobs hunt, and
 /// the damage it takes goes to its peer, as do the drops it reaches. A
-/// client opens the stores of the host's dimension only, and its edit of a
+/// client follows the host's sky. A client opens the stores of the host's dimension only, and its edit of a
 /// slot stands only on the slot it saw (compare-and-set) and when what it
 /// puts in is paid for: out of what it took from that store since it opened
 /// it, then out of what it last declared it holds.
@@ -191,6 +219,7 @@ class HostSession extends GameSession {
   final Map<int, ({NetPeer peer, IVec3 cell, Inventory store})> _open = {};
   final Map<int, Map<String, int>> _escrow = {};
   final Map<Inventory, String> _storeSent = {};
+  String _weatherSent = '';
 
   static String _kind(ItemStack s) => '${s.id}/${s.bonus}/${s.dur}';
 
@@ -246,6 +275,7 @@ class HostSession extends GameSession {
       'tod': game.timeOfDay,
       'spawn': _v(game.player.spawnPoint),
       'drops': _dropsMessage(_drops.values),
+      if (game.weather.spec != null) 'weather': GameSession._weatherMessage(game.weather),
     });
   }
 
@@ -457,6 +487,7 @@ class HostSession extends GameSession {
     _edits.clear();
     _dropsTick(dt);
     _storesTick();
+    _weatherTick();
     _clock += dt;
     if (_clock < 0.05) return;
     _clock = 0.0;
@@ -476,6 +507,18 @@ class HostSession extends GameSession {
           {'n': m.netId, 's': m.spec.id, 'p': _v(m.position), 'yaw': m.facing, 'hp': m.hp, 'dead': m.isDead},
       ],
     });
+  }
+
+  /// The sky goes out when it turned: a new spell, a new last rain or a new
+  /// intensity to ease toward. The intensity it stands at goes with it, so a
+  /// sky set at once is at once everywhere.
+  void _weatherTick() {
+    final w = game.weather;
+    if (w.spec == null) return;
+    final said = '${w.spell} ${w.wet} ${w.target}';
+    if (said == _weatherSent) return;
+    _weatherSent = said;
+    net.broadcast(GameSession._weatherMessage(w));
   }
 
   /// The drops made in this step go out, then those gone (a drop made and
@@ -533,16 +576,20 @@ class HostSession extends GameSession {
 /// change, at most 5 times a second. A store it opens is the host's, seen
 /// as the host last sent it with this client's unsettled edits over it; an
 /// edit the host refuses is undone, the hand's share of it too, and a store
-/// the host shuts closes its screen.
+/// the host shuts closes its screen. Its sky is the host's: each turn of it
+/// starts where the host's stands and eases as the host's does.
 class ClientSession extends GameSession {
   /// A client of [game] on [connection], known to the host as [peer], the
-  /// host's [drops] (the hello's) drawn.
-  ClientSession(this.game, this.connection, this.peer, {required NetMessage drops})
+  /// host's [drops] drawn and its [weather] followed (the hello's; no
+  /// weather for a spec that declares none).
+  ClientSession(this.game, this.connection, this.peer, {required NetMessage drops, NetMessage? weather})
     : _hostDimension = drops['d']! as int {
     game.world.addListener(_edited);
     game.screen.addListener(_screenChanged);
     connection.listen(_message);
     _dropsIn(drops);
+    if ((weather == null) != (game.weather.spec == null)) throw FormatException('a hello with weather $weather');
+    if (weather != null) GameSession._follow(game.weather, weather);
   }
 
   /// The game joined.
@@ -788,6 +835,8 @@ class ClientSession extends GameSession {
         _players(m['players']! as List<Object?>);
         // The host's mobs live in its dimension: elsewhere there are none.
         _mobsState(m['d'] == game.world.dimension ? m['mobs']! as List<Object?> : const []);
+      case 'weather':
+        GameSession._follow(game.weather, m);
       case 'store':
         // A store shut here since the host sent it is no longer seen.
         if (_cell(m['c']) != _storeCell) return;
@@ -920,11 +969,10 @@ class ClientSession extends GameSession {
 /// its edits are numbered as the host's dimensions, which the client's spec
 /// must declare (`SavedWorld.editsFor` throws otherwise). Its [drops] are the
 /// items on the ground where the host is, a `drops` message for
-/// [ClientSession].
-Future<({NetConnection connection, int peer, SavedWorld world, Vector3 spawn, NetMessage drops})> joinHost(
-  String address, {
-  int port = 7777,
-}) async {
+/// [ClientSession], and its [weather] the host's sky as it stands, a
+/// `weather` message (null where the spec declares none).
+Future<({NetConnection connection, int peer, SavedWorld world, Vector3 spawn, NetMessage drops, NetMessage? weather})>
+joinHost(String address, {int port = 7777}) async {
   final c = await connectToHost(address, port: port);
   final m = await c.next().timeout(const Duration(seconds: 15));
   if (m['t'] != 'hello') throw StateError('the host answered ${m['t']} before hello');
@@ -937,5 +985,6 @@ Future<({NetConnection connection, int peer, SavedWorld world, Vector3 spawn, Ne
     world: SavedWorld(seed, edits, {'time': m['time'], 'timeOfDay': m['tod']}, dimensions: dimensions),
     spawn: _vec(m['spawn']),
     drops: m['drops']! as NetMessage,
+    weather: m['weather'] as NetMessage?,
   );
 }

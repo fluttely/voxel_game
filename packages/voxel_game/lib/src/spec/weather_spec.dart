@@ -6,8 +6,8 @@ import 'weather_odds.dart';
 /// ([thunder]); what falls is the player's biome's (`Biome.precipitation`):
 /// rain, snow, or nothing.
 ///
-/// Only a game that decides rolls (a lone game, a host); a client's sky
-/// stays clear until the host sends it its own.
+/// Only a game that decides rolls (a lone game, a host); a client's sky is
+/// the host's, sent as it turns, its bolts struck on the client's own clock.
 class WeatherSpec {
   /// Weather rolled anew every [minSpell] to [maxSpell] seconds.
   const WeatherSpec({
