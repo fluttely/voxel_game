@@ -38,8 +38,10 @@ import '../spec/portal_spec.dart';
 import '../world/block_rules.dart';
 import '../world/game_world.dart';
 import '../world/portals.dart';
+import '../world/rails.dart';
 import '../world/travel.dart';
 import '../vehicles/boat.dart';
+import '../vehicles/minecart.dart';
 import '../vehicles/vehicle.dart';
 import '../vehicles/vehicle_spec.dart';
 import '../weather/weather.dart';
@@ -81,6 +83,7 @@ class VoxelGame {
     );
     spawner = MobSpawner(this);
     blockRules = BlockRules(this);
+    rails = Rails(blocks, spec.signals);
     if (!authority) {
       // A client: the host runs the liquids, the circuits and the spawning.
       world.flow.enabled = false;
@@ -88,6 +91,7 @@ class VoxelGame {
       return;
     }
     blockRules.attach();
+    rails.attach(world);
     final s = spec.signals;
     if (s != null) {
       _signals = _signalRules(s);
@@ -361,8 +365,9 @@ class VoxelGame {
     dimension: [for (final v in vehicles) v.row],
   };
 
-  /// Puts back [dimension]'s vehicles from their save [rows] (`Vehicle.row`):
-  /// in the world when the player is there, else parked for when it comes.
+  /// Puts back [dimension]'s vehicles from their save [rows] (`Vehicle.row`,
+  /// read back by `Vehicle.restoreRow`): in the world when the player is
+  /// there, else parked for when it comes.
   /// Throws for a dimension the spec does not declare, and for an item no
   /// vehicle is.
   void restoreVehicles(String dimension, List<Map<String, Object?>> rows) {
@@ -375,7 +380,11 @@ class VoxelGame {
     }
     for (final r in rows) {
       final p = [for (final e in r['pos']! as List<Object?>) (e! as num).toDouble()];
-      placeVehicle(r['item']! as String, Vector3(p[0], p[1], p[2]), facing: (r['yaw']! as num).toDouble());
+      placeVehicle(
+        r['item']! as String,
+        Vector3(p[0], p[1], p[2]),
+        facing: (r['yaw']! as num).toDouble(),
+      ).restoreRow(r);
     }
   }
 
@@ -522,6 +531,11 @@ class VoxelGame {
   /// [authority].
   late final BlockRules blockRules;
 
+  /// The rails among the blocks, what carries a minecart: they lay
+  /// themselves, turning to meet one another, only where this game is the
+  /// [authority].
+  late final Rails rails;
+
   /// The living creatures.
   final List<Mob> mobs = [];
 
@@ -537,7 +551,8 @@ class VoxelGame {
   late final Map<String, VehicleSpec> _vehicleSpecs = {for (final v in spec.vehicles) v.item: v};
 
   /// Puts a vehicle of [item]'s down at [at], pointing [facing] (radians, as
-  /// `PlayerEntity.yaw`). Throws for an item that is no vehicle, and on a
+  /// `PlayerEntity.yaw`); a minecart on the rail at [at], heading for its end
+  /// nearest [facing]. Throws for an item that is no vehicle, and on a
   /// client: the host owns the vehicles (VA16).
   Vehicle placeVehicle(String item, Vector3 at, {double facing = 0.0}) {
     if (!authority) throw StateError('a client puts no vehicle down: the host owns them');
@@ -545,6 +560,7 @@ class VoxelGame {
     if (v == null) throw ArgumentError.value(item, 'item', 'no vehicle is put down with it');
     return add(switch (v) {
       BoatSpec() => Boat(v, at, facing: facing),
+      CartSpec() => Minecart(v, at, facing: facing),
     });
   }
 

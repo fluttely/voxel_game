@@ -557,7 +557,33 @@ void main() {
     BlockType('bedrock', color: 0x2A2A2E, hardness: -1),
     BlockType('chest', color: 0x8A5A2A, hardness: 2.0, storage: Storage()),
     BlockType('powered_rail', color: 0xB09048, shape: BlockShape.railEw, solid: false, hardness: 0.5),
-    BlockType('powered_rail_on', color: 0xFF8C40, shape: BlockShape.railEw, solid: false, hardness: 0.5, light: 4),
+    BlockType(
+      'powered_rail_on',
+      color: 0xFF8C40,
+      shape: BlockShape.railEw,
+      solid: false,
+      hardness: 0.5,
+      light: 4,
+      drop: 'powered_rail',
+    ),
+    // A rail kind lays both straights (`Rails`).
+    BlockType(
+      'powered_rail_ns',
+      color: 0xB09048,
+      shape: BlockShape.railNs,
+      solid: false,
+      hardness: 0.5,
+      drop: 'powered_rail',
+    ),
+    BlockType(
+      'powered_rail_ns_on',
+      color: 0xFF8C40,
+      shape: BlockShape.railNs,
+      solid: false,
+      hardness: 0.5,
+      light: 4,
+      drop: 'powered_rail',
+    ),
   ];
   const pistonSignals = SignalSpec(
     wire: ('wire', 'wire_lit'),
@@ -568,7 +594,7 @@ void main() {
       'piston_s': 'piston_s_out',
       'piston_w': 'piston_w_out',
     },
-    poweredRails: {'powered_rail': 'powered_rail_on'},
+    poweredRails: {'powered_rail': 'powered_rail_on', 'powered_rail_ns': 'powered_rail_ns_on'},
   );
   VoxelGameSpec pistonSpec({List<BlockType> blocks = pistonBlocks, SignalSpec signals = pistonSignals}) {
     final flat = _flat();

@@ -4,7 +4,7 @@ import 'package:voxel_engine/core.dart' show IVec3;
 /// A vehicle a game declares (`VoxelGameSpec.vehicles`): the [item] that puts
 /// one in the world and that it breaks back into, its body, where its rider
 /// sits, and its look. One kind a subclass, each moving its own way: a
-/// [BoatSpec] floats and is rowed.
+/// [BoatSpec] floats and is rowed, a [CartSpec] rides the rails.
 ///
 /// Its look is [model]: boxes of voxels, each filled from its first corner to
 /// its second (inclusive) in a `0xRRGGBB` colour, a later box painting over an
@@ -109,4 +109,67 @@ final class BoatSpec extends VehicleSpec {
   ];
 
   static const int _wood = 0x8C6133, _dark = 0x664524;
+}
+
+/// A minecart: it rides the rails (`Rails`), never the ground, from the end
+/// of each rail it came in by to the one it leaves by, and stays where it is
+/// where no rail is under it. Along the line its speed (never over
+/// [maxSpeed]) takes [slope] downhill and loses as much uphill, loses
+/// [friction], gains [powered] on a powered rail on and loses [brake] on one
+/// off, all in metres a second a second; a rider pushes it by [push] as they
+/// move along its heading, or against it, and a cart with no rider rolls by
+/// all the rest. Its look is a [cart] of iron on four wheels by default.
+final class CartSpec extends VehicleSpec {
+  /// A minecart put on a rail and broken back into [item].
+  const CartSpec({
+    required super.item,
+    super.name,
+    super.halfWidth = 0.5,
+    super.height = 0.7,
+    super.seat = 0.3,
+    super.model = cart,
+    super.voxel,
+    super.sound = SoundFamily.metal,
+    this.maxSpeed = 8.0,
+    this.slope = 4.0,
+    this.friction = 0.4,
+    this.powered = 6.0,
+    this.brake = 12.0,
+    this.push = 2.0,
+  }) : assert(maxSpeed > 0.0 && slope >= 0.0 && friction >= 0.0),
+       assert(powered >= 0.0 && brake >= 0.0 && push >= 0.0);
+
+  /// Its top speed, metres a second.
+  final double maxSpeed;
+
+  /// What a slope adds downhill and takes uphill.
+  final double slope;
+
+  /// What it loses on every rail.
+  final double friction;
+
+  /// What a powered rail on adds.
+  final double powered;
+
+  /// What a powered rail off takes from a moving cart.
+  final double brake;
+
+  /// What its rider's push adds, at a full push along its heading.
+  final double push;
+
+  /// A minecart of iron, 1.1 m by 0.9 m: a dark floor, four sides 0.4 m
+  /// high and four dark wheels under it, resting on the rail's bars.
+  static const List<(IVec3, IVec3, int)> cart = [
+    (IVec3(-4, 1, -3), IVec3(4, 1, 3), _dark),
+    (IVec3(-5, 2, -4), IVec3(-4, 5, 4), _iron),
+    (IVec3(4, 2, -4), IVec3(5, 5, 4), _iron),
+    (IVec3(-4, 2, -4), IVec3(4, 5, -3), _iron),
+    (IVec3(-4, 2, 3), IVec3(4, 5, 4), _iron),
+    (IVec3(-4, 0, -3), IVec3(-2, 1, -2), _dark),
+    (IVec3(-4, 0, 2), IVec3(-2, 1, 3), _dark),
+    (IVec3(2, 0, -3), IVec3(4, 1, -2), _dark),
+    (IVec3(2, 0, 2), IVec3(4, 1, 3), _dark),
+  ];
+
+  static const int _iron = 0x8C8C94, _dark = 0x525259;
 }

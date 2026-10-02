@@ -107,8 +107,9 @@ class VoxelGameSpec {
   final List<MobSpec> mobs;
 
   /// The vehicles, one an item: a `BoatSpec`'s boat is put on water with its
-  /// item in hand, ridden by a use, left with sneak and broken back into its
-  /// item by a swing (see [checkVehicles]).
+  /// item in hand, a `CartSpec`'s minecart on a rail; each is ridden by a
+  /// use, left with sneak and broken back into its item by a swing (see
+  /// [checkVehicles]).
   final List<VehicleSpec> vehicles;
 
   /// Day, night and the light between.

@@ -14,6 +14,7 @@ import '../input/voxel_action.dart';
 import '../mobs/mob.dart';
 import '../mobs/rig.dart';
 import '../ui/game_screen.dart';
+import '../vehicles/minecart.dart';
 import '../vehicles/rideable.dart';
 import '../vehicles/vehicle.dart';
 import '../vehicles/vehicle_spec.dart';
@@ -957,16 +958,18 @@ class PlayerEntity extends NodeBody implements Target {
     _game.spec.onBlockPlaced?.call(_game, world.blocks.idOf(id), cell);
   }
 
-  /// Puts a vehicle of [vehicle] down where its kind goes along the aim,
-  /// pointing the way the player looks, one of its item used up (not in
+  /// Puts a vehicle of [vehicle] down where its kind goes along the aim (a
+  /// boat on water, a minecart on a rail), pointing the way the player looks, one of its item used up (not in
   /// creative); tells the player where it goes when there is no such place.
   void _placeVehicle(VehicleSpec vehicle) {
     final at = switch (vehicle) {
       BoatSpec() => _boatPlace(),
+      CartSpec() => _cartPlace(),
     };
     if (at == null) {
       _game.notify(switch (vehicle) {
         BoatSpec() => 'A ${vehicle.name.toLowerCase()} goes on water',
+        CartSpec() => 'A ${vehicle.name.toLowerCase()} goes on rails',
       });
       return;
     }
@@ -989,6 +992,14 @@ class PlayerEntity extends NodeBody implements Target {
     }
     if (world.isSolid(top + IVec3.up)) return null;
     return Vector3(top.x + 0.5, top.y + 0.9, top.z + 0.5);
+  }
+
+  /// Where a minecart goes: on the rail under the crosshair, its feet on the
+  /// bars; null when no rail is aimed at.
+  Vector3? _cartPlace() {
+    final c = aimedBlock?.block;
+    if (c == null || !_game.rails.isRail(_game.world.getBlock(c))) return null;
+    return Vector3(c.x + 0.5, c.y + Minecart.railTop, c.z + 0.5);
   }
 
   void _swingArm() {

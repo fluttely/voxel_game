@@ -256,6 +256,89 @@ const game = VoxelGameSpec(
       drop: 'powered_rail',
       support: Support.below(),
     ),
+    // The rail's other shapes: a rail laid turns to meet the rails beside it — a straight, a curve, a slope up
+    // onto a block — and each drops a rail.
+    BlockType(
+      'rail_ns',
+      color: 0x8A8478,
+      shape: BlockShape.railNs,
+      solid: false,
+      opaque: false,
+      hardness: 0.7,
+      drop: 'rail',
+    ),
+    BlockType(
+      'rail_ne',
+      color: 0x8A8478,
+      shape: BlockShape.railNe,
+      solid: false,
+      opaque: false,
+      hardness: 0.7,
+      drop: 'rail',
+    ),
+    BlockType(
+      'rail_nw',
+      color: 0x8A8478,
+      shape: BlockShape.railNw,
+      solid: false,
+      opaque: false,
+      hardness: 0.7,
+      drop: 'rail',
+    ),
+    BlockType(
+      'rail_se',
+      color: 0x8A8478,
+      shape: BlockShape.railSe,
+      solid: false,
+      opaque: false,
+      hardness: 0.7,
+      drop: 'rail',
+    ),
+    BlockType(
+      'rail_sw',
+      color: 0x8A8478,
+      shape: BlockShape.railSw,
+      solid: false,
+      opaque: false,
+      hardness: 0.7,
+      drop: 'rail',
+    ),
+    BlockType(
+      'rail_slope_n',
+      color: 0x8A8478,
+      shape: BlockShape.railSlopeN,
+      solid: false,
+      opaque: false,
+      hardness: 0.7,
+      drop: 'rail',
+    ),
+    BlockType(
+      'rail_slope_e',
+      color: 0x8A8478,
+      shape: BlockShape.railSlopeE,
+      solid: false,
+      opaque: false,
+      hardness: 0.7,
+      drop: 'rail',
+    ),
+    BlockType(
+      'rail_slope_s',
+      color: 0x8A8478,
+      shape: BlockShape.railSlopeS,
+      solid: false,
+      opaque: false,
+      hardness: 0.7,
+      drop: 'rail',
+    ),
+    BlockType(
+      'rail_slope_w',
+      color: 0x8A8478,
+      shape: BlockShape.railSlopeW,
+      solid: false,
+      opaque: false,
+      hardness: 0.7,
+      drop: 'rail',
+    ),
   ],
   // 2. Items that are not blocks — tools, food (eaten with use), armour (worn with use), a door
   //    (placing its block), buckets, a hoe, seeds (placing wheat) — and how to craft things.
@@ -285,6 +368,8 @@ const game = VoxelGameSpec(
     ItemType('flint_and_steel', color: 0x5A5A60, stack: 1, durability: 64),
     // A boat: put on water with use, ridden by a use on it, left with sneak, broken by a swing.
     ItemType('boat', color: 0x8C6133, stack: 1),
+    // A minecart: put on a rail with use, ridden by a use on it and pushed with the move keys along its way.
+    ItemType('minecart', color: 0x8C8C94, stack: 1),
   ],
   recipes: [
     Recipe('planks', 4, {'log': 1}),
@@ -308,6 +393,8 @@ const game = VoxelGameSpec(
     Recipe('piston', 1, {'planks': 3, 'cobblestone': 4, 'wire': 1}),
     Recipe('powered_rail', 6, {'planks': 2, 'cobblestone': 4, 'wire': 1}),
     Recipe('boat', 1, {'planks': 5}),
+    Recipe('rail', 16, {'cobblestone': 6, 'planks': 1}),
+    Recipe('minecart', 1, {'cobblestone': 5}),
   ],
   // Status effects: what a food starts, what the player carries.
   effects: [
@@ -580,8 +667,12 @@ const game = VoxelGameSpec(
       boss: true,
     ),
   ],
-  // Vehicles, one an item: the boat floats, rows forward and steers with the move keys.
-  vehicles: [BoatSpec(item: 'boat')],
+  // Vehicles, one an item: the boat floats, rows forward and steers with the move keys; the minecart rides the
+  // rails, rolls down slopes and is sped on by a powered rail.
+  vehicles: [
+    BoatSpec(item: 'boat'),
+    CartSpec(item: 'minecart'),
+  ],
   // 6. Screens of the game's own: this one is a button in the game menu (Esc, or ⏸ on a phone).
   screens: {'controls': ScreenSpec(_controls, menu: 'Controls')},
 );

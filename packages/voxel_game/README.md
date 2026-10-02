@@ -155,11 +155,15 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
   and mounts (`MountSpec`, `MountWait`) the owner rides with a use and leaves with sneak.
   A tamed creature, and one declared `persistent`, is never despawned and is kept in the
   save; a `ghost` flies through walls, drawn see-through.
-- Vehicles, declared: `VoxelGameSpec.vehicles: [BoatSpec(item: 'boat')]`. The boat's item,
-  used, puts it on the water along the aim; a use on it gets in, the move keys row and
-  steer it, sneak gets out, and a swing breaks it back into its item. A mount and a vehicle
-  are both `Rideable` (`PlayerEntity.ride` / `riding` / `dismount`). A vehicle stays where
-  it was left, in the save and across a trip to another dimension.
+- Vehicles, declared: `VoxelGameSpec.vehicles: [BoatSpec(item: 'boat'), CartSpec(item:
+  'minecart')]`. The boat's item, used, puts it on the water along the aim; a use on it
+  gets in, the move keys row and steer it, sneak gets out, and a swing breaks it back into
+  its item. The minecart goes on a rail and rides the rails: rails lay themselves into
+  straights, curves and slopes as they are placed (`Rails`), a cart rolls down a slope,
+  a powered rail on speeds it and one off brakes it, and its rider pushes it along with the
+  move keys. A mount and a vehicle are both `Rideable` (`PlayerEntity.ride` / `riding` /
+  `dismount`). A vehicle stays where it was left, in the save and across a trip to another
+  dimension.
 - Combat that is felt: a blow holds its victim's pose for a moment (the hit-stop), shows it
   white and shakes it, and its shove carries it off its feet; the player's camera shakes by
   the damage taken. A creature dies by toppling over and fading out. `PlayerSpec.critChance`

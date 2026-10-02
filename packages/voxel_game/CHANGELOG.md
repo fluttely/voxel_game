@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+- **Vehicles, second part: rails and a minecart (VA15b).** `Rails` (`VoxelGame.rails`): a
+  block of a rail shape (`BlockShape.railNs` … `railSlopeW`) is a rail of the kind it drops,
+  and a powered rail on (a value of `SignalSpec.poweredRails`) speeds a cart while one off
+  brakes it, over the engine's `RailGraph`. Where the game is the authority a rail laid
+  turns to meet the rails around it — a straight, a curve, a slope up onto a block — and
+  turns them to meet it; one taken away lets them turn back. Checked at start: two rails of
+  one kind, shape and state, a kind that lacks a shape it turns into (both straights, and in
+  each state what it has in another), or a powered rail of no rail shape throw.
+  **Breaking:** a game whose rail kind had one straight alone now throws at start; give it
+  the other (`powered_rail_ns`) with the same drop. A `CartSpec` (the app's numbers: 8 m/s
+  top, 4 down a slope, 0.4 friction, 6 on a powered rail on, 12 braking on one off, 2 a
+  rider's push; a cart of iron on four wheels from its `model`) is a `Minecart`: it rides
+  the rails from the end of each it came in by to the one it leaves by (`cell`, `heading`,
+  `along`, `speed`), rolls down slopes and back off climbs, onto the next rail that joins
+  (a slope a cell down too), and stops at the line's end turned to roll back; with no rail
+  under it, it stays where it is, and a rail turned under it keeps it heading the nearest
+  way. Its rider pushes it by the move along the ground along its heading (and back
+  against it); one with no rider rolls all the same. The player puts one on the aimed rail
+  with its item in hand, heading for the end nearest the look ("A minecart goes on rails"
+  otherwise). The save keeps where it is on the rails and how fast it goes
+  (`Vehicle.restoreRow`, which `restoreVehicles` calls on the row). The example lays its
+  rail in every shape (`rail_ns`, the curves, the slopes, all dropping `rail`; appended, so
+  saves keep their ids), crafts rails and a minecart, and declares `CartSpec(item:
+  'minecart')`.
+
 - **Vehicles, first part: a seat and a boat (VA15a).** `Rideable`: anything with a seat (a
   rider, a name, where it stands and points, `seat()`, `takes(rider)`, `gone`, and
   `carry(dt, RideInput)`, the move along the ground plus its forward and turn axes, sprint

@@ -89,6 +89,11 @@ abstract class Vehicle extends GameEntity implements Rideable {
     'yaw': facing,
   };
 
+  /// Takes back what its [row] keeps beyond its item, where it is and the way
+  /// it points (`VoxelGame.restoreVehicles` puts it down by those first):
+  /// nothing, for a kind that keeps no more.
+  void restoreRow(Map<String, Object?> row) {}
+
   /// One geometry a spec, every vehicle of it hanging a node on it, so they
   /// batch (as the drops and the shots do).
   static MeshGeometry? _geometry(VehicleSpec spec) => _geometries.putIfAbsent(spec, () {
