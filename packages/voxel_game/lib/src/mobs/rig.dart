@@ -210,6 +210,12 @@ class RigModel {
   ({Vector3 at, double scale})? get hand => _hand;
   ({Vector3 at, double scale})? _hand;
 
+  /// How far a seated humanoid is drawn below its feet, metres before [fit]:
+  /// its hips less half a thigh, so its thighs rest where its feet stood (a
+  /// seat's height); 0 for the other plans, which do not sit.
+  double get seatDrop => _seatDrop;
+  double _seatDrop = 0.0;
+
   /// The scale that brings the authored body inside its collider (1 when it fits).
   double get fit => _fit;
   double _fit = 1.0;
@@ -294,6 +300,7 @@ class RigModel {
         _part('arm0', v, Vector3(-0.345 * k, 1.30 * k, 0), s);
         _part('arm1', v, Vector3(0.345 * k, 1.30 * k, 0), s);
         _hand = (at: Vector3(0, -11.3 * s, -0.7 * s), scale: k);
+        _seatDrop = 0.66 * k - 2 * s;
         v = {};
         VoxelModel.box(v, const IVec3(-4, 0, -4), const IVec3(3, 7, 3), skin, 0.04);
         final eye = rig.redEyes ? Vector3(0.9, 0.1, 0.1) : dark;
@@ -440,6 +447,11 @@ class RigInstance {
   /// The saddle line of a quadruped (metres above the feet), 0 otherwise.
   double get backHeight => model.backHeight;
 
+  /// How far below its feet it is drawn [animate]d seated, metres: a
+  /// humanoid's thighs then rest at its feet's height; 0 for the plans that
+  /// do not sit.
+  double get seatDrop => model.seatDrop * model.fit;
+
   double get _armRest => rig.armsForward ? 1.4 : 0.0;
 
   /// Starts an attack swing (a humanoid's arm, a bird's peck).
@@ -489,6 +501,8 @@ class RigInstance {
   /// Poses the rig for one frame of [dt]: moving at [speed] metres a second,
   /// facing [targetYaw], standing [onFloor] or [flying]; [lookYaw] turns the
   /// head toward something (relative to the body), null for straight ahead.
+  /// [seated], a humanoid sits (`RigAnimator.seatedLegs`): its owner places
+  /// it [seatDrop] lower.
   void animate(
     double dt, {
     required double speed,
@@ -497,6 +511,7 @@ class RigInstance {
     bool flying = false,
     double? lookYaw,
     double verticalSpeed = 0.0,
+    bool seated = false,
   }) {
     _age += dt;
     _yaw = lerpAngle(_yaw, targetYaw, math.min(1.0, dt * 12.0));
@@ -508,6 +523,7 @@ class RigInstance {
       flying: flying,
       lookYaw: lookYaw,
       verticalSpeed: verticalSpeed,
+      seated: seated,
     );
     for (final p in parts.values) {
       p.apply();

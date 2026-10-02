@@ -112,10 +112,16 @@ class RigAnimator {
   /// Starts an attack swing (a humanoid's arm, a quadruped's nod, a peck).
   void startSwing() => swing = 1.0;
 
+  /// How far forward a seated humanoid's legs reach, radians: a little short
+  /// of level, the knees over the seat's edge.
+  static const double seatedLegs = 1.45;
+
   /// Poses the parts for one frame of [dt] at [age] seconds (the idle
   /// clock): moving at [speed], standing [onFloor] or [flying], rising at
   /// [verticalSpeed]; [lookYaw] turns the head (relative to the body), null
-  /// for straight ahead. Parts are applied by the caller.
+  /// for straight ahead. [seated], a humanoid sits, its legs out in front
+  /// ([seatedLegs]); the other plans have no seat of their own and only
+  /// stand still. Parts are applied by the caller.
   void pose(
     double dt, {
     required double age,
@@ -124,6 +130,7 @@ class RigAnimator {
     bool flying = false,
     double? lookYaw,
     double verticalSpeed = 0.0,
+    bool seated = false,
   }) {
     moveWeight = lerpd(moveWeight, speed > 0.3 ? 1.0 : 0.0, math.min(1.0, dt * 8.0));
     phase += dt * speed * _gaitRate;
@@ -191,6 +198,10 @@ class RigAnimator {
           ?..ry = -a * 0.12
           ..offY = bob;
         head?.offY = bob;
+        if (seated) {
+          parts['leg0']?.rx = seatedLegs;
+          parts['leg1']?.rx = seatedLegs;
+        }
       case RigKind.blob:
         if (onFloor && !_wasOnFloor) _landSquash = motion.landSquash;
         _landSquash = math.max(_landSquash - dt / motion.landSeconds, 0.0);

@@ -1,5 +1,8 @@
+import 'package:flutter_scene/scene.dart' show Node;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:vector_math/vector_math.dart';
 import 'package:voxel_game/voxel_game.dart';
+import 'package:voxel_scene/voxel_scene.dart' show RigPart;
 
 void main() {
   test('one look at one size is one model, whoever declares it', () {
@@ -43,5 +46,21 @@ void main() {
     expect(child.scale, 0.5);
     expect(child.at.y, closeTo(hand.at.y / 2, 1e-6));
     expect(RigModel.of(const Rig.quadruped(), 0.45, 1.3).hand, isNull, reason: 'nothing to hold with');
+  });
+
+  test('a seated humanoid sits: its legs out in front, drawn as low as its thighs then rest at its feet', () {
+    final player = RigModel.of(const Rig.humanoid(), 0.3, 1.75);
+    expect(player.seatDrop, closeTo(0.66 - 2 * 0.055, 1e-9), reason: 'its hips, less half a thigh');
+    expect(RigModel.of(const Rig.humanoid(), 0.2, 0.875).seatDrop, closeTo(player.seatDrop / 2, 1e-9));
+    expect(RigModel.of(const Rig.quadruped(), 0.45, 1.3).seatDrop, 0.0, reason: 'only a humanoid sits');
+
+    final parts = {
+      for (final n in ['leg0', 'leg1', 'body', 'arm0', 'arm1', 'head']) n: RigPart(Node(), Vector3.zero()),
+    };
+    final animator = RigAnimator(RigKind.humanoid, parts);
+    animator.pose(1 / 60, age: 0.0, speed: 0.0, seated: true);
+    expect([parts['leg0']!.rx, parts['leg1']!.rx], [RigAnimator.seatedLegs, RigAnimator.seatedLegs]);
+    animator.pose(1 / 60, age: 0.0, speed: 0.0);
+    expect([parts['leg0']!.rx, parts['leg1']!.rx], [0.0, 0.0], reason: 'standing again');
   });
 }

@@ -6,25 +6,51 @@ import 'package:voxel_scene/voxel_scene.dart';
 
 import '../core/voxel_game.dart';
 import '../entities/game_entity.dart';
-import '../player/player_entity.dart';
+import 'angler.dart';
 import 'fishing_spec.dart';
 
 /// A fishing line's float, cast by its [owner] (`PlayerEntity.bobber`): it
 /// flies from the hand to [target] in an arc, floats there bobbing, and once
 /// a wait of the [spec]'s is over something [bite]s: it dips for
 /// `FishingSpec.bite` seconds ([biting]), and waits again if nobody answers.
-/// A line runs from the owner's hand to it, drawn every frame.
+/// A line runs from the owner's hand to it, drawn every frame. Another
+/// player's float in a networked game is a [replica]: it only goes where its
+/// owner's pose says.
 class Bobber extends GameEntity {
   /// A float of [spec] cast by [owner] from [from] to land at [target].
-  Bobber(this.spec, this.owner, Vector3 from, Vector3 target) : target = target.clone(), _start = from.clone() {
+  Bobber(this.spec, this.owner, Vector3 from, Vector3 target)
+    : target = target.clone(),
+      _start = from.clone(),
+      _netTo = target.clone(),
+      replica = false {
     position = from.clone();
+  }
+
+  /// Another player's float, drawn at [at] and moved where [owner]'s pose
+  /// says ([setNetPose]), its line from [owner]'s hand: it never bites, and
+  /// goes when [owner] does.
+  Bobber.replica(this.spec, this.owner, Vector3 at)
+    : target = at.clone(),
+      _start = at.clone(),
+      _netTo = at.clone(),
+      replica = true,
+      _flight = 1.0 {
+    position = at.clone();
   }
 
   /// How the game fishes.
   final FishingSpec spec;
 
-  /// Who cast it.
-  final PlayerEntity owner;
+  /// Who holds the line.
+  final Angler owner;
+
+  /// Another player's float, drawn where its pose says.
+  final bool replica;
+
+  Vector3 _netTo;
+
+  /// Where [owner]'s pose says this replica is.
+  void setNetPose(Vector3 at) => _netTo = at.clone();
 
   /// Where it floats: the liquid's surface.
   final Vector3 target;
@@ -71,8 +97,10 @@ class Bobber extends GameEntity {
   double _nextWait() => spec.minWait + _game.random.nextDouble() * (spec.maxWait - spec.minWait);
 
   /// Something takes it, now: it dips for `FishingSpec.bite` seconds, a
-  /// splash is heard and the owner told. Throws before it has landed.
+  /// splash is heard and the owner told. Throws before it has landed, and
+  /// for a [replica]: another player's bites are theirs.
   void bite() {
+    if (replica) throw StateError("nothing bites another player's float here");
     if (!landed) throw StateError('nothing bites a float in the air');
     _biteLeft = spec.bite;
     _wait = _nextWait();
@@ -82,6 +110,12 @@ class Bobber extends GameEntity {
 
   @override
   void tick(VoxelGame game, double dt) {
+    if (replica) {
+      if (owner.removed) removed = true;
+      position = position + (_netTo - position) * math.min(1.0, dt * 12.0);
+      syncNode();
+      return;
+    }
     if (!landed) {
       _flight = math.min(_flight + dt * flightRate, 1.0);
       position = _start + (target - _start) * _flight

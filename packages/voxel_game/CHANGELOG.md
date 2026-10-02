@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+- **Net catches up, last part: floats, seats and shots (VA16g).** Every player sees what
+  the others do with a rod, a seat and a shot. A player's pose (a client's `pose`, a row of
+  the host's `state`) carries its float while a line is out (`f`) and the way its seat
+  points while it rides (`s`). `RemotePlayer.setPose` takes both (`float`, `seat`, new
+  getters too): a `RemotePlayer` draws the float as a `Bobber.replica` (new: it goes where
+  the pose says, never bites, and goes with its owner) whose line hangs from its hand
+  (`RemotePlayer.drawnHand`), and sits while its peer rides, facing the seat. `Bobber.owner`
+  is an `Angler` (new: `drawnHand`, `removed`), which `PlayerEntity` and `RemotePlayer`
+  are. The seated pose is new for the local player as well: `RigInstance.animate` and
+  `RigAnimator.pose` take `seated`, a humanoid's legs out in front
+  (`RigAnimator.seatedLegs`), drawn `RigInstance.seatDrop` (new; `RigModel.seatDrop`) below
+  its feet so its thighs rest at the seat's height; the other body plans only stand still.
+  Shots cross: `VoxelGame.shoot` hands each shot to the session (`GameSession.fired`, new).
+  The host shows its own to every client (`shot`: its dimension, its spec, where from, how
+  fast, and its shooter, a player's peer or a creature's number), drawn as a
+  `Projectile.replica` (new: it stops where it hits and hurts nobody). A client shoots for
+  its own player only (anything else throws) and sends it (`shoot`); where the host is, its
+  own copy is a replica and the host lands the shot, its puppet the shooter (critical as a
+  player's: a shot by a `RemotePlayer` rolls `PlayerSpec.critChance` too), and every other
+  client sees it wherever. `ProjectileSpec.toJson` / `ProjectileSpec.fromJson` (new) carry a
+  shot whole; one with no size or life, a light, trail or burn below none, or an effect on
+  hit the spec does not declare throws, as does a float where the spec does not fish.
+
 - **Net catches up, sixth part: vehicles (VA16f).** A client puts down, gets on, drives,
   gets off and breaks the host's vehicles. The host numbers every vehicle of its dimension
   (`Vehicle.netId`, new) and sends it (`vehicles`: its save row and its rider's peer, with

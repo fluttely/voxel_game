@@ -16,6 +16,7 @@ import '../mobs/mob_spec.dart';
 import '../mobs/rig.dart';
 import '../ui/game_screen.dart';
 import '../camera/first_person_view.dart';
+import '../fishing/angler.dart';
 import '../fishing/bobber.dart';
 import '../fishing/fishing_spec.dart';
 import '../vehicles/minecart.dart';
@@ -37,7 +38,7 @@ import 'player_spec.dart';
 /// carries status effects ([effects]) and gains experience ([PlayerSpec.xp]).
 /// The effects bend four stats by name: [speedStat], [damageStat],
 /// [miningStat] (multipliers) and [armorStat] (points added).
-class PlayerEntity extends NodeBody implements Target {
+class PlayerEntity extends NodeBody implements Target, Angler {
   /// A player of [spec] with [inventory] as its bag, carrying [effects].
   PlayerEntity(this.spec, this.inventory, this.effects)
     : hp = spec.hp,
@@ -1170,6 +1171,7 @@ class PlayerEntity extends NodeBody implements Target {
   /// Where the hand that holds the item is drawn this frame, near enough for
   /// a line to hang from: the fist in front of the eye in first person
   /// (`FirstPersonView`), at the body's right in third.
+  @override
   Vector3 get drawnHand => _handAt(drawnPosition, drawnEye);
 
   Vector3 _handAt(Vector3 feet, Vector3 eye) {
@@ -1178,7 +1180,8 @@ class PlayerEntity extends NodeBody implements Target {
       final f = forward;
       return eye + r * 0.44 - r.cross(f).normalized() * 0.38 + f * FirstPersonView.reach;
     }
-    return feet + Vector3(0, height * 0.55, 0) + r * 0.35 + flatForward * 0.3;
+    final sunk = riding == null ? 0.0 : rig?.seatDrop ?? 0.0;
+    return feet + Vector3(0, height * 0.55 - sunk, 0) + r * 0.35 + flatForward * 0.3;
   }
 
   void _swingArm() {
@@ -1218,7 +1221,7 @@ class PlayerEntity extends NodeBody implements Target {
     r.root.visible = cameraMode == CameraMode.thirdPerson;
     final id = heldItem;
     if (r.canHold) r.hold(id.isEmpty ? null : _game.itemModel(id));
-    // Seated the legs rest and the body faces the way the seat points.
+    // Seated a humanoid sits, drawn lower, and faces the way the seat points.
     final seat = riding;
     final seated = seat != null;
     final speed = math.sqrt(velocity.x * velocity.x + velocity.z * velocity.z);
@@ -1229,8 +1232,10 @@ class PlayerEntity extends NodeBody implements Target {
         ? math.atan2(-flat.x, -flat.z)
         : yaw;
     // The hit-stop: the pose holds, the body still moves.
-    if (!frozen) r.animate(dt, speed: seated ? 0.0 : speed, targetYaw: face, onFloor: seated || onFloor);
+    if (!frozen) {
+      r.animate(dt, speed: seated ? 0.0 : speed, targetYaw: face, onFloor: seated || onFloor, seated: seated);
+    }
     r.paint(flashing ? VoxelModelMesh.flash() : VoxelModelMesh.material());
-    r.place(Vector3.zero());
+    r.place(Vector3(0, seated ? -r.seatDrop : 0.0, 0));
   }
 }

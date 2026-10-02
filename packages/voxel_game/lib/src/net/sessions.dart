@@ -10,8 +10,10 @@ import 'package:voxel_engine/net.dart';
 import '../core/voxel_game.dart';
 import '../entities/game_entity.dart';
 import '../entities/item_pickup.dart';
+import '../entities/projectile.dart';
 import '../entities/target.dart';
 import '../mobs/mob.dart';
+import '../player/player_entity.dart';
 import '../ui/game_screen.dart';
 import '../vehicles/vehicle.dart';
 import '../weather/weather.dart';
@@ -93,7 +95,13 @@ typedef _StoreEdit = ({int n, int opening, int slot, ItemStack? before, ItemStac
 /// (`vehicle_board`, which the host answers with `vehicle_boarded`: whether
 /// it may, and where the vehicle stands) and off (`vehicle_leave`, with
 /// where it left it); while it rides, it drives, its `pose` carrying the
-/// vehicle's row (`v`), which the host's copy follows.
+/// vehicle's row (`v`), which the host's copy follows. A player's pose (a
+/// client's `pose`, a row of the host's `state`) carries the way its seat
+/// points while it rides (`s`), drawn seated, and its float while a line is
+/// out (`f`), drawn with its line. The host's shots go out as `shot` (its
+/// dimension, its `ProjectileSpec`, where from, how fast, and its shooter: a
+/// player's peer or a creature's number), drawn by the clients as replicas;
+/// a client's is a `shoot`, which the host lands where it is and passes on.
 /// Every peer runs the same spec, so a dimension's number is the same
 /// everywhere, and a message no peer of that spec would send throws.
 abstract class GameSession implements GameSystem {
@@ -114,6 +122,12 @@ abstract class GameSession implements GameSystem {
 
   /// The host's player's peer number in a `state`.
   static const int hostPeer = 1;
+
+  /// The game shot [shot] (`VoxelGame.shoot`), not yet added: the host
+  /// shows it to its clients; a client sends its player's to the host and,
+  /// where the host is, makes its own a replica, the host landing the shot.
+  /// A client shoots for its own player only, and throws for anyone else.
+  void fired(Projectile shot);
 
   /// Takes the vehicle of [item] the game is putting down at [at], pointing
   /// [facing]: true when it went to the host (a client where the host is),
@@ -176,6 +190,43 @@ abstract class GameSession implements GameSystem {
 
   /// The slot a peer sent as [o]: null for an empty one.
   ItemStack? _slot(Object? o) => (o! as Map<String, Object?>).isEmpty ? null : _stack(o);
+
+  /// The shot a peer sent as [o]; its effect on a hit must be the spec's.
+  ProjectileSpec _projectile(Object? o) {
+    final spec = ProjectileSpec.fromJson(o! as Map<String, Object?>);
+    if (spec.onHit case final h? when !game.spec.effects.any((e) => e.id == h.effect)) {
+      throw FormatException('a shot leaving effect ${h.effect}, which the spec does not declare');
+    }
+    return spec;
+  }
+
+  /// A float a peer sent as [o] (null for no line out): only a spec that
+  /// fishes has one.
+  Vector3? _float(Object? o) {
+    if (o == null) return null;
+    if (game.spec.fishing == null) throw const FormatException('a float, where the spec does not fish');
+    return _vec(o);
+  }
+
+  /// The way a peer's seat points ([o], null for none).
+  static double? _seat(Object? o) => (o as num?)?.toDouble();
+
+  /// What a pose of [p] says beyond where it stands: the way its seat
+  /// points while it rides, its float while a line is out.
+  static Map<String, Object?> _seatAndFloat(PlayerEntity p) => {
+    if (p.riding case final r?) 's': r.facing,
+    if (p.bobber case final b?) 'f': _v(b.position),
+  };
+
+  /// A `shot` message of [spec] in [dimension] from [from] at [velocity],
+  /// by [shooter] (its `o` or `m`, or nothing for no one).
+  static NetMessage _shotMessage(
+    int dimension,
+    ProjectileSpec spec,
+    Vector3 from,
+    Vector3 velocity,
+    Map<String, Object?> shooter,
+  ) => {'t': 'shot', 'd': dimension, 's': spec.toJson(), 'p': _v(from), 'v': _v(velocity), ...shooter};
 
   /// [i], which a peer sent as a weather's.
   static WeatherKind _weatherKind(int i) {
@@ -241,7 +292,9 @@ abstract class GameSession implements GameSystem {
 /// client opens the stores of the host's dimension only, and its edit of a
 /// slot stands only on the slot it saw (compare-and-set) and when what it
 /// puts in is paid for: out of what it took from that store since it opened
-/// it, then out of what it last declared it holds.
+/// it, then out of what it last declared it holds. Every shot the host's game
+/// makes is shown to the clients; a client's lands here, its puppet the
+/// shooter, where the host is, and is shown to the other clients wherever.
 class HostSession extends GameSession {
   /// Hosts [game] on [net].
   HostSession(this.game, this.net) {
@@ -398,6 +451,8 @@ class HostSession extends GameSession {
           held: m['held']! as String,
           dead: m['dead'] == true,
           dimension: _dimension(m['d']! as int),
+          seat: GameSession._seat(m['s']),
+          float: _float(m['f']),
         );
         _ridden(puppet, m['m']);
         _driven(puppet, m['v']);
@@ -454,6 +509,8 @@ class HostSession extends GameSession {
         });
       case 'tame':
         _tame(peer, puppet!, m);
+      case 'shoot':
+        _shoot(peer, puppet!, m);
       case 'vehicle_put':
         final item = m['i']! as String;
         if (game.vehicleFor(item) == null) throw FormatException('vehicle $item, which the spec does not declare');
@@ -494,6 +551,29 @@ class HostSession extends GameSession {
         }
     }
   }
+
+  /// [peer]'s player shot (a `shoot`, [m]): where the host is, the host
+  /// lands it, [puppet] the shooter; the other peers see it wherever.
+  void _shoot(NetPeer peer, RemotePlayer puppet, NetMessage m) {
+    final d = _dimension(m['d']! as int);
+    final spec = _projectile(m['s']);
+    final from = _vec(m['p']), velocity = _vec(m['v']);
+    final power = (m['pow']! as num).toDouble();
+    if (d == game.world.dimension) {
+      game.playSound('shoot', at: from, volumeDb: -4.0);
+      game.add(Projectile(spec, from, velocity, puppet, power: power));
+    }
+    net.broadcast(GameSession._shotMessage(d, spec, from, velocity, {'o': peer.id}), except: peer.id);
+  }
+
+  @override
+  void fired(Projectile shot) => net.broadcast(
+    GameSession._shotMessage(game.world.dimension, shot.spec, shot.position, shot.velocity, switch (shot.owner) {
+      null => const {},
+      final Mob m => {'m': m.netId},
+      final t => {'o': _peerOf(t)},
+    }),
+  );
 
   /// [peer] offers an item to a creature ([m]): the host rolls its
   /// `tameChance`, [puppet] owns it when it took, and the peer hears which.
@@ -727,9 +807,19 @@ class HostSession extends GameSession {
           'held': p.heldItem,
           'dead': p.isDead,
           'd': game.world.dimension,
+          ...GameSession._seatAndFloat(p),
         },
         for (final r in players.values)
-          {'id': r.peer, 'p': _v(r.position), 'yaw': r.yaw, 'held': r.heldItem, 'dead': r.isDead, 'd': r.dimension},
+          {
+            'id': r.peer,
+            'p': _v(r.position),
+            'yaw': r.yaw,
+            'held': r.heldItem,
+            'dead': r.isDead,
+            'd': r.dimension,
+            's': ?r.seat,
+            if (r.float case final f?) 'f': _v(f),
+          },
       ],
       'd': game.world.dimension,
       'mobs': [
@@ -854,7 +944,9 @@ class HostSession extends GameSession {
 /// The host's vehicles are replicas it draws, where the host is, and asks
 /// the host to put down, break, get on and off; the one it rides it drives,
 /// its row sent with each pose. Elsewhere its vehicles are its own, as its
-/// drops are.
+/// drops are. Its player's shots go to the host, which lands them where it
+/// is (this side's being replicas) and shows them to the others; the
+/// others' shots, the host's among them, are replicas here.
 class ClientSession extends GameSession {
   /// A client of [game] on [connection], known to the host as [peer], the
   /// host's [drops] and [vehicles] drawn and its [weather] followed (the
@@ -1088,6 +1180,39 @@ class ClientSession extends GameSession {
     }
   }
 
+  /// Another side's shot (a `shot`, [m]), drawn as a replica where the
+  /// player is in its dimension: from its shooter, so it does not stop on
+  /// them.
+  void _shotIn(NetMessage m) {
+    final spec = _projectile(m['s']);
+    if (_dimension(m['d']! as int) != game.world.dimension) return;
+    final from = _vec(m['p']);
+    final Target? shooter = switch ((m['o'] as int?, m['m'] as int?)) {
+      (final o?, null) => _player(o),
+      (null, final n?) => _mobs[n],
+      (null, null) => null,
+      _ => throw FormatException('a shot by a player and a creature: $m'),
+    };
+    game.playSound('shoot', at: from, volumeDb: -4.0);
+    game.add(Projectile(spec, from, _vec(m['v']), shooter)..replica = true);
+  }
+
+  @override
+  void fired(Projectile shot) {
+    if (!identical(shot.owner, game.player)) {
+      throw StateError('a client shoots for its own player only, not for ${shot.owner}');
+    }
+    shot.replica = hostHere;
+    connection.send({
+      't': 'shoot',
+      'd': game.world.dimension,
+      's': shot.spec.toJson(),
+      'p': _v(shot.position),
+      'v': _v(shot.velocity),
+      'pow': shot.power,
+    });
+  }
+
   /// The player is off the host's vehicle it rode: the host hears where it
   /// left it.
   void _leftVehicle() {
@@ -1185,6 +1310,8 @@ class ClientSession extends GameSession {
         }
       case 'vehicle_boarded':
         if (m['ok'] == true) _boarded(m['n']! as int, m['v']! as Map<String, Object?>);
+      case 'shot':
+        _shotIn(m);
       case 'give':
         final stack = _stack(m['s']);
         final left = game.player.pickUpStack(stack);
@@ -1254,6 +1381,8 @@ class ClientSession extends GameSession {
         held: r['held']! as String,
         dead: r['dead'] == true,
         dimension: r['d']! as int,
+        seat: GameSession._seat(r['s']),
+        float: _float(r['f']),
       );
     }
     for (final id in players.keys.where((k) => !seen.contains(k)).toList()) {
@@ -1346,6 +1475,7 @@ class ClientSession extends GameSession {
       'held': p.heldItem,
       'dead': p.isDead,
       'd': game.world.dimension,
+      ...GameSession._seatAndFloat(p),
       if (p.riding case final Mob mount) 'm': {'n': mount.netId, 'p': _v(mount.position), 'yaw': mount.facing},
       if (p.riding case final Vehicle v when v.replica) 'v': {'n': v.netId, 'v': v.row},
     });

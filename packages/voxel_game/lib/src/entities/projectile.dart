@@ -33,6 +33,59 @@ class ProjectileSpec {
     this.onHit,
   }) : assert(light >= 0.0 && trail >= 0.0 && burns >= 0.0);
 
+  /// The shot [toJson] wrote: how a networked game sends one. Throws for a
+  /// field missing, or for one no shot has (a size, a reach or a life of
+  /// none, a light, trail or burn below none).
+  factory ProjectileSpec.fromJson(Map<String, Object?> json) {
+    double n(String key) => (json[key]! as num).toDouble();
+    final radius = n('radius'), thickness = n('thickness'), length = n('length'), life = n('life');
+    final light = n('light'), trail = n('trail'), burns = n('burns');
+    if (radius <= 0.0 || thickness <= 0.0 || length <= 0.0 || life <= 0.0) {
+      throw FormatException('a shot of no size or life: $json');
+    }
+    if (light < 0.0 || trail < 0.0 || burns < 0.0) throw FormatException('a shot below none: $json');
+    final hit = json['onHit'] as Map<String, Object?>?;
+    final seconds = hit == null ? 1.0 : (hit['seconds']! as num).toDouble();
+    final power = hit == null ? 1.0 : (hit['power']! as num).toDouble();
+    if (seconds <= 0.0 || power <= 0.0) throw FormatException('an effect on hit of none: $json');
+    return ProjectileSpec(
+      kind: json['kind']! as String,
+      speed: n('speed'),
+      gravity: n('gravity'),
+      damage: n('damage'),
+      knockback: n('knockback'),
+      radius: radius,
+      thickness: thickness,
+      length: length,
+      color: json['color']! as int,
+      glow: json['glow']! as bool,
+      life: life,
+      light: light,
+      trail: trail,
+      burns: burns,
+      onHit: hit == null ? null : HitEffect(hit['effect']! as String, seconds: seconds, power: power),
+    );
+  }
+
+  /// Every field, for [ProjectileSpec.fromJson].
+  Map<String, Object?> toJson() => {
+    'kind': kind,
+    'speed': speed,
+    'gravity': gravity,
+    'damage': damage,
+    'knockback': knockback,
+    'radius': radius,
+    'thickness': thickness,
+    'length': length,
+    'color': color,
+    'glow': glow,
+    'life': life,
+    'light': light,
+    'trail': trail,
+    'burns': burns,
+    if (onHit case final h?) 'onHit': {'effect': h.effect, 'seconds': h.seconds, 'power': h.power},
+  };
+
   /// An arrow: fast, falling, wooden.
   static const ProjectileSpec arrow = ProjectileSpec();
 
@@ -181,9 +234,11 @@ class ProjectileModel {
 
 /// A shot in flight: swept each step against bodies (any [Target] but its
 /// owner) and blocks, so a fast one cannot pass through a thin thing. A shot
-/// of the player's may be critical (`PlayerEntity.critical`); one that hits a
-/// creature sets it burning ([ProjectileSpec.burns]); one that hurts the
-/// player leaves its [ProjectileSpec.onHit].
+/// of a player's, the local one or another's, may be critical
+/// (`PlayerEntity.critical`); one that hits a creature sets it burning
+/// ([ProjectileSpec.burns]); one that hurts the player leaves its
+/// [ProjectileSpec.onHit]. A [replica] is only seen: another side's shot,
+/// it flies and stops where it hits, and hurts nobody.
 class Projectile extends GameEntity {
   /// A [spec] from [from] with [velocity0], shot by [owner], its damage
   /// multiplied by [power].
@@ -202,6 +257,10 @@ class Projectile extends GameEntity {
 
   /// What its spec's damage is multiplied by (a shooter's level).
   final double power;
+
+  /// A shot whose hit is another side's (the host's, in a networked game):
+  /// drawn here, it stops where it hits and deals nothing.
+  bool replica = false;
 
   double _age = 0.0;
 
@@ -257,9 +316,13 @@ class Projectile extends GameEntity {
         hit = t;
       }
     }
+    if (hit != null && replica) {
+      removed = true;
+      return;
+    }
     if (hit != null) {
       final player = game.player;
-      final (:amount, :crit) = identical(owner, player)
+      final (:amount, :crit) = identical(owner, player) || game.remotePlayers.contains(owner)
           ? player.critical(spec.damage * power)
           : (amount: spec.damage * power, crit: false);
       final taken = hit.takeDamage(

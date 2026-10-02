@@ -136,6 +136,39 @@ final _rideSpec = VoxelGameSpec(
   player: const PlayerSpec(startingItems: {'boat': 2, 'minecart': 1}),
 );
 
+/// [_spec] with a rod for every player, and nothing ever biting.
+const _fishSpec = VoxelGameSpec(
+  blocks: _blocks,
+  world: WorldGenSpec(
+    terrain: TerrainRecipe.flat(20),
+    seaLevel: 5,
+    caves: CaveSpec.none,
+    biomes: [Biome('plains', top: 'grass', under: 'dirt')],
+  ),
+  sky: SkySpec.alwaysDay,
+  items: [ItemType('fishing_rod', color: 0x9E7340, stack: 1), ItemType('raw_fish', color: 0x99B3BF)],
+  fishing: FishingSpec(
+    rod: 'fishing_rod',
+    catches: LootTable.oneOf([LootEntry('raw_fish', 1, 1, 1.0)]),
+    minWait: 1000,
+    maxWait: 1000,
+    xp: 0,
+  ),
+  player: PlayerSpec(startingItems: {'fishing_rod': 1}),
+);
+
+/// [game]'s player, rod in hand, stands 3.5 m west of the water at [cell]
+/// and casts at it.
+Future<void> _cast(List<VoxelGame> games, VoxelGame game, IVec3 cell) async {
+  final p = game.player..selectedSlot = game.player.inventory.find('fishing_rod');
+  p.position = Vector3(cell.x - 3.0, 20.0, cell.z + 0.5);
+  await _run(games, 0.1);
+  _lookAt(game, Vector3(cell.x + 0.5, cell.y + 0.9, cell.z + 0.5));
+  game.input.tap(VoxelAction.use);
+  await _run(games, 0.05);
+  expect(p.bobber, isNotNull, reason: 'cast');
+}
+
 /// A pond three deep the host digs east of its player (water at y 17..19),
 /// x +2..+13 and z -24..+4 from its feet; returns a top water cell 6 north
 /// of its middle row.
@@ -1138,6 +1171,137 @@ void main() {
       await _run([host, b], 0.5);
       expect(b.vehicles, hasLength(2), reason: 'back with the host');
       await _close(session, [b]);
+    },
+  );
+
+  test(
+    "each player's float is drawn by the others where it floats, its line from their hand, and goes when reeled in",
+    () async {
+      final (host, session, clients) = await _session(2, spec: _fishSpec);
+      final [a, b] = clients;
+      final all = [host, ...clients];
+      final feet = IVec3.floor(host.player.position);
+      _pond(host);
+      await _run(all, 0.3);
+      await _cast(all, a, IVec3(feet.x + 4, 19, feet.z + 2));
+      await _run(all, 1.0);
+      final own = a.player.bobber!;
+      expect(own.landed, isTrue);
+      final puppet = session.players[_client(a).peer]!;
+      expect(puppet.float!.distanceTo(own.position), lessThan(0.1), reason: 'the pose carries it');
+      final seen = b.session!.players[_client(a).peer]!;
+      for (final (game, other) in [(host, puppet), (b, seen)]) {
+        final float = other.bobber!;
+        expect(float.replica, isTrue);
+        expect(float.owner, same(other), reason: 'its line hangs from their hand');
+        expect(game.entities, contains(float));
+        expect(float.position.distanceTo(own.position), lessThan(0.15));
+        expect(() => float.bite(), throwsStateError, reason: "another player's bites are theirs");
+      }
+      expect(a.entities.whereType<Bobber>().where((f) => f.replica), isEmpty, reason: 'its own is not drawn twice');
+
+      await _cast(all, host, IVec3(feet.x + 4, 19, feet.z - 2));
+      await _run(all, 1.0);
+      for (final c in clients) {
+        final float = c.session!.players[GameSession.hostPeer]!.bobber!;
+        expect(float.position.distanceTo(host.player.bobber!.position), lessThan(0.15), reason: "the host's too");
+      }
+
+      final drawn = [puppet.bobber!, seen.bobber!];
+      a.input.tap(VoxelAction.use);
+      await _run(all, 0.3);
+      expect(a.player.bobber, isNull, reason: 'reeled in, nothing biting');
+      expect(puppet.float, isNull);
+      expect([puppet.bobber, seen.bobber], [null, null]);
+      expect([for (final f in drawn) f.removed], [true, true]);
+
+      await _cast(all, a, IVec3(feet.x + 4, 19, feet.z + 2));
+      await _run(all, 0.3);
+      final left = seen.bobber!;
+      await a.session!.close();
+      await _run([host, b], 0.5);
+      expect(left.removed, isTrue, reason: 'a peer that leaves takes its float');
+      await _close(session, [b]);
+    },
+  );
+
+  test("a rider is seen seated, facing the way its seat points, by every other player", () async {
+    final (host, session, clients) = await _session(2, spec: _rideSpec);
+    final [a, b] = clients;
+    final all = [host, ...clients];
+    final pond = _pond(host);
+    final boat = host.placeVehicle('boat', _over(pond), facing: 0.7)!;
+    await _run(all, 1.0);
+    final mine = _copyOf(a, boat);
+    await _standBy(all, a, mine.position);
+    a.input.tap(VoxelAction.use);
+    await _run(all, 0.3);
+    expect(a.player.riding, same(mine));
+    final puppet = session.players[_client(a).peer]!;
+    final seen = b.session!.players[_client(a).peer]!;
+    expect(puppet.seat, closeTo(mine.facing, 1e-9));
+    expect(seen.seat, closeTo(mine.facing, 1e-9));
+    await _run(all, 0.5);
+    expect(seen.position.distanceTo(mine.seat()), lessThan(0.1), reason: 'where the seat is');
+
+    final own = host.placeVehicle('boat', _over(pond + const IVec3(0, 0, 6)), facing: -1.2)!;
+    host.player.ride(own);
+    await _run(all, 0.3);
+    for (final c in clients) {
+      expect(c.session!.players[GameSession.hostPeer]!.seat, closeTo(-1.2, 1e-9), reason: "the host's player too");
+    }
+
+    a.input.tap(VoxelAction.sneak);
+    await _run(all, 0.3);
+    expect(a.player.riding, isNull);
+    expect([puppet.seat, seen.seat], [null, null], reason: 'off, it stands');
+    await _close(session, clients);
+  });
+
+  test(
+    "a client's shot is the host's to land, once, and every other player sees it; the host's are seen too",
+    () async {
+      final (host, session, clients) = await _session(2);
+      final [a, b] = clients;
+      final all = [host, ...clients];
+      // Each its own spot: a shot leaving one player's eye must not start inside another.
+      a.player.position = host.player.position + Vector3(5, 0, 0);
+      b.player.position = host.player.position + Vector3(0, 0, 8);
+      final dummy = host.spawnMob('dummy', a.player.position + Vector3(0, 0, -6));
+      await _run(all, 0.5);
+      final shot = a.shoot(
+        ProjectileSpec.arrow,
+        from: a.player.eyePosition,
+        at: _replicaOf(a, dummy).centre(),
+        owner: a.player,
+      );
+      expect(shot.replica, isTrue, reason: 'the host lands it');
+      await _settle(
+        () => host.entities.whereType<Projectile>().isNotEmpty && b.entities.whereType<Projectile>().isNotEmpty,
+      );
+      final landed = host.entities.whereType<Projectile>().single;
+      expect(landed.replica, isFalse);
+      expect(landed.owner, same(session.players[_client(a).peer]));
+      final seen = b.entities.whereType<Projectile>().single;
+      expect(seen.replica, isTrue);
+      expect(seen.owner, same(b.session!.players[_client(a).peer]), reason: 'it does not stop on its shooter');
+      expect(seen.velocity.distanceTo(shot.velocity), lessThan(1e-9));
+      expect(a.entities.whereType<Projectile>(), [shot], reason: 'not sent back to its shooter');
+      await _run(all, 1.0);
+      expect(dummy.hp, 10 - ProjectileSpec.arrow.damage, reason: "one hit, the host's");
+      for (final g in all) {
+        expect(g.entities.whereType<Projectile>(), isEmpty, reason: 'each copy stopped on it');
+      }
+
+      final hp = a.player.hp;
+      host.shoot(ProjectileSpec.arrow, from: host.player.eyePosition, at: a.player.centre(), owner: host.player);
+      await _settle(() => a.entities.whereType<Projectile>().isNotEmpty);
+      final coming = a.entities.whereType<Projectile>().single;
+      expect(coming.replica, isTrue);
+      expect(coming.owner, same(a.session!.players[GameSession.hostPeer]));
+      await _run(all, 1.0);
+      expect(a.player.hp, hp - ProjectileSpec.arrow.damage, reason: "hurt once, by the host's word");
+      await _close(session, clients);
     },
   );
 }

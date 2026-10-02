@@ -1102,7 +1102,10 @@ class VoxelGame {
   }
 
   /// Shoots [projectile] from [from] toward [at], by [owner], its damage
-  /// multiplied by [power].
+  /// multiplied by [power]. In a networked game every side sees it: the
+  /// host's go to its clients; a client shoots for its own player only, and
+  /// where the host is, the host lands the shot, this side's being a
+  /// `Projectile.replica` (`GameSession.fired`).
   Projectile shoot(
     ProjectileSpec projectile, {
     required Vector3 from,
@@ -1120,7 +1123,9 @@ class VoxelGame {
       dir.y += 0.5 * projectile.gravity * t * t / math.max(d, 0.001);
       dir.normalize();
     }
-    return add(Projectile(projectile, from, dir * projectile.speed, owner, power: power));
+    final shot = Projectile(projectile, from, dir * projectile.speed, owner, power: power);
+    session?.fired(shot);
+    return add(shot);
   }
 
   /// Breaks the block at [cell]: air in its place, and its drop on the ground

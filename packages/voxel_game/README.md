@@ -296,7 +296,9 @@ Dart SDK `^3.13.0`.
    A client tames the host's creatures (the host rolls the chance) and rides its own mount
    with no lag: while it rides, its copy is the one that moves. The vehicles are the
    host's as well: a client's boat or minecart is put down there, a seat is the host's to
-   give (one rider each), and the rider drives with no lag, as on a mount.
+   give (one rider each), and the rider drives with no lag, as on a mount. Every player
+   sees the others seated as they ride, their fishing floats with a line from their hand,
+   and their shots: a client's `shoot` is landed by the host, which every side sees.
 
 7. **Open on a title (optional):** `runVoxelGame(spec, menu: TitleSpec(name: 'My game'))`
    lets the player make, pick, host and join worlds instead of dropping into one slot.

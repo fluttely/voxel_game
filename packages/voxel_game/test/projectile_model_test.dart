@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vector_math/vector_math.dart';
 import 'package:voxel_game/voxel_game.dart';
@@ -46,5 +48,22 @@ void main() {
     );
     expect(ProjectileSpec.fireball.burns, greaterThan(0.0));
     expect(ProjectileModel.of(ProjectileSpec.fireball).rgb.x, 1.0);
+  });
+
+  test('a shot crosses the network whole, and one no shot is throws', () {
+    const dart = ProjectileSpec(
+      kind: 'dart',
+      gravity: 0.0,
+      burns: 2.0,
+      light: 1.5,
+      onHit: HitEffect('poison', seconds: 3.0, power: 2.0),
+    );
+    final json = jsonDecode(jsonEncode(dart.toJson())) as Map<String, Object?>;
+    expect(ProjectileSpec.fromJson(json).toJson(), dart.toJson());
+    expect(ProjectileSpec.fromJson(ProjectileSpec.arrow.toJson()).onHit, isNull);
+    expect(ProjectileModel.of(ProjectileSpec.fromJson(json)), same(ProjectileModel.of(dart)), reason: 'one look');
+    expect(() => ProjectileSpec.fromJson({...json, 'radius': 0}), throwsFormatException);
+    expect(() => ProjectileSpec.fromJson({...json, 'trail': -1}), throwsFormatException);
+    expect(() => ProjectileSpec.fromJson({...json}..remove('speed')), throwsA(isA<TypeError>()));
   });
 }
