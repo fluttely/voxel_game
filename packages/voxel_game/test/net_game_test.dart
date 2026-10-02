@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vector_math/vector_math.dart';
 import 'package:voxel_game/voxel_game.dart';
@@ -61,6 +63,47 @@ const _skySpec = VoxelGameSpec(
     weather: WeatherSpec(odds: WeatherOdds(clear: 1, rain: 0, storm: 0), minSpell: 1000, maxSpell: 1000),
   ),
 );
+
+/// [_spec] with creatures to tame — a wolf that heels, one that is hardly
+/// ever won over, a horse to ride — and three bones for every player.
+const _petSpec = VoxelGameSpec(
+  blocks: _blocks,
+  world: WorldGenSpec(
+    terrain: TerrainRecipe.flat(20),
+    seaLevel: 5,
+    caves: CaveSpec.none,
+    biomes: [Biome('plains', top: 'grass', under: 'dirt')],
+  ),
+  sky: SkySpec.alwaysDay,
+  items: [ItemType('bone', color: 0xEEEEDD)],
+  player: PlayerSpec(startingItems: {'bone': 3}),
+  mobs: [
+    MobSpec('wolf', hp: 12, speed: 4.0, brain: [], tameWith: ['bone'], tamedBrain: [Heel()]),
+    MobSpec('shy', hp: 4, brain: [], tameWith: ['bone'], tameChance: 1e-9, tamedBrain: [Heel()]),
+    MobSpec(
+      'horse',
+      hp: 20,
+      speed: 5.0,
+      halfWidth: 0.5,
+      height: 1.6,
+      brain: [],
+      tameWith: ['bone'],
+      tamedBrain: [MountWait()],
+      mount: MountSpec(seat: 1.0),
+    ),
+  ],
+);
+
+/// Turns [game]'s player to look at [m]'s middle.
+void _face(VoxelGame game, Mob m) {
+  final p = game.player;
+  final to = m.centre() - p.eyePosition;
+  p.yaw = -Vector3(0, 0, -1).angleToSigned(Vector3(to.x, 0, to.z).normalized(), Vector3(0, 1, 0));
+  p.pitch = math.atan2(to.y, Vector3(to.x, 0, to.z).length);
+}
+
+/// [game]'s replica of the host's creature [mob].
+Mob _replicaOf(VoxelGame game, Mob mob) => game.mobs.singleWhere((m) => m.netId == mob.netId);
 
 /// A chest the host places beside its player, with [stone] stone in its
 /// first slot, every game told of it.
@@ -668,5 +711,147 @@ void main() {
     await _run([host, client], 5.0);
     expect([client.weather.kind, client.weather.intensity], [WeatherKind.rain, 0.6]);
     await _close(session, [client]);
+  });
+
+  test(
+    "a client tames the host's creature: the host rolls, its puppet owns it, and every side knows the owner",
+    () async {
+      final (host, session, clients) = await _session(2, spec: _petSpec);
+      final [a, b] = clients;
+      final puppet = session.players[_client(a).peer]!;
+      final wolf = host.spawnMob('wolf', a.player.position + Vector3(0, 0, -2.5));
+      await _run([host, ...clients], 0.5);
+      final mine = _replicaOf(a, wolf);
+      _face(a, mine);
+      await _run([host, ...clients], 0.1);
+      expect(a.player.aimedMob, same(mine));
+      expect(a.player.usableOn(mine), isTrue, reason: "a replica is tamed by asking the host");
+      a.input.tap(VoxelAction.use);
+      await _run([host, ...clients], 0.5);
+      expect(wolf.tamed, isTrue);
+      expect(wolf.owner, same(puppet), reason: "the client's puppet owns it on the host");
+      expect(a.player.inventory.countOf('bone'), 2, reason: 'one bone went');
+      expect(a.notices.feed.last.text, 'The wolf is tamed');
+      expect(mine.owner, same(a.player));
+      expect(
+        _replicaOf(b, wolf).owner,
+        same(b.session!.players[_client(a).peer]),
+        reason: "the row names the owner's peer",
+      );
+      expect(a.player.usableOn(mine), isFalse, reason: 'a companion is not ridden');
+
+      a.player.position = a.player.position + Vector3(10, 0, 0);
+      await _run([host, ...clients], 4.0);
+      expect(wolf.position.distanceTo(puppet.position), lessThan(4.5), reason: 'it heels to its owner, the puppet');
+      expect(mine.position.distanceTo(wolf.position), lessThan(0.5));
+      await _close(session, clients);
+    },
+  );
+
+  test(
+    'two clients offer to one creature: one tames it, the other has its bone back; a roll that fails spends it',
+    () async {
+      final (host, session, clients) = await _session(2, spec: _petSpec);
+      final [a, b] = clients;
+      final wolf = host.spawnMob('wolf', a.player.position + Vector3(0, 0, -2.5));
+      await _run([host, ...clients], 0.5);
+      for (final c in clients) {
+        _face(c, _replicaOf(c, wolf));
+      }
+      await _run([host, ...clients], 0.1);
+      for (final c in clients) {
+        c.input.tap(VoxelAction.use);
+      }
+      await _run([host, ...clients], 0.5);
+      final owners = [
+        for (final c in clients)
+          if (identical(wolf.owner, session.players[_client(c).peer])) c,
+      ];
+      expect(owners, hasLength(1), reason: 'the first offer the host reads tames it');
+      final loser = identical(owners.single, a) ? b : a;
+      expect(owners.single.player.inventory.countOf('bone'), 2);
+      expect(loser.player.inventory.countOf('bone'), 3, reason: 'an offer to a creature tamed meanwhile comes back');
+      expect(
+        loser.notices.feed.where((n) => n.text.contains('wolf')),
+        isEmpty,
+        reason: 'the host rolled nothing for it',
+      );
+
+      final shy = host.spawnMob('shy', a.player.position + Vector3(0, 0, 2.5));
+      await _run([host, ...clients], 0.5);
+      _face(loser, _replicaOf(loser, shy));
+      await _run([host, ...clients], 0.1);
+      loser.input.tap(VoxelAction.use);
+      await _run([host, ...clients], 0.5);
+      expect(shy.tamed, isFalse);
+      expect(loser.player.inventory.countOf('bone'), 2, reason: 'a taming that does not take still uses up the offer');
+      expect(loser.notices.feed.last.text, 'The shy is not won over yet');
+      await _close(session, clients);
+    },
+  );
+
+  test("a client rides its own pet: its copy drives, the host's follows, and getting off hands it back", () async {
+    final (host, session, clients) = await _session(2, spec: _petSpec);
+    final [a, b] = clients;
+    final puppet = session.players[_client(a).peer]!;
+    final horse = host.spawnMob('horse', a.player.position + Vector3(0, 0, -2.5))..tame(puppet);
+    await _run([host, ...clients], 0.5);
+    final mine = _replicaOf(a, horse);
+    expect(mine.owner, same(a.player));
+    expect(host.player.usableOn(horse), isFalse, reason: "the host's player does not ride a client's pet");
+    _face(a, mine);
+    await _run([host, ...clients], 0.1);
+    expect(a.player.usableOn(mine), isTrue);
+    a.input.tap(VoxelAction.use);
+    await _run([host, ...clients], 0.1);
+    expect(a.player.riding, same(mine), reason: 'only its owner rides it, so the client gets on at once');
+    expect(mine.rider, same(a.player));
+
+    a.player.yaw = 0.0;
+    final from = mine.position.clone();
+    a.input.hold(VoxelAction.moveForward, true);
+    await _run([host, ...clients], 1.0);
+    a.input.hold(VoxelAction.moveForward, false);
+    expect(from.z - mine.position.z, greaterThan(3.0), reason: "the client's copy is the live one: no state holds it");
+    expect(a.player.position.distanceTo(mine.seat()), lessThan(1e-6));
+    await _run([host, ...clients], 0.3);
+    expect(horse.rider, same(puppet));
+    expect(horse.position.distanceTo(mine.position), lessThan(0.5), reason: "the host's copy follows its rider's");
+    final seen = _replicaOf(b, horse);
+    expect(seen.rider, same(b.session!.players[_client(a).peer]), reason: "the row names the rider's peer");
+    expect(seen.position.distanceTo(mine.position), lessThan(0.6));
+
+    a.input.tap(VoxelAction.sneak);
+    await _run([host, ...clients], 0.5);
+    expect(a.player.riding, isNull);
+    expect(mine.rider, isNull);
+    expect(horse.rider, isNull, reason: 'a pose without the mount hands it back to the host');
+    expect(mine.position.distanceTo(horse.position), lessThan(0.5), reason: 'the replica follows the host again');
+    await _close(session, clients);
+  });
+
+  test('a client that leaves gets off, and its pets wait for nobody', () async {
+    final (host, session, clients) = await _session(2, spec: _petSpec);
+    final [a, b] = clients;
+    final puppet = session.players[_client(a).peer]!;
+    final horse = host.spawnMob('horse', a.player.position + Vector3(0, 0, -2.5))..tame(puppet);
+    final wolf = host.spawnMob('wolf', a.player.position + Vector3(6, 0, 0))..tame(puppet);
+    await _run([host, ...clients], 0.5);
+    _face(a, _replicaOf(a, horse));
+    await _run([host, ...clients], 0.1);
+    a.input.tap(VoxelAction.use);
+    await _run([host, ...clients], 0.3);
+    expect(horse.rider, same(puppet));
+    expect(wolf.running.whereType<Heel>(), isNotEmpty);
+
+    await a.session!.close();
+    await _run([host, b], 0.5);
+    expect(horse.rider, isNull, reason: 'a peer that leaves gets off');
+    expect(puppet.isDead, isTrue, reason: 'gone with its peer');
+    expect(wolf.running.whereType<Heel>(), isEmpty, reason: 'it heels to nobody');
+    final seen = _replicaOf(b, wolf);
+    expect(seen.tamed, isTrue, reason: 'a peer gone still owns its pets');
+    expect(seen.owner, isNot(same(b.player)));
+    await _close(session, [b]);
   });
 }

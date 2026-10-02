@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- **Net catches up, fifth part: creatures (VA16e).** A client tames and rides. A use with
+  what tames the host's creature (`PlayerEntity.usableOn` now takes a replica) spends the
+  item on the client and asks the host (`tame`, through `GameSession.tameMob`, new); the host
+  rolls `tameChance`, the client's puppet owns what took, and the client hears which
+  (`tamed`, said by `PlayerEntity.tamingTried`, new). An offer to a creature tamed or gone
+  meanwhile is handed back. A mob's row in `state` names its owner's peer and its rider's
+  (`GameSession.hostPeer`, new, is the host's player), and a replica takes its owner from it
+  (`Mob.applyNetState`'s `owner`). A client rides its own pet at once (`Mob.takes` no longer
+  refuses a replica: only its owner rides it, so nobody else could), and drives it as VAD9
+  says: its copy is the live one, its `pose` carries the mount's, and the host's copy follows
+  it (`Mob.followRider`, new) with its brain at rest, even where the host has no world; a
+  pose without it, or the peer leaving, hands it back to the host. A `RemotePlayer` whose peer
+  left is dead to every creature: hunters let it go and its pets wait. A pose that rides
+  another's creature, or an offer of what does not tame it, throws.
+
 - **Net catches up, fourth part: the sky (VA16d).** A client's weather is the host's. The
   host sends its sky (`weather`: the spell, the last rain or storm, the intensity it eases
   toward and the one it stands at) with the hello and each time it turns; the client

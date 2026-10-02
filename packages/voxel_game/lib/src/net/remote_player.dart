@@ -89,8 +89,9 @@ class RemotePlayer extends GameEntity implements Target {
   bool _dead = false;
   String _held = '';
 
+  /// Dead, or gone with its peer: out of every fight, and its pets wait.
   @override
-  bool get isDead => _dead;
+  bool get isDead => _dead || removed;
 
   /// The yaw its peer faces.
   double get yaw => _yaw;

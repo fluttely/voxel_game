@@ -31,7 +31,9 @@ import 'rig.dart';
 /// keep their own state in [memory].
 ///
 /// A tamed one with a `MobSpec.mount` is [Rideable]: its owner rides it, and
-/// its brain rests while they do.
+/// its brain rests while they do. In a networked game the rider's side drives
+/// it: a client riding its own pet moves its replica here, and the host's
+/// copy follows the poses it sends ([followRider]).
 class Mob extends GameEntity implements Target, Rideable {
   /// A [spec] standing at [at].
   Mob(this.spec, Vector3 at) : hp = spec.hp, home = at.clone() {
@@ -209,8 +211,14 @@ class Mob extends GameEntity implements Target, Rideable {
   bool get tamed => _owner != null;
 
   /// Who rides it, or null. The rider moves it ([carry]); its brain rests.
+  /// On a client, a replica's rider is the host's word, but for the local
+  /// player's own seat.
   @override
   Target? rider;
+
+  /// Whether the local player rides it, so this side moves it: on the host
+  /// its own player, on a client the replica the client rides.
+  bool get _drivenHere => identical(rider, _game.player);
 
   /// Its spec's name.
   @override
@@ -240,11 +248,11 @@ class Mob extends GameEntity implements Target, Rideable {
   Vector3 seat() => position + Vector3(0, spec.mount!.seat, 0);
 
   /// Whether [rider] may get on: it is a mount (`MobSpec.mount`) tamed by
-  /// [rider], alive, here (not a client's replica of the host's), and nobody
-  /// rides it.
+  /// [rider], alive, and nobody rides it. Only its owner rides it, so a
+  /// client gets on its own pet's replica at once: no one else could.
   @override
   bool takes(Target rider) =>
-      identical(_owner, rider) && spec.mount != null && this.rider == null && !_dead && !removed && !replica;
+      identical(_owner, rider) && spec.mount != null && this.rider == null && !_dead && !removed;
 
   /// One step of [dt] under its rider: walks along the input's `wish` at its
   /// ridden pace (`MobSpec.mount`), faster with `sprint`, jumping with `jump`.
@@ -298,19 +306,42 @@ class Mob extends GameEntity implements Target, Rideable {
   Vector3? _netTo;
 
   /// A replica's state from the host: where it is, facing where, its health,
-  /// and whether it died. Health lost since the last state is a hit, here as
-  /// on the host: its number shows over it, and [sinceHurt] starts again.
-  void applyNetState(Vector3 at, double yaw, double health, {bool dead = false}) {
+  /// who tamed it ([owner], null for a wild one), and whether it died. Health
+  /// lost since the last state is a hit, here as on the host: its number
+  /// shows over it, and [sinceHurt] starts again. While the local player
+  /// rides it, where it is and where it faces are this side's.
+  void applyNetState(Vector3 at, double yaw, double health, {Target? owner, bool dead = false}) {
+    if (!replica) throw StateError('${spec.id} $netId is the host\'s own, not a replica');
     // The first state is where the replica starts, not a hit.
     if (_netTo != null && health < hp) {
       _game.damageNumbers.add(_numberAt(), hp - health);
       sinceHurt = 0.0;
       _feel();
     }
+    if (!_drivenHere) {
+      _netTo = at.clone();
+      facing = yaw;
+    }
+    hp = health;
+    _owner = owner;
+    if (dead && !_dead) kill(dropLoot: false);
+  }
+
+  /// Its rider on another side (a client's player on its own pet) moved it
+  /// to [at], facing [yaw]: it is drawn going there, and thinks nothing of
+  /// its own until the rider gets off.
+  void followRider(Vector3 at, double yaw) {
+    if (rider == null || _drivenHere) throw StateError('${spec.id} $netId is not ridden from another side');
     _netTo = at.clone();
     facing = yaw;
-    hp = health;
-    if (dead && !_dead) kill(dropLoot: false);
+  }
+
+  /// One step of [dt] toward where the other side last put it.
+  void _follow(double dt) {
+    final to = _netTo ?? position;
+    final before = position.clone();
+    position = position + (to - position) * math.min(1.0, dt * 12.0);
+    velocity = (position - before) / math.max(dt, 1e-6);
   }
 
   @override
@@ -397,13 +428,20 @@ class Mob extends GameEntity implements Target, Rideable {
       if (_deathTime >= toppleSeconds + fadeSeconds) removed = true;
       return;
     }
-    if (replica) {
+    // Moved by the other side: the host's (a replica) or a client's rider
+    // (the host's copy of a client's mount, wherever the host has no world).
+    if (replica || rider != null && !_drivenHere) {
       sinceHurt += dt;
-      final to = _netTo ?? position;
-      final before = position.clone();
-      position = position + (to - position) * math.min(1.0, dt * 12.0);
-      velocity = (position - before) / math.max(dt, 1e-6);
+      if (_drivenHere) {
+        // Its rider moved it this step (carry): when they get off it stays
+        // here until the host's next word.
+        _netTo = position.clone();
+      } else {
+        _follow(dt);
+      }
       _settle(dt);
+      if (!replica && game.world.isLoaded(IVec3.floor(position))) _burn(game, dt);
+      if (_dead) return;
       _animate(dt);
       syncNode(yaw: rig?.yaw);
       return;

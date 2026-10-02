@@ -12,6 +12,7 @@ import '../entities/target.dart';
 import '../input/input_map.dart';
 import '../input/voxel_action.dart';
 import '../mobs/mob.dart';
+import '../mobs/mob_spec.dart';
 import '../mobs/rig.dart';
 import '../ui/game_screen.dart';
 import '../camera/first_person_view.dart';
@@ -575,30 +576,39 @@ class PlayerEntity extends NodeBody implements Target {
 
   /// Whether a use on [mob] does something: the item in hand tames it, or it
   /// is the player's own mount, no one rides it and the player rides nothing
-  /// ([Mob.takes]). The host's creatures (a client's replicas) are neither
-  /// tamed nor ridden from here (VA16).
+  /// ([Mob.takes]). On a client the host's creatures are tamed by asking the
+  /// host, and its own pet's replica is ridden at once.
   bool usableOn(Mob mob) {
-    if (mob.replica || mob.isDead) return false;
+    if (mob.isDead) return false;
     if (!mob.tamed) return mob.spec.tameWith.contains(heldItem);
     return riding == null && mob.takes(this);
   }
 
   /// Uses the item in hand on [mob] ([usableOn]): one of what tames it,
-  /// which may take (`MobSpec.tameChance`), or a ride.
+  /// which may take (`MobSpec.tameChance`), or a ride. A replica's taming is
+  /// the host's roll (`GameSession.tameMob`), the item spent here.
   void _useOn(Mob mob) {
     _swingArm();
     if (mob.tamed) {
       ride(mob);
       return;
     }
-    if (!spec.creative) inventory.takeFromSlot(selectedSlot, 1);
-    final name = mob.spec.name.toLowerCase();
-    if (_game.random.nextDouble() < mob.spec.tameChance) {
-      mob.tame(this);
-      _game.notify('The $name is tamed');
-    } else {
-      _game.notify('The $name is not won over yet');
+    final item = heldItem;
+    final paid = spec.creative ? null : inventory.takeFromSlot(selectedSlot, 1);
+    if (mob.replica) {
+      _game.session!.tameMob(mob, item, paid: paid);
+      return;
     }
+    final took = _game.random.nextDouble() < mob.spec.tameChance;
+    if (took) mob.tame(this);
+    tamingTried(mob.spec, took: took);
+  }
+
+  /// Says whether the taming of a [spec] creature [took]: here, or on the
+  /// host for a client.
+  void tamingTried(MobSpec spec, {required bool took}) {
+    final name = spec.name.toLowerCase();
+    _game.notify(took ? 'The $name is tamed' : 'The $name is not won over yet');
   }
 
   bool _onLadder() {

@@ -77,10 +77,15 @@ typedef _StoreEdit = ({int n, int opening, int slot, ItemStack? before, ItemStac
 /// the host answers with the store and a `store_ack` (the number, and
 /// whether it stood). The host's sky goes out as `weather` (its spell, its
 /// last rain or storm, the intensity it eases toward and the one it stands
-/// at) with the hello and when it turns. Every peer runs
-/// the same spec, so a dimension's number
-/// is the same everywhere, and a message no peer of that spec would send
-/// throws.
+/// at) with the hello and when it turns. The host keeps the creatures: a
+/// mob's row in `state` names its owner's peer and its rider's (the host's
+/// player is peer 1); a client tames one with `tame` (the creature, the item
+/// offered and the stack it spent), which the host rolls and answers with
+/// `tamed`, or hands the stack back when the creature is gone or someone
+/// else's. A client riding its own pet drives it: its `pose` carries the
+/// mount's (`m`), which the host's copy follows until a pose without it.
+/// Every peer runs the same spec, so a dimension's number is the same
+/// everywhere, and a message no peer of that spec would send throws.
 abstract class GameSession implements GameSystem {
   /// Stops talking.
   Future<void> close();
@@ -90,6 +95,15 @@ abstract class GameSession implements GameSystem {
 
   /// The local player hit mob replica [mob] (a client asks the host).
   void hitMob(Mob mob, Damage damage) {}
+
+  /// The local player offers [item] to the host's creature [mob], having
+  /// spent [paid] on it (null in creative): a client asks the host, which
+  /// rolls `MobSpec.tameChance`. The host tames its own creatures itself.
+  void tameMob(Mob mob, String item, {ItemStack? paid}) =>
+      throw StateError('the host tames its own creatures, not through its session');
+
+  /// The host's player's peer number in a `state`.
+  static const int hostPeer = 1;
 
   /// Takes the drop of [stack] at [at], moving at [velocity], that the game
   /// is making: true when it went to the host (a client where the host is),
@@ -184,7 +198,10 @@ abstract class GameSession implements GameSystem {
 /// no world, goes back to the peer's bag); its poses and hits come back to
 /// it; a remote player in the host's dimension is a target its mobs hunt, and
 /// the damage it takes goes to its peer, as do the drops it reaches. A
-/// client follows the host's sky. A client opens the stores of the host's dimension only, and its edit of a
+/// client follows the host's sky. A creature a client offers what tames it
+/// is rolled here and owned by its puppet; while the client rides it, it
+/// follows the client's poses, and its brain rests. A client opens the
+/// stores of the host's dimension only, and its edit of a
 /// slot stands only on the slot it saw (compare-and-set) and when what it
 /// puts in is paid for: out of what it took from that store since it opened
 /// it, then out of what it last declared it holds.
@@ -220,6 +237,24 @@ class HostSession extends GameSession {
   final Map<int, Map<String, int>> _escrow = {};
   final Map<Inventory, String> _storeSent = {};
   String _weatherSent = '';
+  // The creature each peer rides, by peer.
+  final Map<int, Mob> _mounts = {};
+
+  /// The peer number of player [t]: the host's own or a puppet's.
+  int _peerOf(Target t) => switch (t) {
+    RemotePlayer(:final peer) => peer,
+    _ when identical(t, game.player) => GameSession.hostPeer,
+    _ => throw StateError('$t is no player'),
+  };
+
+  /// The host's creature numbered [n], or null for one gone (dead or taken
+  /// away since the peer saw it).
+  Mob? _liveMob(int n) {
+    for (final m in game.mobs) {
+      if (m.netId == n && !m.gone) return m;
+    }
+    return null;
+  }
 
   static String _kind(ItemStack s) => '${s.id}/${s.bonus}/${s.dur}';
 
@@ -291,6 +326,7 @@ class HostSession extends GameSession {
           dead: m['dead'] == true,
           dimension: _dimension(m['d']! as int),
         );
+        _ridden(puppet, m['m']);
         // A peer arriving where the host is draws the drops there.
         if (puppet.dimension != before && puppet.dimension == game.world.dimension) {
           _trackDrops();
@@ -340,6 +376,8 @@ class HostSession extends GameSession {
             ],
           ],
         });
+      case 'tame':
+        _tame(peer, puppet!, m);
       case 'store_open':
         _openStore(peer, _dimension(m['d']! as int), _cell(m['c']));
       case 'store_close':
@@ -364,6 +402,50 @@ class HostSession extends GameSession {
         }
     }
   }
+
+  /// [peer] offers an item to a creature ([m]): the host rolls its
+  /// `tameChance`, [puppet] owns it when it took, and the peer hears which.
+  /// A creature gone or tamed meanwhile hands the stack spent back.
+  void _tame(NetPeer peer, RemotePlayer puppet, NetMessage m) {
+    final item = m['i']! as String;
+    if (!game.items.has(item)) throw FormatException('item $item, which the spec does not declare');
+    final paid = m['s'] == null ? null : _stack(m['s']);
+    if (paid != null && (paid.id != item || paid.count != 1)) {
+      throw FormatException('$item offered, ${paid.toJson()} spent');
+    }
+    final mob = _liveMob(m['n']! as int);
+    if (mob == null || mob.tamed) {
+      if (paid != null) _handBack(peer, paid);
+      return;
+    }
+    if (!mob.spec.tameWith.contains(item)) throw FormatException('a ${mob.spec.id} is not tamed with $item');
+    final took = game.random.nextDouble() < mob.spec.tameChance;
+    if (took) mob.tame(puppet);
+    peer.send({'t': 'tamed', 's': mob.spec.id, 'ok': took});
+  }
+
+  /// The mount [puppet]'s peer rides, by its pose's [o] (null for none):
+  /// the host's copy follows the pose sent with it, and one it got off is
+  /// the host's again. One that died here meanwhile is ridden no more; the
+  /// peer hears it die and gets off.
+  void _ridden(RemotePlayer puppet, Object? o) {
+    final r = o as Map<String, Object?>?;
+    final mount = r == null ? null : _liveMob(r['n']! as int);
+    if (mount != null &&
+        (!identical(mount.owner, puppet) ||
+            mount.spec.mount == null ||
+            mount.rider != null && !identical(mount.rider, puppet))) {
+      throw FormatException('peer ${puppet.peer} rides ${mount.spec.id} ${mount.netId}, not a mount of its own');
+    }
+    if (!identical(_mounts[puppet.peer], mount)) {
+      _releaseMount(puppet.peer);
+      if (mount != null) _mounts[puppet.peer] = mount..rider = puppet;
+    }
+    mount?.followRider(_vec(r!['p']), (r['yaw']! as num).toDouble());
+  }
+
+  /// [peer]'s mount, if any, is the host's again.
+  void _releaseMount(int peer) => _mounts.remove(peer)?.rider = null;
 
   /// [peer] opens the store at [cell] in [dimension]: sent to it, or shut
   /// at once where the host keeps none (another dimension, a block broken
@@ -454,6 +536,7 @@ class HostSession extends GameSession {
 
   void _leave(NetPeer peer) {
     _closeStore(peer.id);
+    _releaseMount(peer.id);
     players.remove(peer.id)?.removed = true;
     net.broadcast({'t': 'bye', 'peer': peer.id});
   }
@@ -497,14 +580,30 @@ class HostSession extends GameSession {
       'time': game.time,
       'tod': game.timeOfDay,
       'players': [
-        {'id': 1, 'p': _v(p.position), 'yaw': p.yaw, 'held': p.heldItem, 'dead': p.isDead, 'd': game.world.dimension},
+        {
+          'id': GameSession.hostPeer,
+          'p': _v(p.position),
+          'yaw': p.yaw,
+          'held': p.heldItem,
+          'dead': p.isDead,
+          'd': game.world.dimension,
+        },
         for (final r in players.values)
           {'id': r.peer, 'p': _v(r.position), 'yaw': r.yaw, 'held': r.heldItem, 'dead': r.isDead, 'd': r.dimension},
       ],
       'd': game.world.dimension,
       'mobs': [
         for (final m in game.mobs)
-          {'n': m.netId, 's': m.spec.id, 'p': _v(m.position), 'yaw': m.facing, 'hp': m.hp, 'dead': m.isDead},
+          {
+            'n': m.netId,
+            's': m.spec.id,
+            'p': _v(m.position),
+            'yaw': m.facing,
+            'hp': m.hp,
+            'dead': m.isDead,
+            if (m.owner case final o?) 'o': _peerOf(o),
+            if (m.rider case final r?) 'r': _peerOf(r),
+          },
       ],
     });
   }
@@ -577,7 +676,10 @@ class HostSession extends GameSession {
 /// as the host last sent it with this client's unsettled edits over it; an
 /// edit the host refuses is undone, the hand's share of it too, and a store
 /// the host shuts closes its screen. Its sky is the host's: each turn of it
-/// starts where the host's stands and eases as the host's does.
+/// starts where the host's stands and eases as the host's does. A creature
+/// it tames is the host's roll; one it owns and rides it drives itself, the
+/// mount's pose sent with its own, and a replica's owner and rider are the
+/// host's word (a peer gone since stands in as a player no longer there).
 class ClientSession extends GameSession {
   /// A client of [game] on [connection], known to the host as [peer], the
   /// host's [drops] drawn and its [weather] followed (the hello's; no
@@ -617,6 +719,7 @@ class ClientSession extends GameSession {
   int _storeRefusals = 0;
 
   final Map<int, Mob> _mobs = {};
+  final Map<int, RemotePlayer> _departed = {};
   final Map<int, ItemPickup> _drops = {};
   int _hostDimension;
   String _bagSent = '';
@@ -837,6 +940,8 @@ class ClientSession extends GameSession {
         _mobsState(m['d'] == game.world.dimension ? m['mobs']! as List<Object?> : const []);
       case 'weather':
         GameSession._follow(game.weather, m);
+      case 'tamed':
+        game.player.tamingTried(game.mobSpec(m['s']! as String), took: m['ok']! as bool);
       case 'store':
         // A store shut here since the host sent it is no longer seen.
         if (_cell(m['c']) != _storeCell) return;
@@ -906,12 +1011,34 @@ class ClientSession extends GameSession {
           ..netId = n;
         _mobs[n] = game.add(mob);
       }
-      mob.applyNetState(at, (r['yaw']! as num).toDouble(), (r['hp']! as num).toDouble(), dead: r['dead'] == true);
+      // The local player's own seat is this side's: the host hears of it
+      // with the next pose.
+      final rider = r['r'] as int?;
+      if (!identical(mob.rider, game.player)) mob.rider = rider == null || rider == peer ? null : _player(rider);
+      final owner = r['o'] as int?;
+      mob.applyNetState(
+        at,
+        (r['yaw']! as num).toDouble(),
+        (r['hp']! as num).toDouble(),
+        owner: owner == null ? null : _player(owner),
+        dead: r['dead'] == true,
+      );
     }
     for (final n in _mobs.keys.where((k) => !seen.contains(k)).toList()) {
       _mobs.remove(n)!.removed = true;
     }
   }
+
+  /// Player [id] of a `state`: this side's own, another peer's puppet, or a
+  /// stand-in for a peer gone since (the owner of the pets it left).
+  Target _player(int id) {
+    if (id == peer) return game.player;
+    return players[id] ?? _departed.putIfAbsent(id, () => RemotePlayer(id, Vector3.zero())..removed = true);
+  }
+
+  @override
+  void tameMob(Mob mob, String item, {ItemStack? paid}) =>
+      connection.send({'t': 'tame', 'n': mob.netId, 'i': item, if (paid != null) 's': paid.toJson()});
 
   @override
   void hitMob(Mob mob, Damage damage) => connection.send({
@@ -953,6 +1080,7 @@ class ClientSession extends GameSession {
       'held': p.heldItem,
       'dead': p.isDead,
       'd': game.world.dimension,
+      if (p.riding case final Mob mount) 'm': {'n': mount.netId, 'p': _v(mount.position), 'yaw': mount.facing},
     });
   }
 
