@@ -873,8 +873,7 @@ class PlayerEntity extends NodeBody implements Target {
     }
     final hit = aimedBlock;
     // A lever or a button is used, not built against.
-    final net = _game.signals;
-    if (hit != null && net != null && !_game.input.down(VoxelAction.sneak) && net.use(hit.block)) {
+    if (hit != null && !_game.input.down(VoxelAction.sneak) && _game.useSignal(hit.block)) {
       _swingArm();
       _game.playSound('click', at: Vector3(hit.block.x + 0.5, hit.block.y + 0.5, hit.block.z + 0.5), volumeDb: -4.0);
       return;

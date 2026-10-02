@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- **Net catches up, first part: blocks (VA16a).** A client's block edit shows at once and goes
+  to the host as a request (`requests`: its number, the cell, the id it replaced and the id it
+  wrote, a message per dimension and step). The host keeps it only where its own block is the
+  one replaced (compare-and-set: of two players on one cell, the second is refused) and answers
+  each with an ack carrying the id that stands (`acks`); a client whose edit lost rolls back to
+  it, and the roll back is not sent again. Until its ack an edit owns its cell, so the host's
+  echo of that cell, older than the ack, waits. Where the host has not loaded the world, or in
+  a dimension it is not in, the edit is taken unchecked, passed on to the others and acked as
+  asked. `ClientSession.pendingEdits` and `rollbacks` (new). A message no peer of the same spec
+  sends (a block id out of the registry, an undeclared dimension, an ack for no edit) throws.
+  A client's lever: `VoxelGame.useSignal` (new) flips a lever or presses a button — through
+  the circuits on the authority, as a block edit of its own on a client, which the host's
+  circuits answer (the lamp lights on the host and every client); before, a client's use on a
+  lever fell through to building against it. `VoxelGame.signals` stays null on a client.
+
 - **Vehicles and fishing, third part: fishing (VA15c).** `VoxelGameSpec.fishing`, a
   `FishingSpec` (`rod`, `catches` — a `LootTable`, a `LootTable.oneOf` for one catch a bite —,
   `liquids` `{'water'}`, `reach` 8, a wait of `minWait`–`maxWait` 3–8 s, a `bite` of 1.5 s,

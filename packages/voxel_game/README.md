@@ -70,7 +70,9 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
   'lever_on'}, ...)` — levers, buttons, plates and sources power a wire, and what it touches
   answers: lamps light, iron doors open, TNT blows, `pistons` (`{'piston': 'piston_out', ...}`)
   push the block in front of them the way their `Facing.compass` points, and a run of
-  `poweredRails` lights `railReach` rails on from the power.
+  `poweredRails` lights `railReach` rails on from the power. A use flips a lever or presses a
+  button (`VoxelGame.useSignal`); on a client the flip is a block edit, which the host's
+  circuits answer.
 - `VoxelGame.notify('Night falls')` tells the player something for a few seconds; the default
   HUD shows it at the right, over what the player just picked up (`+5 Dirt`).
 - The default HUD also reads the world through the frame's camera (`VoxelGame.camera`, the
@@ -284,7 +286,9 @@ Dart SDK `^3.13.0`.
    `signals`, `graphics`, `screens`, and the `on...` hooks.
 
 6. **Play together (optional):** `runVoxelGame(spec, hostPort: 7777)` on one
-   machine and `runVoxelGame(spec, join: '192.168.0.10')` on another.
+   machine and `runVoxelGame(spec, join: '192.168.0.10')` on another. A client's block
+   edit shows at once, and the host keeps it only over the block it replaced: of two players
+   on one cell, the second is rolled back.
 
 7. **Open on a title (optional):** `runVoxelGame(spec, menu: TitleSpec(name: 'My game'))`
    lets the player make, pick, host and join worlds instead of dropping into one slot.

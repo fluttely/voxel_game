@@ -85,6 +85,9 @@ class VoxelGame {
     spawner = MobSpawner(this);
     blockRules = BlockRules(this);
     rails = Rails(blocks, spec.signals);
+    final s = spec.signals;
+    // A client knows the rules too, to flip a lever as an edit of its own.
+    if (s != null) _signals = _signalRules(s);
     if (!authority) {
       // A client: the host runs the liquids, the circuits and the spawning.
       world.flow.enabled = false;
@@ -93,9 +96,7 @@ class VoxelGame {
     }
     blockRules.attach();
     rails.attach(world);
-    final s = spec.signals;
     if (s != null) {
-      _signals = _signalRules(s);
       world.addListener((cell, old, id) => signals!.touch(cell, old, id));
       _plates = {for (final p in s.plates) blocks.indexOf(p)};
     }
@@ -197,7 +198,20 @@ class VoxelGame {
   /// none, or on a client (the host runs them). Each dimension keeps its own.
   SignalNetwork? get signals {
     final rules = _signals;
-    return rules == null ? null : _networks.putIfAbsent(world.dimension, () => SignalNetwork(world, rules));
+    return rules == null || !authority
+        ? null
+        : _networks.putIfAbsent(world.dimension, () => SignalNetwork(world, rules));
+  }
+
+  /// The use action on [cell]: a lever flips, a button presses. False when
+  /// the block is neither, or the spec declares no circuits. A client writes
+  /// the flip as an edit of its own, which the host checks like any other and
+  /// its circuits answer.
+  bool useSignal(IVec3 cell) {
+    final net = signals;
+    if (net != null) return net.use(cell);
+    final to = _signals?.usedInto(world.getBlock(cell));
+    return to != null && world.setBlock(cell, to);
   }
 
   SignalRules? _signals;

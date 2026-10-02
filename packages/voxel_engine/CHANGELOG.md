@@ -2,6 +2,10 @@
 
 ## 0.3.0-dev
 
+- `SignalRules.usedInto` (new): what a use turns a block into (a lever flipped, a button
+  pressed), null for neither; `SignalNetwork.use` writes it. A client, which runs no circuits,
+  reads it to flip a lever as a block edit of its own that the host's circuits answer.
+
 - `LootTable.oneOf` (new): a table that gives one of its entries or nothing — each entry's
   chance is its slice of one roll, in order, and what the slices leave gives nothing (a
   fishing line's catch: 70 % fish, 10 % salmon, ...). `LootTable.check` (new) throws for
