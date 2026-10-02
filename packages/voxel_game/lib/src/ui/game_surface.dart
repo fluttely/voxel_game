@@ -146,7 +146,7 @@ class _GameSurfaceState extends State<GameSurface> {
       StorageScreen(:final cell) => InventoryScreen(
         game: game,
         station: game.world.blockNameAt(cell),
-        storage: game.blockRules.storeAt(cell),
+        storage: game.openStorage!,
         onClose: game.closeScreen,
       ),
       PauseScreen() => PauseMenu(game, onQuit: widget.onQuit),

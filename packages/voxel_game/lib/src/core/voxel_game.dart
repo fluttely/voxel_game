@@ -649,8 +649,9 @@ class VoxelGame {
   /// Opens [next] over the world, in place of the screen open. Throws for a
   /// [DeathScreen] (the player's death opens it), over one (only [respawn]
   /// leaves it), for a [BagScreen] at a block no recipe names, a
-  /// [StorageScreen] on a client or at a block that stores nothing, and a
-  /// [DeclaredScreen] the spec does not declare.
+  /// [StorageScreen] on a client away from the host ([storesHere]) or at a
+  /// block that stores nothing, and a [DeclaredScreen] the spec does not
+  /// declare.
   void openScreen(GameScreen next) {
     if (_screen.value is DeathScreen) throw StateError('the dead leave the death screen only by a respawn');
     switch (next) {
@@ -658,8 +659,8 @@ class VoxelGame {
         throw ArgumentError.value(next, 'next', 'only the player\'s death opens the death screen');
       case BagScreen(:final station) when station.isNotEmpty && !stations.contains(station):
         throw ArgumentError.value(station, 'station', 'no recipe is crafted there');
-      case StorageScreen() when !authority:
-        throw StateError('a client opens no store: the host keeps them');
+      case StorageScreen() when !storesHere:
+        throw StateError('a client opens no store where the host is not: the host keeps them');
       case StorageScreen(:final cell) when blocks[world.getBlock(cell)].storage == null:
         throw ArgumentError.value(cell, 'cell', 'no store there: ${world.blockNameAt(cell)}');
       case DeclaredScreen(:final id) when !spec.screens.containsKey(id):
@@ -692,11 +693,17 @@ class VoxelGame {
     if (world.dimension != 0) travel(VoxelGameSpec.mainDimension, at: player.spawnPoint);
   }
 
-  /// The store open beside the bag ([StorageScreen]), or null.
+  /// The store open beside the bag ([StorageScreen]), or null. On a client
+  /// it is the host's store as the client sees it (`GameSession.storeAt`).
   Inventory? get openStorage => switch (_screen.value) {
-    StorageScreen(:final cell) => blockRules.storeAt(cell),
+    StorageScreen(:final cell) => session?.storeAt(cell) ?? blockRules.storeAt(cell),
     _ => null,
   };
+
+  /// Whether the player opens the stores where it is: on the authority, and
+  /// on a client in the host's dimension (the host keeps the stores and
+  /// steps no dimension but its own).
+  bool get storesHere => authority || session!.hostHere;
 
   /// What the HUD tells the player for a few seconds: [notify]'s feed and
   /// the pickups. [frame] ages it.

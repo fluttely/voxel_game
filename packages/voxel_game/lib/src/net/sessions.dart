@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:vector_math/vector_math.dart';
 import 'package:voxel_engine/content.dart' show Inventory, ItemStack;
@@ -11,6 +12,7 @@ import '../entities/game_entity.dart';
 import '../entities/item_pickup.dart';
 import '../entities/target.dart';
 import '../mobs/mob.dart';
+import '../ui/game_screen.dart';
 import '../world/world_save.dart';
 import 'block_prediction.dart';
 import 'remote_player.dart';
@@ -22,6 +24,39 @@ Vector3 _vec(Object? o) {
   return Vector3(l[0], l[1], l[2]);
 }
 
+List<int> _c(IVec3 c) => [c.x, c.y, c.z];
+
+IVec3 _cell(Object? o) {
+  final l = [for (final e in o! as List<Object?>) e! as int];
+  if (l.length != 3) throw FormatException('a cell of ${l.length} numbers');
+  return IVec3(l[0], l[1], l[2]);
+}
+
+/// Whether [a] and [b] are stacks alike: the same item, bonus and wear.
+bool _like(ItemStack a, ItemStack b) => a.id == b.id && a.bonus == b.bonus && a.dur == b.dur;
+
+/// Whether slots [a] and [b] hold the same: both empty, or alike and as many.
+bool _same(ItemStack? a, ItemStack? b) => a == null ? b == null : b != null && _like(a, b) && a.count == b.count;
+
+/// What an edit of a slot from [before] to [after] took [out] of it and put
+/// [into] it: the difference of a stack topped up or taken from, or both
+/// stacks whole when they are not alike (a swap).
+({ItemStack? out, ItemStack? into}) _moved(ItemStack? before, ItemStack? after) {
+  if (before != null && after != null && _like(before, after)) {
+    final more = after.count - before.count;
+    return (
+      out: more < 0 ? (before.copy()..count = -more) : null,
+      into: more > 0 ? (after.copy()..count = more) : null,
+    );
+  }
+  return (out: before?.copy(), into: after?.copy());
+}
+
+/// A client's edit of a slot of the store it has open, sent and not yet
+/// settled: its number, the opening of the store it was made in, the slot,
+/// and what the slot held before and after it.
+typedef _StoreEdit = ({int n, int opening, int slot, ItemStack? before, ItemStack? after});
+
 /// A networked game's side of the conversation, ticked last in every step of
 /// the game. The block edits of a step leave together at its end, a message
 /// per dimension, in the order they were made: the host's as `edits` (x, y, z
@@ -32,9 +67,15 @@ Vector3 _vec(Object? o) {
 /// `drop_poses` moves it, `drops_gone` takes it; a client's drop is a `drop`
 /// request, the host hands a peer what its player reached with `give`, and
 /// the peer sends back what did not fit as `give_rest`, having declared its
-/// bag (`bag`) when it changed. Every peer runs the same spec, so a
-/// dimension's number is the same everywhere, and a message no peer of that
-/// spec would send throws.
+/// bag and the stack in its hand (`bag`) when they changed. The host keeps
+/// the stores: a client opens one with `store_open` and shuts it with
+/// `store_close`; the host sends it (`store`) then and at each change, and
+/// shuts a store gone (`store_shut`); each slot a client edits is a
+/// `store_set` (its number, the slot, what it held before and after), which
+/// the host answers with the store and a `store_ack` (the number, and
+/// whether it stood). Every peer runs the same spec, so a dimension's number
+/// is the same everywhere, and a message no peer of that spec would send
+/// throws.
 abstract class GameSession implements GameSystem {
   /// Stops talking.
   Future<void> close();
@@ -52,6 +93,14 @@ abstract class GameSession implements GameSystem {
 
   /// The other players, by peer.
   final Map<int, RemotePlayer> players = {};
+
+  /// Whether the host is in the dimension this side's player is in: always,
+  /// on the host.
+  bool get hostHere => true;
+
+  /// The store at [cell] as this side sees it while its screen is open: the
+  /// game's own, on the host.
+  Inventory storeAt(IVec3 cell) => game.blockRules.storeAt(cell);
 
   /// The numbers [m] carries under [key], [stride] to an entry.
   static List<int> _ints(NetMessage m, String key, int stride) {
@@ -81,6 +130,12 @@ abstract class GameSession implements GameSystem {
     return s;
   }
 
+  /// The slot a peer sent as [o]: null for an empty one.
+  ItemStack? _slot(Object? o) => (o! as Map<String, Object?>).isEmpty ? null : _stack(o);
+
+  /// A `store` message of [store], which stands at [cell].
+  static NetMessage _storeMessage(IVec3 cell, Inventory store) => {'t': 'store', 'c': _c(cell), 's': store.toJson()};
+
   /// Calls [edit] with each edit of an `edits` message, in order.
   void _forEachEdit(NetMessage m, void Function(int dimension, IVec3 cell, int id) edit) {
     final d = m['d']! as int;
@@ -100,7 +155,11 @@ abstract class GameSession implements GameSystem {
 /// made here, in the host's dimension (one from another, where the host steps
 /// no world, goes back to the peer's bag); its poses and hits come back to
 /// it; a remote player in the host's dimension is a target its mobs hunt, and
-/// the damage it takes goes to its peer, as do the drops it reaches.
+/// the damage it takes goes to its peer, as do the drops it reaches. A
+/// client opens the stores of the host's dimension only, and its edit of a
+/// slot stands only on the slot it saw (compare-and-set) and when what it
+/// puts in is paid for: out of what it took from that store since it opened
+/// it, then out of what it last declared it holds.
 class HostSession extends GameSession {
   /// Hosts [game] on [net].
   HostSession(this.game, this.net) {
@@ -125,6 +184,15 @@ class HostSession extends GameSession {
   final Map<int, ItemPickup> _drops = {};
   final Map<int, Vector3> _dropSent = {};
   final List<ItemPickup> _announce = [];
+  // The store each peer has open, by peer: the store itself, which a break,
+  // a store placed anew or the host's trip replaces in its rules; what the
+  // peer took out of it since it opened it, by kind of stack (the escrow);
+  // and each open store as last sent.
+  final Map<int, ({NetPeer peer, IVec3 cell, Inventory store})> _open = {};
+  final Map<int, Map<String, int>> _escrow = {};
+  final Map<Inventory, String> _storeSent = {};
+
+  static String _kind(ItemStack s) => '${s.id}/${s.bonus}/${s.dur}';
 
   /// Numbers the drops the game made since the last call: each its own
   /// number, announced at the end of the step.
@@ -199,13 +267,14 @@ class HostSession extends GameSession {
           peer.send(_dropsMessage(_drops.values));
         }
       case 'bag':
+        puppet!.carried = m['c'] == null ? null : _stack(m['c']);
         final slots = m['b']! as List<Object?>;
         final own = game.player.inventory;
         if (slots.length != own.capacity) throw FormatException('a bag of ${slots.length} slots, not ${own.capacity}');
         for (final o in slots) {
           if ((o! as Map<String, Object?>).isNotEmpty) _stack(o);
         }
-        (puppet!.bag ??= Inventory(
+        (puppet.bag ??= Inventory(
           stackSize: own.stackSize,
           maxDurability: own.maxDurability,
           capacity: own.capacity,
@@ -241,6 +310,12 @@ class HostSession extends GameSession {
             ],
           ],
         });
+      case 'store_open':
+        _openStore(peer, _dimension(m['d']! as int), _cell(m['c']));
+      case 'store_close':
+        _closeStore(peer.id);
+      case 'store_set':
+        _storeSet(peer, puppet!, m);
       case 'hit':
         final n = (m['n']! as num).toInt();
         // A copy: a death may split into new creatures.
@@ -260,7 +335,95 @@ class HostSession extends GameSession {
     }
   }
 
+  /// [peer] opens the store at [cell] in [dimension]: sent to it, or shut
+  /// at once where the host keeps none (another dimension, a block broken
+  /// meanwhile, a chunk the host has not loaded).
+  void _openStore(NetPeer peer, int dimension, IVec3 cell) {
+    _closeStore(peer.id);
+    if (dimension != game.world.dimension || game.blocks[game.world.getBlock(cell)].storage == null) {
+      peer.send({'t': 'store_shut', 'c': _c(cell)});
+      return;
+    }
+    final store = game.blockRules.storeAt(cell);
+    _open[peer.id] = (peer: peer, cell: cell, store: store);
+    _escrow[peer.id] = {};
+    _storeSent.putIfAbsent(store, () => jsonEncode(store.toJson()));
+    peer.send(GameSession._storeMessage(cell, store));
+  }
+
+  void _closeStore(int peer) {
+    _open.remove(peer);
+    _escrow.remove(peer);
+  }
+
+  /// Settles [peer]'s edit of a slot of the store it has open: it stands
+  /// when the slot holds what the peer saw there and [_pay] pays for it.
+  /// The peer hears the store as it stands, then the verdict; an edit that
+  /// crossed the store's shutting has no store and is refused.
+  void _storeSet(NetPeer peer, RemotePlayer puppet, NetMessage m) {
+    final i = m['i']! as int;
+    final before = _slot(m['b']), after = _slot(m['a']);
+    final open = _open[peer.id];
+    var stood = false;
+    if (open != null) {
+      final store = open.store;
+      if (i < 0 || i >= store.capacity) throw FormatException('slot $i of a store of ${store.capacity}');
+      if (after != null && after.count > store.stackSize(after.id)) {
+        throw FormatException('a slot of ${after.count} ${after.id}, past its stack');
+      }
+      stood = _same(store.slots[i], before) && _pay(peer.id, puppet, before, after);
+      if (stood) store.setSlot(i, after);
+      peer.send(GameSession._storeMessage(open.cell, store));
+    }
+    peer.send({'t': 'store_ack', 'n': m['n']! as int, 'ok': stood});
+  }
+
+  /// The account of [peer]'s edit of a slot from [before] to [after]: what
+  /// it puts in is paid out of what it took from this store since it opened
+  /// it, the rest out of what [puppet] declared it holds (spent there until
+  /// the next declaration); what it takes out goes to its escrow. False, and
+  /// nothing spent, when the peer holds too little.
+  bool _pay(int peer, RemotePlayer puppet, ItemStack? before, ItemStack? after) {
+    final escrow = _escrow[peer]!;
+    final (:out, :into) = _moved(before, after);
+    if (into != null) {
+      final kind = _kind(into), kept = escrow[kind] ?? 0;
+      if (into.count > kept && !puppet.spend(into, into.count - kept)) return false;
+      escrow[kind] = math.max(0, kept - into.count);
+    }
+    if (out != null) escrow.update(_kind(out), (n) => n + out.count, ifAbsent: () => out.count);
+    return true;
+  }
+
+  /// Each open store that changed goes to whoever has it open; one gone
+  /// (broken, placed anew, or left behind in the dimension the host left)
+  /// shuts their screens.
+  void _storesTick() {
+    if (_open.isEmpty) {
+      _storeSent.clear();
+      return;
+    }
+    final stores = game.blockRules.stores;
+    for (final e in _open.entries.toList()) {
+      final o = e.value;
+      if (identical(stores[o.cell], o.store)) continue;
+      _closeStore(e.key);
+      o.peer.send({'t': 'store_shut', 'c': _c(o.cell)});
+    }
+    final watched = {for (final o in _open.values) o.store};
+    _storeSent.removeWhere((store, _) => !watched.contains(store));
+    for (final store in watched) {
+      final now = jsonEncode(store.toJson());
+      if (_storeSent[store] == now) continue;
+      _storeSent[store] = now;
+      for (final o in _open.values) {
+        if (identical(o.store, store)) o.peer.send(GameSession._storeMessage(o.cell, store));
+      }
+    }
+  }
+
   void _leave(NetPeer peer) {
+    _closeStore(peer.id);
     players.remove(peer.id)?.removed = true;
     net.broadcast({'t': 'bye', 'peer': peer.id});
   }
@@ -293,6 +456,7 @@ class HostSession extends GameSession {
     }
     _edits.clear();
     _dropsTick(dt);
+    _storesTick();
     _clock += dt;
     if (_clock < 0.05) return;
     _clock = 0.0;
@@ -365,15 +529,18 @@ class HostSession extends GameSession {
 /// cross over. Its drops are requests the host makes, where the host is;
 /// elsewhere the host steps no world, and the client keeps its drops itself.
 /// What the host hands its player goes in the bag, the rest back to the host,
-/// and the bag is declared to the host when it changes, at most 5 times a
-/// second.
+/// and the bag and the stack in hand are declared to the host when they
+/// change, at most 5 times a second. A store it opens is the host's, seen
+/// as the host last sent it with this client's unsettled edits over it; an
+/// edit the host refuses is undone, the hand's share of it too, and a store
+/// the host shuts closes its screen.
 class ClientSession extends GameSession {
   /// A client of [game] on [connection], known to the host as [peer], the
   /// host's [drops] (the hello's) drawn.
   ClientSession(this.game, this.connection, this.peer, {required NetMessage drops})
     : _hostDimension = drops['d']! as int {
     game.world.addListener(_edited);
-    game.player.inventory.listeners.add(_bagChanged);
+    game.screen.addListener(_screenChanged);
     connection.listen(_message);
     _dropsIn(drops);
   }
@@ -395,23 +562,153 @@ class ClientSession extends GameSession {
   int get rollbacks => _rollbacks;
   int _rollbacks = 0;
 
+  /// The store edits sent and not yet settled by the host.
+  int get pendingStoreEdits => _storeEdits.length;
+
+  /// The store edits the host refused, each undone.
+  int get storeRefusals => _storeRefusals;
+  int _storeRefusals = 0;
+
   final Map<int, Mob> _mobs = {};
   final Map<int, ItemPickup> _drops = {};
   int _hostDimension;
-  bool _bagDirty = true;
+  String _bagSent = '';
   double _bagClock = 0.0;
+  // The store open on this side: its cell, its opening's number, the store
+  // the screen edits, the host's as last sent, what the screen's should hold
+  // (the host's with the unsettled edits over it), and those edits.
+  IVec3? _storeCell;
+  int _storeOpening = 0;
+  Inventory? _store;
+  List<ItemStack?> _storeHost = const [];
+  List<ItemStack?> _storeSeen = const [];
+  final List<_StoreEdit> _storeEdits = [];
+  int _nextStoreEdit = 1;
+  bool _storeShowing = false;
   final BlockPrediction _prediction = BlockPrediction();
   final Map<int, List<int>> _requests = {};
   bool _applying = false;
   double _clock = 0.0;
 
-  bool get _hostHere => _hostDimension == game.world.dimension;
+  @override
+  bool get hostHere => _hostDimension == game.world.dimension;
 
-  void _bagChanged() => _bagDirty = true;
+  @override
+  Inventory storeAt(IVec3 cell) {
+    if (cell != _storeCell) throw StateError('the store open is at $_storeCell, not $cell');
+    return _store!;
+  }
+
+  /// A store's screen opened or shut: the host is told, and an opened one
+  /// starts empty until the host sends it.
+  void _screenChanged() {
+    final cell = switch (game.screen.value) {
+      StorageScreen(:final cell) => cell,
+      _ => null,
+    };
+    if (cell == _storeCell) return;
+    if (_storeCell != null) connection.send({'t': 'store_close'});
+    _storeCell = cell;
+    _store = null;
+    if (cell == null) return;
+    _storeOpening += 1;
+    final slots = game.blocks[game.world.getBlock(cell)].storage!.slots;
+    _store = Inventory(
+      stackSize: (id) => game.items[id].stack,
+      maxDurability: (id) => game.items[id].durability,
+      capacity: slots,
+      hotbarSize: 0,
+    )..listeners.add(_storeEdited);
+    _storeHost = List.filled(slots, null);
+    _storeSeen = List.filled(slots, null);
+    connection.send({'t': 'store_open', 'd': game.world.dimension, 'c': _c(cell)});
+  }
+
+  /// The screen edited the store: each slot that differs from what it
+  /// should hold is an edit sent to the host.
+  void _storeEdited() {
+    if (_storeShowing) return;
+    final store = _store!;
+    for (var i = 0; i < store.capacity; i++) {
+      final now = store.slots[i];
+      if (_same(now, _storeSeen[i])) continue;
+      final edit = (n: _nextStoreEdit++, opening: _storeOpening, slot: i, before: _storeSeen[i], after: now?.copy());
+      _storeEdits.add(edit);
+      _storeSeen[i] = edit.after;
+      connection.send({
+        't': 'store_set',
+        'n': edit.n,
+        'i': i,
+        'b': edit.before?.toJson() ?? const <String, Object>{},
+        'a': edit.after?.toJson() ?? const <String, Object>{},
+      });
+    }
+  }
+
+  /// The store the screen edits becomes the host's as last sent, with the
+  /// unsettled edits made in this opening over it.
+  void _storeShow() {
+    final seen = [for (final s in _storeHost) s?.copy()];
+    for (final e in _storeEdits) {
+      if (e.opening == _storeOpening) seen[e.slot] = e.after?.copy();
+    }
+    _storeSeen = seen;
+    final store = _store!;
+    _storeShowing = true;
+    for (var i = 0; i < seen.length; i++) {
+      store.slots[i] = seen[i]?.copy();
+    }
+    store.emitChanged();
+    _storeShowing = false;
+  }
+
+  /// The player's share of [edit], which the host refused, undone: what it
+  /// took out of the slot leaves the player again (the hand first, then the
+  /// bag; what the player has thrown away since is gone already), and what
+  /// it put in comes back (to the hand while it is free or holds the like,
+  /// else to the bag, and what does not fit is thrown).
+  void _undoStoreEdit(_StoreEdit edit) {
+    final player = game.player;
+    final (:out, :into) = _moved(edit.before, edit.after);
+    if (out != null) {
+      var owed = out.count;
+      final held = player.carried;
+      if (held != null && _like(held, out)) {
+        final take = math.min(held.count, owed);
+        held.count -= take;
+        owed -= take;
+        if (held.count == 0) player.carried = null;
+      }
+      final bag = player.inventory;
+      for (var i = bag.capacity - 1; i >= 0 && owed > 0; i--) {
+        final s = bag.slots[i];
+        if (s == null || !_like(s, out)) continue;
+        final take = math.min(s.count, owed);
+        s.count -= take;
+        owed -= take;
+        if (s.count == 0) bag.slots[i] = null;
+      }
+      bag.emitChanged();
+    }
+    if (into == null) return;
+    final held = player.carried;
+    final screen = game.screen.value;
+    if (held == null && (screen is BagScreen || screen is StorageScreen)) {
+      player.carried = into;
+    } else if (held != null &&
+        _like(held, into) &&
+        held.dur < 0 &&
+        held.count + into.count <= game.items[into.id].stack) {
+      held.count += into.count;
+    } else {
+      final left = player.inventory.put(into);
+      if (left > 0) player.throwStack(into..count = left);
+    }
+  }
 
   @override
   bool handOffDrop(ItemStack stack, Vector3 at, Vector3 velocity) {
-    if (!_hostHere) return false;
+    if (!hostHere) return false;
     connection.send({'t': 'drop', 'd': game.world.dimension, 's': stack.toJson(), 'p': _v(at), 'v': _v(velocity)});
     return true;
   }
@@ -420,7 +717,7 @@ class ClientSession extends GameSession {
   /// host's dimension; one drawn already stays as it is.
   void _dropsIn(NetMessage m) {
     _hostDimension = _dimension(m['d']! as int);
-    if (!_hostHere) return;
+    if (!hostHere) return;
     for (final o in m['l']! as List<Object?>) {
       final r = o! as Map<String, Object?>;
       final n = (r['n']! as num).toInt();
@@ -479,8 +776,7 @@ class ClientSession extends GameSession {
         final left = game.player.pickUpStack(stack);
         if (left == 0) return;
         final rest = stack..count = left;
-        _bagDirty = true;
-        if (_hostHere) {
+        if (hostHere) {
           connection.send({'t': 'give_rest', 's': rest.toJson()});
         } else {
           game.dropStack(rest, game.player.position + Vector3(0, 0.4, 0), throwVelocity: Vector3(0, 1.5, 0));
@@ -492,6 +788,26 @@ class ClientSession extends GameSession {
         _players(m['players']! as List<Object?>);
         // The host's mobs live in its dimension: elsewhere there are none.
         _mobsState(m['d'] == game.world.dimension ? m['mobs']! as List<Object?> : const []);
+      case 'store':
+        // A store shut here since the host sent it is no longer seen.
+        if (_cell(m['c']) != _storeCell) return;
+        final slots = m['s']! as List<Object?>;
+        final capacity = _store!.capacity;
+        if (slots.length != capacity) throw FormatException('a store of ${slots.length}, not $capacity');
+        _storeHost = [for (final o in slots) _slot(o)];
+        _storeShow();
+      case 'store_ack':
+        final n = m['n']! as int;
+        final at = _storeEdits.indexWhere((e) => e.n == n);
+        if (at < 0) throw FormatException('an ack of store edit $n, which is not unsettled');
+        final edit = _storeEdits.removeAt(at);
+        if (m['ok'] != true) {
+          _undoStoreEdit(edit);
+          _storeRefusals += 1;
+        }
+        if (_store != null) _storeShow();
+      case 'store_shut':
+        if (game.screen.value == StorageScreen(_cell(m['c']))) game.closeScreen();
       case 'hurt':
         game.player.takeDamage(
           Damage(
@@ -567,10 +883,15 @@ class ClientSession extends GameSession {
     // A trip took the replicas of the dimension left.
     _drops.removeWhere((_, d) => d.removed);
     _bagClock += dt;
-    if (_bagDirty && _bagClock >= 0.2) {
-      connection.send({'t': 'bag', 'b': game.player.inventory.toJson()});
-      _bagDirty = false;
+    if (_bagClock >= 0.2) {
       _bagClock = 0.0;
+      final held = game.player.carried;
+      final bag = {'t': 'bag', 'b': game.player.inventory.toJson(), if (held != null) 'c': held.toJson()};
+      final said = jsonEncode(bag);
+      if (said != _bagSent) {
+        connection.send(bag);
+        _bagSent = said;
+      }
     }
     _clock += dt;
     if (_clock < 0.05) return;
@@ -589,7 +910,7 @@ class ClientSession extends GameSession {
   @override
   Future<void> close() async {
     game.world.removeListener(_edited);
-    game.player.inventory.listeners.remove(_bagChanged);
+    game.screen.removeListener(_screenChanged);
     await connection.close();
   }
 }

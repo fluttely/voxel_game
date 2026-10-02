@@ -39,9 +39,39 @@ class RemotePlayer extends GameEntity implements Target {
   /// it since; null until the first declaration (on the host only).
   Inventory? bag;
 
+  /// The stack its peer holds in hand (`PlayerEntity.carried`) as the peer
+  /// last declared it with its [bag]; null for an empty hand (on the host
+  /// only). Not room for a pickup, but what a store edit may pay with.
+  ItemStack? carried;
+
   /// How many of [stack] its [bag] takes, as far as the host knows: none
   /// before the peer has declared one.
   int roomFor(ItemStack stack) => bag?.roomForStack(stack) ?? 0;
+
+  /// Takes [count] of the stacks like [kind] (its item, bonus and wear) out
+  /// of what its peer declared it holds, the hand first and then the bag, so
+  /// they are not spent twice before the next declaration; false, and
+  /// nothing taken, when it holds fewer.
+  bool spend(ItemStack kind, int count) {
+    bool like(ItemStack? s) => s != null && s.id == kind.id && s.bonus == kind.bonus && s.dur == kind.dur;
+    final slots = bag?.slots ?? const <ItemStack?>[];
+    final held = [
+      if (like(carried)) carried!,
+      for (final s in slots.reversed)
+        if (like(s)) s!,
+    ];
+    if (held.fold(0, (n, s) => n + s.count) < count) return false;
+    for (final s in held) {
+      final take = math.min(s.count, count);
+      s.count -= take;
+      count -= take;
+    }
+    if (carried?.count == 0) carried = null;
+    for (var i = 0; i < slots.length; i++) {
+      if (slots[i]?.count == 0) slots[i] = null;
+    }
+    return true;
+  }
 
   /// Hands [stack] to its peer, counted in its [bag] until the peer next
   /// declares it.

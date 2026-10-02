@@ -96,7 +96,7 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
   the bag on use, keeps what is put in it in the world save, and spills it when it breaks;
   one the world generated is found filled from `Storage.loot`, the same for every player.
   The host runs them (`VoxelGame.blockRules`); a client receives what they changed, and
-  opens no store until the net carries them (VA16).
+  opens the host's stores where the host is (`VoxelGame.storesHere`).
 - Screens as one state machine: `VoxelGame.screen` holds the `GameScreen` open, or null
   while playing — the bag (`BagScreen`, crafting in the hand or at a station), a store beside
   it (`StorageScreen`), the game menu (`PauseScreen`: resume, settings, your screens, quit),
@@ -290,7 +290,8 @@ Dart SDK `^3.13.0`.
    edit shows at once, and the host keeps it only over the block it replaced: of two players
    on one cell, the second is rolled back. The items on the ground are the host's: a
    client's drop is made there, and the host hands each stack to the nearest player whose
-   bag takes it.
+   bag takes it. The stores are the host's too: a client's edit of a slot stands only on what
+   the slot held, and only with what the client holds, so two players never take one stack.
 
 7. **Open on a title (optional):** `runVoxelGame(spec, menu: TitleSpec(name: 'My game'))`
    lets the player make, pick, host and join worlds instead of dropping into one slot.

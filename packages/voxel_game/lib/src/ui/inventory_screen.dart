@@ -10,7 +10,9 @@ import 'item_icon.dart';
 /// what each needs, or the slots of an open [storage].
 ///
 /// A click or a tap on a slot picks its stack up or puts the held one down;
-/// a right-click or a long press takes half, or leaves one. The held stack
+/// a right-click or a long press takes half, or leaves one
+/// (`PlayerEntity.clickSlot`, the held stack being the player's `carried`,
+/// so a host's refusal can take it back). The held stack
 /// follows the pointer (above a finger, which would hide it); one let go
 /// outside the panel is thrown into the world, ahead of the player, as a
 /// press of drop throws one. A tooltip says what the slot under the mouse
@@ -54,7 +56,6 @@ class _Pointer {
 }
 
 class _InventoryScreenState extends State<InventoryScreen> {
-  ItemStack? _cursor;
   final ValueNotifier<_Pointer?> _pointer = ValueNotifier(null);
 
   Inventory get _inv => widget.game.player.inventory;
@@ -79,13 +80,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
     _inv.listeners.remove(_changed);
     widget.storage?.listeners.remove(_changed);
     _pointer.dispose();
-    final held = _cursor;
-    // Nothing on the cursor is lost when the screen shuts: back into the bag,
-    // and what does not fit on the ground.
-    if (held != null) {
-      final left = _inv.put(held);
-      if (left > 0) widget.game.player.throwStack(held..count = left);
-    }
+    widget.game.player.stowCarried();
     super.dispose();
   }
 
@@ -108,47 +103,11 @@ class _InventoryScreenState extends State<InventoryScreen> {
     }
   }
 
-  void _click(Inventory inv, int i, {required bool one}) {
-    final slot = inv.slots[i];
-    final held = _cursor;
-    setState(() {
-      if (held == null) {
-        if (slot != null) _cursor = inv.takeFromSlot(i, one ? (slot.count + 1) ~/ 2 : slot.count);
-        return;
-      }
-      if (slot == null) {
-        final put = one ? 1 : held.count;
-        inv.setSlot(i, held.copy()..count = put);
-        held.count -= put;
-        if (held.count <= 0) _cursor = null;
-        return;
-      }
-      if (slot.id == held.id && slot.bonus == held.bonus && slot.dur < 0 && held.dur < 0) {
-        final room = inv.stackSize(slot.id) - slot.count;
-        final put = (one ? 1 : held.count).clamp(0, room);
-        slot.count += put;
-        held.count -= put;
-        if (held.count <= 0) _cursor = null;
-        inv.emitChanged();
-        return;
-      }
-      // Different items: swap the cursor with the slot.
-      inv.setSlot(i, held);
-      _cursor = slot;
-    });
-  }
+  void _click(Inventory inv, int i, {required bool one}) =>
+      setState(() => widget.game.player.clickSlot(inv, i, one: one));
 
   /// The held stack, or one of it, let go outside the panel.
-  void _throw({required bool one}) {
-    final held = _cursor;
-    if (held == null) return;
-    setState(() {
-      final out = held.copy()..count = one ? 1 : held.count;
-      held.count -= out.count;
-      if (held.count <= 0) _cursor = null;
-      widget.game.player.throwStack(out);
-    });
-  }
+  void _throw({required bool one}) => setState(() => widget.game.player.throwCarried(one: one));
 
   Widget _stack(ItemStack? s, {double size = 44}) => SizedBox(
     width: size,
@@ -246,7 +205,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
   /// The held stack under the pointer and the tooltip beside it.
   Widget _overPointer(BuildContext context, _Pointer? p, Widget? _) {
     if (p == null) return const SizedBox.shrink();
-    final held = _cursor;
+    final held = widget.game.player.carried;
     final over = p.over;
     final described = (over == null ? null : over.$1.slots[over.$2]) ?? held;
     final lift = p.touch ? InventoryScreen.fingerLift : 0.0;
@@ -254,13 +213,9 @@ class _InventoryScreenState extends State<InventoryScreen> {
       children: [
         if (described != null)
           Positioned.fill(
-            child: CustomSingleChildLayout(
-              delegate: _Beside(p.at - Offset(0, lift)),
-              child: _tooltip(described),
-            ),
+            child: CustomSingleChildLayout(delegate: _Beside(p.at - Offset(0, lift)), child: _tooltip(described)),
           ),
-        if (held != null)
-          Positioned(left: p.at.dx - 22, top: p.at.dy - 22 - lift, child: _stack(held)),
+        if (held != null) Positioned(left: p.at.dx - 22, top: p.at.dy - 22 - lift, child: _stack(held)),
       ],
     );
   }
@@ -281,7 +236,9 @@ class _InventoryScreenState extends State<InventoryScreen> {
                     leading: _stack(ItemStack(r.result, r.count), size: 32),
                     title: Text('${_itemName(r.result)} x${r.count}'),
                     subtitle: Text(
-                      r.ingredients.entries.map((e) => '${_itemName(e.key)} ${_inv.countOf(e.key)}/${e.value}').join(', '),
+                      r.ingredients.entries
+                          .map((e) => '${_itemName(e.key)} ${_inv.countOf(e.key)}/${e.value}')
+                          .join(', '),
                     ),
                     enabled: game.recipes.canCraft(r, _inv),
                     onTap: () => game.recipes.craft(r, _inv),
@@ -310,7 +267,13 @@ class _InventoryScreenState extends State<InventoryScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const SizedBox(height: 48, child: Align(alignment: Alignment.centerLeft, child: Text('Inventory', style: heading))),
+                const SizedBox(
+                  height: 48,
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text('Inventory', style: heading),
+                  ),
+                ),
                 ..._rows(_inv, hotbar, cap, hotbar),
                 const SizedBox(height: 10),
                 ..._rows(_inv, 0, hotbar, hotbar),

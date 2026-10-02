@@ -53,6 +53,63 @@ class PlayerEntity extends NodeBody implements Target {
   /// The bag; the first `hotbarSize` slots are the hotbar.
   final Inventory inventory;
 
+  /// The stack in hand while the bag's screen is open: picked out of a slot
+  /// ([clickSlot]) and not yet put down; null when the hand is empty. A
+  /// networked game reaches it too: a store edit the host refuses takes back
+  /// what it gave the hand and returns what it took.
+  ItemStack? carried;
+
+  /// A click on slot [i] of [inv] (the bag or an open store): an empty hand
+  /// picks the slot's stack up, or half of it when [one]; a full one puts
+  /// it down (one of it when [one]), tops up a stack of the same item, or
+  /// swaps with a different one.
+  void clickSlot(Inventory inv, int i, {required bool one}) {
+    final slot = inv.slots[i];
+    final held = carried;
+    if (held == null) {
+      if (slot != null) carried = inv.takeFromSlot(i, one ? (slot.count + 1) ~/ 2 : slot.count);
+      return;
+    }
+    if (slot == null) {
+      final put = one ? 1 : held.count;
+      inv.setSlot(i, held.copy()..count = put);
+      held.count -= put;
+      if (held.count <= 0) carried = null;
+      return;
+    }
+    if (slot.id == held.id && slot.bonus == held.bonus && slot.dur < 0 && held.dur < 0) {
+      final room = inv.stackSize(slot.id) - slot.count;
+      final put = (one ? 1 : held.count).clamp(0, room);
+      slot.count += put;
+      held.count -= put;
+      if (held.count <= 0) carried = null;
+      inv.emitChanged();
+      return;
+    }
+    inv.setSlot(i, held);
+    carried = slot;
+  }
+
+  /// Throws the stack in hand, or one of it when [one], into the world.
+  void throwCarried({required bool one}) {
+    final held = carried;
+    if (held == null) return;
+    final out = held.copy()..count = one ? 1 : held.count;
+    held.count -= out.count;
+    if (held.count <= 0) carried = null;
+    throwStack(out);
+  }
+
+  /// Puts the stack in hand back into the bag as the screen shuts, and
+  /// throws what does not fit: nothing in hand is lost.
+  void stowCarried() {
+    final held = carried;
+    if (held == null) return;
+    carried = null;
+    final left = inventory.put(held);
+    if (left > 0) throwStack(held..count = left);
+  }
+
   /// The status effects on the player.
   final StatusEffects effects;
 
@@ -882,9 +939,10 @@ class PlayerEntity extends NodeBody implements Target {
     if (hit != null) {
       final aimed = _game.world.blockNameAt(hit.block);
       final sneaking = _game.input.down(VoxelAction.sneak);
-      // A store opens beside the bag; a client has none to open (the host
-      // keeps them, VA16), so it builds against it.
-      if (_game.world.blocks[_game.world.getBlock(hit.block)].storage != null && !sneaking && _game.authority) {
+      // A store opens beside the bag; a client away from the host has none
+      // to open (the host keeps them, and steps only its own dimension), so
+      // it builds against it.
+      if (_game.world.blocks[_game.world.getBlock(hit.block)].storage != null && !sneaking && _game.storesHere) {
         if (pressed) _game.openScreen(StorageScreen(hit.block));
         return;
       }

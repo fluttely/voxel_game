@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+- **Net catches up, third part: stores (VA16c).** A client opens a store where the host is
+  (`VoxelGame.storesHere`, new; `openScreen(StorageScreen)` no longer throws on a client
+  there): `store_open` / `store_close` as its screen opens and shuts. The host keeps the
+  store: it sends it then and at every change to whoever has it open (`store`), its own
+  screen seeing the peers' edits too, and shuts a store gone, broken, placed anew or left
+  behind by the host's trip (`store_shut`), which closes the client's screen. A store where the
+  host has no world (another dimension, a chunk it has not loaded) shuts at once. On the
+  client, `VoxelGame.openStorage` is the host's store as last sent with the client's unsettled
+  edits over it (`GameSession.storeAt` and `hostHere`, new). Each slot the client changes is
+  a `store_set` (its number, the slot, what it held before and after), checked by the host as
+  VAD8 says: it stands only on the slot the client saw (compare-and-set), and what it puts in
+  must be paid, out of what the client took from this store since it opened it, then out of
+  what it last declared it holds (`RemotePlayer.spend`, new). The host answers with the store
+  and a `store_ack`; a refusal undoes the client's share, the stack in hand too
+  (`ClientSession.pendingStoreEdits` / `storeRefusals`). So two players taking one stack end
+  with one stack between them. The stack in hand left the bag's screen for the player
+  (`PlayerEntity.carried`, `clickSlot`, `throwCarried`, `stowCarried`, new), and a client
+  declares it beside its bag (`bag`'s `c`, `RemotePlayer.carried`), checked every 0.2 s and
+  sent when either changed.
+
 - **Net catches up, second part: drops and the bag (VA16b).** The host owns every item on the
   ground. It numbers each drop its game makes and announces it at the end of the step
   (`drops`: number, stack, position, with the host's dimension), sends 10 times a second the

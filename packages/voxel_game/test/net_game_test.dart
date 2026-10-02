@@ -31,6 +31,33 @@ const _spec = VoxelGameSpec(
   ],
 );
 
+const _storeSpec = VoxelGameSpec(
+  blocks: [
+    ..._blocks,
+    BlockType('chest', color: 0x8A5A2A, hardness: 2.0, storage: Storage(slots: 9)),
+  ],
+  world: WorldGenSpec(
+    terrain: TerrainRecipe.flat(20),
+    seaLevel: 5,
+    caves: CaveSpec.none,
+    biomes: [Biome('plains', top: 'grass', under: 'dirt')],
+  ),
+  sky: SkySpec.alwaysDay,
+);
+
+/// A chest the host places beside its player, with [stone] stone in its
+/// first slot, every game told of it.
+Future<IVec3> _chest(VoxelGame host, List<VoxelGame> clients, {int stone = 10}) async {
+  final cell = IVec3.floor(host.player.position) + const IVec3(2, 0, 0);
+  host.world.setBlockNamed(cell, 'chest');
+  if (stone > 0) host.blockRules.storeAt(cell).add('stone', stone);
+  await _run([host, ...clients], 0.3);
+  for (final c in clients) {
+    expect(c.world.blockNameAt(cell), 'chest');
+  }
+  return cell;
+}
+
 /// Both games advance [seconds], the sockets flushing between frames.
 Future<void> _run(List<VoxelGame> games, double seconds) async {
   for (var t = 0.0; t < seconds; t += 1 / 60) {
@@ -421,4 +448,134 @@ void main() {
     expect(client.entities.whereType<ItemPickup>().single, same(r), reason: 'a drop sent again is not drawn twice');
     await _close(session, [client]);
   });
+
+  test(
+    "a client's store is the host's: it shows what the host holds, and a slot it takes is taken everywhere",
+    () async {
+      final (host, session, [a, b]) = await _session(2, spec: _storeSpec);
+      final cell = await _chest(host, [a, b]);
+      a.openScreen(StorageScreen(cell));
+      b.openScreen(StorageScreen(cell));
+      await _settle(() => a.openStorage!.countOf('stone') == 10 && b.openStorage!.countOf('stone') == 10);
+
+      // a takes the stack: its hand holds it at once, and the host settles it.
+      a.player.clickSlot(a.openStorage!, 0, one: false);
+      expect([a.player.carried!.id, a.player.carried!.count], ['stone', 10]);
+      expect(_client(a).pendingStoreEdits, 1);
+      await _run([host, a, b], 0.3);
+      expect(_client(a).pendingStoreEdits, 0);
+      expect(_client(a).storeRefusals, 0);
+      expect(host.blockRules.storeAt(cell).countOf('stone'), 0);
+      expect(b.openStorage!.countOf('stone'), 0, reason: 'the other screen open on it sees it go');
+
+      // Into a's bag, then half of it back into the store: what left this
+    // store in this opening pays for it.
+    a.player.clickSlot(a.player.inventory, 3, one: false);
+    expect(a.player.carried, isNull);
+    a.player.clickSlot(a.player.inventory, 3, one: true);
+    final half = a.player.carried!.count;
+      a.player.clickSlot(a.openStorage!, 4, one: false);
+      await _run([host, a, b], 0.3);
+      expect(_client(a).storeRefusals, 0);
+      expect(host.blockRules.storeAt(cell).slots[4]!.count, half);
+      expect(b.openStorage!.slots[4]!.count, half);
+      expect(a.player.inventory.countOf('stone'), 10 - half);
+
+      // The host's own edit reaches both screens.
+      host.blockRules.storeAt(cell).add('planks', 7);
+      await _run([host, a, b], 0.3);
+      expect(a.openStorage!.countOf('planks'), 7);
+      expect(b.openStorage!.countOf('planks'), 7);
+
+      // Closed, the store is no longer sent: the host's next edit stays there.
+      a.closeScreen();
+      await _run([host, a, b], 0.3);
+      host.blockRules.storeAt(cell).add('planks', 1);
+      await _run([host, a, b], 0.3);
+      expect(b.openStorage!.countOf('planks'), 8);
+      expect(a.openStorage, isNull);
+      await _close(session, [a, b]);
+    },
+  );
+
+  test(
+    'two clients take one stack: the host gives it to the first and the second is refused, its hand emptied',
+    () async {
+      final (host, session, [a, b]) = await _session(2, spec: _storeSpec);
+      final cell = await _chest(host, [a, b]);
+      a.openScreen(StorageScreen(cell));
+      b.openScreen(StorageScreen(cell));
+      await _settle(() => a.openStorage!.countOf('stone') == 10 && b.openStorage!.countOf('stone') == 10);
+
+      a.player.clickSlot(a.openStorage!, 0, one: false);
+      b.player.clickSlot(b.openStorage!, 0, one: false);
+      expect(a.player.carried?.count, 10);
+      expect(b.player.carried?.count, 10);
+      await _settle(() => _client(a).pendingStoreEdits == 0 && _client(b).pendingStoreEdits == 0);
+      expect(_client(a).storeRefusals + _client(b).storeRefusals, 1);
+      final held = [
+        for (final c in [a, b]) c.player.carried?.count ?? 0,
+      ];
+      expect(held..sort(), [0, 10], reason: 'one stack, one hand: the refused take is undone');
+      expect(host.blockRules.storeAt(cell).countOf('stone'), 0);
+      await _run([host, a, b], 0.3);
+      expect(a.openStorage!.countOf('stone'), 0);
+      expect(b.openStorage!.countOf('stone'), 0);
+      await _close(session, [a, b]);
+    },
+  );
+
+  test("what a client puts in is paid for: from the hand it declared, never from what it does not hold", () async {
+    final (host, session, [a]) = await _session(1, spec: _storeSpec);
+    final cell = await _chest(host, [a], stone: 0);
+    a.player.pickUp('dirt', 6);
+    a.openScreen(StorageScreen(cell));
+    await _run([host, a], 0.5);
+
+    // Out of the bag into the hand, declared, then into the store.
+    a.player.clickSlot(a.player.inventory, a.player.inventory.find('dirt'), one: false);
+    await _run([host, a], 0.5);
+    expect(host.remotePlayers.single.carried?.count, 6, reason: 'the hand is declared with the bag');
+    a.player.clickSlot(a.openStorage!, 2, one: false);
+    await _settle(() => _client(a).pendingStoreEdits == 0);
+    expect(_client(a).storeRefusals, 0);
+    expect(host.blockRules.storeAt(cell).slots[2]!.count, 6);
+
+    // A hand the client never had: nothing pays for it, so the host refuses
+    // it and the hand gets its stack back.
+    a.player.carried = ItemStack('planks', 5);
+    a.player.clickSlot(a.openStorage!, 1, one: false);
+    expect(a.player.carried, isNull);
+    await _settle(() => _client(a).pendingStoreEdits == 0);
+    expect(_client(a).storeRefusals, 1);
+    expect([a.player.carried?.id, a.player.carried?.count], ['planks', 5]);
+    expect(host.blockRules.storeAt(cell).slots[1], isNull);
+    expect(a.openStorage!.slots[1], isNull, reason: 'the store shows what the host holds');
+    expect(a.openStorage!.slots[2]!.count, 6);
+    await _close(session, [a]);
+  });
+
+  test(
+    'a store broken while a client has it open shuts its screen, and one the host has no world for never opens',
+    () async {
+      final (host, session, [a]) = await _session(1, spec: _storeSpec);
+      final cell = await _chest(host, [a]);
+      a.openScreen(StorageScreen(cell));
+      await _settle(() => a.openStorage!.countOf('stone') == 10);
+      host.world.setBlock(cell, BlockRegistry.air);
+      await _run([host, a], 0.3);
+      expect(a.screen.value, isNull);
+      expect(host.entities.whereType<ItemPickup>().single.count, 10, reason: 'it spilled on the host');
+
+      a.player.position = host.player.position + Vector3(300, 0, 0);
+      await _run([host, a], 2.0);
+      final far = IVec3.floor(a.player.position) + const IVec3(2, 0, 0);
+      expect(host.world.isLoaded(far), isFalse);
+      a.world.setBlockNamed(far, 'chest');
+      a.openScreen(StorageScreen(far));
+      await _run([host, a], 0.3);
+      expect(a.screen.value, isNull, reason: 'the host keeps no store where it has not loaded the world');
+      await _close(session, [a]);
+    },
+  );
 }
