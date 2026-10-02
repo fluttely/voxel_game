@@ -15,12 +15,14 @@ import 'package:voxel_scene/voxel_scene.dart';
 import '../core/voxel_game.dart';
 import '../settings/game_settings.dart';
 import '../settings/settings_store.dart';
+import '../spec/title_spec.dart';
 import '../spec/voxel_game_spec.dart';
 import 'default_hud.dart';
 import 'game_screen.dart';
 import 'game_surface.dart';
 import 'loading_screen.dart';
 import 'loading_stage.dart';
+import 'voxel_game_home.dart';
 import '../world/world_save.dart';
 
 /// Loads the renderer and runs [spec] full screen: the one call a game's
@@ -52,38 +54,60 @@ import '../world/world_save.dart';
 ///
 /// On a desktop the game menu's Quit saves the world and closes the app; a
 /// phone or tablet has no Quit, as its apps are left from the system.
+///
+/// With [menu] the game opens on its title instead (`VoxelGameHome`), and the
+/// player picks, makes, hosts or joins the world there: [saveSlot],
+/// [hostPort] and [join] are then the title's to choose, and passing one
+/// throws. The game menu's Quit saves the world and goes back to the title;
+/// the title's Quit, on a desktop, closes the app.
 Future<void> runVoxelGame(
   VoxelGameSpec spec, {
   String title = 'Voxel game',
+  TitleSpec? menu,
   HudBuilder? hud,
   LoadingBuilder? loading,
   String? saveSlot,
   int? hostPort,
   String? join,
 }) async {
+  if (menu != null && (saveSlot != null || hostPort != null || join != null)) {
+    throw ArgumentError('with a menu the title picks the world: no saveSlot, hostPort or join');
+  }
   WidgetsFlutterBinding.ensureInitialized();
   await SystemChrome.setPreferredOrientations([DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   await VoxelGameWidget.loadResources();
+  final VoidCallback? closeApp = switch (defaultTargetPlatform) {
+    TargetPlatform.macOS ||
+    TargetPlatform.windows ||
+    TargetPlatform.linux => () => ServicesBinding.instance.exitApplication(AppExitType.required),
+    TargetPlatform.android || TargetPlatform.iOS || TargetPlatform.fuchsia => null,
+  };
   runApp(
     MaterialApp(
       title: title,
       debugShowCheckedModeBanner: false,
       theme: ThemeData.dark(),
       home: Scaffold(
-        body: VoxelGameWidget(
-          spec: spec,
-          hud: hud,
-          loading: loading,
-          saveSlot: saveSlot,
-          hostPort: hostPort,
-          join: join,
-          onQuit: switch (defaultTargetPlatform) {
-            TargetPlatform.macOS || TargetPlatform.windows || TargetPlatform.linux =>
-              () => ServicesBinding.instance.exitApplication(AppExitType.required),
-            TargetPlatform.android || TargetPlatform.iOS || TargetPlatform.fuchsia => null,
-          },
-        ),
+        body: menu == null
+            ? VoxelGameWidget(
+                spec: spec,
+                hud: hud,
+                loading: loading,
+                saveSlot: saveSlot,
+                hostPort: hostPort,
+                join: join,
+                onQuit: closeApp,
+              )
+            : VoxelGameHome(
+                spec: spec,
+                menu: menu,
+                saves: await VoxelGameWidget.defaultSaves(),
+                settings: await VoxelGameWidget.defaultSettings(),
+                hud: hud,
+                loading: loading,
+                onQuit: closeApp,
+              ),
       ),
     ),
   );
@@ -118,7 +142,13 @@ class VoxelGameWidget extends StatefulWidget {
     this.hostPort,
     this.join,
     this.onQuit,
+    this.onNetError,
   });
+
+  /// Called, in place of a crash, when the network says no: a [join] that
+  /// reaches no host or hears no hello in 15 s, a [hostPort] already taken.
+  /// The game is gone by then: whoever built this widget takes it down.
+  final ValueChanged<Object>? onNetError;
 
   /// The game menu's Quit, called once the world is saved (when it is kept
   /// in a [saveSlot]); null for a menu with no Quit.
@@ -145,7 +175,9 @@ class VoxelGameWidget extends StatefulWidget {
   /// loading screen until its window has filled.
   final void Function(VoxelGame game)? onReady;
 
-  /// The save slot the world lives in, or null for a world never saved.
+  /// The save slot the world lives in, or null for a world never saved. A
+  /// slot that is a world (`WorldSaves.contains`) is played with its seed and
+  /// mode (`WorldInfo.applyTo`), saved or not yet.
   final String? saveSlot;
 
   /// Where the slots are; the app support folder's `worlds` when null.
@@ -204,26 +236,15 @@ class _VoxelGameWidgetState extends State<VoxelGameWidget> with SingleTickerProv
   Future<void> _start() async {
     final store = _settingsStore = widget.settings ?? await VoxelGameWidget.defaultSettings();
     final settings = store.read(GameSettings.of(widget.spec));
-    final join = widget.join;
     final VoxelGame game;
-    if (join != null) {
-      final parts = join.split(':');
-      game = await VoxelGame.joinGame(
-        widget.spec,
-        parts[0],
-        port: parts.length > 1 ? int.parse(parts[1]) : 7777,
-        settings: settings,
-      );
-    } else {
-      final slot = widget.saveSlot;
-      SavedWorld? saved;
-      if (slot != null) {
-        final saves = _saves = widget.saves ?? await VoxelGameWidget.defaultSaves();
-        if (saves.exists(slot)) saved = saves.read(slot);
-      }
-      game = await VoxelGame.start(widget.spec, save: saved, settings: settings);
-      final port = widget.hostPort;
-      if (port != null) await game.host(port: port);
+    try {
+      game = await _open(settings);
+    } on SocketException catch (e) {
+      if (widget.onNetError == null) rethrow;
+      return _netFailed(e);
+    } on TimeoutException catch (e) {
+      if (widget.onNetError == null) rethrow;
+      return _netFailed(e);
     }
     if (_disposed) {
       game.dispose();
@@ -238,8 +259,44 @@ class _VoxelGameWidgetState extends State<VoxelGameWidget> with SingleTickerProv
     });
     _loadingTicker.start();
     unawaited(_startAudio(game));
-    if (widget.saveSlot != null && join == null) _autosave = Timer.periodic(widget.autosave, (_) => _save());
+    if (widget.saveSlot != null && widget.join == null) _autosave = Timer.periodic(widget.autosave, (_) => _save());
     widget.onReady?.call(game);
+  }
+
+  // The game this widget runs: joined, or started from its slot (with the
+  // slot's seed and mode, when it is a world) and hosted when asked.
+  Future<VoxelGame> _open(GameSettings settings) async {
+    final join = widget.join;
+    if (join != null) {
+      final parts = join.split(':');
+      return VoxelGame.joinGame(
+        widget.spec,
+        parts[0],
+        port: parts.length > 1 ? int.parse(parts[1]) : 7777,
+        settings: settings,
+      );
+    }
+    var spec = widget.spec;
+    SavedWorld? saved;
+    if (widget.saveSlot case final slot?) {
+      final saves = _saves = widget.saves ?? await VoxelGameWidget.defaultSaves();
+      if (saves.contains(slot)) spec = saves.info(slot).applyTo(spec);
+      if (saves.exists(slot)) saved = saves.read(slot);
+    }
+    final game = await VoxelGame.start(spec, save: saved, settings: settings);
+    if (widget.hostPort case final port?) {
+      try {
+        await game.host(port: port);
+      } catch (_) {
+        game.dispose();
+        rethrow;
+      }
+    }
+    return game;
+  }
+
+  void _netFailed(Object error) {
+    if (!_disposed) widget.onNetError!(error);
   }
 
   Future<void> _startAudio(VoxelGame game) async {
@@ -335,9 +392,7 @@ class _VoxelGameWidgetState extends State<VoxelGameWidget> with SingleTickerProv
   void _tick(VoxelGame game, double dt) {
     final input = game.input;
     game.gameplay =
-        _stage == LoadingStage.playing &&
-        (input.wantCapture || game.playWithoutCapture) &&
-        game.screen.value == null;
+        _stage == LoadingStage.playing && (input.wantCapture || game.playWithoutCapture) && game.screen.value == null;
     game.frame(dt);
     // After the frame, whose steps are out of gameplay once the pointer is
     // lost: a pause pressed as it went cannot close the menu it opens here.
@@ -362,7 +417,7 @@ class _VoxelGameWidgetState extends State<VoxelGameWidget> with SingleTickerProv
         onTick: (elapsed, dt) => _tick(game, dt),
       ),
       hud: widget.hud,
-      touchControls: widget.spec.touchControls,
+      touchControls: game.spec.touchControls,
       onQuit: widget.onQuit == null ? null : _quit,
     );
   }

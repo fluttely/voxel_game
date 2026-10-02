@@ -117,4 +117,59 @@ class PlayerSpec {
 
   /// The share of a blow that always lands, however much armour is worn.
   final double armorFloor;
+
+  /// This player with the given fields replaced: a world's mode, say
+  /// (`WorldInfo.applyTo`). A field that may be null is given as a getter of
+  /// its new value, so null can be asked for, as in `VoxelGameSpec.copyWith`.
+  PlayerSpec copyWith({
+    double? hp,
+    double? reach,
+    double? meleeReach,
+    double? handDamage,
+    double? walkSpeed,
+    double? sprintSpeed,
+    double? sneakSpeed,
+    double? swimSpeed,
+    double? jumpVelocity,
+    double? eyeHeight,
+    double? halfWidth,
+    double? height,
+    CameraMode? camera,
+    double? fov,
+    Map<String, int>? startingItems,
+    bool? creative,
+    bool? fallDamage,
+    Rig? rig,
+    double? respawnDelay,
+    HungerSpec? Function()? hunger,
+    XpSpec? Function()? xp,
+    List<String>? armorSlots,
+    double? armorPerPoint,
+    double? armorFloor,
+  }) => PlayerSpec(
+    hp: hp ?? this.hp,
+    reach: reach ?? this.reach,
+    meleeReach: meleeReach ?? this.meleeReach,
+    handDamage: handDamage ?? this.handDamage,
+    walkSpeed: walkSpeed ?? this.walkSpeed,
+    sprintSpeed: sprintSpeed ?? this.sprintSpeed,
+    sneakSpeed: sneakSpeed ?? this.sneakSpeed,
+    swimSpeed: swimSpeed ?? this.swimSpeed,
+    jumpVelocity: jumpVelocity ?? this.jumpVelocity,
+    eyeHeight: eyeHeight ?? this.eyeHeight,
+    halfWidth: halfWidth ?? this.halfWidth,
+    height: height ?? this.height,
+    camera: camera ?? this.camera,
+    fov: fov ?? this.fov,
+    startingItems: startingItems ?? this.startingItems,
+    creative: creative ?? this.creative,
+    fallDamage: fallDamage ?? this.fallDamage,
+    rig: rig ?? this.rig,
+    respawnDelay: respawnDelay ?? this.respawnDelay,
+    hunger: hunger == null ? this.hunger : hunger(),
+    xp: xp == null ? this.xp : xp(),
+    armorSlots: armorSlots ?? this.armorSlots,
+    armorPerPoint: armorPerPoint ?? this.armorPerPoint,
+    armorFloor: armorFloor ?? this.armorFloor,
+  );
 }

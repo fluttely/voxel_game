@@ -2,6 +2,35 @@
 
 ## Unreleased
 
+- **Worlds and the title (VA8).** A game opts in with `runVoxelGame(spec, menu:
+  TitleSpec(...))` and opens on its title; without `menu` it still drops straight into its
+  world.
+  - `WorldSaves` keeps a `world.json` per slot (version 1), read as a `WorldInfo` (new): the
+    name, the seed, the `WorldMode` (new: survival or creative, or none for a world that
+    plays as the spec declares), when it was made, when last played and for how long (game
+    time). `create(name, seed:, mode:)` makes a world in a slot of its own (its name in lower
+    case, a number after it when taken) and writes only that file; `rename` keeps the slot;
+    `info`, `worlds()` (the last played first) and `contains` read it; `save` writes it beside
+    `game.json`. `WorldSaves.seedOf` turns typed text into a seed: a number is itself, other
+    text its FNV-1a hash, nothing a random one. `WorldSaves` takes a `clock:`.
+  - A slot saved before `world.json` still lists and loads: its name is its slot, its seed
+    and play time come from `game.json`, when it was made is unknown; its next save writes
+    the file. `list()` now lists a world made and not yet played too; `exists` still means
+    "has a saved game".
+  - `WorldInfo.applyTo(spec)` plays a world with its seed and mode; `VoxelGameWidget` does it
+    for a `saveSlot` that is a world, so a world made and not yet played grows from its seed.
+  - `PlayerSpec.copyWith` (new).
+  - `TitleSpec` (new): name, tagline, whether new worlds pick a mode, whether to offer
+    Multiplayer and on which port, the credits, a background. `TitleScreen` (new): Play
+    (`WorldList`, new), Multiplayer (host a world of the list on the port, with this
+    machine's addresses shown; join `host` or `host:port`), Settings (`SettingsPanel` on the
+    `SettingsStore` directly), Credits (`CreditsRoll`, new), Quit on a desktop; Escape
+    leaves a panel. `VoxelGameHome` (new) puts the title and the game one after the other
+    (`TitleChoice`: `PlayWorld` or `JoinHost`); the game menu's Quit saves and returns to the
+    title.
+  - `VoxelGameWidget.onNetError` (new): a join that reaches no host, or a port already taken,
+    is handed to it (the title says why) instead of failing behind the loading screen.
+  - `runVoxelGame` throws for `menu` with `saveSlot`, `hostPort` or `join`: the title picks.
 - **Settings (VA7).** `GameSettings` (new): what the player sets for themselves — render
   distance, look speed, field of view, volume, music volume, view bobbing, the frame rate —
   each checked against its range (a value out of it throws, read from a file or built in

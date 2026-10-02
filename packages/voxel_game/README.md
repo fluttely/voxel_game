@@ -84,6 +84,15 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
   world streams further or is cut back on the spot — and `VoxelGameWidget` keeps them in
   `settings.json` beside `worlds` (`SettingsStore`). `SettingsPanel` is the rows alone, for
   a screen with no game running.
+- Worlds and a title (opt-in): `runVoxelGame(spec, menu: TitleSpec(name: 'My game'))`
+  opens on a title (`TitleScreen`) instead of in a world — Play lists the worlds
+  (`WorldList`: make one from a name, a seed of any text and survival or creative; play,
+  rename, delete), Multiplayer hosts one of them or joins an address, Settings sets the
+  player's settings with no game running, Credits rolls `TitleSpec.credits`, and Quit
+  closes the app on a desktop. The game menu's Quit saves and comes back to it. Each world
+  keeps a `world.json` (`WorldInfo`: name, seed, mode, made, last played, play time) beside
+  its save; `WorldSaves.create` / `rename` / `worlds` read and write it, and a save from
+  before it still loads.
 - The bag (`InventoryScreen`): a click or a tap picks a stack up or puts it down, a
   right-click or a long press takes half or leaves one; the held stack follows the pointer
   (above a finger), a tooltip reads the item's row (tool and tier, damage, uses left, food,
@@ -220,6 +229,9 @@ Dart SDK `^3.13.0`.
 
 6. **Play together (optional):** `runVoxelGame(spec, hostPort: 7777)` on one
    machine and `runVoxelGame(spec, join: '192.168.0.10')` on another.
+
+7. **Open on a title (optional):** `runVoxelGame(spec, menu: TitleSpec(name: 'My game'))`
+   lets the player make, pick, host and join worlds instead of dropping into one slot.
 
 ## Example
 
