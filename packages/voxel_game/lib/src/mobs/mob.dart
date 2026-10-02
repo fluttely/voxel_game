@@ -27,7 +27,7 @@ class Mob extends GameEntity implements Target {
     halfWidth = spec.halfWidth;
     height = spec.height;
     position = at.clone();
-    noclip = false;
+    noclip = spec.ghost;
     motor = CharacterMotor(
       this,
       MotorTuning(groundAccel: 8.0, airAccel: 4.0, jumpVelocity: spec.gait == Gait.hop ? 7.0 : 8.0),
@@ -109,8 +109,8 @@ class Mob extends GameEntity implements Target {
   Target? get owner => _owner;
   Target? _owner;
 
-  /// Whether it is tamed: it thinks with `MobSpec.tamedBrain`, never burns
-  /// and never despawns.
+  /// Whether it is tamed: it thinks with `MobSpec.tamedBrain`, never burns,
+  /// never despawns and is kept in the save.
   bool get tamed => _owner != null;
 
   /// Who rides it, or null. The rider moves it ([carry]); its brain rests.
@@ -146,7 +146,7 @@ class Mob extends GameEntity implements Target {
       jumpSpeed: mount.jumpVelocity,
       leaveWater: true,
     );
-    if (wish.x * wish.x + wish.z * wish.z > 0.01) _facing = math.atan2(-wish.x, -wish.z);
+    if (wish.x * wish.x + wish.z * wish.z > 0.01) facing = math.atan2(-wish.x, -wish.z);
   }
 
   /// Puts it at [at] at once, still: a pet carried to its owner. It is drawn
@@ -183,9 +183,6 @@ class Mob extends GameEntity implements Target {
 
   Vector3? _netTo;
 
-  /// The yaw it faces, radians.
-  double get facing => _facing;
-
   /// A replica's state from the host: where it is, facing where, its health,
   /// and whether it died. Health lost since the last state is a hit, here as
   /// on the host: its number shows over it, and [sinceHurt] starts again.
@@ -196,7 +193,7 @@ class Mob extends GameEntity implements Target {
       sinceHurt = 0.0;
     }
     _netTo = at.clone();
-    _facing = yaw;
+    facing = yaw;
     hp = health;
     if (dead && !_dead) kill(dropLoot: false);
   }
@@ -358,15 +355,17 @@ class Mob extends GameEntity implements Target {
         move(dt);
     }
     final flat = Vector3(wish.x, 0, wish.z);
-    if (flat.length2 > 0.01) _facing = math.atan2(-flat.x, -flat.z);
+    if (flat.length2 > 0.01) facing = math.atan2(-flat.x, -flat.z);
     final look = _look;
     if (look != null && (goal == null || flat.length2 < 0.01)) {
       final to = look - position;
-      if (to.x * to.x + to.z * to.z > 0.01) _facing = math.atan2(-to.x, -to.z);
+      if (to.x * to.x + to.z * to.z > 0.01) facing = math.atan2(-to.x, -to.z);
     }
   }
 
-  double _facing = 0.0;
+  /// The yaw it faces, radians; set, it turns there (a creature loaded
+  /// from a save).
+  double facing = 0.0;
 
   Vector3 _flyToward(Vector3 goal) {
     final to = goal + Vector3(0, spec.height, 0) - centre();
@@ -441,7 +440,7 @@ class Mob extends GameEntity implements Target {
     r.animate(
       dt,
       speed: math.sqrt(velocity.x * velocity.x + velocity.z * velocity.z),
-      targetYaw: _facing,
+      targetYaw: facing,
       onFloor: onFloor,
       flying: spec.gait == Gait.fly,
       lookYaw: lookYaw,

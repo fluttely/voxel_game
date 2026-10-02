@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter_test/flutter_test.dart';
@@ -369,5 +371,117 @@ void main() {
       () => check(const MobSpec('wolf', tameWith: ['bone'], tameChance: 0.0, tamedBrain: [Heel()])),
       throwsArgumentError,
     );
+  });
+
+  test('a persistent creature stays however far the player goes; a ghost flies through walls', () async {
+    const keeper = MobSpec('keeper', brain: [], persistent: true, spawn: SpawnRule(maxAlive: 1));
+    const ghost = MobSpec('ghost', brain: [Hunt()], gait: Gait.fly, ghost: true);
+    const bat = MobSpec('bat', brain: [Hunt()], gait: Gait.fly);
+    final game = await _start(_flat(mobs: const [keeper, ghost, bat]));
+    final p = game.player;
+    final far = game.spawnMob('keeper', p.position + Vector3(0, 0, -20));
+    game.spawner
+      ..enabled = true
+      ..despawnDistance = 5;
+    await _run(game, 2.0);
+    expect(far.removed, isFalse, reason: 'the spawner leaves a persistent creature alone');
+    game.spawner.enabled = false;
+    // A wall between the player and two hunters, each of whom flies straight at them.
+    final feet = IVec3.floor(p.position);
+    final wall = feet.x + 3;
+    for (var y = 0; y < 8; y++) {
+      for (var z = -6; z <= 6; z++) {
+        game.world.setBlockNamed(IVec3(wall, feet.y + y, feet.z + z), 'stone');
+      }
+    }
+    final g = game.spawnMob('ghost', p.position + Vector3(6, 0, -1));
+    final b = game.spawnMob('bat', p.position + Vector3(6, 0, 1));
+    expect(g.noclip, isTrue);
+    expect(b.noclip, isFalse);
+    await _run(game, 3.0);
+    expect(g.position.x, lessThan(wall), reason: 'the wall does not hold it');
+    expect(b.position.x, greaterThan(wall + 1), reason: 'it holds a flier');
+    expect(
+      () => _flat(mobs: const [MobSpec('ghost', ghost: true)]).checkMobs(_flat().buildItems(_flat().buildBlocks())),
+      throwsArgumentError,
+      reason: 'a ghost that walks would fall through the floor',
+    );
+  });
+
+  group('the save', () {
+    const pet = MobSpec(
+      'pet',
+      hp: 10,
+      brain: [Wander()],
+      levels: MobLevels(hp: 0.5),
+      tameWith: ['bone'],
+      tamedBrain: [Heel()],
+    );
+    const keeper = MobSpec('keeper', hp: 8, brain: [], persistent: true);
+    const pig = MobSpec('pig', hp: 6, brain: [], spawn: SpawnRule());
+    final spec = _flat(mobs: const [pet, keeper, pig]);
+
+    (WorldSaves, Directory) newSaves() {
+      final dir = Directory.systemTemp.createTempSync('voxel_creatures');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      return (WorldSaves(dir), dir);
+    }
+
+    test('keeps a tamed creature, its owner the player, and a persistent one; a wild one is not kept', () async {
+      final (saves, dir) = newSaves();
+      final game = await _start(spec);
+      final p = game.player;
+      final dog = game.spawnMob('pet', p.position + Vector3(3, 0, 1))
+        ..growTo(3)
+        ..tame(p)
+        ..facing = 1.25;
+      dog.hp = 7.5;
+      final stays = game.spawnMob('keeper', p.position + Vector3(-4, 0, 2))..hp = 5;
+      game.spawnMob('pig', p.position + Vector3(0, 0, 5));
+      game.spawnMob('pet', p.position + Vector3(0, 0, -5));
+      saves.save(game, 'pets');
+      final json = jsonDecode(File('${dir.path}/pets/game.json').readAsStringSync()) as Map<String, Object?>;
+      expect(json['version'], 6);
+      expect(((json['mobs']! as Map<String, Object?>)['world']! as List<Object?>).length, 2);
+
+      final loaded = await VoxelGame.startHeadless(spec, save: saves.read('pets'));
+      expect(loaded.mobs.map((m) => m.spec.id), ['pet', 'keeper'], reason: 'neither the pig nor the wild pet');
+      final [back, kept] = loaded.mobs;
+      expect(back.position, dog.position);
+      expect(back.facing, 1.25);
+      expect(back.level, 3);
+      expect(back.maxHp, dog.maxHp);
+      expect(back.hp, 7.5);
+      expect(back.tamed, isTrue);
+      expect(back.owner, same(loaded.player));
+      expect(kept.position, stays.position);
+      expect(kept.hp, 5.0);
+      expect(kept.tamed, isFalse);
+    });
+
+    test('a version 5 save, which kept no creature, still loads', () async {
+      final (saves, dir) = newSaves();
+      final game = await _start(spec);
+      game.spawnMob('pet', game.player.position + Vector3(3, 0, 1)).tame(game.player);
+      saves.save(game, 'old');
+      final file = File('${dir.path}/old/game.json');
+      final s = jsonDecode(file.readAsStringSync()) as Map<String, Object?>;
+      s['version'] = 5;
+      s.remove('mobs');
+      file.writeAsStringSync(jsonEncode(s));
+
+      final loaded = await VoxelGame.startHeadless(spec, save: saves.read('old'));
+      expect(loaded.mobs, isEmpty);
+      expect(loaded.player.position, game.player.position);
+    });
+
+    test('a network hello, which carries no player, keeps no creature either', () async {
+      final loaded = await VoxelGame.startHeadless(
+        spec,
+        save: const SavedWorld(7, {}, {'time': 3.0, 'timeOfDay': 0.5}),
+      );
+      expect(loaded.time, 3.0);
+      expect(loaded.mobs, isEmpty);
+    });
   });
 }

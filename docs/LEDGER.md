@@ -43,6 +43,13 @@
 - **Cost of leaving it:** a desktop host whose window is covered or minimised stops its world for everyone: no steps, so no client's edit applied and nothing broadcast, the opposite of what rule 12 wants of an authority. A lone game pausing while hidden is harmless, which is why it went unseen. A phone in the background is suspended by its system anyway, so the cost is the desktop host's, and later a dedicated one's.
 - **Found while:** 2026-10-02 — seeing VA9's weather on the Mac with the window behind the owner's editor.
 
+### KL-015 · A ghost cannot be drawn see-through: every rig shares one opaque material
+
+- **Lens:** rendering / declarative content (rule 7)
+- **Evidence:** `packages/voxel_game/lib/src/mobs/rig.dart:374`: every `RigInstance` part is a `Mesh(g, VoxelModelMesh.material())`, and `packages/voxel_scene/lib/src/voxel_model_mesh.dart:12` hands out one `PhysicallyBasedMaterial` for all of them, opaque, with no `alphaMode` or `baseColorFactor` a creature could set. The app draws its ghost at alpha 0.45 through a tint of its own material per creature (`examples/voxel_game_minecraft/lib/src/entities/mob.dart:383-398`, `:831`). `MobSpec.ghost` (VA13c) has the noclip and the flight, and draws as solid as any creature.
+- **Cost of leaving it:** a ghost walks through walls looking like a zombie that clips: nothing tells the player it is meant to. The fix needs a see-through variant of the shared material in `voxel_scene` (shared per look, or flutter_scene stops batching the parts: `KL-007`'s lesson) and a field for it on `Rig` or `MobSpec`; a hurt flash or a stun tint would ride on the same hook.
+- **Found while:** 2026-10-02 — VA13c, giving `MobSpec` the app's `ghost`.
+
 ## Closed
 
 ### KL-008 · The example crashes in the Adreno driver in its first two seconds, now and then

@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- **Creatures grow, last part: kept in the save (VA13c).** `MobSpec.persistent`: the
+  spawner never takes it away (nor counts it), however far the player goes. `MobSpec.ghost`:
+  it passes through blocks (`noclip`); a ghost must fly (`Gait.fly`), or `checkMobs` throws.
+  It draws as solid as any creature for now (`KL-015`). `game.json` is version 6: `mobs`,
+  by dimension, keeps every tamed and persistent creature of the dimension the player is in
+  (id, position, facing, health, level, tamed); a load spawns them again, a tamed one owned
+  by the local player. A wild creature is not kept, a version 5 save loads with none, and a
+  network hello (no player) brings none: the host's creatures come by the session.
+  `Mob.facing` is a field a game can set. The example's tamed wolf and horse come back
+  with the world.
+
 - **Creatures grow, second part: tamed, companions and mounts (VA13b).** `MobSpec.tameWith`
   (items) and `tameChance`: a use with one in hand on the creature spends it and, at that
   chance, tames it (`Mob.tame`, `owner`, `tamed`); it then thinks with

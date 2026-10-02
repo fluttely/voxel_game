@@ -277,7 +277,8 @@ class VoxelGameSpec {
   /// names an item not in [items], that splits into a mob not declared, whose
   /// strike leaves an effect not in [effects], that is worth experience
   /// when the player gains none (`PlayerSpec.xp`), that is tamed with an
-  /// unknown item, at a chance outside (0, 1], or with no `tamedBrain`.
+  /// unknown item, at a chance outside (0, 1], or with no `tamedBrain`,
+  /// and for a ghost that does not fly.
   void checkMobs(ItemRegistry<ItemType> items) {
     final ids = <String>{};
     for (final m in mobs) {
@@ -304,6 +305,9 @@ class VoxelGameSpec {
       }
       if (m.tameChance <= 0.0 || m.tameChance > 1.0) {
         throw ArgumentError.value(m.tameChance, m.id, 'the chance to tame is above 0 and at most 1');
+      }
+      if (m.ghost && m.gait != Gait.fly) {
+        throw ArgumentError.value(m.gait, m.id, 'a ghost flies: nothing under it holds it up');
       }
       if (m.xp > 0 && player.xp == null) {
         throw ArgumentError.value(m.xp, m.id, 'the mob is worth experience and the player gains none');

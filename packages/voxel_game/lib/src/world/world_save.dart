@@ -23,7 +23,7 @@ class SavedWorld {
   /// The world's edits, by the dimension's place in [dimensions].
   final EditsByDimension edits;
 
-  /// The game's own state: clock, player.
+  /// The game's own state: clock, player, creatures kept.
   final Map<String, Object?> state;
 
   /// The id of each dimension [edits] numbers, in its order.
@@ -47,22 +47,25 @@ class SavedWorld {
 /// `world.json` (what the world list shows: `WorldInfo`), `edits.bin` (the
 /// edited cells of every dimension, `EditDeltaCodec`) and `game.json` (the
 /// clock, the dimensions in the order `edits.bin` holds them, the crops
-/// growing and what the stores hold in each, and the player: in which
-/// dimension, where, looking where, health, hunger, experience, the effects
-/// on them, the bag, what they wear, the spawn point).
+/// growing and what the stores hold in each, the creatures kept in the
+/// dimension the player is in — the tamed, owned by the player, and the
+/// `MobSpec.persistent` — and the player: in which dimension, where, looking
+/// where, health, hunger, experience, the effects on them, the bag, what
+/// they wear, the spawn point).
 ///
 /// A world [create]d and not yet played has only its `world.json`; a world
 /// saved before there was one has only the other two, and [info] reads it
 /// from them (its name is its slot, it plays as the game declares, when it
 /// was made is not known) until its next [save] or [rename] writes one.
 ///
-/// `game.json` is version 5. Older saves still load, each a branch on its
+/// `game.json` is version 6. Older saves still load, each a branch on its
 /// version: a version 1 save, from before the player had hunger, experience,
 /// effects and armour, stands its player up fed, at level 0, wearing nothing;
 /// a save before version 3 has no crops growing, and one before version 4
 /// no stores (a store found in its world is looked into afresh); a save
 /// before version 5 is of the main world alone, its crops and stores there,
-/// its player in it, and its `edits.bin` of version 1, one dimension.
+/// its player in it, and its `edits.bin` of version 1, one dimension; a save
+/// before version 6 keeps no creature.
 class WorldSaves {
   /// Saves under [directory]; [clock] says when a world is made and played.
   WorldSaves(this.directory, {this.clock = DateTime.now});
@@ -74,7 +77,7 @@ class WorldSaves {
   final DateTime Function() clock;
 
   /// The version of `game.json` [save] writes.
-  static const stateVersion = 5;
+  static const stateVersion = 6;
 
   /// The edit file's layout for a game of [dimensions]: magic `VXK1`,
   /// version 2, every dimension; a version 1 file, of one dimension, still
@@ -225,6 +228,22 @@ class WorldSaves {
             for (final e in rules.storesIn(i).entries) [e.key.x, e.key.y, e.key.z, e.value.toJson()],
           ],
       },
+      // Creatures live only in the dimension the player is in (a trip leaves
+      // them behind), so that is the one that has any.
+      'mobs': {
+        game.dimension: [
+          for (final m in game.mobs)
+            if (!m.isDead && !m.removed && !m.replica && (m.tamed || m.spec.persistent))
+              {
+                'id': m.spec.id,
+                'pos': [m.position.x, m.position.y, m.position.z],
+                'yaw': m.facing,
+                'hp': m.hp,
+                'level': m.level,
+                'tamed': m.tamed,
+              },
+        ],
+      },
       'player': {
         'dimension': game.dimension,
         'pos': [p.position.x, p.position.y, p.position.z],
@@ -264,8 +283,9 @@ class WorldSaves {
     return SavedWorld(seed, decoded?.edits ?? <int, Map<ChunkPos, Map<int, int>>>{}, state, dimensions: dimensions);
   }
 
-  /// Puts [saved]'s clock, crops, stores and player back into [game] (its
-  /// edits are handed to the world before it streams: see `VoxelGame.start`).
+  /// Puts [saved]'s clock, crops, stores, creatures and player back into
+  /// [game] (its edits are handed to the world before it streams: see
+  /// `VoxelGame.start`). A tamed creature is the local player's.
   static void restore(VoxelGame game, SavedWorld saved) {
     final s = saved.state;
     game.time = (s['time']! as num).toDouble();
@@ -318,6 +338,24 @@ class WorldSaves {
               row[3]! as List<Object?>;
         }
         game.blockRules.restoreStores(stores, dimension: SavedWorld._indexIn(ids, k.key));
+      }
+    }
+    if (version >= 6) _restoreMobs(game, s['mobs']! as Map<String, Object?>, v);
+  }
+
+  static void _restoreMobs(VoxelGame game, Map<String, Object?> byDimension, Vector3 Function(Object?) v) {
+    for (final e in byDimension.entries) {
+      final list = e.value! as List<Object?>;
+      if (SavedWorld._indexIn(game.spec.dimensionIds, e.key) != game.world.dimension && list.isNotEmpty) {
+        throw StateError('the save keeps creatures in ${e.key}, where the player is not');
+      }
+      for (final o in list) {
+        final m = o! as Map<String, Object?>;
+        final mob = game.spawnMob(m['id']! as String, v(m['pos']))..facing = (m['yaw']! as num).toDouble();
+        final level = (m['level']! as num).toInt();
+        if (level != 1) mob.growTo(level);
+        mob.hp = (m['hp']! as num).toDouble();
+        if (m['tamed']! as bool) mob.tame(game.player);
       }
     }
   }

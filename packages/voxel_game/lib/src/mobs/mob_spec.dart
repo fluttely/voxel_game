@@ -104,7 +104,8 @@ class SpawnRule {
 /// ([xp]), how it grows with the player ([levels]), what it does to what it
 /// strikes ([onHit]) and becomes when it dies ([splitsInto]), how it is
 /// tamed ([tameWith]) and then thinks ([tamedBrain]) and carries a rider
-/// ([mount]), and where it spawns.
+/// ([mount]), whether it stays ([persistent]) or walks through walls
+/// ([ghost]), and where it spawns.
 ///
 /// ```dart
 /// MobSpec('zombie', hp: 20, speed: 3.2,
@@ -134,6 +135,8 @@ class MobSpec {
     this.tameChance = 1.0,
     this.tamedBrain = const [],
     this.mount,
+    this.persistent = false,
+    this.ghost = false,
     this.spawn,
     this.knockbackResistance = 0.0,
     this.hurtSound,
@@ -204,6 +207,15 @@ class MobSpec {
   /// How it carries a rider once tamed (its owner rides it by using it), or
   /// null for a creature that is never ridden.
   final MountSpec? mount;
+
+  /// Whether it stays where it is however far the player goes: the spawner
+  /// never takes it away, and the save keeps it (a tamed creature is kept
+  /// either way).
+  final bool persistent;
+
+  /// Whether it passes through blocks: a flier ([gait] must be [Gait.fly])
+  /// that no wall stops.
+  final bool ghost;
 
   /// Where it appears by itself; null for never (placed by the game).
   final SpawnRule? spawn;

@@ -360,7 +360,7 @@ void main() {
       final at = game.player.position.clone();
       saves.save(game, 'two');
       final json = jsonDecode(File('${saves.directory.path}/two/game.json').readAsStringSync()) as Map<String, Object?>;
-      expect(json['version'], 5);
+      expect(json['version'], WorldSaves.stateVersion);
       expect(json['dimensions'], ['world', 'nether', 'deep', 'sea']);
       expect((json['player']! as Map<String, Object?>)['dimension'], 'nether');
 
