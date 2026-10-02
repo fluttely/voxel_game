@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:flutter/material.dart' show GestureDetector, MaterialApp;
+import 'package:flutter/material.dart' show Container, GestureDetector, MaterialApp;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vector_math/vector_math.dart';
 import 'package:voxel_game/voxel_game.dart';
@@ -567,12 +567,12 @@ void main() {
         home: InventoryScreen(game: game, station: 'chest', storage: store, onClose: () {}),
       ),
     );
-    final slots = find.byWidgetPredicate((w) => w is GestureDetector && w.onSecondaryTap != null);
-    expect(slots, findsNWidgets(9 + bag.capacity), reason: 'the chest above the bag, no recipes');
-    // The chest's first, then the bag's rows, then its hotbar: slot 0 of the bag is 9 + 27.
-    await tester.tap(slots.at(9 + bag.capacity - bag.hotbarSize));
+    final slots = find.byWidgetPredicate((w) => w is GestureDetector && w.onSecondaryTap != null && w.child is Container);
+    expect(slots, findsNWidgets(bag.capacity + 9), reason: 'the chest beside the bag, no recipes');
+    // The bag's rows, then its hotbar, then the chest's: slot 0 of the bag is 27.
+    await tester.tap(slots.at(bag.capacity - bag.hotbarSize));
     await tester.pump();
-    await tester.tap(slots.at(4));
+    await tester.tap(slots.at(bag.capacity + 4));
     await tester.pump();
     expect(bag.countOf('wheat'), 0);
     expect(store.countAt(4), 5);

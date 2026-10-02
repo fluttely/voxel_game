@@ -230,6 +230,16 @@ void main() {
       expect(i.isEmptySlot(slot), isTrue);
     });
 
+    test('put tops up with a new stack and keeps a worn one whole, in a slot of its own', () {
+      final full = Inventory(stackSize: (id) => items[id].stack, capacity: 2)..add('dirt', 60);
+      expect(full.put(ItemStack('dirt', 10)), 0, reason: '4 top up the stack, 6 open a slot');
+      expect(full.countAt(0), 64);
+      expect(full.put(ItemStack('wooden_pickaxe', 1, dur: 7)), 1, reason: 'no empty slot');
+      final i = inv();
+      expect(i.put(ItemStack('wooden_pickaxe', 1, dur: 7)), 0);
+      expect(i.slots[0]!.dur, 7);
+    });
+
     test('round-trips through JSON, dropping unknown items', () {
       final i = inv()
         ..add('dirt', 5)

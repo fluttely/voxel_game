@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- **The bag grows (VA6).** `InventoryScreen`:
+  - the held stack follows the pointer, drawn `InventoryScreen.fingerLift` above a finger,
+    instead of sitting in a "Cursor" row; only it and the tooltip rebuild as the pointer
+    moves;
+  - a long press takes half or leaves one, as a right-click does (rule 13);
+  - a tooltip, beside the pointer and kept on the screen, says what the slot under the
+    mouse holds or, with none (and always under a finger), what is held: the item's name,
+    its tool and tier, damage and bonus, uses left, what eating it does, where it is worn,
+    the block it places. It replaces Flutter's `Tooltip` of the name alone;
+  - a store's slots sit beside the bag, where the recipes are, named by its block; the bag
+    is headed "Inventory", the recipes "Crafting" or their station;
+  - a stack let go outside the panel (a click or a tap; a right-click or a long press for
+    one) is thrown ahead of the player (`PlayerEntity.throwStack`), wear kept;
+  - a held stack the bag has no room for when the screen shuts goes on the ground, wear
+    kept; it used to be added by id, losing its wear, and what did not fit was lost;
+  - the panel scales down to fit the screen (a phone held sideways), never up.
+  `PlayerEntity.pickUpStack` puts through the engine's new `Inventory.put`.
 - **A dropped stack keeps its wear.** `VoxelGame.dropStack(stack, at)` (new) puts on the
   ground the stack that left a slot, wear and bonus kept; `dropItem` drops a new one, as
   before. `ItemPickup` holds that `stack` (its constructor takes it; `item` and `count` read

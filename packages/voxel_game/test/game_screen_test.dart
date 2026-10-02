@@ -252,7 +252,7 @@ void main() {
       bag.setSlot(0, ItemStack('stone', 5));
       game.openScreen(const BagScreen());
       await tester.pump();
-      final slots = find.byWidgetPredicate((w) => w is GestureDetector && w.onSecondaryTap != null);
+      final slots = find.byWidgetPredicate((w) => w is GestureDetector && w.onSecondaryTap != null && w.child is Container);
       await tester.tap(slots.at(bag.capacity - bag.hotbarSize));
       await tester.pump();
       expect(bag.countOf('stone'), 0, reason: 'the stack is on the cursor');

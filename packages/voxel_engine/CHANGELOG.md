@@ -2,6 +2,8 @@
 
 ## 0.3.0-dev
 
+- `Inventory.put(stack)` (new): a new stack tops up stacks as `add` does, a worn or
+  bonused one takes an empty slot whole as `addStack` does; returns what did not fit.
 - What an item looks like (VA5): `ItemType.shape` (an `ItemShape`, new, null by default)
   and `ItemModel.of(item, blocks, items)` (new), its voxels built once a look — two items
   that look alike are one model, so a renderer makes one mesh or icon for both. A shape is

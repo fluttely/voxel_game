@@ -216,27 +216,20 @@ class PlayerEntity extends NodeBody implements Target {
     return true;
   }
 
-  /// Adds [stack] to the bag: a fresh one tops up stacks like [pickUp], a
-  /// worn or bonused one takes an empty slot whole, or stays out. Returns how
-  /// many did not fit.
+  /// Puts [stack] in the bag (`Inventory.put`: a fresh one tops up stacks, a
+  /// worn or bonused one takes an empty slot whole), and tells the player
+  /// what went in (`VoxelGame.notices`); returns how many did not fit.
   int pickUpStack(ItemStack stack) {
-    if (stack.dur < 0 && stack.bonus == 0) return pickUp(stack.id, stack.count);
-    if (!inventory.addStack(stack)) return stack.count;
-    _game.playSound('pickup', volumeDb: -8.0, pitch: 1.0 + _game.random.nextDouble() * 0.3);
-    _game.notices.picked(stack.id, _game.items[stack.id].name, stack.count);
-    return 0;
-  }
-
-  /// Adds [count] of [item] to the bag, and tells the player what went in
-  /// (`VoxelGame.notices`); returns what did not fit.
-  int pickUp(String item, int count) {
-    final left = inventory.add(item, count);
-    if (left < count) {
+    final left = inventory.put(stack);
+    if (left < stack.count) {
       _game.playSound('pickup', volumeDb: -8.0, pitch: 1.0 + _game.random.nextDouble() * 0.3);
-      _game.notices.picked(item, _game.items[item].name, count - left);
+      _game.notices.picked(stack.id, _game.items[stack.id].name, stack.count - left);
     }
     return left;
   }
+
+  /// [count] new [item] into the bag, as [pickUpStack].
+  int pickUp(String item, int count) => pickUpStack(ItemStack(item, count));
 
   /// Takes [damage], less what [armor] turns aside: [PlayerSpec.armorPerPoint]
   /// a point, never below [PlayerSpec.armorFloor] of the blow. An internal

@@ -76,6 +76,11 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
   ScreenSpec(buildJournal, menu: 'Journal')}`). `openScreen`, `closeScreen` and `respawn`
   change it and refuse what cannot be. A screen gates the controls, never the world: the
   game keeps stepping behind every one.
+- The bag (`InventoryScreen`): a click or a tap picks a stack up or puts it down, a
+  right-click or a long press takes half or leaves one; the held stack follows the pointer
+  (above a finger), a tooltip reads the item's row (tool and tier, damage, uses left, food,
+  armour, the block it places), a store's slots sit beside the bag, and a stack let go
+  outside the panel is thrown into the world. The panel shrinks to fit a phone.
 - `runVoxelGame` / `VoxelGameWidget`: the 3D view, a HUD, the inventory and crafting screen.
   A HUD of your own is built once; its pieces follow the game through `HudSelector`s.
   The default HUD's hotbar takes a finger: tap a slot to pick it, hold the one in hand to
