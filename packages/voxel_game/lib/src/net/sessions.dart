@@ -100,7 +100,12 @@ class HostSession extends GameSession {
     final puppet = players[peer.id];
     switch (m['t']) {
       case 'pose':
-        puppet?.setPose(_vec(m['p']), (m['yaw']! as num).toDouble(), dead: m['dead'] == true);
+        puppet?.setPose(
+          _vec(m['p']),
+          (m['yaw']! as num).toDouble(),
+          held: m['held']! as String,
+          dead: m['dead'] == true,
+        );
       case 'edits':
         GameSession._forEachEdit(m, _storeClientEdit);
       case 'hit':
@@ -149,8 +154,9 @@ class HostSession extends GameSession {
       'time': game.time,
       'tod': game.timeOfDay,
       'players': [
-        {'id': 1, 'p': _v(p.position), 'yaw': p.yaw, 'dead': p.isDead},
-        for (final r in players.values) {'id': r.peer, 'p': _v(r.position), 'yaw': r.yaw, 'dead': r.isDead},
+        {'id': 1, 'p': _v(p.position), 'yaw': p.yaw, 'held': p.heldItem, 'dead': p.isDead},
+        for (final r in players.values)
+          {'id': r.peer, 'p': _v(r.position), 'yaw': r.yaw, 'held': r.heldItem, 'dead': r.isDead},
       ],
       'mobs': [
         for (final m in game.mobs)
@@ -226,7 +232,7 @@ class ClientSession extends GameSession {
       seen.add(id);
       final at = _vec(r['p']);
       final puppet = players[id] ??= game.add(RemotePlayer(id, at));
-      puppet.setPose(at, (r['yaw']! as num).toDouble(), dead: r['dead'] == true);
+      puppet.setPose(at, (r['yaw']! as num).toDouble(), held: r['held']! as String, dead: r['dead'] == true);
     }
     for (final id in players.keys.where((k) => !seen.contains(k)).toList()) {
       players.remove(id)!.removed = true;
@@ -270,7 +276,7 @@ class ClientSession extends GameSession {
     if (_clock < 0.05) return;
     _clock = 0.0;
     final p = game.player;
-    connection.send({'t': 'pose', 'p': _v(p.position), 'yaw': p.yaw, 'dead': p.isDead});
+    connection.send({'t': 'pose', 'p': _v(p.position), 'yaw': p.yaw, 'held': p.heldItem, 'dead': p.isDead});
   }
 
   @override

@@ -36,7 +36,7 @@ Future<void> _run(List<VoxelGame> games, double seconds) async {
 }
 
 void main() {
-  test('a client joins a host: the world, edits both ways, players, mobs, hits and hurts', () async {
+  test('a client joins a host: the world, edits both ways, players and what they hold, mobs, hits and hurts', () async {
     final host = await VoxelGame.startHeadless(_spec);
     host.spawner.enabled = false;
     await _run([host], 1.0);
@@ -77,6 +77,14 @@ void main() {
     expect([for (final n in host.damageNumbers.shown) n.amount], [4]);
     expect([for (final n in client.damageNumbers.shown) n.amount], [4], reason: 'the health it lost is the hit');
     expect(replica.sinceHurt, lessThan(0.3));
+
+    // What each player holds crosses with its pose, both ways.
+    host.player.inventory.add('stone', 3);
+    client.player.inventory.add('planks', 2);
+    expect([host.player.heldItem, client.player.heldItem], ['stone', 'planks']);
+    await _run([host, client], 0.3);
+    expect(host.remotePlayers.single.heldItem, 'planks');
+    expect(client.remotePlayers.single.heldItem, 'stone');
 
     // A host hunter bites the client's player through its puppet (the host's
     // own player walked away, or it would be bitten first).

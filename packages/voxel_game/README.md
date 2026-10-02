@@ -38,6 +38,12 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
   `PlayerEntity.effects`, which bend its speed, damage, mining and armour. Each is off until
   declared, and the default HUD draws only what is: hunger beside the hearts, armour over
   them, the experience bar under them, the effects with their time left at the top left.
+- Items have a shape: one voxel model each (`VoxelGame.itemModel`), the same in the
+  first-person hand (swaying with the walk, thrown across the screen on a swing), in a
+  humanoid's fist in third person and in every other player's, lying on the ground, and as
+  its icon in the hotbar and the bag (`ItemIcon`). An item's block, tool, food, armour or
+  bucket picks it, or the item declares one (`ItemType(shape: ItemShape.cap)`, or a
+  `CustomItemShape` of its own voxels).
 - `VoxelGame.notify('Night falls')` tells the player something for a few seconds; the default
   HUD shows it at the right, over what the player just picked up (`+5 Dirt`).
 - The default HUD also reads the world through the frame's camera (`VoxelGame.camera`, the

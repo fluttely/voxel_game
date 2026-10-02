@@ -194,8 +194,9 @@ class VoxelGameSpec {
   /// block's item of the same id). Throws [ArgumentError] for a food whose
   /// effect is not in [effects] or which leaves an unknown item, for armour
   /// worn in a slot the player does not have, for a block whose loot (or its
-  /// store's) names an unknown item, and for a bucket that scoops or pours a liquid there is
-  /// not or becomes an unknown item.
+  /// store's) names an unknown item, for a bucket that scoops or pours a liquid there is
+  /// not or becomes an unknown item, and for an item the kit cannot draw: a tool with no
+  /// stock shape and none declared, a block's shape on an item that places none.
   ItemRegistry<ItemType> buildItems(BlockRegistry<BlockType> registry) {
     final byId = <String, ItemType>{for (final i in ItemRegistry.forBlocks(registry)) i.id: i};
     for (final i in items) {
@@ -208,6 +209,9 @@ class VoxelGameSpec {
     }
     final effectIds = {for (final e in effects) e.id};
     for (final i in byId.values) {
+      if (ItemModel.shapeOf(i) == ItemShape.block && i.block == null) {
+        throw ArgumentError.value(i.id, 'item', 'a block\'s shape on an item that places no block');
+      }
       final food = i.food, armor = i.armor;
       if (food?.effect case final e? when !effectIds.contains(e)) {
         throw ArgumentError.value(e, i.id, 'the food starts an effect the spec does not declare');

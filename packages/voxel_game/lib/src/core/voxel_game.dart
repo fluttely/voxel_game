@@ -239,6 +239,11 @@ class VoxelGame {
   /// The items: one per holdable block, plus the spec's.
   final ItemRegistry<ItemType> items;
 
+  /// What item [id] looks like: the one model every item of its look shares,
+  /// drawn in the hand, held by a body, lying on the ground and in a slot.
+  ItemModel itemModel(String id) => _itemModels[id] ??= ItemModel.of(items[id], blocks, items);
+  final Map<String, ItemModel> _itemModels = {};
+
   /// The world.
   final GameWorld world;
 

@@ -33,4 +33,15 @@ void main() {
     expect(spider.legFan, hasLength(8));
     expect([for (final p in spider.parts.where((p) => p.name.startsWith('leg'))) p.sx], [1, -1, 1, -1, 1, -1, 1, -1]);
   });
+
+  test("a humanoid's right fist is where its arm ends, sized with its body", () {
+    final player = RigModel.of(const Rig.humanoid(), 0.3, 1.75);
+    final hand = player.hand!;
+    expect(hand.scale, 1.0);
+    expect(hand.at.y, closeTo(-11.3 * 0.055, 1e-6), reason: 'at the bottom of the 12-voxel arm');
+    final child = RigModel.of(const Rig.humanoid(), 0.2, 0.875).hand!;
+    expect(child.scale, 0.5);
+    expect(child.at.y, closeTo(hand.at.y / 2, 1e-6));
+    expect(RigModel.of(const Rig.quadruped(), 0.45, 1.3).hand, isNull, reason: 'nothing to hold with');
+  });
 }

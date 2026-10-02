@@ -2,6 +2,10 @@
 
 ## 0.3.0-dev
 
+- `ItemMesh` (new): the mesh of an `ItemModel` (voxel_engine, unreleased), built the
+  first time it is drawn, one per model (`ItemMesh.of`). Everything drawing the item hangs
+  its own `node()` on the one geometry and the shared `VoxelModelMesh.material`, so
+  flutter_scene instances them (VA5, the rule `KL-007` set for drops and shots).
 - `ResizeSafeScene` (new): a `Scene` whose sun turns `cacheStaticShadows` off for the one
   frame rendered at a new size (region, pixel ratio, render scale or a view's viewport or
   scale, told by `RenderSizeWatch`, new). flutter_scene pairs each cached shadow tile with

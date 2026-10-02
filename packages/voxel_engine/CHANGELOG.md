@@ -2,6 +2,21 @@
 
 ## 0.3.0-dev
 
+- What an item looks like (VA5): `ItemType.shape` (an `ItemShape`, new, null by default)
+  and `ItemModel.of(item, blocks, items)` (new), its voxels built once a look — two items
+  that look alike are one model, so a renderer makes one mesh or icon for both. A shape is
+  one of the kit's (`ItemShape.block`, the item's block as the mesher draws it: a cube, a
+  slab, stairs, a torch, a sprout, a flower, a door, a fence, a ladder, a wire, a rail;
+  `pickaxe`, `axe`, `shovel`, `hoe`, `sword`, `bow`, `lump`, `gem`, `cap`, `tunic`, `pail`,
+  the `StockItemShape`s, painted in the item's colours; a full pail is the empty one's
+  colour with its liquid's in it) or a `CustomItemShape` of the game's own boxes of
+  voxels. An item that declares none takes one from its row (`ItemModel.shapeOf`): a
+  block's item its block, a tool of the five stock kinds its kind, food a lump, armour a
+  tunic, a bucket a pail, anything else a gem; a tool of any other kind throws
+  `ArgumentError` and must declare its shape. Each model says how it is held
+  (`ItemGrip`, new: `block` against the palm, `flat` or `upright` out of the fist), where
+  (`origin`), at what size (`scale`, `ItemShape.voxelSize` for the stock ones) and its
+  `bounds`.
 - `ItemType.bucket` (a `Bucket`, new): `Bucket.empty` names, per liquid kind, the full item
   it becomes once it scoops that liquid's source; `Bucket.full` names the source block it
   pours and the item it becomes once poured (VA2).

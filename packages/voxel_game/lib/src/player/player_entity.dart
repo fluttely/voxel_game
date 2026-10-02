@@ -773,6 +773,8 @@ class PlayerEntity extends NodeBody implements Target {
     final r = rig;
     if (r == null) return;
     r.root.visible = cameraMode == CameraMode.thirdPerson;
+    final id = heldItem;
+    if (r.canHold) r.hold(id.isEmpty ? null : _game.itemModel(id));
     final speed = math.sqrt(velocity.x * velocity.x + velocity.z * velocity.z);
     final flat = Vector3(velocity.x, 0, velocity.z);
     final face = speed > 0.5 ? math.atan2(-flat.x, -flat.z) : yaw;

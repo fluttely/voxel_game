@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter_scene/scene.dart';
 import 'package:vector_math/vector_math.dart';
+import 'package:voxel_engine/content.dart';
 import 'package:voxel_engine/core.dart';
 import 'package:voxel_scene/voxel_scene.dart';
 
@@ -204,6 +205,11 @@ class RigModel {
   double get backHeight => _backHeight;
   double _backHeight = 0.0;
 
+  /// Where a humanoid's right fist is, under its `arm1` pivot, and the scale
+  /// of its body against the player's 1.75 m; null for the other plans.
+  ({Vector3 at, double scale})? get hand => _hand;
+  ({Vector3 at, double scale})? _hand;
+
   /// The scale that brings the authored body inside its collider (1 when it fits).
   double get fit => _fit;
   double _fit = 1.0;
@@ -287,6 +293,7 @@ class RigModel {
         VoxelModel.box(v, const IVec3(-2, -12, -2), const IVec3(1, -1, 1), skin);
         _part('arm0', v, Vector3(-0.345 * k, 1.30 * k, 0), s);
         _part('arm1', v, Vector3(0.345 * k, 1.30 * k, 0), s);
+        _hand = (at: Vector3(0, -11.3 * s, -0.7 * s), scale: k);
         v = {};
         VoxelModel.box(v, const IVec3(-4, 0, -4), const IVec3(3, 7, 3), skin, 0.04);
         final eye = rig.redEyes ? Vector3(0.9, 0.1, 0.1) : dark;
@@ -412,6 +419,47 @@ class RigInstance {
 
   /// Starts an attack swing (a humanoid's arm, a bird's peck).
   void swing() => animator.startSwing();
+
+  /// Whether its body plan has a fist to [hold] things in: a humanoid's.
+  bool get canHold => model.hand != null;
+
+  /// What the right fist holds; null for an empty one.
+  ItemModel? get held => _held?.model;
+  ({ItemModel model, Node node})? _held;
+
+  /// Lays a drawn shape against the palm and sends it forward out of the fist:
+  /// every item stands up its own +Y from its grip, and the arm hangs down.
+  static final Quaternion _outOfTheFist = Quaternion.axisAngle(Vector3(1, 0, 0), -math.pi / 2);
+
+  /// Puts [item] in a humanoid's right fist, or empties it (null); a rig that
+  /// cannot ([canHold]) throws [StateError]. A block hangs from the fist with
+  /// a face against the palm; anything else stands out of it with its head in
+  /// the swing, leading the chop.
+  void hold(ItemModel? item) {
+    final hand = model.hand;
+    if (hand == null) throw StateError('only a humanoid holds things: this is a ${rig.kind.name}');
+    if (identical(item, _held?.model)) return;
+    final arm = parts['arm1']!.node;
+    if (_held case (:final node, model: _)) arm.remove(node);
+    _held = null;
+    if (item == null) return;
+    final node = ItemMesh.of(item).node()..scale = Vector3.all(hand.scale);
+    if (item.grip == ItemGrip.block) {
+      node
+        ..rotation = _outOfTheFist
+        ..position = hand.at + Vector3(0, -0.14, -0.04) * hand.scale;
+    } else {
+      node
+        ..rotation = _outOfTheFist * headInSwingPlane
+        ..position = hand.at.clone();
+    }
+    arm.add(node);
+    _held = (model: item, node: node);
+  }
+
+  /// A quarter turn about a held model's shaft: a flat piece is drawn with
+  /// its head across X, and a fist turns it so the head runs along the swing.
+  static final Quaternion headInSwingPlane = Quaternion.axisAngle(Vector3(0, 1, 0), math.pi / 2);
 
   /// Poses the rig for one frame of [dt]: moving at [speed] metres a second,
   /// facing [targetYaw], standing [onFloor] or [flying]; [lookYaw] turns the

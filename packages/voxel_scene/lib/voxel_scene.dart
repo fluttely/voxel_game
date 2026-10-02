@@ -4,6 +4,7 @@ library;
 
 export 'src/box_mesh.dart';
 export 'src/day_night_sky.dart';
+export 'src/item_mesh.dart';
 export 'src/mirrored_camera.dart';
 export 'src/node_body.dart';
 export 'src/render_size_watch.dart';

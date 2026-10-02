@@ -21,6 +21,7 @@ and night sky, block models and the selection outline.
   as `DayNightSky`'s does. It drops the cache on the frame the view changes size, which
   keeps Impeller's Vulkan backend from beginning a render pass on a freed depth texture
   (flutter/flutter#192538), a crash seen on Adreno phones as a game turns to landscape.
+- `ItemMesh`: one mesh per `ItemModel`, shared by everything that draws the item.
 - `DayNightSky`, `VoxelModelMesh`, `RigPart`, `NodeBody`.
 
 ## Install

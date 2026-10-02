@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+- **Items have a shape (VA5).** One voxel model per item, `VoxelGame.itemModel(id)` (the
+  engine's `ItemModel`, declared by `ItemType.shape` or read off the item's row), drawn
+  everywhere the item is:
+  - in the first-person hand, which now sways with the walk, lagging the eye, and throws
+    the item across the screen on a swing (the hand of `examples/voxel_game_minecraft`);
+  - in a humanoid's right fist: `RigInstance.hold(model)` (new; `canHold`, `held`,
+    `RigModel.hand`), the player's in third person and every remote player's. A remote
+    player's item crosses with its pose (`RemotePlayer.heldItem`; `setPose` takes
+    `held:`, and the net's `pose` and `state` rows carry it);
+  - as a drop on the ground, at `ItemPickup.size` of its held size, turning about its
+    middle. Drops share their item's mesh (`ItemMesh`, voxel_scene) as they shared their
+    colour's cube: **`PickupModel` is gone**;
+  - as the icon of a hotbar slot and a bag slot: `ItemIcon` (new, exported), the model
+    projected once from a top corner (a flat piece face on), recorded as a picture and
+    replayed, instead of a square of the item's colour.
+  - `VoxelGameSpec.buildItems` throws `ArgumentError` for an item the kit cannot draw: a
+    tool of a kind with no stock shape and none declared, or a block's shape on an item
+    that places no block.
 - **The default HUD reads the world (VA4, the rest).**
   - `VoxelGame.camera()` is the camera of the frame: `frame` builds it once, after the bodies
     are placed, and the scene and the HUD both read it, so a point projected with

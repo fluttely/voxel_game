@@ -63,6 +63,7 @@ export 'src/ui/game_surface.dart';
 export 'src/ui/hud_selector.dart';
 export 'src/ui/voxel_game_widget.dart';
 export 'src/ui/inventory_screen.dart';
+export 'src/ui/item_icon.dart';
 export 'src/ui/loading_screen.dart';
 export 'src/ui/loading_stage.dart';
 export 'src/ui/notices.dart';

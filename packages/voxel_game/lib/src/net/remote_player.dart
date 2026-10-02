@@ -33,6 +33,7 @@ class RemotePlayer extends GameEntity implements Target {
   double _yaw = 0.0;
   double _speed = 0.0;
   bool _dead = false;
+  String _held = '';
 
   @override
   bool get isDead => _dead;
@@ -40,10 +41,15 @@ class RemotePlayer extends GameEntity implements Target {
   /// The yaw its peer faces.
   double get yaw => _yaw;
 
-  /// Where the peer says its player is, looking where, alive or not.
-  void setPose(Vector3 at, double yaw, {bool dead = false}) {
+  /// The item in its hand (`''` for none), as its peer last said.
+  String get heldItem => _held;
+
+  /// Where the peer says its player is, looking where, holding what (`''` for
+  /// nothing), alive or not.
+  void setPose(Vector3 at, double yaw, {required String held, bool dead = false}) {
     _to = at.clone();
     _yaw = yaw;
+    _held = held;
     _dead = dead;
   }
 
@@ -66,6 +72,7 @@ class RemotePlayer extends GameEntity implements Target {
     final r = rig;
     if (r != null) {
       r.root.visible = !_dead;
+      if (r.canHold) r.hold(_held.isEmpty ? null : game.itemModel(_held));
       r.animate(dt, speed: _speed, targetYaw: _yaw, onFloor: true);
       r.place(Vector3.zero());
     }

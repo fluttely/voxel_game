@@ -160,7 +160,7 @@ const game = VoxelGameSpec(
       stack: 1,
       food: Food(hunger: 6, heal: 4, effect: 'regeneration', seconds: 8, leaves: 'bowl'),
     ),
-    ItemType('wool_cap', color: 0xE8E8E8, stack: 1, armor: Armor('head', 1)),
+    ItemType('wool_cap', color: 0xE8E8E8, stack: 1, armor: Armor('head', 1), shape: ItemShape.cap),
     ItemType('wool_tunic', color: 0xE8E8E8, stack: 1, armor: Armor('chest', 3)),
     ItemType('door', color: 0x9A7040, block: 'door_z', stack: 16),
     // A bucket scoops a water source with use, and pours it back.

@@ -105,7 +105,8 @@ sockets, through `dart:isolate` and `dart:io`, which a browser does not have.
 
 2. **Declare items.** Every block you can hold is an item already. One that is eaten says
    what it does in `food`, one that is worn where in `armor`, one that carries a liquid in
-   `bucket` (`Bucket.empty`, `Bucket.full`).
+   `bucket` (`Bucket.empty`, `Bucket.full`). What it looks like is its `shape`, or one
+   read off the rest of its row; `ItemModel.of(item, blocks, items)` builds its voxels.
 
    ```dart
    final items = ItemRegistry([
@@ -113,6 +114,7 @@ sockets, through `dart:isolate` and `dart:io`, which a browser does not have.
      const ItemType('wooden_pickaxe', color: 0xB08850, tool: 'pickaxe', tier: 1, stack: 1, durability: 60),
      const ItemType('apple', color: 0xD03A2A, food: Food(hunger: 4)),
      const ItemType('wool_tunic', color: 0xE8E8E8, stack: 1, armor: Armor('chest', 3)),
+     const ItemType('wool_cap', color: 0xE8E8E8, stack: 1, armor: Armor('head', 1), shape: ItemShape.cap),
    ]);
    ```
 

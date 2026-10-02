@@ -11,6 +11,7 @@ import '../input/voxel_action.dart';
 import '../mobs/mob.dart';
 import 'damage_numbers.dart';
 import 'hud_selector.dart';
+import 'item_icon.dart';
 import 'notices.dart';
 
 /// One status effect as the HUD shows it.
@@ -488,16 +489,7 @@ class DefaultHud extends StatelessWidget {
         ? null
         : Stack(
             children: [
-              Center(
-                child: Container(
-                  width: 24,
-                  height: 24,
-                  color: () {
-                    final t = game.items[id];
-                    return _color(t.r, t.g, t.b);
-                  }(),
-                ),
-              ),
+              Center(child: ItemIcon(game.itemModel(id), size: 32)),
               if (count > 1)
                 Positioned(
                   right: 3,

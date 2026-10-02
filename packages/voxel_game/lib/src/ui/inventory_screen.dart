@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:voxel_engine/content.dart';
 
 import '../core/voxel_game.dart';
+import 'item_icon.dart';
 
 /// The bag and crafting: every slot (the hotbar last, as block sandboxes lay
 /// it out), a stack on the cursor to move between slots, and the recipes of
@@ -97,11 +98,6 @@ class _InventoryScreenState extends State<InventoryScreen> {
     });
   }
 
-  Color _color(String id) {
-    final t = widget.game.items[id];
-    return Color.fromARGB(255, (t.r * 255).round(), (t.g * 255).round(), (t.b * 255).round());
-  }
-
   Widget _stack(ItemStack? s, {double size = 44}) => SizedBox(
     width: size,
     height: size,
@@ -109,9 +105,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
         ? null
         : Stack(
             children: [
-              Center(
-                child: Container(width: size * 0.55, height: size * 0.55, color: _color(s.id)),
-              ),
+              Center(child: ItemIcon(widget.game.itemModel(s.id), size: size * 0.75)),
               if (s.count > 1)
                 Positioned(
                   right: 3,

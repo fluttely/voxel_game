@@ -2,7 +2,6 @@ import 'dart:math' as math;
 
 import 'package:flutter_scene/scene.dart';
 import 'package:vector_math/vector_math.dart';
-import 'package:voxel_engine/core.dart';
 import 'package:voxel_scene/voxel_scene.dart';
 
 import '../core/voxel_game.dart';
@@ -38,14 +37,27 @@ class ItemPickup extends GameEntity {
   /// Seconds it lies before vanishing.
   static const double life = 300.0;
 
+  /// How much of its held size a drop is drawn at: a block's item a quarter
+  /// of a block a side.
+  static const double size = 0.7;
+
   double _age = 0.0;
 
   @override
   void attached(VoxelGame game) {
     setup(game.world, 0.125, 0.25);
     if (game.headless) return;
-    final t = game.items[item];
-    node.add(Node(mesh: Mesh(PickupModel.of(t.r, t.g, t.b).geometry, VoxelModelMesh.material())));
+    node.add(_dropNode(ItemMesh.of(game.itemModel(item))));
+  }
+
+  /// A node drawing [mesh] as a drop: [size] times its held size, standing
+  /// on its floor and turning about its own middle, whatever it is held by.
+  static Node _dropNode(ItemMesh mesh) {
+    final b = mesh.model.bounds();
+    final c = b.center;
+    return mesh.node()
+      ..scale = Vector3.all(size)
+      ..position = Vector3(-c.x * size, -b.min.y * size, -c.z * size);
   }
 
   @override
@@ -79,26 +91,4 @@ class ItemPickup extends GameEntity {
     move(dt);
     syncNode(at: position + Vector3(0, 0.1 + math.sin(_age * 2.5) * 0.06, 0), yaw: _age * 1.8);
   }
-}
-
-/// The look of a drop of one colour, built once ([of]): its voxels, and its
-/// mesh, made the first time a drop of it is drawn. Every drop of that colour
-/// hangs its own node on the one mesh, so flutter_scene draws them once a
-/// pass, instanced, instead of once a drop.
-class PickupModel {
-  PickupModel._(Vector3 color) {
-    VoxelModel.box(voxels, IVec3.zero, const IVec3(3, 3, 3), color, 0.06);
-  }
-
-  /// The model of a drop coloured [r], [g], [b]: the same object for every
-  /// call with the same colour, whatever item it is.
-  factory PickupModel.of(double r, double g, double b) => _built[(r, g, b)] ??= PickupModel._(Vector3(r, g, b));
-
-  static final Map<(double, double, double), PickupModel> _built = {};
-
-  /// The cube, in voxels.
-  final Map<IVec3, Vector3> voxels = {};
-
-  /// The mesh, one for every drop of this colour.
-  late final MeshGeometry geometry = VoxelModelMesh.geometry(voxels, 0.0625, Vector3(2, 0, 2))!;
 }
