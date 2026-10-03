@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **Sound catches up, footsteps (VA17b).** A block tagged `step:<kind>` sounds `step_<kind>`
+  when walked on; untagged, `step_<family>` as before (its `sound:` tag, else the guess).
+  `VoxelGame.stepSound` (new) is that choice. A `step:` kind must be a sound the game has —
+  stock (sound_recipes adds `step_sand` and `step_snow`), one of `SoundSpec.recipes` or of
+  `SoundSpec.assets` (`SoundSpec.has`, new) — or `VoxelGameSpec.checkSteps` (new, run when
+  the game is made) throws, as it does for a block tagged twice (`SoundSpec.stepKindOf`,
+  new). Recorded takes declared as `SoundSpec.assets` under a stock name (`step_snow`)
+  play instead of the synthesised one, with no code. The example tags its sand, soul sand
+  and gravel `step:sand` and its snow `step:snow`.
 - **Sound catches up, music (VA17a). Breaking:** `SoundSpec.music` is a `MusicSpec?`
   (new; null, the default, is no music) instead of a map of moods to asset paths. A
   `MusicSpec` names its `tracks`, each a `MusicTrack` (new): a `MusicScore` synthesised at

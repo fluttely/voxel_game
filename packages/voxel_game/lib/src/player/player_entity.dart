@@ -507,7 +507,7 @@ class PlayerEntity extends NodeBody implements Target, Angler {
       if (_stepTimer <= 0.0) {
         _stepTimer = sprinting ? 0.3 : 0.4;
         final under = _game.world.getBlockXYZ(position.x.floor(), (position.y - 0.05).floor(), position.z.floor());
-        if (under != 0) _game.playSound('step_${_game.soundFamily(under)}', volumeDb: -8.0);
+        if (under != 0) _game.playSound(_game.stepSound(under), volumeDb: -8.0);
       }
     }
     if (inLiquid && !_wasInLiquid) _game.playSound('splash', volumeDb: -6.0);

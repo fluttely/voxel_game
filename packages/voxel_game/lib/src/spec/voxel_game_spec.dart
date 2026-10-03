@@ -341,6 +341,17 @@ class VoxelGameSpec {
     }
   }
 
+  /// Throws [ArgumentError] for a block tagged `step:<kind>` when `step_<kind>`
+  /// is no sound the game has ([SoundSpec.has]), or tagged twice.
+  void checkSteps() {
+    for (final b in blocks) {
+      final kind = SoundSpec.stepKindOf(b);
+      if (kind != null && !sounds.has('step_$kind')) {
+        throw ArgumentError.value('step:$kind', b.id, 'step_$kind is no stock sound, recipe or asset of the game');
+      }
+    }
+  }
+
   /// Throws [ArgumentError] for music ([SoundSpec.music]) naming a track it
   /// has not, a biome no dimension's world has, or a dimension not declared.
   void checkMusic() => sounds.music?.check(

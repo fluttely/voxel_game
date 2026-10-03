@@ -30,6 +30,7 @@ import '../player/player_entity.dart';
 import '../settings/game_settings.dart';
 import '../spec/graphics_spec.dart';
 import '../spec/signal_spec.dart';
+import '../spec/sound_spec.dart';
 import '../spec/voxel_game_spec.dart';
 import '../ui/damage_numbers.dart';
 import '../ui/game_screen.dart';
@@ -75,6 +76,7 @@ class VoxelGame {
     spec.checkVehicles(items);
     spec.checkFishing(blocks, items);
     spec.checkMusic();
+    spec.checkSteps();
     portals = Portals(world, spec.portals);
     _applyLive(settings);
     pathCosts = blocks.pathCosts(avoidLiquids: const {'lava'});
@@ -631,6 +633,13 @@ class VoxelGame {
     if (!t.opaque && t.solid && t.tool == null) return SoundFamily.plant;
     return SoundFamily.stone;
   });
+
+  final Map<int, String> _steps = {};
+
+  /// The sound block [id] makes when walked on: `step_<kind>` for a block
+  /// tagged `step:<kind>`, else `step_<family>` ([soundFamily]).
+  String stepSound(int id) =>
+      _steps.putIfAbsent(id, () => 'step_${SoundSpec.stepKindOf(blocks[id]) ?? soundFamily(id)}');
 
   /// Plays [name] as heard from [at] by the player: quieter with distance,
   /// nothing past 32 m; at the player when [at] is null. All of it under the

@@ -36,6 +36,13 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
   one: `dimensions`, `cave`, `biomes`, `day`, `night` (null keeps the day's). Places naming
   one track share it without a fade, and a track's `title` is told when it starts
   (`VoxelGame.musicTrack`).
+- Footsteps by the ground: a block sounds `step_<family>` when walked on, or `step_<kind>`
+  when tagged `step:<kind>` (`BlockType('sand', ..., tags: {'step:sand'})`); sound_recipes
+  has `step_sand` and `step_snow` beside the families'. A kind the game has no sound for
+  throws when the game is made. To step on recorded takes instead, declare them under the
+  same name — `SoundSpec(assets: {'step_snow': ['assets/snow_1.wav', 'assets/snow_2.wav']})`
+  — and they replace the synthesised sound, a random take each step; a new kind
+  (`step:mud`) is a recipe or assets named `step_mud`.
 - Survival, declared: `PlayerSpec.hunger` (a `HungerSpec`: the bar empties, a full one heals,
   an empty one starves), `PlayerSpec.xp` (an `XpSpec` curve; `PlayerEntity.gainXp`), food
   (`ItemType(food: Food(hunger: 4, heal: 2, effect: 'regeneration', seconds: 8))`, eaten with

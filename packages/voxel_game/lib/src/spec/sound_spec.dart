@@ -1,4 +1,5 @@
 import 'package:sound_recipes/sound_recipes.dart';
+import 'package:voxel_engine/content.dart';
 
 import 'music_spec.dart';
 
@@ -8,6 +9,11 @@ import 'music_spec.dart';
 /// `'sound:wood'` sounds of wood; untagged, a liquid sounds of liquid, a block
 /// mined with an axe of wood, with a shovel of earth, a see-through solid of
 /// glass, a plant or flower of plant, anything else of stone.
+///
+/// A block's footstep is `step_<family>`, unless it is tagged `'step:<kind>'`:
+/// then `step_<kind>`, a sound the game must have (stock — `step_sand`,
+/// `step_snow` beside the families' —, one of [recipes] or of [assets]). Recorded
+/// takes under a stock name (`step_snow`) replace the synthesised one.
 class SoundSpec {
   /// Sound on, the stock set.
   const SoundSpec({
@@ -36,4 +42,20 @@ class SoundSpec {
   /// The music's loudness, linear: the default of the player's
   /// `GameSettings.musicVolume`, which the music plays at.
   final double musicVolume;
+
+  /// Whether [name] is a sound the game has: stock, one of [recipes] or of
+  /// [assets].
+  bool has(String name) => StockSounds.all.containsKey(name) || recipes.containsKey(name) || assets.containsKey(name);
+
+  /// The footstep kind block [t] is tagged with (`'step:sand'` is `sand`), or
+  /// null for none. Throws [ArgumentError] for two.
+  static String? stepKindOf(BlockType t) {
+    String? kind;
+    for (final tag in t.tags) {
+      if (!tag.startsWith('step:')) continue;
+      if (kind != null) throw ArgumentError.value(t.tags, t.id, 'a block steps one way: two step: tags');
+      kind = tag.substring(5);
+    }
+    return kind;
+  }
 }

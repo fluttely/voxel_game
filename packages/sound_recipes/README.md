@@ -13,7 +13,7 @@ synthesis, a bank and a player.
 ## Features
 
 - `SoundRecipe` + `renderWav`: a sound is a length and a waveform function.
-- `StockSounds`: `break_`, `place_` and `step_` for every `SoundFamily`, plus `hit`, `hurt`, `pickup`, `explode` and more.
+- `StockSounds`: `break_`, `place_` and `step_` for every `SoundFamily`, `step_sand` and `step_snow`, plus `hit`, `hurt`, `pickup`, `explode` and more.
 - `SoundBank`: plays sounds by name, from recipes or asset files.
 - `SoundPlayer` / `SilentSounds`: play through an interface, so tests and servers stay silent.
 - `MusicScore` / `StockMusic`: background music synthesised from notes, six stock loops.
