@@ -1,8 +1,8 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
+
+import '../spec/game_title.dart' as spec;
 
 /// Stage 30: the credits — engine, fonts, audio, lineage, then every stage of
 /// the roadmap — scrolling up from the bottom. Esc (or the button) closes it.
@@ -18,41 +18,16 @@ class CreditsScreen extends StatefulWidget {
   /// A probe capture starts part-way through the scroll.
   final double startSeconds;
 
-  static const String roadmapAsset = 'ROADMAP.md';
+  static const String roadmapAsset = spec.roadmapAsset;
   static const double speed = 42.0; // px per second
 
-  /// Every `| N | title ...` row of the roadmap's stage table, as
-  /// "Stage N — title": the bold lead when the row has one, else the stage cell
-  /// cut at its first sentence.
-  static List<String> parseStages(String text) {
-    final row = RegExp(r'^\|\s*(\d+[ab]?)\s*\|\s*(.+?)\s*\|');
-    final bold = RegExp(r'^\*\*(.+?)\*\*');
-    final out = <String>[];
-    for (final line in text.split('\n')) {
-      final m = row.firstMatch(line);
-      if (m == null) continue;
-      final cell = m.group(2)!;
-      final b = bold.firstMatch(cell);
-      var title = b != null ? b.group(1)! : cell.split('. ').first.split(' (').first;
-      if (title.endsWith('.')) title = title.substring(0, title.length - 1);
-      out.add('Stage ${m.group(1)} — $title');
-    }
-    return out;
-  }
+  /// The roadmap's stage rows (`stagesOf`, the kit-run title's).
+  static List<String> parseStages(String text) => spec.stagesOf(text);
 
   static Future<List<String>> loadStages() async => parseStages(await rootBundle.loadString(roadmapAsset));
 
-  static List<String> creditsLines(List<String> stages) => [
-        'VOXEL MINECRAFT', '', 'a Minecraft clone built on voxel_game, made to be played', '',
-        'Engine', 'Flutter + flutter_scene 0.23 (Flutter GPU / Impeller), Dart ${Platform.version.split(' ').first}',
-        'Dart for the game, a pool of isolates for chunk generation and meshing', '',
-        'Fonts', 'the system fallback font (no font files)', '',
-        'Music and sound', 'music synthesised by sound_recipes (StockMusic), footsteps from Dawnforge (the 2D game)', 'every other sound procedural, rendered in Dart, all played through SoLoud', '',
-        'Lineage', 'the Godot POC (GDScript + C#), ported file by file; before it, the dev_3d_spike probe', '',
-        'Stages',
-        ...stages,
-        '', '', 'Thanks for playing.', '', 'Esc closes',
-      ];
+  /// The credits around the stages (`creditsAround`, the kit-run title's).
+  static List<String> creditsLines(List<String> stages) => spec.creditsAround(stages);
 
   @override
   State<CreditsScreen> createState() => _CreditsScreenState();

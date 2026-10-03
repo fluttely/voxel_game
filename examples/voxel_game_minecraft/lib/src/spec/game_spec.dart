@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:voxel_game/voxel_game.dart';
 
+import '../player/heartbeat.dart';
 import 'block_table.dart';
 import 'effect_table.dart';
 import 'game_sounds.dart';
@@ -73,6 +74,8 @@ final VoxelGameSpec gameSpec = VoxelGameSpec(
     critChance: 0.1,
   ),
   mobs: mobTable,
+  // The player's heart is heard while its health is low.
+  systems: _systems,
   vehicles: const [
     BoatSpec(item: 'boat'),
     CartSpec(item: 'minecart'),
@@ -101,5 +104,7 @@ final VoxelGameSpec gameSpec = VoxelGameSpec(
   // A frame is held back while the GPU is busy, which keeps the menus' text whole (`GpuPacedScene`).
   graphics: (_phone ? GraphicsSpec.phone : GraphicsSpec.desktop).copyWith(paced: true),
 );
+
+List<GameSystem> _systems() => [Heartbeat()];
 
 bool get _phone => defaultTargetPlatform == TargetPlatform.iOS || defaultTargetPlatform == TargetPlatform.android;

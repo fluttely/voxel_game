@@ -1,0 +1,148 @@
+import 'dart:math' as math;
+import 'dart:ui' as ui;
+
+import 'package:flutter/material.dart';
+import 'package:voxel_game/voxel_game.dart';
+
+import '../player/heartbeat.dart';
+
+/// The kit's HUD ([DefaultHud]) with the game's own pieces on it: the clock
+/// line at the top ([clockOf]), the name and health of the creature in the
+/// crosshair over it ([aimedOf]), and while the player's health is low
+/// (`Heartbeat.isLow`) a red edge pulsing under it all, as the heart beats.
+///
+/// Every piece of the game's is behind an [IgnorePointer]: a finger still
+/// reaches the kit's hotbar and the world.
+class GameHud extends StatelessWidget {
+  /// The HUD of [game].
+  const GameHud(this.game, {super.key});
+
+  /// A `HudBuilder` of this HUD.
+  static Widget builder(BuildContext context, VoxelGame game) => GameHud(game);
+
+  /// The game shown.
+  final VoxelGame game;
+
+  /// Pixels the clock line moves down while the kit's boss bar is at the top.
+  static const double underBossBar = 44.0;
+
+  static const _shadow = [Shadow(offset: Offset(1, 1), blurRadius: 2)];
+
+  /// The clock line: the hour, the biome the player stands in, `(night)`
+  /// after sunset and the weather when it is not clear, three spaces between
+  /// them. In a dimension with a still sky (`SkySpec.dimensions`) there is no
+  /// hour and no weather: the line is the dimension's name.
+  static String clockOf(VoxelGame game) {
+    if (game.dimensionSky != null) return _named(game.dimension);
+    final hours = game.timeOfDay * 24.0;
+    final cell = IVec3.floor(game.player.position);
+    final weather = game.weather.kind;
+    return [
+      '${_two(hours.floor())}:${_two(((hours % 1.0) * 60.0).floor())}',
+      _named(game.world.generator.biomeAt(cell.x, cell.z).name),
+      if (game.isNight) '(night)',
+      if (weather != WeatherKind.clear) _named(weather.name),
+    ].join('   ');
+  }
+
+  /// What the crosshair is on, as the HUD names it: the creature's name and
+  /// its health (`Zombie  12/20`), or null on none or a dead one.
+  static String? aimedOf(VoxelGame game) {
+    final m = game.player.aimedMob;
+    if (m == null || m.isDead) return null;
+    return '${m.name}  ${m.hp.ceil()}/${m.maxHp.ceil()}';
+  }
+
+  static String _two(int n) => n.toString().padLeft(2, '0');
+
+  // An id as a name: `frozen_shore` is Frozen Shore.
+  static String _named(String id) =>
+      id.split('_').map((w) => w.isEmpty ? w : w[0].toUpperCase() + w.substring(1)).join(' ');
+
+  @override
+  Widget build(BuildContext context) {
+    final frames = game.frames;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        IgnorePointer(
+          child: HudSelector(
+            frames: frames,
+            select: () => Heartbeat.isLow(game.player),
+            builder: (context, low) => low ? CustomPaint(painter: LowHealthEdge(game)) : const SizedBox.shrink(),
+          ),
+        ),
+        DefaultHud(game),
+        IgnorePointer(
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Align(
+                alignment: Alignment.topCenter,
+                child: HudSelector(
+                  frames: frames,
+                  select: () => (line: clockOf(game), boss: game.boss != null),
+                  builder: (context, s) => Padding(
+                    padding: EdgeInsets.only(top: 12 + (s.boss ? underBossBar : 0)),
+                    child: Text(s.line, style: const TextStyle(fontSize: 16, shadows: _shadow)),
+                  ),
+                ),
+              ),
+              Center(
+                child: HudSelector(
+                  frames: frames,
+                  select: () => aimedOf(game),
+                  builder: (context, aimed) => aimed == null
+                      ? const SizedBox.shrink()
+                      : Transform.translate(
+                          offset: const Offset(0, -40),
+                          child: Text(
+                            aimed,
+                            style: const TextStyle(fontSize: 16, color: Color(0xFFFFCCCC), shadows: _shadow),
+                          ),
+                        ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// The red edge of a player low on health: clear to 45 % of the way from the
+/// centre to the screen's edge, red at it and past it, its strength pulsing
+/// about once a second on the game's clock ([strength]).
+class LowHealthEdge extends CustomPainter {
+  /// The edge of [game]'s player, repainted on every frame.
+  LowHealthEdge(this.game) : super(repaint: game.frames);
+
+  /// The game whose clock the edge pulses on.
+  final VoxelGame game;
+
+  /// How strong the edge is at [time] seconds of game time: 0.15 .. 0.55.
+  static double strength(double time) => 0.35 + 0.2 * math.sin(time * 1000.0 / 150.0);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final h = size.height;
+    canvas.save();
+    canvas.translate(size.width * 0.5, h * 0.5);
+    canvas.scale(size.width / h, 1.0);
+    canvas.drawRect(
+      Rect.fromCenter(center: Offset.zero, width: h, height: h),
+      Paint()
+        ..shader = ui.Gradient.radial(
+          Offset.zero,
+          h * 0.5,
+          [const Color(0x00CC0000), const Color(0xFFCC0000).withValues(alpha: 0.85 * strength(game.time))],
+          const [0.45, 1.0],
+        ),
+    );
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(LowHealthEdge old) => old.game != game;
+}
