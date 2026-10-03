@@ -57,6 +57,13 @@
 - **Cost of leaving it:** a paced game's FPS readout says the world moves at up to twice the rate it is drawn at (the app saw its readout go from 57 to 85 when it paced, `examples/voxel_game_minecraft/ROADMAP.md:173`), and the benchmark cannot weigh pacing at all: an A/B of `paced` on and off would compare tick rates that barely move. Before that A/B is run, `FrameReport` needs the scene frames rendered per second beside the Flutter ones.
 - **Found while:** 2026-10-03 — VA-Zg, writing `GraphicsSpec.paced`'s cost into its doc.
 
+### KL-018 · A game that derives a creature from another copies every field by hand
+
+- **Lens:** API / content
+- **Evidence:** `MobSpec` (`packages/voxel_game/lib/src/mobs/mob_spec.dart:120`), `SpawnRule` (`:31`) and `ProjectileSpec` (`packages/voxel_game/lib/src/entities/projectile.dart:19`) have no `copyWith`, nor do the behaviours. The minecraft example's elites (VAD22: each affix a creature of its own) rebuild all 27 fields of a `MobSpec` (`examples/voxel_game_minecraft/lib/src/spec/mob_table.dart:587`), all 8 of a `SpawnRule` (`:575`), all 15 of a `ProjectileSpec` (`:732`) and a `MeleeAttack` and a `RangedAttack` field by field (`:556`), to change four numbers.
+- **Cost of leaving it:** a field added to any of them later is silently dropped from every derived creature (a field like `hurtSound`, added later, would leave the app's 132 elites without it) and nothing fails; every game that scales a creature (a variant, a difficulty, a test) writes the same copy. `VoxelGameSpec` and `GraphicsSpec` have one already (`KL-010` is the nullable-field question it raised).
+- **Found while:** 2026-10-03 — VA-Zh, generating the app's elites as `MobSpec` variants.
+
 ## Closed
 
 ### KL-015 · A ghost cannot be drawn see-through: every rig shares one opaque material
