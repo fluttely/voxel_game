@@ -26,11 +26,14 @@ import 'frame_stats.dart';
 /// about three frames queued (a Metal System Trace of `orbit:6` at 120 Hz: 9.8
 /// ms of GPU work a frame, 29 ms of this latency).
 ///
-/// It is a [ResizeSafeScene], so a resize never leaves the sun's cached shadow
-/// tiles on a freed depth texture (a Vulkan driver crash, `KL-008`).
-final class MeasuredScene extends ResizeSafeScene {
-  /// A scene reporting to [stats].
-  MeasuredScene(this.stats);
+/// It is a [GpuPacedScene], paced when [GraphicsSpec.paced] says so: a frame is
+/// encoded, and measured, only on the ticks that render one, and the lag counts
+/// ticks all the same. And so a [ResizeSafeScene]: a resize never leaves the
+/// sun's cached shadow tiles on a freed depth texture (a Vulkan driver crash,
+/// `KL-008`).
+final class MeasuredScene extends GpuPacedScene {
+  /// A scene reporting to [stats], held back on a busy GPU when [paced].
+  MeasuredScene(this.stats, {required super.paced});
 
   /// Where the samples go.
   final FrameStats stats;
@@ -47,10 +50,15 @@ final class MeasuredScene extends ResizeSafeScene {
     while (_inFlight.isNotEmpty && _inFlight.first.$1 <= done) {
       stats.addGpuLag(_frame - _inFlight.removeFirst().$2);
     }
+    super.renderViews(views, canvas, region: region, pixelRatio: pixelRatio);
+  }
+
+  @override
+  void renderFrame(List<RenderView> views, ui.Canvas canvas, {ui.Rect? region, double? pixelRatio}) {
     _watch
       ..reset()
       ..start();
-    super.renderViews(views, canvas, region: region, pixelRatio: pixelRatio);
+    super.renderFrame(views, canvas, region: region, pixelRatio: pixelRatio);
     _watch.stop();
     stats.addEncode(_watch.elapsedMicroseconds / 1000.0);
     _inFlight.add((rendererSubmissions.latestSubmission, _frame));

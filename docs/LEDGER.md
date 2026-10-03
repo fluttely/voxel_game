@@ -50,6 +50,13 @@
 - **Cost of leaving it:** a player on a pad holds the first slot for the whole game: no tool, block or food but the one the bag put there, unless they open the bag and move stacks into it. Mouse and touch each have their own way, a pad has none. The fix is a `hotbarNext` / `hotbarPrevious` pair of actions on the bumpers read beside the wheel, and a game that wants the bumpers (the app's abilities) moving them with `InputBindings.rebind`.
 - **Found while:** 2026-10-02 — VA-Za, choosing pad buttons for `fly` and `glide` among the free ones.
 
+### KL-017 · The frame rate the kit reports is the ticks', not the world's frames drawn
+
+- **Lens:** measurement
+- **Evidence:** `packages/voxel_game/lib/src/loop/frame_stats.dart:27-31`: `FrameStats.fps` counts `addFrame` calls, one per `VoxelGame.frame` (`packages/voxel_game/lib/src/core/voxel_game.dart:976`), and a `FrameReport`'s frame rate and intervals come from Flutter's `FrameTiming`s (`frame_stats.dart:48-59`, `:240`). Neither sees a scene frame. With `GraphicsSpec.paced` (VA-Zg) the world is rendered only on the vsyncs that find the last frame finished, about every other one at 120 Hz, while the ticks and the Flutter frames run on every vsync: the count is `GpuPacedScene.rendered`, which nothing reads. A throwaway run of the example, paced, on 2026-10-03: `rendered=1006 shown=1047`.
+- **Cost of leaving it:** a paced game's FPS readout says the world moves at up to twice the rate it is drawn at (the app saw its readout go from 57 to 85 when it paced, `examples/voxel_game_minecraft/ROADMAP.md:173`), and the benchmark cannot weigh pacing at all: an A/B of `paced` on and off would compare tick rates that barely move. Before that A/B is run, `FrameReport` needs the scene frames rendered per second beside the Flutter ones.
+- **Found while:** 2026-10-03 — VA-Zg, writing `GraphicsSpec.paced`'s cost into its doc.
+
 ## Closed
 
 ### KL-015 · A ghost cannot be drawn see-through: every rig shares one opaque material

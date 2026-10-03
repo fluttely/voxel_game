@@ -21,6 +21,9 @@ and night sky, block models and the selection outline.
   as `DayNightSky`'s does. It drops the cache on the frame the view changes size, which
   keeps Impeller's Vulkan backend from beginning a render pass on a freed depth texture
   (flutter/flutter#192538), a crash seen on Adreno phones as a game turns to landscape.
+- `GpuPacedScene`: a `ResizeSafeScene` whose frames reach the screen only once the GPU has
+  finished them, so text over the scene stays readable on a busy GPU under Metal; the
+  scene shows one frame late and renders only when the last one is done (`ScenePacer`).
 - `ItemMesh`: one mesh per `ItemModel`, shared by everything that draws the item.
 - `DayNightSky`, `VoxelModelMesh`, `RigPart`, `NodeBody`.
 

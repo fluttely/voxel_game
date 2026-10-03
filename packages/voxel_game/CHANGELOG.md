@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- **Frame pacing (VA-Zg).**
+  - `GraphicsSpec.paced` (new, off in both presets): the world reaches the screen only
+    once the GPU has finished drawing it, voxel_scene's `GpuPacedScene`. On Metal a
+    Flutter frame held on a busy GPU lets later frames overwrite the glyphs it copies, and
+    the menus and the HUD over the world turn to noise; paced, they stay readable, and the
+    world shows one frame late, drawn on the vsyncs that find the last frame finished.
+    The kit's scene (`MeasuredScene`) is one, and measures only the frames it renders.
+  - `GraphicsSpec.copyWith` (new).
+  - `VoxelGame.scene` is a `GpuPacedScene` (re-exported; it was a `Scene`), so a game reads
+    its `rendered` and `shown`; `VoxelGame.dispose` lets go of the pictures it holds.
+
 - **Net for a game (VA-Zf).**
   - `VoxelGameSpec.messages` (new): a game's own message types → `MessageHandler` (new:
     `(game, from, message)`), called where one arrives, with the sender's peer number (the

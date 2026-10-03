@@ -244,7 +244,10 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
   default HUD takes a game's bars beside its own: `DefaultHud(game, bars: [HudBar('Mana',
   color: ..., fill: (game) => ...)])`.
 - `GraphicsSpec`: render scale, a pixel-ratio cap, anti-aliasing and the sun's shadows, with
-  a `desktop` and a `phone` preset (the phone's is picked on iOS and Android).
+  a `desktop` and a `phone` preset (the phone's is picked on iOS and Android). `paced`
+  shows the world only once the GPU has finished each frame, which keeps the text over it
+  readable on a busy GPU under Metal, at the cost of a frame late and fewer drawn:
+  `GraphicsSpec.desktop.copyWith(paced: true)`.
 - `VoxelGame.stats`: an FPS readout, and per-frame samples (UI, raster, simulation, scene
   encoding, GPU latency) for a benchmark.
 

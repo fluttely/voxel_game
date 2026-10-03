@@ -2,6 +2,15 @@
 
 ## 0.3.0-dev
 
+- `GpuPacedScene` (new): a `ResizeSafeScene` that, when `paced` (the default), shows a
+  frame only once the GPU has finished it, so no Flutter frame waits on the 3D render.
+  On Metal such a wait lets later frames overwrite the glyph bytes the held one copies,
+  and text over the scene turns to noise under load. The scene shows one frame late and
+  renders only when its last frame is finished; `rendered` and `shown` count both.
+  `renderFrame` is the render itself, for a subclass to measure; `warmUp` is never
+  paced. `ScenePacer` (new) is the holding back, pure: a test hands it the GPU's
+  submission ids.
+
 - A dimension's own sky and a haze (VA-Ze). `StillSky` (new): zenith, horizon, ground and
   ambient colours (`0xRRGGBB`), its ambient's energy and its sky light, no sun;
   `SkyLook.still` (new) is how it looks, and `SkyLook.ground` (new) the colour below the

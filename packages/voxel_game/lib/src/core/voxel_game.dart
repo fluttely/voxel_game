@@ -276,7 +276,7 @@ class VoxelGame {
       worldInfo: info,
     );
     final g = game.graphics, shadows = g.shadows;
-    game.scene = MeasuredScene(game.stats)
+    game.scene = MeasuredScene(game.stats, paced: g.paced)
       ..antiAliasingMode = g.antiAliasing
       ..renderScale = g.renderScale;
     game.sky = DayNightSky(
@@ -559,7 +559,7 @@ class VoxelGame {
   final bool headless;
 
   /// The scene; null headless.
-  Scene? scene;
+  GpuPacedScene? scene;
 
   /// The sky, sun and fog; null headless.
   DayNightSky? sky;
@@ -1411,6 +1411,7 @@ class VoxelGame {
   /// Stops the worker isolates, the input devices and the network.
   void dispose() {
     session?.close();
+    scene?.dispose();
     world.dispose();
     input.dispose();
     _frames.dispose();
