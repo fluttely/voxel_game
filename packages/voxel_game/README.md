@@ -30,6 +30,12 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
 
 - `VoxelGameSpec`: blocks, items, recipes, status effects, world, player, mobs, vehicles,
   fishing, sky, sounds, circuits, liquids, screens.
+- Music with no files: `SoundSpec(music: MusicSpec(...))` names its `tracks`, each a
+  `MusicTrack` of a `MusicScore` (sound_recipes' `StockMusic` has six) synthesised at first
+  play, an `asset` file that plays instead when bundled, or both; then the places that play
+  one: `dimensions`, `cave`, `biomes`, `day`, `night` (null keeps the day's). Places naming
+  one track share it without a fade, and a track's `title` is told when it starts
+  (`VoxelGame.musicTrack`).
 - Survival, declared: `PlayerSpec.hunger` (a `HungerSpec`: the bar empties, a full one heals,
   an empty one starves), `PlayerSpec.xp` (an `XpSpec` curve; `PlayerEntity.gainXp`), food
   (`ItemType(food: Food(hunger: 4, heal: 2, effect: 'regeneration', seconds: 8))`, eaten with

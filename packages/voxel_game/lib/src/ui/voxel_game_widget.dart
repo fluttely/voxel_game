@@ -9,7 +9,6 @@ import 'package:flutter/services.dart' show DeviceOrientation, ServicesBinding, 
 import 'package:flutter_scene/scene.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sound_recipes/sound_recipes.dart';
-import 'package:voxel_engine/core.dart' show IVec3;
 import 'package:voxel_scene/voxel_scene.dart';
 
 import '../core/voxel_game.dart';
@@ -222,7 +221,7 @@ class _VoxelGameWidgetState extends State<VoxelGameWidget> with SingleTickerProv
   Timer? _autosave;
   SoundBank? _bank;
   MusicDirector? _music;
-  Timer? _moodTimer;
+  void Function()? _playTrack;
   SettingsStore? _settingsStore;
   Timer? _settingsWrite;
 
@@ -306,9 +305,23 @@ class _VoxelGameWidgetState extends State<VoxelGameWidget> with SingleTickerProv
     if (!await bank.init() || _disposed) return;
     _bank = bank;
     game.sounds = bank;
-    if (sound.music.isEmpty) return;
-    final music = _music = MusicDirector(sound.music, gain: _musicGain(game.settings.value));
-    _moodTimer = Timer.periodic(const Duration(seconds: 1), (_) => music.setMood(_moodOf(game, sound.music)));
+    final spec = sound.music;
+    if (spec == null) return;
+    // Keyed by track, not by place: places sharing a track keep it playing.
+    final music = _music = MusicDirector(
+      {
+        for (final e in spec.tracks.entries)
+          if (e.value.asset != null) e.key: e.value.asset!,
+      },
+      recipes: {
+        for (final e in spec.tracks.entries)
+          if (e.value.score != null) e.key: e.value.score!.toRecipe(),
+      },
+      gain: _musicGain(game.settings.value),
+    );
+    _playTrack = () => music.setMood(game.musicTrack.value);
+    game.musicTrack.addListener(_playTrack!);
+    _playTrack!();
   }
 
   static double _musicGain(GameSettings s) => s.volume * s.musicVolume;
@@ -320,19 +333,6 @@ class _VoxelGameWidgetState extends State<VoxelGameWidget> with SingleTickerProv
     _music?.setGain(_musicGain(settings));
     _settingsWrite?.cancel();
     _settingsWrite = Timer(const Duration(milliseconds: 500), () => _settingsStore!.write(settings));
-  }
-
-  /// The music's mood: the cave underground, the biome's own track, else day
-  /// or night.
-  static String? _moodOf(VoxelGame game, Map<String, String> tracks) {
-    final p = game.player.position;
-    final cell = IVec3.floor(p);
-    final underground = p.y < game.world.groundHeight(cell.x, cell.z) - 6 && game.world.lightAt(cell).sky < 4;
-    if (underground && tracks.containsKey('cave')) return 'cave';
-    final biome = game.world.generator.biomeAt(cell.x, cell.z).name;
-    if (tracks.containsKey(biome)) return biome;
-    final key = game.daylight > 0.3 ? 'day' : 'night';
-    return tracks.containsKey(key) ? key : null;
   }
 
   void _quit() {
@@ -375,10 +375,11 @@ class _VoxelGameWidgetState extends State<VoxelGameWidget> with SingleTickerProv
   void dispose() {
     _loadingTicker.dispose();
     _autosave?.cancel();
-    _moodTimer?.cancel();
     final unwritten = _settingsWrite?.isActive ?? false;
     _settingsWrite?.cancel();
     if (unwritten) _settingsStore!.write(_game!.settings.value);
+    final playTrack = _playTrack;
+    if (playTrack != null) _game!.musicTrack.removeListener(playTrack);
     _music?.setMood(null);
     _bank?.dispose();
     _save();

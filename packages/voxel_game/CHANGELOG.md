@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- **Sound catches up, music (VA17a). Breaking:** `SoundSpec.music` is a `MusicSpec?`
+  (new; null, the default, is no music) instead of a map of moods to asset paths. A
+  `MusicSpec` names its `tracks`, each a `MusicTrack` (new): a `MusicScore` synthesised at
+  first play, with no files, an `asset` that plays instead when the game bundles it, or both,
+  and an optional `title`. The places that play a track name it, the first that applies
+  winning: `dimensions` (by dimension id), `cave` (underground: well below the ground and
+  out of the sky's light, as before), `biomes` (by name, day and night alike), `day`, and
+  `night`, whose null keeps the day's track playing. `MusicSpec.trackAt` is that choice;
+  `VoxelGameSpec.checkMusic` (new, run when the game is made) throws for a place naming no
+  track, a biome no dimension's world has, or a dimension not declared. `VoxelGame` picks
+  the track once a second in its step (`VoxelGame.musicTrack`, new: null with no music, the
+  sound off, or before the player stands) and tells a track's title on a change
+  (`♪ <title>`); `VoxelGameWidget` plays it through a `MusicDirector` keyed by track, so two
+  places on one track (day and night, two biomes) no longer fade it into itself. The
+  settings offer the music's volume when `music` is not null. `MusicScore` and `StockMusic`
+  are exported. The example declares six stock tracks over its biomes, its caves and its
+  underworld.
 - **Net catches up, last part: floats, seats and shots (VA16g).** Every player sees what
   the others do with a rod, a seat and a shot. A player's pose (a client's `pose`, a row of
   the host's `state`) carries its float while a line is out (`f`) and the way its seat

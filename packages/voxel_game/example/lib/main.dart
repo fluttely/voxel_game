@@ -531,6 +531,25 @@ const game = VoxelGameSpec(
   ),
   // The weather: rain and storms rolled every few minutes (snow where a biome's precipitation is snow).
   sky: SkySpec(weather: WeatherSpec()),
+  // Music written as notes, synthesised at first play (no files): the meadow's by day and by night, wherever no
+  // other plays (the jungle and the plains share it); its own in the desert, the snow and the swamp; the deep's
+  // underground and the underworld's all through it. A recording put in the assets as `asset:` plays instead.
+  sounds: SoundSpec(
+    music: MusicSpec(
+      tracks: {
+        'meadow': MusicTrack(score: StockMusic.pastoral, title: 'Meadow'),
+        'dunes': MusicTrack(score: StockMusic.arid, title: 'Dunes'),
+        'frost': MusicTrack(score: StockMusic.frozen, title: 'Frost'),
+        'marsh': MusicTrack(score: StockMusic.murky, title: 'Marsh'),
+        'deep': MusicTrack(score: StockMusic.cavern, title: 'Deep'),
+        'underworld': MusicTrack(score: StockMusic.infernal, title: 'Underworld'),
+      },
+      day: 'meadow',
+      cave: 'deep',
+      biomes: {'desert': 'dunes', 'tundra': 'frost', 'peaks': 'frost', 'swamp': 'marsh'},
+      dimensions: {'underworld': 'underworld'},
+    ),
+  ),
   // 4. The player: what they start with, hunger that food fills, experience (a kill's, below), and one blow in
   //    ten a critical one.
   player: PlayerSpec(

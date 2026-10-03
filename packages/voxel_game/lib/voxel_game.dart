@@ -7,7 +7,16 @@ library;
 export 'package:flutter_scene/scene.dart' show AntiAliasingMode;
 
 export 'package:sound_recipes/sound_recipes.dart'
-    show MusicDirector, SilentSounds, SoundBank, SoundFamily, SoundPlayer, SoundRecipe, StockSounds;
+    show
+        MusicDirector,
+        MusicScore,
+        SilentSounds,
+        SoundBank,
+        SoundFamily,
+        SoundPlayer,
+        SoundRecipe,
+        StockMusic,
+        StockSounds;
 export 'package:voxel_engine/content.dart';
 export 'package:voxel_engine/core.dart' show BlockShape, IVec3;
 export 'package:voxel_engine/worldgen.dart'
@@ -118,6 +127,8 @@ export 'src/world/rails.dart';
 export 'src/world/world_info.dart';
 export 'src/world/world_save.dart';
 export 'src/camera/first_person_view.dart';
+export 'src/spec/music_spec.dart';
+export 'src/spec/music_track.dart';
 export 'src/spec/sound_spec.dart';
 
 export 'package:voxel_engine/signals.dart'

@@ -74,6 +74,7 @@ class VoxelGame {
     spec.checkMobs(items);
     spec.checkVehicles(items);
     spec.checkFishing(blocks, items);
+    spec.checkMusic();
     portals = Portals(world, spec.portals);
     _applyLive(settings);
     pathCosts = blocks.pathCosts(avoidLiquids: const {'lava'});
@@ -729,6 +730,34 @@ class VoxelGame {
   /// steps no dimension but its own).
   bool get storesHere => authority || session!.hostHere;
 
+  /// The music's track where the player stands, by name
+  /// (`MusicSpec.tracks`), picked once a second; null for silence, with no
+  /// music or sound, and before the player first stands in the world.
+  /// `VoxelGameWidget` plays it, and a track's title is told on a change.
+  ValueListenable<String?> get musicTrack => _musicTrack;
+  final ValueNotifier<String?> _musicTrack = ValueNotifier(null);
+  double _musicIn = 0.0;
+
+  void _pickMusic(double dt) {
+    final music = spec.sounds.music;
+    if (music == null || !spec.sounds.enabled) return;
+    _musicIn -= dt;
+    if (_musicIn > 0.0) return;
+    _musicIn = 1.0;
+    final p = player.position;
+    final cell = IVec3.floor(p);
+    final track = music.trackAt(
+      dimension: dimension,
+      biome: world.generator.biomeAt(cell.x, cell.z).name,
+      underground: p.y < world.groundHeight(cell.x, cell.z) - 6 && world.lightAt(cell).sky < 4,
+      night: daylight <= 0.3,
+    );
+    if (track == _musicTrack.value) return;
+    _musicTrack.value = track;
+    final title = track == null ? null : music.tracks[track]!.title;
+    if (title != null) notify('\u266A $title');
+  }
+
   /// What the HUD tells the player for a few seconds: [notify]'s feed and
   /// the pickups. [frame] ages it.
   final Notices notices = Notices();
@@ -947,6 +976,7 @@ class VoxelGame {
     if (player.placed) {
       player.tick(this, dt, gameplay: gameplay);
       _portalStep(dt);
+      _pickMusic(dt);
     }
     for (final m in List.of(mobs)) {
       m.tick(this, dt);
@@ -1197,6 +1227,7 @@ class VoxelGame {
     _frames.dispose();
     _screen.dispose();
     _settings.dispose();
+    _musicTrack.dispose();
   }
 
   /// The spec of mob [id].

@@ -341,6 +341,15 @@ class VoxelGameSpec {
     }
   }
 
+  /// Throws [ArgumentError] for music ([SoundSpec.music]) naming a track it
+  /// has not, a biome no dimension's world has, or a dimension not declared.
+  void checkMusic() => sounds.music?.check(
+    biomeNames: {
+      for (final w in dimensionWorlds) ...[for (final b in w.biomes) b.name, ?w.ocean?.name, ?w.beach?.name],
+    },
+    dimensionIds: dimensionIds,
+  );
+
   /// Throws [ArgumentError] for [fishing] with a rod that is no item or
   /// places a block, a catch that is no item or a one-of table whose chances
   /// sum over 1 (`LootTable.check`), a liquid kind no block of [blocks] is,

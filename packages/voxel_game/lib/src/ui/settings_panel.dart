@@ -69,7 +69,7 @@ class SettingsPanel extends StatelessWidget {
             20,
             (v) => value.copyWith(volume: _hundredths(v)),
           ),
-        if (sound.enabled && sound.music.isNotEmpty)
+        if (sound.enabled && sound.music != null)
           _slider(
             'Music',
             percent(value.musicVolume),
