@@ -30,6 +30,9 @@ import 'rig.dart';
 /// [lookAt]; they read [target], [lastHurtBy], [sinceHurt] and [home], and
 /// keep their own state in [memory].
 ///
+/// A game's own code sets it back: [stun] stops its brain and its legs for a
+/// while, [slow] cuts its pace, [forget] makes it drop its quarrels.
+///
 /// A tamed one with a `MobSpec.mount` is [Rideable]: its owner rides it, and
 /// its brain rests while they do. In a networked game the rider's side drives
 /// it: a client riding its own pet moves its replica here, and the host's
@@ -200,6 +203,62 @@ class Mob extends GameEntity implements Target, Rideable {
     _hurtFlash = math.max(_hurtFlash - dt, 0.0);
     _freeze = math.max(_freeze - dt, 0.0);
     _flash = math.max(_flash - dt, 0.0);
+    _stun = math.max(_stun - dt, 0.0);
+    _slowLeft = math.max(_slowLeft - dt, 0.0);
+  }
+
+  /// Whether it is stunned ([stun]): it neither thinks nor walks, and falls.
+  bool get stunned => _stun > 0.0;
+  double _stun = 0.0;
+
+  /// What its pace is multiplied by now: a [slow]'s share while it lasts,
+  /// else 1.
+  double get pace => _slowLeft > 0.0 ? _slowShare : 1.0;
+  double _slowShare = 1.0;
+  double _slowLeft = 0.0;
+
+  /// Stuns it for [seconds], or as long as it is stunned already if that is
+  /// longer: its behaviours neither think nor tick and it stands still (a
+  /// flier hangs where it is), though it still falls, burns and is hurt.
+  /// Nothing dead is stunned. Throws for a replica: the host's creature is
+  /// stunned there.
+  void stun(double seconds) {
+    _ownedHere('stunned');
+    if (!(seconds > 0.0)) throw ArgumentError.value(seconds, 'seconds', 'a stun lasts some time');
+    if (_dead) return;
+    _stun = math.max(_stun, seconds);
+    halt();
+  }
+
+  /// Slows it to [share] (0..1) of its pace for [seconds]: a slow on one
+  /// already slowed keeps the slower share and the longer time. Nothing dead
+  /// is slowed. Throws for a replica, as [stun] does.
+  void slow(double share, double seconds) {
+    _ownedHere('slowed');
+    if (!(share >= 0.0 && share < 1.0)) {
+      throw ArgumentError.value(share, 'share', 'a slow is a share of the pace under 1');
+    }
+    if (!(seconds > 0.0)) throw ArgumentError.value(seconds, 'seconds', 'a slow lasts some time');
+    if (_dead) return;
+    _slowShare = _slowLeft > 0.0 ? math.min(_slowShare, share) : share;
+    _slowLeft = math.max(_slowLeft, seconds);
+  }
+
+  /// Makes it forget its quarrels: what it hunted ([target]) and who hurt it
+  /// ([lastHurtBy], [lastHurtFrom]); its behaviours stop, to think again in
+  /// the step. One that hunts on sight finds whoever is in its range again.
+  /// Throws for a replica, as [stun] does.
+  void forget() {
+    _ownedHere('made to forget');
+    _brain.stopAll(this, _game);
+    target = null;
+    lastHurtBy = null;
+    lastHurtFrom = null;
+    halt();
+  }
+
+  void _ownedHere(String what) {
+    if (replica) throw StateError('${spec.id} $netId is the host\'s: it is $what there');
   }
 
   /// Who tamed it, or null for a wild creature.
@@ -458,9 +517,13 @@ class Mob extends GameEntity implements Target, Rideable {
       return;
     }
     _look = null;
-    _brain.think(this, game);
-    if (_brain.holding(BehaviorSlot.move) == null) halt();
-    _brain.tick(this, game, dt);
+    if (stunned) {
+      halt();
+    } else {
+      _brain.think(this, game);
+      if (_brain.holding(BehaviorSlot.move) == null) halt();
+      _brain.tick(this, game, dt);
+    }
     _locomote(game, dt);
     _animate(dt);
     if (position.y < -10.0) removed = true;
@@ -472,7 +535,7 @@ class Mob extends GameEntity implements Target, Rideable {
   Iterable<Behavior> get running => _brain.running.cast<Behavior>();
 
   void _locomote(VoxelGame game, double dt) {
-    final speed = spec.speed * _speedScale;
+    final speed = spec.speed * _speedScale * pace;
     var wish = _direction.clone();
     final goal = _goal;
     if (goal != null) wish = spec.gait == Gait.fly ? _flyToward(goal) : _steer(game, goal, dt);
@@ -492,7 +555,7 @@ class Mob extends GameEntity implements Target, Rideable {
         move(dt);
       case Gait.fly:
         _flap -= dt;
-        if (goal == null && wish.length2 < 0.01 && _flap <= 0.0) {
+        if (goal == null && wish.length2 < 0.01 && _flap <= 0.0 && !stunned) {
           // Idle fliers flutter on a fresh heading every few tenths.
           final r = game.random;
           _flap = 0.2 + r.nextDouble() * 0.4;

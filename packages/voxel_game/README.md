@@ -216,6 +216,18 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
   crafted or eaten, a level, a death, a trip, a mount or a vehicle got on, a taming, a
   catch, a screen opened — in `onEvent`. A `SavedSystem` keeps its state in the world's
   save under its `saveKey`.
+- A game's own uses: `VoxelGameSpec.blockUses: {'bed': sleep}` and `mobUses: {'villager':
+  trade}` call the game's handler on a press of use (a block's unless the player sneaks; a
+  finger's tap on such a creature uses it). A block the kit uses already (a store, a door,
+  a lever, a station, one a tool works) or a creature that is tamed throws when the game
+  is made.
+- The player's numbers from code, each kept by its source: `PlayerEntity.boosts['warrior']
+  = Boost(maxHp: 6, damage: 1.2)` (speed, damage, mining, armour, most health; a respawn
+  keeps them), `damageIn` / `damageOut` filters on a hurt taken and a blow dealt (0 is a
+  dodge), `sprintVetoes` (out of stamina) and `sprinting`, `grantGrace(seconds)` on top of
+  `PlayerSpec.grace`. A creature is set back with `Mob.stun`, `slow` and `forget`. The
+  default HUD takes a game's bars beside its own: `DefaultHud(game, bars: [HudBar('Mana',
+  color: ..., fill: (game) => ...)])`.
 - `GraphicsSpec`: render scale, a pixel-ratio cap, anti-aliasing and the sun's shadows, with
   a `desktop` and a `phone` preset (the phone's is picked on iOS and Android).
 - `VoxelGame.stats`: an FPS readout, and per-frame samples (UI, raster, simulation, scene

@@ -42,7 +42,9 @@ class PlayerSpec {
     this.armorFloor = 0.35,
     this.critChance = 0.0,
     this.critMultiplier = 1.5,
+    this.grace = 0.4,
   }) : assert(armorPerPoint >= 0.0 && armorFloor >= 0.0 && armorFloor <= 1.0),
+       assert(grace >= 0.0),
        assert(critChance >= 0.0 && critChance <= 1.0 && critMultiplier >= 1.0);
 
   /// Health.
@@ -135,6 +137,11 @@ class PlayerSpec {
   /// What a critical blow multiplies the damage by.
   final double critMultiplier;
 
+  /// Seconds after a blow in which no other blow lands
+  /// (`PlayerEntity.graceLeft`; a game grants more with
+  /// `PlayerEntity.grantGrace`).
+  final double grace;
+
   /// This player with the given fields replaced: a world's mode, say
   /// (`WorldInfo.applyTo`). A field that may be null is given as a getter of
   /// its new value, so null can be asked for, as in `VoxelGameSpec.copyWith`.
@@ -166,6 +173,7 @@ class PlayerSpec {
     double? armorFloor,
     double? critChance,
     double? critMultiplier,
+    double? grace,
   }) => PlayerSpec(
     hp: hp ?? this.hp,
     reach: reach ?? this.reach,
@@ -194,5 +202,6 @@ class PlayerSpec {
     armorFloor: armorFloor ?? this.armorFloor,
     critChance: critChance ?? this.critChance,
     critMultiplier: critMultiplier ?? this.critMultiplier,
+    grace: grace ?? this.grace,
   );
 }

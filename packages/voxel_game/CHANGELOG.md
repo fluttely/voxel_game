@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+- **The player's and a creature's numbers from code (VA-Zc).**
+  - Use rules: `VoxelGameSpec.blockUses` (block name → `BlockUse`) and `mobUses` (mob id →
+    `MobUse`), both new, call a game's handler on a press of use, before the kit's own
+    uses: a block's unless the player sneaks (sneaking builds against it), a creature's
+    whenever it lives (`PlayerEntity.usableOn` is true for it, so a finger's tap on it
+    uses). `VoxelGameSpec.checkUses` (new, run when the game is made) throws for an
+    unknown block or mob, a block the kit uses already (a store, a block that turns, a
+    lever or button, a station, one a tool works) and a mob that is tamed.
+  - `PlayerEntity.boosts` (new, `Boost` by source: speed, damage, mining multipliers,
+    armour and most-health points) bend `speedMultiplier`, `damageMultiplier`,
+    `miningMultiplier` (new, with the effects' stats), `armor` and `maxHp`; a respawn keeps
+    them, the kit does not save them, and health over a lowered `maxHp` comes down to it in
+    the step. `damageIn` / `damageOut` (new, `DamageInFilter` / `DamageOutFilter` by
+    source) filter a hurt the player takes (before armour; brought to 0 it never lands and
+    is not felt) and a blow they deal a creature; a negative result throws.
+    `sprintVetoes` (new) stop a sprint on foot and in a saddle, and `sprinting` (new) says
+    whether the player sprints this step. `PlayerSpec.grace` (new, the 0.4 s every blow
+    leaves) and `PlayerEntity.grantGrace` / `graceLeft` (new) give and read it from code.
+  - `Mob.stun(seconds)` (no thinking, no walking; `stunned`), `slow(share, seconds)`
+    (`pace`; a second keeps the slower share and the longer time) and `forget()` (drops
+    its target and who hurt it), all new; each throws on a replica.
+  - `DefaultHud(game, bars: [...])` (new) shows a game's own `HudBar`s (new: a label, a
+    colour, a fill 0..1 read every frame) under the hearts, over the experience.
+  - The example: stamina that a run spends, a sprint veto when it is spent and its bar in
+    the HUD (`hud`); a glowstone is a shrine whose use blesses the player with two more
+    hearts for good (a `Boost`, kept by a `SavedSystem`).
+
 - **Events and a game's save (VA-Zb). Breaking:** `VoxelGameSpec.onBlockBroken`,
   `onBlockPlaced`, `onMobKilled` and `onTick` are gone, and `VoxelGameSpec.systems` is a
   factory (`() => [QuestLog()]`, `VoxelGameSpec.noSystems` by default) instead of a list.

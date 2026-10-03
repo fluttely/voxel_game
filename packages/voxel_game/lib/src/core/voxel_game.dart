@@ -89,6 +89,7 @@ class VoxelGame {
     spec.checkFishing(blocks, items);
     spec.checkMusic();
     spec.checkSteps();
+    spec.checkUses(blocks);
     portals = Portals(world, spec.portals);
     _applyLive(settings);
     pathCosts = blocks.pathCosts(avoidLiquids: const {'lava'});

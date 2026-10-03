@@ -10,6 +10,7 @@ import '../input/input_device.dart';
 import '../input/voxel_action.dart';
 import '../mobs/mob.dart';
 import 'damage_numbers.dart';
+import 'hud_bar.dart';
 import 'hud_selector.dart';
 import 'item_icon.dart';
 import 'notices.dart';
@@ -36,7 +37,8 @@ typedef _EffectChip = ({String id, int power, int seconds});
 /// the hearts only with `PlayerSpec.hunger`, the experience bar and level only
 /// with `PlayerSpec.xp`, the status effects (top left, each with its time
 /// left) only when `VoxelGameSpec.effects` names some. Armour shows over the
-/// hearts while the player has any.
+/// hearts while the player has any. A game's own [bars] (stamina, mana) sit
+/// under the hearts, over the experience.
 ///
 /// At the right, `VoxelGame.notices`: what the game told the player
 /// (`VoxelGame.notify`), and under it what went into the bag (`+5 Dirt`),
@@ -54,14 +56,20 @@ typedef _EffectChip = ({String id, int power, int seconds});
 /// the world's: only a touch picks a slot. Every other piece is behind an
 /// [IgnorePointer], so a touch there reaches whatever is under the HUD.
 class DefaultHud extends StatelessWidget {
-  /// The HUD of [game].
-  const DefaultHud(this.game, {super.key});
+  /// The HUD of [game], with the game's own [bars].
+  const DefaultHud(this.game, {this.bars = const [], super.key});
 
   /// A `HudBuilder` of this HUD.
   static Widget builder(BuildContext context, VoxelGame game) => DefaultHud(game);
 
   /// The game shown.
   final VoxelGame game;
+
+  /// The game's own bars, in this order under the hearts.
+  final List<HudBar> bars;
+
+  /// How wide a bar of [bars] is drawn, its label beside it.
+  static const double barWidth = 160.0;
 
   /// Seconds a creature's bar stays up after it is hurt.
   static const double barSeconds = 4.0;
@@ -256,8 +264,8 @@ class DefaultHud extends StatelessWidget {
     );
   }
 
-  /// Armour over the hearts, hunger beside them, and the experience bar
-  /// under them: each only as declared.
+  /// Armour over the hearts, hunger beside them, the game's [bars] and the
+  /// experience bar under them: each only as declared.
   Widget _bars() {
     final p = game.player;
     final frames = game.frames;
@@ -310,6 +318,7 @@ class DefaultHud extends StatelessWidget {
             ],
           ],
         ),
+        for (final bar in bars) _gameBar(bar),
         if (xp != null)
           HudSelector(
             frames: frames,
@@ -345,6 +354,34 @@ class DefaultHud extends StatelessWidget {
       ],
     );
   }
+
+  /// One of the game's [bars]: its label, then the bar.
+  Widget _gameBar(HudBar bar) => HudSelector(
+    frames: game.frames,
+    select: () {
+      final fill = bar.fill(game);
+      if (!(fill >= 0.0 && fill <= 1.0)) throw StateError('the bar ${bar.label} is filled to $fill, not 0..1');
+      return (fill * 100).round();
+    },
+    builder: (context, percent) => Padding(
+      padding: const EdgeInsets.only(top: 3),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            bar.label,
+            style: TextStyle(fontSize: 12, color: bar.color, shadows: _shadow),
+          ),
+          const SizedBox(width: 6),
+          SizedBox(
+            width: barWidth,
+            height: 6,
+            child: LinearProgressIndicator(value: percent / 100, color: bar.color, backgroundColor: Colors.black54),
+          ),
+        ],
+      ),
+    ),
+  );
 
   /// [of] in icons of two points each, as many as [max] fills: [full] for two,
   /// a faded [half] for one, an outline of [full] for none.

@@ -22,6 +22,7 @@ import 'signal_spec.dart';
 import 'sky_spec.dart';
 import 'sound_spec.dart';
 import 'touch_controls_spec.dart';
+import 'use_handlers.dart';
 
 /// A whole game, declared: its blocks, items and recipes, how its world is
 /// generated, its player, its mobs and its sky. [VoxelGameWidget] (or
@@ -64,6 +65,8 @@ class VoxelGameSpec {
     this.mining = const MiningRules(),
     this.liquids = const {},
     this.systems = noSystems,
+    this.blockUses = const {},
+    this.mobUses = const {},
   });
 
   /// The blocks, air first or added; their order is the save contract.
@@ -176,6 +179,18 @@ class VoxelGameSpec {
   /// [systems] for a game with none of its own.
   static List<GameSystem> noSystems() => const [];
 
+  /// What a use does on a block of the game's own, by the block's name: the
+  /// game's handler instead of building against it (see [checkUses]).
+  ///
+  /// ```dart
+  /// blockUses: {'bed': _sleep, 'waypoint': _openWaypoints},
+  /// ```
+  final Map<String, BlockUse> blockUses;
+
+  /// What a use does on a creature of the game's own, by the mob's id: the
+  /// game's handler, which a finger's tap on it calls too (see [checkUses]).
+  final Map<String, MobUse> mobUses;
+
   /// This game with the given fields replaced: the same world at another
   /// render distance, say, or with a system of a test's.
   ///
@@ -207,6 +222,8 @@ class VoxelGameSpec {
     MiningRules? mining,
     Map<String, LiquidSpec>? liquids,
     List<GameSystem> Function()? systems,
+    Map<String, BlockUse>? blockUses,
+    Map<String, MobUse>? mobUses,
   }) => VoxelGameSpec(
     blocks: blocks ?? this.blocks,
     world: world ?? this.world,
@@ -232,6 +249,8 @@ class VoxelGameSpec {
     mining: mining ?? this.mining,
     liquids: liquids ?? this.liquids,
     systems: systems ?? this.systems,
+    blockUses: blockUses ?? this.blockUses,
+    mobUses: mobUses ?? this.mobUses,
   );
 
   /// The block registry: [blocks] with air first.
@@ -380,6 +399,41 @@ class VoxelGameSpec {
         throw ArgumentError.value(action, e.key, 'the action opens the screen $other already');
       }
       opened[action] = e.key;
+    }
+  }
+
+  /// Throws [ArgumentError] for a use of [blockUses] on a block not in
+  /// [registry] or one the kit uses already (a store, a block that turns
+  /// like a door, a lever or a button of [signals], a station some recipe
+  /// names, one a tool works), and for a use of [mobUses] on a mob not
+  /// declared or one that is tamed (the use tames it and rides it).
+  void checkUses(BlockRegistry<BlockType> registry) {
+    final stations = {
+      for (final r in recipes)
+        if (r.station.isNotEmpty) r.station,
+    };
+    final s = signals;
+    final switches = {
+      ...?s?.levers.keys,
+      ...?s?.levers.values,
+      ...?s?.buttons.keys,
+      ...?s?.buttons.values.map((b) => b.$1),
+    };
+    for (final name in blockUses.keys) {
+      if (!registry.has(name)) throw ArgumentError.value(name, 'blockUses', 'no such block');
+      final b = registry[registry.indexOf(name)];
+      if (b.storage != null ||
+          b.usedInto != null ||
+          b.turnsWith.isNotEmpty ||
+          switches.contains(name) ||
+          stations.contains(name)) {
+        throw ArgumentError.value(name, 'blockUses', 'the kit uses the block already');
+      }
+    }
+    for (final id in mobUses.keys) {
+      final m = mobs.where((m) => m.id == id).firstOrNull;
+      if (m == null) throw ArgumentError.value(id, 'mobUses', 'no such mob');
+      if (m.tameWith.isNotEmpty) throw ArgumentError.value(id, 'mobUses', 'a use tames the mob already');
     }
   }
 

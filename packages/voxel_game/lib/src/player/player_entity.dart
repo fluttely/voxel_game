@@ -24,7 +24,9 @@ import '../vehicles/minecart.dart';
 import '../vehicles/rideable.dart';
 import '../vehicles/vehicle.dart';
 import '../vehicles/vehicle_spec.dart';
+import 'boost.dart';
 import 'character_motor.dart';
+import 'damage_filters.dart';
 import 'player_spec.dart';
 
 /// The player: a body driven by [VoxelAction]s that looks, walks, swims,
@@ -39,6 +41,12 @@ import 'player_spec.dart';
 /// carries status effects ([effects]) and gains experience ([PlayerSpec.xp]).
 /// The effects bend four stats by name: [speedStat], [damageStat],
 /// [miningStat] (multipliers) and [armorStat] (points added).
+///
+/// A game's own code bends its numbers too, each change kept by its source:
+/// [boosts] (speed, damage, mining, armour, most health; kept across a
+/// respawn), [damageIn] and [damageOut] (what a hurt taken or a blow dealt
+/// comes to), [sprintVetoes] (no sprint while one says so), and
+/// [grantGrace] (a moment no blow lands).
 class PlayerEntity extends NodeBody implements Target, Angler {
   /// A player of [spec] with [inventory] as its bag, carrying [effects].
   PlayerEntity(this.spec, this.inventory, this.effects)
@@ -141,17 +149,82 @@ class PlayerEntity extends NodeBody implements Target, Angler {
   /// The experience level, from 0.
   int level = 0;
 
-  /// The most health: [PlayerSpec.hp], raised by each [level].
-  double get maxHp => spec.hp + level * (spec.xp?.hpPerLevel ?? 0.0);
+  /// The most health: [PlayerSpec.hp], raised by each [level] and by the
+  /// [boosts]. Health over it (a boost removed) comes down to it in the step.
+  double get maxHp {
+    var most = spec.hp + level * (spec.xp?.hpPerLevel ?? 0.0);
+    for (final b in boosts.values) {
+      most += b.maxHp;
+    }
+    return most;
+  }
+
+  /// The game's lasting changes to the player's numbers, by source (a class,
+  /// a talent): set one to give it, remove it to take it back. A respawn
+  /// keeps them; the kit does not save them.
+  final Map<String, Boost> boosts = {};
+
+  /// The game's filters on a hurt the player takes, by source, run in the
+  /// order they were added (see [DamageInFilter]).
+  final Map<String, DamageInFilter> damageIn = {};
+
+  /// The game's filters on a blow the player deals a creature, by source, run
+  /// in the order they were added (see [DamageOutFilter]).
+  final Map<String, DamageOutFilter> damageOut = {};
+
+  /// The game's say on a sprint, by source: while one returns true the
+  /// player does not sprint (out of stamina, say), on foot or in a saddle.
+  final Map<String, bool Function()> sprintVetoes = {};
+
+  /// Whether the player sprints this step: the button held, moving forward,
+  /// out of the water, and no [sprintVetoes] against it; in a saddle, whether
+  /// the mount is urged on.
+  bool get sprinting => _sprinting;
+  bool _sprinting = false;
+
+  /// What the speed is multiplied by now: the [speedStat] of the effects
+  /// times the [boosts]'.
+  double get speedMultiplier => _boosted(speedStat, (b) => b.speed);
+
+  /// What the damage of a blow is multiplied by now: the [damageStat] of
+  /// the effects times the [boosts]'.
+  double get damageMultiplier => _boosted(damageStat, (b) => b.damage);
+
+  /// What how fast blocks are mined is multiplied by now: the [miningStat]
+  /// of the effects times the [boosts]'.
+  double get miningMultiplier => _boosted(miningStat, (b) => b.mining);
+
+  double _boosted(String stat, double Function(Boost b) of) {
+    var m = effects.multiplier(stat);
+    for (final b in boosts.values) {
+      m *= of(b);
+    }
+    return m;
+  }
+
+  /// Seconds left of the grace in which no blow lands: [PlayerSpec.grace]
+  /// after each blow, or what [grantGrace] gave.
+  double get graceLeft => _invulnerable;
+
+  /// Grants [seconds] in which no blow from outside lands (a dodge's), or
+  /// keeps the grace there is when it lasts longer. A hurt from within still
+  /// lands.
+  void grantGrace(double seconds) {
+    if (!(seconds > 0.0)) throw ArgumentError.value(seconds, 'seconds', 'a grace lasts some time');
+    _invulnerable = math.max(_invulnerable, seconds);
+  }
 
   final Map<String, ItemStack> _worn = {};
 
   /// What is worn, by [PlayerSpec.armorSlots] slot.
   Map<String, ItemStack> get worn => Map.unmodifiable(_worn);
 
-  /// Armour points: what is worn, plus what the effects add.
+  /// Armour points: what is worn, plus what the effects and the [boosts] add.
   double get armor {
     var points = effects.bonus(armorStat);
+    for (final b in boosts.values) {
+      points += b.armor;
+    }
     for (final s in _worn.values) {
       points += _game.items[s.id].armor!.points;
     }
@@ -391,21 +464,29 @@ class PlayerEntity extends NodeBody implements Target, Angler {
   /// [count] new [item] into the bag, as [pickUpStack].
   int pickUp(String item, int count) => pickUpStack(ItemStack(item, count));
 
-  /// Takes [damage], less what [armor] turns aside: [PlayerSpec.armorPerPoint]
-  /// a point, never below [PlayerSpec.armorFloor] of the blow. An internal
-  /// hurt is neither turned aside nor stopped by the moment of grace a blow
-  /// leaves.
+  /// Takes [damage] as the game's [damageIn] filters make it, less what
+  /// [armor] turns aside: [PlayerSpec.armorPerPoint] a point, never below
+  /// [PlayerSpec.armorFloor] of the blow. A blow from outside leaves
+  /// [PlayerSpec.grace] in which no other lands; an internal hurt is neither
+  /// turned aside nor stopped by it. A hurt the filters bring to 0 never
+  /// lands, and is not felt.
   @override
   double takeDamage(Damage damage) {
     if (_dead || spec.creative) return 0.0;
     if (!damage.internal && _invulnerable > 0.0) return 0.0;
+    var filtered = damage.amount;
+    for (final e in damageIn.entries) {
+      filtered = e.value(damage, filtered);
+      if (!(filtered >= 0.0)) throw StateError('the damage filter ${e.key} made a hurt of $filtered');
+    }
+    if (filtered == 0.0) return 0.0;
     final amount = damage.internal
-        ? damage.amount
-        : math.max(damage.amount - armor * spec.armorPerPoint, damage.amount * spec.armorFloor);
+        ? filtered
+        : math.max(filtered - armor * spec.armorPerPoint, filtered * spec.armorFloor);
     final taken = math.min(hp, amount);
     hp -= amount;
     if (!damage.internal) {
-      _invulnerable = 0.4;
+      _invulnerable = math.max(_invulnerable, spec.grace);
       _shakeLeft = shakeSeconds;
       _shakeAmp = math.min(amount / 10.0, 0.3);
       _freeze = Mob.hitStop;
@@ -451,6 +532,7 @@ class PlayerEntity extends NodeBody implements Target, Angler {
   /// look is not read here: [look] takes it once a frame.
   void tick(VoxelGame game, double dt, {required bool gameplay}) {
     final input = game.input;
+    _sprinting = false;
     _invulnerable = math.max(_invulnerable - dt, 0.0);
     hurtFlash = math.max(hurtFlash - dt * 2.5, 0.0);
     _shakeLeft = math.max(_shakeLeft - dt, 0.0);
@@ -460,6 +542,7 @@ class PlayerEntity extends NodeBody implements Target, Angler {
       _deadFor += dt;
       return;
     }
+    if (hp > maxHp) hp = maxHp;
     _survive(dt);
     if (_dead) return;
     if (!_game.world.isLoaded(IVec3.floor(position))) {
@@ -522,13 +605,13 @@ class PlayerEntity extends NodeBody implements Target, Angler {
     var wish = flatForward * -y + right * x;
     if (wish.length > 1.0) wish = wish.normalized();
     final sneaking = gameplay && input.down(VoxelAction.sneak);
-    final sprinting = gameplay && input.down(VoxelAction.sprint) && y < 0.0 && !motor.swimming;
+    final sprinting = _sprinting = gameplay && input.down(VoxelAction.sprint) && y < 0.0 && !motor.swimming && _mayRun;
     if (_flying) {
       final run = sprinting ? spec.sprintSpeed / spec.walkSpeed : 1.0;
       motor.fly(
         dt,
         wish: wish,
-        speed: spec.flySpeed * run * effects.multiplier(speedStat),
+        speed: spec.flySpeed * run * speedMultiplier,
         rise: gameplay && input.down(VoxelAction.jump),
         sink: sneaking,
       );
@@ -540,7 +623,7 @@ class PlayerEntity extends NodeBody implements Target, Angler {
     } else if (inLiquid) {
       speed *= 0.8;
     }
-    speed *= effects.multiplier(speedStat);
+    speed *= speedMultiplier;
     final floor = _game.world.getBlockXYZ(position.x.floor(), (position.y - 0.05).floor(), position.z.floor());
     if (onFloor) speed *= _game.blocks[floor].speed;
     // A glide sails toward the look, steered by the move, whatever the walk was.
@@ -580,6 +663,9 @@ class PlayerEntity extends NodeBody implements Target, Angler {
 
   static const _leftX = GamepadAxis.leftStickX, _leftY = GamepadAxis.leftStickY;
 
+  /// Whether no [sprintVetoes] stop a sprint now.
+  bool get _mayRun => !sprintVetoes.values.any((veto) => veto());
+
   /// One step in the saddle or the seat: the move goes to what is ridden
   /// ([Rideable.carry]: the move along the ground, its two axes, sprint and
   /// jump), and the player sits on its seat; a press of sneak gets off.
@@ -593,11 +679,12 @@ class PlayerEntity extends NodeBody implements Target, Angler {
     final (x, y) = _moveAxes(gameplay);
     var wish = flatForward * -y + right * x;
     if (wish.length > 1.0) wish = wish.normalized();
+    _sprinting = gameplay && input.down(VoxelAction.sprint) && y < 0.0 && _mayRun;
     seat.carry(dt, (
       wish: wish,
       forward: -y,
       turn: x,
-      sprint: gameplay && input.down(VoxelAction.sprint) && y < 0.0,
+      sprint: _sprinting,
       jump: gameplay && input.down(VoxelAction.jump),
     ));
     position = seat.seat();
@@ -636,21 +723,29 @@ class PlayerEntity extends NodeBody implements Target, Angler {
     motor.resetFall();
   }
 
-  /// Whether a use on [mob] does something: the item in hand tames it, or it
-  /// is the player's own mount, no one rides it and the player rides nothing
+  /// Whether a use on [mob] does something: the game has a use for it
+  /// (`VoxelGameSpec.mobUses`), the item in hand tames it, or it is the
+  /// player's own mount, no one rides it and the player rides nothing
   /// ([Mob.takes]). On a client the host's creatures are tamed by asking the
   /// host, and its own pet's replica is ridden at once.
   bool usableOn(Mob mob) {
     if (mob.isDead) return false;
+    if (_game.spec.mobUses.containsKey(mob.spec.id)) return true;
     if (!mob.tamed) return mob.spec.tameWith.contains(heldItem);
     return riding == null && mob.takes(this);
   }
 
-  /// Uses the item in hand on [mob] ([usableOn]): one of what tames it,
-  /// which may take (`MobSpec.tameChance`), or a ride. A replica's taming is
-  /// the host's roll (`GameSession.tameMob`), the item spent here.
+  /// Uses [mob] ([usableOn]): the game's use of it, else the item in hand,
+  /// one of what tames it, which may take (`MobSpec.tameChance`), or a ride.
+  /// A replica's taming is the host's roll (`GameSession.tameMob`), the item
+  /// spent here.
   void _useOn(Mob mob) {
     _swingArm();
+    final use = _game.spec.mobUses[mob.spec.id];
+    if (use != null) {
+      use(_game, mob);
+      return;
+    }
     if (mob.tamed) {
       ride(mob);
       _game.raise(Mounted(mob));
@@ -942,8 +1037,13 @@ class PlayerEntity extends NodeBody implements Target, Angler {
       _swingArm();
       final item = _heldType;
       final base = item == null || item.tool == null ? spec.handDamage : item.damage.toDouble();
-      final (:amount, :crit) = critical(base * effects.multiplier(damageStat));
-      mob.takeDamage(Damage(amount, from: position, knockback: 6.0, attacker: this, crit: crit));
+      final (:amount, :crit) = critical(base * damageMultiplier);
+      var dealt = amount;
+      for (final e in damageOut.entries) {
+        dealt = e.value(mob, dealt);
+        if (!(dealt >= 0.0)) throw StateError('the damage filter ${e.key} made a blow of $dealt');
+      }
+      mob.takeDamage(Damage(dealt, from: position, knockback: 6.0, attacker: this, crit: crit));
       if (item != null && item.durability > 0) inventory.wear(selectedSlot);
       return;
     }
@@ -964,7 +1064,7 @@ class PlayerEntity extends NodeBody implements Target, Angler {
     final type = _game.blocks[block];
     final time = spec.creative
         ? (type.hardness < 0 ? -1.0 : 0.0)
-        : _game.mining.mineTime(type, _heldType) / effects.multiplier(miningStat);
+        : _game.mining.mineTime(type, _heldType) / miningMultiplier;
     if (time < 0.0) return;
     if (pressed) _swingArm();
     _digTimer -= dt;
@@ -986,10 +1086,12 @@ class PlayerEntity extends NodeBody implements Target, Angler {
     if (spec.creative) _attackCooldown = 0.2;
   }
 
-  /// Uses the creature under the crosshair when the item in hand tames it
-  /// or it is the player's mount to ride ([usableOn]), or rides the vehicle
-  /// under it when it takes the player ([Vehicle.takes]; a replica once the
-  /// host says so, `GameSession.boardVehicle`); else a lever, a store,
+  /// Uses the creature under the crosshair when the game has a use for it,
+  /// the item in hand tames it or it is the player's mount to ride
+  /// ([usableOn]), or rides the vehicle under it when it takes the player
+  /// ([Vehicle.takes]; a replica once the host says so,
+  /// `GameSession.boardVehicle`); else a block of the game's own use
+  /// (`VoxelGameSpec.blockUses`), a lever, a store,
   /// a station or a block that turns (a door) under the crosshair, else lights a portal's frame with its lighter in hand
   /// (`PortalSpec.lighter`), scoops or pours with the bucket in hand, works the aimed
   /// block with the tool in hand (`BlockType.turnsWith`), eats or puts on the
@@ -1017,6 +1119,17 @@ class PlayerEntity extends NodeBody implements Target, Angler {
       return;
     }
     final hit = aimedBlock;
+    // A block the game uses is used, not built against, unless the player sneaks.
+    if (hit != null && !_game.input.down(VoxelAction.sneak)) {
+      final use = _game.spec.blockUses[_game.world.blockNameAt(hit.block)];
+      if (use != null) {
+        if (pressed) {
+          _swingArm();
+          use(_game, hit.block);
+        }
+        return;
+      }
+    }
     // A lever or a button is used, not built against.
     if (hit != null && !_game.input.down(VoxelAction.sneak) && _game.useSignal(hit.block)) {
       _swingArm();
@@ -1267,7 +1380,7 @@ class PlayerEntity extends NodeBody implements Target, Angler {
       _game.dropStack(stack, eyePosition - Vector3(0, 0.3, 0), throwVelocity: forward * 5.0 + Vector3(0, 2, 0));
 
   /// Stands the dead player up at [spawnPoint], whole, fed and with no
-  /// effects on it. `VoxelGame.respawn` calls it as the death screen closes.
+  /// effects on it; the [boosts] and filters stay. `VoxelGame.respawn` calls it as the death screen closes.
   void respawn() {
     if (!_dead) throw StateError('only the dead stand up again');
     _dead = false;

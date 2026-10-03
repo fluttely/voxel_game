@@ -1,9 +1,12 @@
 // A small voxel sandbox in one declaration: `flutter run -d macos`.
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:voxel_game/voxel_game.dart';
 
 // The title lists the worlds; one made Creative flies (F, or the ✈ button on a phone). A new world also picks
-// how its clock reads, a choice of the game's own that the clock system reads back.
+// how its clock reads, a choice of the game's own that the clock system reads back. The kit's HUD carries a bar
+// of the game's own: the stamina a run spends.
 void main() => runVoxelGame(
   game,
   title: 'Voxel game',
@@ -13,6 +16,13 @@ void main() => runVoxelGame(
       WorldOption('clock', label: 'Clock', choices: {'24h': '24-hour clock', '12h': '12-hour clock'}),
     ],
   ),
+  hud: hud,
+);
+
+/// The kit's HUD with the stamina's bar under the hearts.
+Widget hud(BuildContext context, VoxelGame game) => DefaultHud(
+  game,
+  bars: [HudBar('Stamina', color: Colors.lightBlueAccent, fill: (game) => game.system<_Stamina>().left)],
 );
 
 const game = VoxelGameSpec(
@@ -728,11 +738,66 @@ const game = VoxelGameSpec(
     ActionSpec('clock', keys: [PhysicalKeyboardKey.keyT], gamepad: [GamepadButton.x], touch: Icons.schedule),
   ],
   systems: _systems,
+  // A use on a glowstone is the game's own: a prayer at a shrine (the `_Blessing` below), not a block built against.
+  blockUses: {'glowstone': _pray},
   // 7. Screens of the game's own: this one is a button in the game menu (Esc, or ⏸ on a phone), and F1.
   screens: {'controls': ScreenSpec(_controls, menu: 'Controls', action: 'controls')},
 );
 
-List<GameSystem> _systems() => [_Clock(), _Tally()];
+List<GameSystem> _systems() => [_Clock(), _Tally(), _Stamina(), _Blessing()];
+
+// Stamina: a run spends it in six seconds and rest fills it in four. Spent, the player cannot run (a sprint veto)
+// until it is back to a fifth. Its bar is in the HUD (`main` above).
+class _Stamina extends GameSystem {
+  double left = 1.0;
+  bool _spent = false;
+
+  @override
+  void tick(VoxelGame game, double dt) {
+    final p = game.player;
+    p.sprintVetoes.putIfAbsent(
+      'stamina',
+      () =>
+          () => _spent,
+    );
+    left = p.sprinting ? math.max(left - dt / 6.0, 0.0) : math.min(left + dt / 4.0, 1.0);
+    if (left <= 0.0) _spent = true;
+    if (left >= 0.2) _spent = false;
+  }
+}
+
+// A glowstone is a shrine: the first use on one blesses the player with two more hearts for good, a boost a
+// death does not take away, given again when the world loads.
+class _Blessing extends SavedSystem {
+  bool blessed = false;
+
+  void bless(VoxelGame game) {
+    if (blessed) {
+      game.notify('The glow has blessed you already');
+      return;
+    }
+    blessed = true;
+    _give(game);
+    game.player.hp = game.player.maxHp;
+    game.notify('Blessed by the glow: two more hearts');
+  }
+
+  void _give(VoxelGame game) => game.player.boosts['blessing'] = const Boost(maxHp: 4.0);
+
+  @override
+  String get saveKey => 'blessing';
+
+  @override
+  Object? save(VoxelGame game) => blessed;
+
+  @override
+  void restore(VoxelGame game, Object? saved) {
+    blessed = saved! as bool;
+    if (blessed) _give(game);
+  }
+}
+
+void _pray(VoxelGame game, IVec3 cell) => game.system<_Blessing>().bless(game);
 
 // Tells the time of day when the clock action is pressed, as the world's clock option reads it, and the tally.
 class _Clock extends GameSystem {
@@ -857,11 +922,11 @@ Widget _controls(BuildContext context, VoxelGame game) => ColoredBox(
             const Text('Controls', style: TextStyle(fontSize: 20)),
             const SizedBox(height: 12),
             const Text(
-              'WASD walk · Space jump · Shift run · Ctrl sneak\n'
+              'WASD walk · Space jump · Shift run, while the stamina lasts · Ctrl sneak\n'
               'Left click mine and hit · Right click place, use, eat, wear\n'
               'E bag · Q drop · V view · Esc menu\n'
               'G glide, with a glider in the bag · F fly, in a Creative world\n'
-              'T the time · F1 these controls\n'
+              'T the time · F1 these controls · Right click a glowstone to pray\n'
               'A phone: a stick at the left, the world is the button',
             ),
             const SizedBox(height: 12),

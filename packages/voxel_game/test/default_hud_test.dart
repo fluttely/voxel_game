@@ -24,7 +24,7 @@ const _spec = VoxelGameSpec(
 /// shows: one `Listener` around the world and the HUD, feeding the input map
 /// every pointer that lands anywhere in it.
 void main() {
-  Future<VoxelGame> start(WidgetTester tester, [VoxelGameSpec spec = _spec]) async {
+  Future<VoxelGame> start(WidgetTester tester, [VoxelGameSpec spec = _spec, HudBuilder? hud]) async {
     final game = (await tester.runAsync(() async {
       final game = await VoxelGame.startHeadless(spec);
       game.spawner.enabled = false;
@@ -41,6 +41,7 @@ void main() {
         home: GameSurface(
           game: game,
           world: const ColoredBox(color: Colors.black),
+          hud: hud,
         ),
       ),
     );
@@ -182,6 +183,35 @@ void main() {
     await step(tester, game);
     expect(icons(Icons.shield), 1);
     expect(icons(Icons.shield_outlined), 1);
+    game.dispose();
+  });
+
+  testWidgets('a game\'s own bar sits under the hearts, over the experience, filled as it reads', (tester) async {
+    var stamina = 0.5;
+    final game = await start(
+      tester,
+      _spec.copyWith(player: const PlayerSpec(xp: XpSpec())),
+      (context, game) => DefaultHud(
+        game,
+        bars: [HudBar('Stamina', color: Colors.lightBlueAccent, fill: (game) => stamina)],
+      ),
+    );
+    await step(tester, game);
+    expect(find.text('Stamina'), findsOneWidget);
+    final bars = find.byType(LinearProgressIndicator);
+    expect(bars, findsNWidgets(2));
+    LinearProgressIndicator own() => tester.widget(bars.first);
+    expect(own().value, 0.5);
+    expect(own().color, Colors.lightBlueAccent);
+    final hearts = tester.getTopLeft(find.byIcon(Icons.favorite).first).dy;
+    expect(tester.getTopLeft(bars.first).dy, greaterThan(hearts));
+    expect(tester.getTopLeft(bars.last).dy, greaterThan(tester.getTopLeft(bars.first).dy), reason: 'the experience');
+    stamina = 0.25;
+    await step(tester, game);
+    expect(own().value, 0.25);
+    stamina = 1.5;
+    await step(tester, game);
+    expect(tester.takeException(), isStateError, reason: 'a bar is filled 0..1');
     game.dispose();
   });
 
