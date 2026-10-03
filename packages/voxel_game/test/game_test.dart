@@ -5,6 +5,7 @@ import 'dart:ui' show Size;
 import 'package:flutter/gestures.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vector_math/vector_math.dart';
+import 'package:voxel_engine/core.dart' show ChunkMesher;
 import 'package:voxel_game/voxel_game.dart';
 
 const _blocks = [
@@ -894,5 +895,20 @@ void main() {
     clear.world.setBlockNamed(IVec3.floor(clear.camera().position), 'water');
     expect(clear.haze, isNull, reason: 'a liquid declared with none');
     clear.dispose();
+  });
+
+  test("an eye in a pool's top cell is in it under the drawn surface only, and in it under more water", () async {
+    for (final (eyeHeight, under) in [(1.62, true), (1.95, false)]) {
+      final game = await _start(_flat(player: PlayerSpec(eyeHeight: eyeHeight)));
+      await _run(game, 0.5);
+      final eye = game.camera().position;
+      final cell = IVec3.floor(eye);
+      expect(eye.y - cell.y > ChunkMesher.liquidTop, !under, reason: 'the eye ${eye.y} where the test wants it');
+      game.world.setBlockNamed(cell, 'water');
+      expect(game.eyeLiquid?.id, under ? 'water' : null, reason: 'the surface is drawn ${ChunkMesher.liquidTop} up');
+      game.world.setBlockNamed(cell + const IVec3(0, 1, 0), 'water');
+      expect(game.eyeLiquid?.id, 'water', reason: 'with water above, the cell is full');
+      game.dispose();
+    }
   });
 }

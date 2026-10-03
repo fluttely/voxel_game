@@ -16,6 +16,7 @@ import '../vehicles/vehicle_spec.dart';
 import '../world/game_world.dart';
 import 'action_spec.dart';
 import 'graphics_spec.dart';
+import 'message_handler.dart';
 import 'portal_spec.dart';
 import 'screen_spec.dart';
 import 'signal_spec.dart';
@@ -70,6 +71,7 @@ class VoxelGameSpec {
     this.blockUses = const {},
     this.mobUses = const {},
     this.structureLoot = const {},
+    this.messages = const {},
   });
 
   /// The blocks, air first or added; their order is the save contract.
@@ -209,6 +211,17 @@ class VoxelGameSpec {
   /// game's handler, which a finger's tap on it calls too (see [checkUses]).
   final Map<String, MobUse> mobUses;
 
+  /// The game's own messages in a networked game, by type: what each does
+  /// where it arrives. A side sends one through its `GameSession`
+  /// (`sendToHost`, `broadcast`, `sendTo`), which throws for a type not
+  /// here; a peer's message of a type not here throws where it arrives, as
+  /// any message no peer of the same spec would send.
+  ///
+  /// ```dart
+  /// messages: {'cast': _castHeard, 'class': _classChosen},
+  /// ```
+  final Map<String, MessageHandler> messages;
+
   /// This game with the given fields replaced: the same world at another
   /// render distance, say, or with a system of a test's.
   ///
@@ -244,6 +257,7 @@ class VoxelGameSpec {
     Map<String, BlockUse>? blockUses,
     Map<String, MobUse>? mobUses,
     Map<String, StructureLoot>? structureLoot,
+    Map<String, MessageHandler>? messages,
   }) => VoxelGameSpec(
     blocks: blocks ?? this.blocks,
     world: world ?? this.world,
@@ -273,6 +287,7 @@ class VoxelGameSpec {
     blockUses: blockUses ?? this.blockUses,
     mobUses: mobUses ?? this.mobUses,
     structureLoot: structureLoot ?? this.structureLoot,
+    messages: messages ?? this.messages,
   );
 
   /// The block registry: [blocks] with air first.

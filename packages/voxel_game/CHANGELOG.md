@@ -2,6 +2,37 @@
 
 ## Unreleased
 
+- **Net for a game (VA-Zf).**
+  - `VoxelGameSpec.messages` (new): a game's own message types → `MessageHandler` (new:
+    `(game, from, message)`), called where one arrives, with the sender's peer number (the
+    host's is `GameSession.hostPeer`). `GameSession.sendToHost` (a client's),
+    `broadcast` (`except:`) and `sendTo` (the host's) send one, wrapped as a `game`
+    message; each throws for a type the spec does not declare, and on the wrong side. A
+    peer's message of a type neither the kit nor the spec has now throws where it arrives
+    (it was dropped), as VAD11 says. `NetMessage` is re-exported.
+  - `PlayerEntity.name` and `poseExtras` (new) ride every pose; `RemotePlayer.name` (the
+    peer's, or `Player <peer>`) and `extras` (read-only) on every other side, the host
+    passing a client's on. `DefaultHud` draws each other player's name over it, alive, in
+    the player's dimension and within `DefaultHud.nameRange` (32 m, new).
+  - `Damage.effect` (new, a `HitEffect`) and `Damage.withEffect`: a hurt that lands on a
+    player leaves it (`PlayerEntity.takeDamage`), whichever side the player is on. A
+    creature's `onHit` and a shot's `ProjectileSpec.onHit` go through it, so a peer a
+    spider bites is poisoned on its own side (it was only the host's player). The `hurt`
+    message carries the effect and the hurt's source (`src`; it was always `melee`
+    there), and so does a client's `hit`.
+  - A client's shot the host lands on a creature is handed back to its peer
+    (`GameSession.landed`, new; a `landed` message), which rolls its own critical and
+    runs its own `PlayerEntity.damageOut` as for a swing (the host's player's filters no
+    longer apply, and a peer's were never run).
+  - The host's blasts are heard on its clients (`GameSession.exploded`, new; a `blast`
+    message): a creeper's too, which no client heard. A lit explosive's replica no longer
+    sounds at its end; a client's `VoxelGame.explode` throws.
+  - **Breaking:** `Mob.stun`, `slow` and `forget` on a replica ask the host
+    (`GameSession.stunMob`, `slowMob`, `forgetMob`, new) instead of throwing.
+  - `VoxelGame.eyeLiquid`: a pool's top cell holds the eye only under its drawn surface
+    (`ChunkMesher.liquidTop`), as the app's did.
+  - The example: H waves (an action, a message to the host passed on to the others), and
+    the glowstone's blessing rides the pose, named in the wave's notice.
 - **Minecraft's world (VA-Ze).**
   - **Breaking:** `SignalSpec.explosives` maps a block to an `Explosive` (new: `radius` 3.5,
     `damage` 18, `fuse` 3.2 s, `chainFuse` 0.5 s, the app's TNT), not a radius. Powered, an

@@ -886,15 +886,18 @@ const game = VoxelGameSpec(
   actions: [
     ActionSpec('controls', keys: [PhysicalKeyboardKey.f1], gamepad: [GamepadButton.back], touch: Icons.help_outline),
     ActionSpec('clock', keys: [PhysicalKeyboardKey.keyT], gamepad: [GamepadButton.x], touch: Icons.schedule),
+    ActionSpec('wave', keys: [PhysicalKeyboardKey.keyH], gamepad: [GamepadButton.dpadLeft], touch: Icons.waving_hand),
   ],
   systems: _systems,
   // A use on a glowstone is the game's own: a prayer at a shrine (the `_Blessing` below), not a block built against.
   blockUses: {'glowstone': _pray},
   // 7. Screens of the game's own: this one is a button in the game menu (Esc, or ⏸ on a phone), and F1.
   screens: {'controls': ScreenSpec(_controls, menu: 'Controls', action: 'controls')},
+  // 8. Messages of the game's own, in a hosted world: a wave goes to the host, which passes it on.
+  messages: {'wave': _waved},
 );
 
-List<GameSystem> _systems() => [_Clock(), _Tally(), _Stamina(), _Blessing()];
+List<GameSystem> _systems() => [_Clock(), _Tally(), _Stamina(), _Blessing(), _Wave()];
 
 // Stamina: a run spends it in six seconds and rest fills it in four. Spent, the player cannot run (a sprint veto)
 // until it is back to a fifth. Its bar is in the HUD (`main` above).
@@ -932,7 +935,11 @@ class _Blessing extends SavedSystem {
     game.notify('Blessed by the glow: two more hearts');
   }
 
-  void _give(VoxelGame game) => game.player.boosts['blessing'] = const Boost(maxHp: 4.0);
+  // The other players of a hosted world see it too: it rides the player's pose.
+  void _give(VoxelGame game) {
+    game.player.boosts['blessing'] = const Boost(maxHp: 4.0);
+    game.player.poseExtras['blessed'] = true;
+  }
 
   @override
   String get saveKey => 'blessing';
@@ -994,6 +1001,39 @@ class _Tally extends SavedSystem {
     placed = s['placed']! as int;
     felled = s['felled']! as int;
   }
+}
+
+// A wave (H) to the other players of a hosted world: the host's goes to every client, a client's to the host.
+class _Wave extends GameSystem {
+  @override
+  void tick(VoxelGame game, double dt) {
+    if (!game.gameplay || !game.actions.justPressed('wave')) return;
+    switch (game.session) {
+      case null:
+        game.notify('Nobody here to wave to: host the world, or join one');
+        return;
+      case final HostSession host:
+        host.broadcast('wave', {'by': GameSession.hostPeer});
+      case final client:
+        client.sendToHost('wave', const {});
+    }
+    game.notify('You wave');
+  }
+}
+
+// A wave heard. On the host it is a client's, passed on to the other clients; on a client, the host says who
+// waved. Their name is over their head already; a blessing rides their pose.
+void _waved(VoxelGame game, int from, NetMessage message) {
+  final session = game.session!;
+  final int by;
+  if (session is HostSession) {
+    by = from;
+    session.broadcast('wave', {'by': from}, except: from);
+  } else {
+    by = message['by']! as int;
+  }
+  final who = session.players[by]!;
+  game.notify('${who.name}${who.extras['blessed'] == true ? ', blessed by the glow,' : ''} waves');
 }
 
 // The kit's fireball, burning the player through the game's own effect as well as any creature it hits.
@@ -1079,6 +1119,7 @@ Widget _controls(BuildContext context, VoxelGame game) => ColoredBox(
               'E bag · Q drop · V view · Esc menu\n'
               'G glide, with a glider in the bag · F fly, in a Creative world\n'
               'T the time · F1 these controls · Right click a glowstone to pray\n'
+              'H wave to the other players, in a hosted world\n'
               'A phone: a stick at the left, the world is the button',
             ),
             const SizedBox(height: 12),

@@ -1145,10 +1145,16 @@ class VoxelGame {
   Camera? _camera;
 
   /// The liquid block the [camera] is in, or null: what the default HUD
-  /// washes the screen with (`LiquidSpec.tint`).
+  /// washes the screen with (`LiquidSpec.tint`). A pool's top cell holds the
+  /// eye only under its drawn surface (`ChunkMesher.liquidTop`).
   BlockType? get eyeLiquid {
-    final t = blocks[world.getBlock(IVec3.floor(camera().position))];
-    return t.isLiquid ? t : null;
+    final eye = camera().position;
+    final cell = IVec3.floor(eye);
+    final id = world.getBlock(cell);
+    final t = blocks[id];
+    if (!t.isLiquid) return null;
+    final top = world.getBlock(cell + const IVec3(0, 1, 0)) != id;
+    return top && eye.y - cell.y > ChunkMesher.liquidTop ? null : t;
   }
 
   /// The structure of the dimension streaming whose reach (its
@@ -1360,9 +1366,10 @@ class VoxelGame {
   /// A blast at [centre]: up to [damage] to every target within [radius]
   /// (falling to 0 at the edge) and, with [breaksBlocks], the breakable
   /// blocks inside it gone, but for an explosive, which is lit ([ignite]) on
-  /// a short fuse of its own.
+  /// a short fuse of its own. The host's clients hear it where it is.
   void explode(Vector3 centre, {double radius = 3.0, double damage = 12.0, bool breaksBlocks = true, Target? source}) {
     playSound('explode', at: centre);
+    session?.exploded(centre);
     for (final t in allTargets.toList()) {
       if (t.isDead) continue;
       final d = t.centre().distanceTo(centre);

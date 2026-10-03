@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter_test/flutter_test.dart';
@@ -1374,7 +1375,7 @@ void main() {
     },
   );
 
-  test('an explosive the host lights burns on the client as a replica, and its blast reaches it', () async {
+  test('an explosive the host lights burns on the client as a replica, and its blast reaches it, heard once', () async {
     final spec = _spec.copyWith(
       blocks: [..._blocks, const BlockType('tnt', color: 0xD03020, hardness: 0)],
       signals: () =>
@@ -1396,6 +1397,159 @@ void main() {
     await _run([host, client], 1.0);
     expect(client.entities.whereType<LitExplosive>().where((e) => !e.removed), isEmpty);
     expect(client.world.blockNameAt(cell + IVec3.down), 'air', reason: 'the host\'s crater, as edits');
+    final played = (client.sounds as SilentSounds).played;
+    expect(played.where((s) => s == 'explode'), hasLength(1), reason: "the host's blast, not the replica's too");
+
+    // A creeper's blast, or any of the host's: heard where it is.
+    host.explode(client.player.position + Vector3(0, 0, -6), damage: 0.0, breaksBlocks: false);
+    await _settle(() => played.where((s) => s == 'explode').length == 2);
+    expect(() => client.explode(client.player.position), throwsStateError, reason: 'a client blows nothing up');
+    await _close(session, clients);
+  });
+
+  test("a game's own messages: a client's reaches the host's handler, the host's every client or one", () async {
+    final heard = <(String, int, Object?)>[];
+    MessageHandler on(String type) =>
+        (game, from, m) => heard.add((type, from, m['n']));
+    final spec = _spec.copyWith(messages: {'wave': on('wave'), 'cheer': on('cheer')});
+    final (host, session, clients) = await _session(2, spec: spec);
+    final [a, b] = clients;
+    final all = [host, a, b];
+    final peerA = _client(a).peer, peerB = _client(b).peer;
+
+    a.session!.sendToHost('wave', {'n': 1});
+    await _settle(() => heard.isNotEmpty);
+    expect(heard.single, ('wave', peerA, 1), reason: "the host's handler, told who sent it");
+
+    heard.clear();
+    session.broadcast('cheer', {'n': 2}, except: peerA);
+    session.sendTo(peerA, 'wave', {'n': 3});
+    await _settle(() => heard.length == 2);
+    await _run(all, 0.1);
+    expect(heard, hasLength(2), reason: 'never back to the side that sent it');
+    expect(heard, containsAll([('cheer', GameSession.hostPeer, 2), ('wave', GameSession.hostPeer, 3)]));
+
+    expect(() => a.session!.sendToHost('dance', {}), throwsArgumentError, reason: 'a type the spec does not declare');
+    expect(() => session.broadcast('dance', {}), throwsArgumentError);
+    expect(() => session.sendToHost('wave', {}), throwsStateError, reason: 'the host does it itself');
+    expect(() => a.session!.broadcast('wave', {}), throwsStateError, reason: 'a client sends to the host');
+    expect(() => a.session!.sendTo(peerB, 'wave', {}), throwsStateError);
+    await _close(session, clients);
+  });
+
+  test(
+    'a message no peer of the spec sends throws where it arrives: a type of no one, a game type undeclared',
+    () async {
+      final (host, session, _) = await _session(0, spec: _spec.copyWith(messages: {'wave': (_, _, _) {}}));
+      final errors = <Object>[];
+      // A client whose spec has no messages of its own: the host's wave is none it knows.
+      final odd = await runZonedGuarded(
+        () => VoxelGame.joinGame(_spec, '127.0.0.1', port: session.net.port, headless: true),
+        (e, _) => errors.add(e),
+      );
+      await _run([host, odd!], 1.0);
+      expect(errors, isEmpty);
+      session.broadcast('wave', {});
+      await _settle(() => errors.isNotEmpty);
+      session.net.broadcast({'t': 'nonsense'});
+      await _settle(() => errors.length == 2);
+      expect(errors, everyElement(isA<FormatException>()));
+      await _close(session, [odd]);
+    },
+  );
+
+  test("a pose carries its player's name and its game's extras to every other side", () async {
+    final (host, session, clients) = await _session(2);
+    final [a, b] = clients;
+    final all = [host, a, b];
+    final peerA = _client(a).peer;
+    await _run(all, 0.2);
+    expect(session.players[peerA]!.name, 'Player $peerA', reason: 'a nameless one is its peer');
+    expect(b.session!.players[GameSession.hostPeer]!.name, 'Player 1');
+    expect(session.players[peerA]!.extras, isEmpty);
+
+    a.player
+      ..name = 'Ana'
+      ..poseExtras['class'] = 'mage';
+    host.player.name = 'Hal';
+    await _run(all, 0.3);
+    for (final r in [session.players[peerA]!, b.session!.players[peerA]!]) {
+      expect(r.name, 'Ana', reason: "the host's puppet and the other client's alike");
+      expect(r.extras, {'class': 'mage'});
+    }
+    expect(a.session!.players[GameSession.hostPeer]!.name, 'Hal');
+    expect(() => session.players[peerA]!.extras['class'] = 'thief', throwsUnsupportedError, reason: 'read-only');
+
+    a.player.poseExtras.remove('class');
+    await _run(all, 0.3);
+    expect(b.session!.players[peerA]!.extras, isEmpty, reason: 'removed, it is no longer sent');
+    await _close(session, clients);
+  });
+
+  test("a hurt the host deals a client's player leaves its effect there, and says what hurt it", () async {
+    final spec = _spec.copyWith(
+      effects: const [EffectType('poison', 'Poison', 0.3, 0.6, 0.2, period: 1.0, damage: 1.0, bad: true)],
+      mobs: [
+        ..._spec.mobs,
+        const MobSpec('spider', hp: 10, brain: [], onHit: HitEffect('poison', seconds: 8.0)),
+      ],
+    );
+    final (host, session, clients) = await _session(1, spec: spec);
+    final client = clients.single;
+    final puppet = session.players[_client(client).peer]!;
+    final sources = <String>[];
+    client.player.damageIn['seen'] = (d, amount) {
+      sources.add(d.source);
+      return amount;
+    };
+    final spider = host.spawnMob('spider', host.player.position + Vector3(0, 0, -4));
+    final hp = client.player.hp;
+    spider.strike(puppet, Damage(2, from: spider.position, attacker: spider));
+    await _settle(() => client.player.effects.has('poison'));
+    expect(client.player.hp, lessThan(hp));
+    expect(sources, ['melee']);
+    expect(host.player.effects.has('poison'), isFalse, reason: "worn on the peer's side");
+
+    await _run([host, client], 0.5); // past the blow's grace
+    client.player.effects.clear('poison');
+    client.player.damageIn['dodge'] = (d, amount) => 0.0;
+    puppet.takeDamage(const Damage(2, source: 'explosion', effect: HitEffect('poison')));
+    await _settle(() => sources.length == 2);
+    await _run([host, client], 0.1);
+    expect(sources.last, 'explosion');
+    expect(client.player.effects.has('poison'), isFalse, reason: 'a hurt that never lands leaves nothing');
+    await _close(session, clients);
+  });
+
+  test("a client's shot the host lands on a creature is dealt by the client's own filters", () async {
+    final (host, session, clients) = await _session(1);
+    final a = clients.single;
+    a.player.position = host.player.position + Vector3(5, 0, 0);
+    final dummy = host.spawnMob('dummy', a.player.position + Vector3(0, 0, -6));
+    await _run([host, a], 0.5);
+    a.player.damageOut['half'] = (mob, amount) => amount / 2;
+    host.player.damageOut['none'] = (mob, amount) => 0.0;
+    a.shoot(ProjectileSpec.arrow, from: a.player.eyePosition, at: _replicaOf(a, dummy).centre(), owner: a.player);
+    await _run([host, a], 1.0);
+    expect(dummy.hp, 10 - ProjectileSpec.arrow.damage / 2, reason: "the shooter's filter, not the host's");
+    expect(dummy.lastHurtBy, same(session.players[_client(a).peer]));
+    await _close(session, clients);
+  });
+
+  test("a client stuns, slows and calms the host's creature through the host", () async {
+    final (host, session, clients) = await _session(1);
+    final a = clients.single;
+    final biter = host.spawnMob('biter', a.player.position + Vector3(0, 0, -8));
+    await _run([host, a], 0.5);
+    expect(biter.target, isNotNull, reason: 'it hunts');
+    final replica = _replicaOf(a, biter);
+    replica
+      ..stun(2.0)
+      ..slow(0.5, 3.0);
+    await _settle(() => biter.stunned && biter.pace == 0.5);
+    replica.forget();
+    await _settle(() => biter.target == null);
+    expect(replica.stunned, isFalse, reason: "the replica is only the host's word");
     await _close(session, clients);
   });
 }

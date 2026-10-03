@@ -9,6 +9,7 @@ import '../core/voxel_game.dart';
 import '../input/input_device.dart';
 import '../input/voxel_action.dart';
 import '../mobs/mob.dart';
+import '../net/remote_player.dart';
 import 'damage_numbers.dart';
 import 'hud_bar.dart';
 import 'hud_selector.dart';
@@ -28,7 +29,9 @@ typedef _EffectChip = ({String id, int power, int seconds});
 /// (`VoxelGame.camera`): a health bar over each creature hurt in the last
 /// [barSeconds] or under the crosshair, and the damage each hit dealt
 /// (`VoxelGame.damageNumbers`), rising and fading; a critical blow's in
-/// yellow, ending in `!`. While the camera is in a
+/// yellow, ending in `!`; over each other player of a networked game within
+/// [nameRange], alive and in the player's dimension, its name
+/// (`RemotePlayer.name`). While the camera is in a
 /// liquid the screen is washed in its colour (`LiquidSpec.tint`); while a
 /// boss lives (`MobSpec.boss`) the nearest one's health is a bar at the top;
 /// with `GameSettings.showFps` the frame rate is at the top left.
@@ -76,6 +79,9 @@ class DefaultHud extends StatelessWidget {
 
   /// Metres past which a creature shows no bar.
   static const double barRange = 40.0;
+
+  /// Metres within which another player's name shows over it.
+  static const double nameRange = 32.0;
 
   static const _shadow = [Shadow(offset: Offset(1, 1), blurRadius: 2)];
 
@@ -560,9 +566,13 @@ class DefaultHud extends StatelessWidget {
     return full > 0 && uses < full ? uses / full : null;
   }
 
-  /// Whether anything is projected over the world: a creature's bar or a
-  /// damage number. Nothing is painted, and nothing repaints, while not.
-  bool _marksShown() => game.damageNumbers.shown.isNotEmpty || game.mobs.any((m) => _WorldMarks.barred(game, m));
+  /// Whether anything is projected over the world: a creature's bar, a
+  /// damage number or another player's name. Nothing is painted, and nothing
+  /// repaints, while not.
+  bool _marksShown() =>
+      game.damageNumbers.shown.isNotEmpty ||
+      game.mobs.any((m) => _WorldMarks.barred(game, m)) ||
+      game.remotePlayers.any((r) => _WorldMarks.named(game, r));
 
   /// The nearest boss's name and health, at the top, while one lives.
   Widget _bossBar() => HudSelector(
@@ -610,8 +620,8 @@ class DefaultHud extends StatelessWidget {
 }
 
 /// What the HUD projects from the world through the frame's camera: a bar
-/// over each creature [barred], and the [DamageNumbers]. Repaints every frame
-/// it is shown, never rebuilds.
+/// over each creature [barred], the [DamageNumbers], and the name over each
+/// other player [named]. Repaints every frame it is shown, never rebuilds.
 class _WorldMarks extends CustomPainter {
   _WorldMarks(this.game) : super(repaint: game.frames);
 
@@ -626,6 +636,13 @@ class _WorldMarks extends CustomPainter {
       !mob.isDead &&
       (mob.sinceHurt < DefaultHud.barSeconds || identical(game.player.aimedMob, mob)) &&
       mob.position.distanceTo(game.player.position) < DefaultHud.barRange;
+
+  /// Whether [player]'s name shows: alive, in the local player's dimension
+  /// and within [DefaultHud.nameRange].
+  static bool named(VoxelGame game, RemotePlayer player) =>
+      !player.isDead &&
+      player.dimension == game.world.dimension &&
+      player.position.distanceTo(game.player.position) < DefaultHud.nameRange;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -672,6 +689,27 @@ class _WorldMarks extends CustomPainter {
         textDirection: TextDirection.ltr,
       )..layout();
       text.paint(canvas, at - Offset(text.width / 2, text.height / 2));
+      text.dispose();
+    }
+    final plate = Paint()..color = const Color(0x66000000);
+    for (final r in game.remotePlayers) {
+      if (!named(game, r)) continue;
+      final top = r.drawnPosition + Vector3(0, r.height + 0.45, 0);
+      final at = camera.worldToScreen(top, size);
+      if (at == null) continue;
+      final text = TextPainter(
+        text: TextSpan(
+          text: r.name,
+          style: TextStyle(
+            fontSize: (110.0 / math.max(top.distanceTo(eye), 5.0)).clamp(11.0, 18.0),
+            color: Colors.white,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      final box = Rect.fromCenter(center: at, width: text.width + 8, height: text.height + 2);
+      canvas.drawRect(box, plate);
+      text.paint(canvas, box.topLeft + const Offset(4, 1));
       text.dispose();
     }
   }

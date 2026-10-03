@@ -14,6 +14,7 @@ import '../entities/item_pickup.dart';
 import '../entities/lit_explosive.dart';
 import '../entities/projectile.dart';
 import '../entities/target.dart';
+import '../mobs/hit_effect.dart';
 import '../mobs/mob.dart';
 import '../player/player_entity.dart';
 import '../ui/game_screen.dart';
@@ -107,11 +108,22 @@ typedef _StoreEdit = ({int n, int opening, int slot, ItemStack? before, ItemStac
 /// dimension, its `ProjectileSpec`, where from, how fast, and its shooter: a
 /// player's peer or a creature's number), drawn by the clients as replicas;
 /// a client's is a `shoot`, which the host lands where it is and passes on.
-/// An explosive the host lights goes out as `lit` (its dimension, its block,
-/// where it stands, its fuse), drawn by the clients as a replica that sounds
-/// at its end; the host's blast reaches them as edits and `hurt`.
+/// A client's shot that the host lands on a creature goes back to its peer
+/// as `landed` (the creature, the blow before its shooter's roll and
+/// filters, where from, the shove, the shot's kind), which deals it as its
+/// own swing, a `hit`. An explosive the host lights goes out as `lit` (its
+/// dimension, its block, where it stands, its fuse), drawn by the clients as
+/// a replica; every blast of the host's goes out as `blast` (its dimension
+/// and where), heard there, and reaches them as edits and `hurt` (the
+/// amount, where from, the shove, its source and the effect it leaves,
+/// worn on the peer's side). A client stuns (`mob_stun`), slows
+/// (`mob_slow`) and calms (`mob_forget`) the host's creatures through the
+/// host. A player's pose carries its name (`nm`) and its game's extras
+/// (`x`). A game's own messages travel as `game` (its type and the game's
+/// message), handed to the handler `VoxelGameSpec.messages` gives its type.
 /// Every peer runs the same spec, so a dimension's number is the same
-/// everywhere, and a message no peer of that spec would send throws.
+/// everywhere, and a message no peer of that spec would send throws: a
+/// type neither the kit nor the spec has, among them.
 abstract class GameSession extends GameSystem {
   /// Stops talking.
   Future<void> close();
@@ -144,6 +156,69 @@ abstract class GameSession extends GameSystem {
   /// The host lit [explosive] (`VoxelGame.ignite`), already added: it shows
   /// it to its clients. A client lights none.
   void lit(LitExplosive explosive) => throw StateError('a client lights nothing: the host runs the circuits');
+
+  /// The host's game blew up at [centre] (`VoxelGame.explode`): its clients
+  /// hear it there. A client blows nothing up.
+  void exploded(Vector3 centre) => throw StateError('a client blows nothing up: the host does');
+
+  /// The host landed [shot], [shooter]'s, on its creature [mob]: the blow is
+  /// [shooter]'s peer's to deal, by its own critical roll and its
+  /// `PlayerEntity.damageOut`, as its swing is. Only the host lands a peer's.
+  void landed(Projectile shot, RemotePlayer shooter, Mob mob) => throw StateError('only the host lands a peer\'s shot');
+
+  /// The local player stuns the host's creature [mob] (a replica) for
+  /// [seconds] (`Mob.stun`): a client asks the host. The host stuns its own.
+  void stunMob(Mob mob, double seconds) =>
+      throw StateError('the host stuns its own creatures, not through its session');
+
+  /// The local player slows the host's creature [mob] (a replica) to [share]
+  /// of its pace for [seconds] (`Mob.slow`): a client asks the host.
+  void slowMob(Mob mob, double share, double seconds) =>
+      throw StateError('the host slows its own creatures, not through its session');
+
+  /// The local player makes the host's creature [mob] (a replica) forget
+  /// its quarrels (`Mob.forget`): a client asks the host.
+  void forgetMob(Mob mob) => throw StateError('the host calms its own creatures, not through its session');
+
+  /// Sends the host a message of the game's own of [type] (a key of
+  /// `VoxelGameSpec.messages`), handed there to its handler with this
+  /// client's peer number. Throws on the host, and for a type the spec does
+  /// not declare.
+  void sendToHost(String type, NetMessage message) =>
+      throw StateError('the host is the host: it does what it would send itself');
+
+  /// Sends every client but [except] a message of the game's own of [type]
+  /// (a key of `VoxelGameSpec.messages`). Throws on a client (it sends the
+  /// host one, whose handler passes it on), and for a type the spec does
+  /// not declare.
+  void broadcast(String type, NetMessage message, {int? except}) =>
+      throw StateError('a client sends to the host, whose handler passes it on');
+
+  /// Sends client [peer] a message of the game's own of [type] (a key of
+  /// `VoxelGameSpec.messages`); a peer gone since is sent nothing. Throws on
+  /// a client, and for a type the spec does not declare.
+  void sendTo(int peer, String type, NetMessage message) =>
+      throw StateError('a client sends to the host, whose handler passes it on');
+
+  /// A `game` message of [type] carrying [message]; throws for a type the
+  /// spec does not declare.
+  NetMessage _game(String type, NetMessage message) {
+    if (!game.spec.messages.containsKey(type)) {
+      throw ArgumentError.value(type, 'type', 'no message of the game\'s own (VoxelGameSpec.messages)');
+    }
+    return {'t': 'game', 'g': type, 'm': message};
+  }
+
+  /// A `game` message [m] from peer [from], handed to its type's handler.
+  void _gameIn(int from, NetMessage m) {
+    final type = m['g']! as String;
+    final handler = game.spec.messages[type];
+    if (handler == null) throw FormatException('a message of type $type, which the spec does not declare');
+    handler(game, from, m['m']! as NetMessage);
+  }
+
+  /// A message [m] whose type neither the kit nor the spec has.
+  static Never _unknown(NetMessage m) => throw FormatException('a message of type ${m['t']}, which no peer sends');
 
   /// Takes the vehicle of [item] the game is putting down at [at], pointing
   /// [facing]: true when it went to the host (a client where the host is),
@@ -228,11 +303,37 @@ abstract class GameSession extends GameSystem {
   static double? _seat(Object? o) => (o as num?)?.toDouble();
 
   /// What a pose of [p] says beyond where it stands: the way its seat
-  /// points while it rides, its float while a line is out.
-  static Map<String, Object?> _seatAndFloat(PlayerEntity p) => {
+  /// points while it rides, its float while a line is out, its name and its
+  /// game's extras.
+  static Map<String, Object?> _beyond(PlayerEntity p) => {
     if (p.riding case final r?) 's': r.facing,
     if (p.bobber case final b?) 'f': _v(b.position),
+    'nm': ?p.name,
+    if (p.poseExtras.isNotEmpty) 'x': p.poseExtras,
   };
+
+  /// The extras of a pose a peer sent as [o] (null for none).
+  static Map<String, Object?> _extras(Object? o) => o == null ? const {} : o as Map<String, Object?>;
+
+  /// A `hurt` message of [d], dealt to a peer's player.
+  static NetMessage _hurtMessage(Damage d) => {
+    't': 'hurt',
+    'dmg': d.amount,
+    'src': d.source,
+    if (d.from != null) 'from': _v(d.from!),
+    'kb': d.knockback,
+    if (d.effect case final e?) 'fx': {'e': e.effect, 's': e.seconds, 'p': e.power},
+  };
+
+  /// The effect a hurt a peer sent as [o] leaves (null for none): one the
+  /// spec declares.
+  HitEffect? _effect(Object? o) {
+    if (o == null) return null;
+    final e = o as Map<String, Object?>;
+    final id = e['e']! as String;
+    if (!game.spec.effects.any((t) => t.id == id)) throw FormatException('effect $id, which the spec does not declare');
+    return HitEffect(id, seconds: (e['s']! as num).toDouble(), power: (e['p']! as num).toDouble());
+  }
 
   /// A `shot` message of [spec] in [dimension] from [from] at [velocity],
   /// by [shooter] (its `o` or `m`, or nothing for no one).
@@ -432,8 +533,7 @@ class HostSession extends GameSession {
 
   void _join(NetPeer peer) {
     final puppet = RemotePlayer(peer.id, game.player.spawnPoint)
-      ..onHurt = ((d) =>
-          peer.send({'t': 'hurt', 'dmg': d.amount, if (d.from != null) 'from': _v(d.from!), 'kb': d.knockback}))
+      ..onHurt = ((d) => peer.send(GameSession._hurtMessage(d)))
       ..onGive = ((s) => peer.send({'t': 'give', 's': s.toJson()}));
     players[peer.id] = puppet;
     game.add(puppet);
@@ -470,6 +570,8 @@ class HostSession extends GameSession {
           dimension: _dimension(m['d']! as int),
           seat: GameSession._seat(m['s']),
           float: _float(m['f']),
+          name: m['nm'] as String?,
+          extras: GameSession._extras(m['x']),
         );
         _ridden(puppet, m['m']);
         _driven(puppet, m['v']);
@@ -567,14 +669,45 @@ class HostSession extends GameSession {
                 (m['dmg']! as num).toDouble(),
                 from: m['from'] == null ? null : _vec(m['from']),
                 knockback: (m['kb'] as num?)?.toDouble() ?? 6.0,
+                source: m['src']! as String,
                 attacker: puppet,
                 crit: m['crit'] == true,
               ),
             );
           }
         }
+      case 'mob_stun':
+        // One gone meanwhile is stunned no more.
+        _liveMob(m['n']! as int)?.stun((m['s']! as num).toDouble());
+      case 'mob_slow':
+        _liveMob(m['n']! as int)?.slow((m['k']! as num).toDouble(), (m['s']! as num).toDouble());
+      case 'mob_forget':
+        _liveMob(m['n']! as int)?.forget();
+      case 'game':
+        _gameIn(peer.id, m);
+      default:
+        GameSession._unknown(m);
     }
   }
+
+  @override
+  void broadcast(String type, NetMessage message, {int? except}) => net.broadcast(_game(type, message), except: except);
+
+  @override
+  void sendTo(int peer, String type, NetMessage message) => net.peers[peer]?.send(_game(type, message));
+
+  @override
+  void landed(Projectile shot, RemotePlayer shooter, Mob mob) => net.peers[shooter.peer]?.send({
+    't': 'landed',
+    'n': mob.netId,
+    'dmg': shot.spec.damage * shot.power,
+    'from': _v(shot.position),
+    'kb': shot.spec.knockback,
+    'src': shot.spec.kind,
+  });
+
+  @override
+  void exploded(Vector3 centre) => net.broadcast({'t': 'blast', 'd': game.world.dimension, 'p': _v(centre)});
 
   /// [peer]'s player shot (a `shoot`, [m]): where the host is, the host
   /// lands it, [puppet] the shooter; the other peers see it wherever.
@@ -841,7 +974,7 @@ class HostSession extends GameSession {
           'dead': p.isDead,
           'd': game.world.dimension,
           if (p.sleeping) 'z': true,
-          ...GameSession._seatAndFloat(p),
+          ...GameSession._beyond(p),
         },
         for (final r in players.values)
           {
@@ -854,6 +987,8 @@ class HostSession extends GameSession {
             if (r.sleeping) 'z': true,
             's': ?r.seat,
             if (r.float case final f?) 'f': _v(f),
+            'nm': r.name,
+            if (r.extras.isNotEmpty) 'x': r.extras,
           },
       ],
       'd': game.world.dimension,
@@ -1407,14 +1542,58 @@ class ClientSession extends GameSession {
         game.player.takeDamage(
           Damage(
             (m['dmg']! as num).toDouble(),
+            source: m['src']! as String,
             from: m['from'] == null ? null : _vec(m['from']),
             knockback: (m['kb'] as num?)?.toDouble() ?? 0.0,
+            effect: _effect(m['fx']),
           ),
         );
+      case 'landed':
+        _landed(m);
+      case 'blast':
+        if (_dimension(m['d']! as int) == game.world.dimension) game.playSound('explode', at: _vec(m['p']));
       case 'bye':
         players.remove((m['peer']! as num).toInt())?.removed = true;
+      case 'game':
+        _gameIn(GameSession.hostPeer, m);
+      default:
+        GameSession._unknown(m);
     }
   }
+
+  /// The host landed this player's shot on its creature (a `landed`, [m]):
+  /// dealt here as a swing is, by the player's own critical roll and
+  /// `PlayerEntity.damageOut`, the replica sending the blow back as a `hit`.
+  /// A creature gone or dead here meanwhile is dealt nothing.
+  void _landed(NetMessage m) {
+    final mob = _mobs[m['n']! as int];
+    if (mob == null || mob.isDead) return;
+    final player = game.player;
+    final (:amount, :crit) = player.critical((m['dmg']! as num).toDouble());
+    mob.takeDamage(
+      Damage(
+        player.dealtTo(mob, amount),
+        source: m['src']! as String,
+        from: _vec(m['from']),
+        knockback: (m['kb']! as num).toDouble(),
+        attacker: player,
+        crit: crit,
+      ),
+    );
+  }
+
+  @override
+  void sendToHost(String type, NetMessage message) => connection.send(_game(type, message));
+
+  @override
+  void stunMob(Mob mob, double seconds) => connection.send({'t': 'mob_stun', 'n': mob.netId, 's': seconds});
+
+  @override
+  void slowMob(Mob mob, double share, double seconds) =>
+      connection.send({'t': 'mob_slow', 'n': mob.netId, 'k': share, 's': seconds});
+
+  @override
+  void forgetMob(Mob mob) => connection.send({'t': 'mob_forget', 'n': mob.netId});
 
   void _players(List<Object?> rows) {
     final seen = <int>{};
@@ -1434,6 +1613,8 @@ class ClientSession extends GameSession {
         dimension: r['d']! as int,
         seat: GameSession._seat(r['s']),
         float: _float(r['f']),
+        name: r['nm'] as String?,
+        extras: GameSession._extras(r['x']),
       );
     }
     for (final id in players.keys.where((k) => !seen.contains(k)).toList()) {
@@ -1495,6 +1676,7 @@ class ClientSession extends GameSession {
     'dmg': damage.amount,
     if (damage.from != null) 'from': _v(damage.from!),
     'kb': damage.knockback,
+    'src': damage.source,
     if (damage.crit) 'crit': true,
   });
 
@@ -1531,7 +1713,7 @@ class ClientSession extends GameSession {
       'dead': p.isDead,
       'd': game.world.dimension,
       if (p.sleeping) 'z': true,
-      ...GameSession._seatAndFloat(p),
+      ...GameSession._beyond(p),
       if (p.riding case final Mob mount) 'm': {'n': mount.netId, 'p': _v(mount.position), 'yaw': mount.facing},
       if (p.riding case final Vehicle v when v.replica) 'v': {'n': v.netId, 'v': v.row},
     });

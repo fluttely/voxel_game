@@ -11,8 +11,8 @@ import 'game_entity.dart';
 /// An [Explosive] lit: a copy of its [block] where the block stood, flashing
 /// white every [blink] seconds and falling as a body does, until [fuse] runs
 /// out and it bursts. A client draws the host's as a [replica], which flashes
-/// and falls the same and at its end only sounds: the host's blast breaks
-/// the blocks and lands the blows. A save keeps none: a lit one is spent.
+/// and falls the same and at its end only goes: the host's blast is heard
+/// as the host sends it (`blast`), breaks the blocks and lands the blows. A save keeps none: a lit one is spent.
 class LitExplosive extends GameEntity {
   /// [block], lit as [explosive], standing on [at] (the middle of its
   /// cell's floor), bursting in [fuse] seconds.
@@ -74,11 +74,8 @@ class LitExplosive extends GameEntity {
     _age += dt;
     if (_age >= fuse) {
       removed = true;
-      if (replica) {
-        game.playSound('explode', at: centre());
-      } else {
-        game.explode(centre(), radius: explosive.radius, damage: explosive.damage);
-      }
+      // A replica's blast is the host's, heard as it sends it.
+      if (!replica) game.explode(centre(), radius: explosive.radius, damage: explosive.damage);
       return;
     }
     if (game.world.isLoaded(IVec3.floor(position))) {

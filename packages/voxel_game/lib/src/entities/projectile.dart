@@ -8,6 +8,7 @@ import 'package:voxel_scene/voxel_scene.dart';
 import '../core/voxel_game.dart';
 import '../mobs/hit_effect.dart';
 import '../mobs/mob.dart';
+import '../net/remote_player.dart';
 import 'game_entity.dart';
 import 'target.dart';
 
@@ -235,12 +236,13 @@ class ProjectileModel {
 /// A shot in flight: swept each step against bodies (any [Target] but its
 /// owner) and blocks, so a fast one cannot pass through a thin thing. A shot
 /// of a player's, the local one or another's, may be critical
-/// (`PlayerEntity.critical`), and the local player's own is filtered by
-/// their `PlayerEntity.damageOut` (a peer's, landed by the host, is not:
-/// its filters are its own side's); one that hits a creature sets it burning
-/// ([ProjectileSpec.burns]); one that hurts the player leaves its
-/// [ProjectileSpec.onHit]. A [replica] is only seen: another side's shot,
-/// it flies and stops where it hits, and hurts nobody.
+/// (`PlayerEntity.critical`), and one at a creature is filtered by its
+/// shooter's `PlayerEntity.damageOut`: the host lands a peer's and hands the
+/// blow back to the peer (`GameSession.landed`), which rolls and filters it
+/// on its own side as it does its swing; one that hits a creature sets it
+/// burning ([ProjectileSpec.burns]); one that hurts a player leaves its
+/// [ProjectileSpec.onHit] (`Damage.effect`). A [replica] is only seen:
+/// another side's shot, it flies and stops where it hits, and hurts nobody.
 class Projectile extends GameEntity {
   /// A [spec] from [from] with [velocity0], shot by [owner], its damage
   /// multiplied by [power].
@@ -323,21 +325,31 @@ class Projectile extends GameEntity {
       return;
     }
     if (hit != null) {
-      final player = game.player;
-      final (:amount, :crit) = identical(owner, player) || game.remotePlayers.contains(owner)
-          ? player.critical(spec.damage * power)
-          : (amount: spec.damage * power, crit: false);
-      // The local player's own shot is filtered as their swing is.
-      final dealt = identical(owner, player) && hit is Mob ? player.dealtTo(hit, amount) : amount;
-      final taken = hit.takeDamage(
-        Damage(dealt, source: spec.kind, from: position, knockback: spec.knockback, attacker: owner, crit: crit),
-      );
-      if (spec.burns > 0.0 && hit is Mob) hit.ignite(spec.burns);
-      final effect = spec.onHit;
-      if (effect != null && taken > 0.0 && identical(hit, player)) {
-        player.effects.apply(effect.effect, effect.seconds, effect.power);
-      }
       removed = true;
+      final shooter = owner;
+      if (shooter is RemotePlayer && hit is Mob) {
+        // A peer's shot at a creature is dealt on its side, by its own roll and filters.
+        game.session!.landed(this, shooter, hit);
+      } else {
+        final player = game.player;
+        final (:amount, :crit) = identical(shooter, player) || game.remotePlayers.contains(shooter)
+            ? player.critical(spec.damage * power)
+            : (amount: spec.damage * power, crit: false);
+        // The local player's own shot is filtered as their swing is.
+        final dealt = identical(shooter, player) && hit is Mob ? player.dealtTo(hit, amount) : amount;
+        hit.takeDamage(
+          Damage(
+            dealt,
+            source: spec.kind,
+            from: position,
+            knockback: spec.knockback,
+            attacker: shooter,
+            crit: crit,
+            effect: spec.onHit,
+          ),
+        );
+      }
+      if (spec.burns > 0.0 && hit is Mob) hit.ignite(spec.burns);
       return;
     }
     if (wall <= len) {

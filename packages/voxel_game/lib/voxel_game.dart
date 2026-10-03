@@ -21,6 +21,7 @@ export 'package:sound_recipes/sound_recipes.dart'
         StockSounds;
 export 'package:voxel_engine/content.dart';
 export 'package:voxel_engine/core.dart' show BlockShape, IVec3;
+export 'package:voxel_engine/net.dart' show NetMessage;
 export 'package:voxel_engine/worldgen.dart'
     show
         Biome,
@@ -97,6 +98,7 @@ export 'src/spec/action_spec.dart';
 export 'src/spec/dimension_sky.dart';
 export 'src/spec/explosive.dart';
 export 'src/spec/graphics_spec.dart';
+export 'src/spec/message_handler.dart';
 export 'src/spec/portal_spec.dart';
 export 'src/spec/screen_spec.dart';
 export 'src/spec/sky_spec.dart';

@@ -237,7 +237,7 @@ void main() {
     game.dispose();
   });
 
-  test('a creature made to forget drops its quarrel; the host\'s creature is set back on the host', () async {
+  test('a creature made to forget drops its quarrel', () async {
     final game = await _start(_flat());
     final p = game.player;
     final w = game.spawnMob('wolf', p.position + Vector3(0, 0, -6));
@@ -249,11 +249,6 @@ void main() {
     expect(w.lastHurtBy, isNull);
     await _run(game, 0.5);
     expect(w.target, isNull, reason: 'it hunts only who hurt it, and forgot who');
-    w.replica = true;
-    expect(w.forget, throwsStateError);
-    expect(() => w.stun(1), throwsStateError);
-    expect(() => w.slow(0.5, 1), throwsStateError);
-    w.replica = false;
     game.dispose();
   });
 }

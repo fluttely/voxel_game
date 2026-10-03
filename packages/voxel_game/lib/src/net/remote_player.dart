@@ -15,10 +15,11 @@ import '../player/held_light.dart';
 /// Another player in a networked game: a body standing where its peer says,
 /// drawn with the player's rig, seated when its peer rides, lying down when
 /// it sleeps, lit by the light of what it holds, and its float on
-/// the water with a line from its hand when its peer fishes. On the host it
-/// is a [Target] the mobs hunt; the damage it takes goes to its peer through
-/// [onHurt], and the drops it reaches through [onGive], as far as its peer's
-/// declared [bag] takes them.
+/// the water with a line from its hand when its peer fishes, its [name] over
+/// it (`DefaultHud`), and what its peer's game sends with each pose in
+/// [extras]. On the host it is a [Target] the mobs hunt; the damage it takes
+/// goes to its peer through [onHurt], effect and all, and the drops it
+/// reaches through [onGive], as far as its peer's declared [bag] takes them.
 class RemotePlayer extends GameEntity implements Target, Angler {
   /// Peer [peer]'s player.
   RemotePlayer(this.peer, Vector3 at) {
@@ -97,6 +98,16 @@ class RemotePlayer extends GameEntity implements Target, Angler {
   double? _seat;
   Vector3? _float;
   Bobber? _bobber;
+  String? _name;
+  Map<String, Object?> _extras = const {};
+
+  /// The name its peer gave its player (`PlayerEntity.name`), or
+  /// `Player <peer>` for none.
+  String get name => _name ?? 'Player $peer';
+
+  /// What its peer's game sends with each pose (`PlayerEntity.poseExtras`),
+  /// as last said; read-only.
+  Map<String, Object?> get extras => _extras;
 
   /// Dead, or gone with its peer: out of every fight, and its pets wait.
   @override
@@ -127,7 +138,8 @@ class RemotePlayer extends GameEntity implements Target, Angler {
 
   /// Where the peer says its player is, in which dimension, looking where,
   /// holding what (`''` for nothing), alive or not, asleep or not, on a seat
-  /// pointing [seat] (null for none), its float at [float] (null for none).
+  /// pointing [seat] (null for none), its float at [float] (null for none),
+  /// named [name] (null for none) and with its game's [extras].
   void setPose(
     Vector3 at,
     double yaw, {
@@ -137,6 +149,8 @@ class RemotePlayer extends GameEntity implements Target, Angler {
     int dimension = 0,
     double? seat,
     Vector3? float,
+    String? name,
+    Map<String, Object?> extras = const {},
   }) {
     if (dimension != this.dimension) position = at.clone(); // across dimensions it does not walk
     this.dimension = dimension;
@@ -147,6 +161,8 @@ class RemotePlayer extends GameEntity implements Target, Angler {
     _sleeping = sleeping;
     _seat = seat;
     _float = float?.clone();
+    _name = name;
+    _extras = Map.unmodifiable(extras);
   }
 
   /// Where its right hand is drawn, near enough for its line to hang from:

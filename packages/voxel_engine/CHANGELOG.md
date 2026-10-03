@@ -2,6 +2,9 @@
 
 ## 0.3.0-dev
 
+- `ChunkMesher.liquidTop` (new, 0.875): how high a liquid's top is drawn in a cell with no
+  liquid of its own above, what a game reads to tell an eye over a pool's surface from one
+  under it (VA-Zf).
 - Minecraft's world, as rows (VA-Ze).
   - `Biome.flats` (new) of `Flats` (new: `height` 2, `keep` 0.3, `reach` 9, the app's swamp):
     a column standing from one to `reach` blocks over the sea is pressed toward `height`

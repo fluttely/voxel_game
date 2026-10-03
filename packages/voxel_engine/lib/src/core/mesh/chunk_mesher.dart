@@ -245,6 +245,10 @@ class ChunkMesher {
     this.lighting = true,
   }) : _opaque = List<bool>.generate(opaque.length, (i) => opaque[i] != 0);
 
+  /// How high a liquid's top is drawn in a cell with no liquid of its own
+  /// above: a pool's surface sits this far over its top cell's floor.
+  static const double liquidTop = 0.875;
+
   static const int _sizeX = ChunkSize.sizeX, _sizeZ = ChunkSize.sizeZ, _sizeY = ChunkSize.sizeY;
 
   /// The padded volume holds the whole 3x3 ring (16 cells a side), so
@@ -677,7 +681,7 @@ class ChunkMesher {
   void _mergedQuad(_Surface s, int f, int key, Int32List cell, Int32List extent) {
     final id = key & 0xFF;
     final ls = ((key >> 8) & 15) / _maxLight, lb = ((key >> 12) & 15) / _maxLight;
-    final top = (key & _keyLowered) != 0 ? 0.875 : 1.0;
+    final top = (key & _keyLowered) != 0 ? liquidTop : 1.0;
     final tint = _faceTint[f];
     final r = palette[id * 4], g = palette[id * 4 + 1], b = palette[id * 4 + 2], a = palette[id * 4 + 3];
     final nx = _faceOffsets[f * 3].toDouble(),

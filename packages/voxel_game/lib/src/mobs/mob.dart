@@ -222,7 +222,7 @@ class Mob extends GameEntity implements Target, Rideable {
   /// Throws for a creature with no fleece, one shorn or dead, and a replica
   /// (the host shears it, `GameSession.shearMob`).
   int shear() {
-    _ownedHere('shorn');
+    if (replica) throw StateError('${spec.id} $netId is the host\'s: it is shorn there');
     final fleece = spec.fleece;
     if (fleece == null) throw StateError('${spec.id} has no fleece');
     if (shorn || _dead) throw StateError('${spec.id} $netId is shorn or dead');
@@ -246,11 +246,14 @@ class Mob extends GameEntity implements Target, Rideable {
   /// Stuns it for [seconds], or as long as it is stunned already if that is
   /// longer: its behaviours neither think nor tick and it stands still (a
   /// flier hangs where it is), though it still falls, burns and is hurt.
-  /// Nothing dead is stunned. Throws for a replica: the host's creature is
-  /// stunned there.
+  /// Nothing dead is stunned. A replica asks the host, where the creature
+  /// is stunned.
   void stun(double seconds) {
-    _ownedHere('stunned');
     if (!(seconds > 0.0)) throw ArgumentError.value(seconds, 'seconds', 'a stun lasts some time');
+    if (replica) {
+      _game.session!.stunMob(this, seconds);
+      return;
+    }
     if (_dead) return;
     _stun = math.max(_stun, seconds);
     halt();
@@ -258,13 +261,16 @@ class Mob extends GameEntity implements Target, Rideable {
 
   /// Slows it to [share] (0..1) of its pace for [seconds]: a slow on one
   /// already slowed keeps the slower share and the longer time. Nothing dead
-  /// is slowed. Throws for a replica, as [stun] does.
+  /// is slowed. A replica asks the host, as [stun] does.
   void slow(double share, double seconds) {
-    _ownedHere('slowed');
     if (!(share >= 0.0 && share < 1.0)) {
       throw ArgumentError.value(share, 'share', 'a slow is a share of the pace under 1');
     }
     if (!(seconds > 0.0)) throw ArgumentError.value(seconds, 'seconds', 'a slow lasts some time');
+    if (replica) {
+      _game.session!.slowMob(this, share, seconds);
+      return;
+    }
     if (_dead) return;
     _slowShare = _slowLeft > 0.0 ? math.min(_slowShare, share) : share;
     _slowLeft = math.max(_slowLeft, seconds);
@@ -273,18 +279,17 @@ class Mob extends GameEntity implements Target, Rideable {
   /// Makes it forget its quarrels: what it hunted ([target]) and who hurt it
   /// ([lastHurtBy], [lastHurtFrom]); its behaviours stop, to think again in
   /// the step. One that hunts on sight finds whoever is in its range again.
-  /// Throws for a replica, as [stun] does.
+  /// A replica asks the host, as [stun] does.
   void forget() {
-    _ownedHere('made to forget');
+    if (replica) {
+      _game.session!.forgetMob(this);
+      return;
+    }
     _brain.stopAll(this, _game);
     target = null;
     lastHurtBy = null;
     lastHurtFrom = null;
     halt();
-  }
-
-  void _ownedHere(String what) {
-    if (replica) throw StateError('${spec.id} $netId is the host\'s: it is $what there');
   }
 
   /// Who tamed it, or null for a wild creature.
@@ -782,17 +787,10 @@ class Mob extends GameEntity implements Target, Rideable {
     return !inLiquid && game.daylight >= 0.9 && game.world.lightAt(head).sky >= 15;
   }
 
-  /// Deals [damage] to [t] and leaves the spec's `onHit` effect on it when
-  /// it is the player and the strike took health. Every strike of a
-  /// behaviour goes through here.
-  double strike(Target t, Damage damage) {
-    final taken = t.takeDamage(damage);
-    final effect = spec.onHit;
-    if (effect != null && taken > 0.0 && identical(t, _game.player)) {
-      _game.player.effects.apply(effect.effect, effect.seconds, effect.power);
-    }
-    return taken;
-  }
+  /// Deals [damage] to [t], leaving the spec's `onHit` effect on a player it
+  /// hurts (`Damage.effect`: a remote player wears it on its own side).
+  /// Every strike of a behaviour goes through here.
+  double strike(Target t, Damage damage) => t.takeDamage(damage.withEffect(spec.onHit));
 
   /// Where a hit's number starts: over its head.
   Vector3 _numberAt() => position + Vector3(0, height + 0.2, 0);

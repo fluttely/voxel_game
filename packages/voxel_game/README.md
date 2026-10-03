@@ -344,7 +344,7 @@ Dart SDK `^3.13.0`.
 
 5. **Grow it** with `items`, `recipes`, `effects`,
    `player: PlayerSpec(startingItems: {...}, hunger: HungerSpec())`, `sky`, `sounds`,
-   `signals`, `graphics`, `screens`, and the `on...` hooks.
+   `signals`, `graphics`, `screens`, `systems` and `messages`.
 
 6. **Play together (optional):** `runVoxelGame(spec, hostPort: 7777)` on one
    machine and `runVoxelGame(spec, join: '192.168.0.10')` on another. A client's block
@@ -358,7 +358,14 @@ Dart SDK `^3.13.0`.
    host's as well: a client's boat or minecart is put down there, a seat is the host's to
    give (one rider each), and the rider drives with no lag, as on a mount. Every player
    sees the others seated as they ride, their fishing floats with a line from their hand,
-   and their shots: a client's `shoot` is landed by the host, which every side sees.
+   their names over their heads (`PlayerEntity.name`, else `Player <peer>`), and their
+   shots: a client's `shoot` is landed by the host, which every side sees, and a blow it
+   lands on a creature is dealt by the shooter's own `damageOut`. A creature's effect
+   (`MobSpec.onHit`) is worn by the peer it hurt, and the host's blasts are heard where
+   they are. A game's own data rides along: `PlayerEntity.poseExtras` with each pose
+   (read as `RemotePlayer.extras`), and messages of its own declared in
+   `VoxelGameSpec.messages`, sent through `game.session` (`sendToHost`, `broadcast`,
+   `sendTo`).
 
 7. **Open on a title (optional):** `runVoxelGame(spec, menu: TitleSpec(name: 'My game'))`
    lets the player make, pick, host and join worlds instead of dropping into one slot.
@@ -372,8 +379,9 @@ flutter run -d macos
 
 [`example/lib/main.dart`](example/lib/main.dart) is a small game in one file:
 twelve blocks, two biomes with trees and coal, a few recipes, a player with a
-pickaxe, a glider, a bow, shears and a bed, sheep and cows by day and zombies by night, two actions of its own
-(F1 the controls, T the time) and a title whose Creative worlds fly.
+pickaxe, a glider, a bow, shears and a bed, sheep and cows by day and zombies by night, three actions of its own
+(F1 the controls, T the time, H a wave to the other players, a message of its own) and a title whose Creative
+worlds fly.
 
 ## Working on the kit
 

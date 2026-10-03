@@ -180,6 +180,15 @@ class PlayerEntity extends NodeBody implements Target, Angler {
   /// player does not sprint (out of stamina, say), on foot or in a saddle.
   final Map<String, bool Function()> sprintVetoes = {};
 
+  /// The name the other players see over this one in a networked game
+  /// (`RemotePlayer.name`); null for the kit's `Player <peer>`.
+  String? name;
+
+  /// What a game sends with each of this player's poses in a networked game,
+  /// by key: JSON values (its class, say), read on the other sides as
+  /// `RemotePlayer.extras`. Set one to send it, remove it to stop.
+  final Map<String, Object?> poseExtras = {};
+
   /// Whether the player sprints this step: the button held, moving forward,
   /// out of the water, and no [sprintVetoes] against it; in a saddle, whether
   /// the mount is urged on.
@@ -502,7 +511,7 @@ class PlayerEntity extends NodeBody implements Target, Angler {
   /// [PlayerSpec.armorFloor] of the blow. A blow from outside leaves
   /// [PlayerSpec.grace] in which no other lands; an internal hurt is neither
   /// turned aside nor stopped by it. A hurt the filters bring to 0 never
-  /// lands, and is not felt.
+  /// lands, and is not felt; one that lands leaves its `Damage.effect`.
   @override
   double takeDamage(Damage damage) {
     if (_dead || spec.creative) return 0.0;
@@ -518,6 +527,7 @@ class PlayerEntity extends NodeBody implements Target, Angler {
         : math.max(filtered - armor * spec.armorPerPoint, filtered * spec.armorFloor);
     final taken = math.min(hp, amount);
     hp -= amount;
+    if (damage.effect case final e?) effects.apply(e.effect, e.seconds, e.power);
     if (!damage.internal) {
       _invulnerable = math.max(_invulnerable, spec.grace);
       _shakeLeft = shakeSeconds;
