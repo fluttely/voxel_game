@@ -2,7 +2,12 @@
 import 'package:flutter/material.dart';
 import 'package:voxel_game/voxel_game.dart';
 
-void main() => runVoxelGame(game, title: 'Voxel game', saveSlot: 'world1');
+// The title lists the worlds; one made Creative flies (F, or the ✈ button on a phone).
+void main() => runVoxelGame(
+  game,
+  title: 'Voxel game',
+  menu: const TitleSpec(name: 'Voxel game'),
+);
 
 const game = VoxelGameSpec(
   seed: 2024,
@@ -373,6 +378,8 @@ const game = VoxelGameSpec(
     // A fishing rod: cast at water with use, and use again when something bites (the `fishing` below).
     ItemType('fishing_rod', color: 0x9E7340, stack: 1),
     ItemType('raw_fish', color: 0x99B3BF, food: Food(hunger: 2)),
+    // Carried in the bag, it glides: hold G (or the button on a phone) in the air.
+    ItemType('glider', color: 0xD04A30, stack: 1, glider: Glider()),
   ],
   recipes: [
     Recipe('planks', 4, {'log': 1}),
@@ -399,6 +406,7 @@ const game = VoxelGameSpec(
     Recipe('rail', 16, {'cobblestone': 6, 'planks': 1}),
     Recipe('minecart', 1, {'cobblestone': 5}),
     Recipe('fishing_rod', 1, {'planks': 3, 'wool': 2}),
+    Recipe('glider', 1, {'wool': 6, 'planks': 2}),
   ],
   // Status effects: what a food starts, what the player carries.
   effects: [
@@ -553,7 +561,7 @@ const game = VoxelGameSpec(
   // 4. The player: what they start with, hunger that food fills, experience (a kill's, below), and one blow in
   //    ten a critical one.
   player: PlayerSpec(
-    startingItems: {'wooden_pickaxe': 1, 'planks': 16, 'torch': 8, 'apple': 4, 'wool_cap': 1},
+    startingItems: {'wooden_pickaxe': 1, 'planks': 16, 'torch': 8, 'apple': 4, 'wool_cap': 1, 'glider': 1},
     hunger: HungerSpec(),
     xp: XpSpec(),
     critChance: 0.1,
@@ -707,9 +715,28 @@ const game = VoxelGameSpec(
       LootEntry('flint_and_steel', 1, 1, 0.05),
     ]),
   ),
-  // 6. Screens of the game's own: this one is a button in the game menu (Esc, or ⏸ on a phone).
-  screens: {'controls': ScreenSpec(_controls, menu: 'Controls')},
+  // 6. Actions of the game's own: keys, pad buttons and a button on a phone. A screen opens on one; a system
+  // reads another in the step.
+  actions: [
+    ActionSpec('controls', keys: [PhysicalKeyboardKey.f1], gamepad: [GamepadButton.back], touch: Icons.help_outline),
+    ActionSpec('clock', keys: [PhysicalKeyboardKey.keyT], gamepad: [GamepadButton.x], touch: Icons.schedule),
+  ],
+  systems: [_Clock()],
+  // 7. Screens of the game's own: this one is a button in the game menu (Esc, or ⏸ on a phone), and F1.
+  screens: {'controls': ScreenSpec(_controls, menu: 'Controls', action: 'controls')},
 );
+
+// Tells the time of day when the clock action is pressed.
+class _Clock implements GameSystem {
+  const _Clock();
+
+  @override
+  void tick(VoxelGame game, double dt) {
+    if (!game.gameplay || !game.actions.justPressed('clock')) return;
+    final minutes = (game.timeOfDay * 24 * 60).floor();
+    game.notify('It is ${minutes ~/ 60}:${(minutes % 60).toString().padLeft(2, '0')}');
+  }
+}
 
 // The kit's fireball, burning the player through the game's own effect as well as any creature it hits.
 const _wispFire = ProjectileSpec(
@@ -790,6 +817,8 @@ Widget _controls(BuildContext context, VoxelGame game) => ColoredBox(
               'WASD walk · Space jump · Shift run · Ctrl sneak\n'
               'Left click mine and hit · Right click place, use, eat, wear\n'
               'E bag · Q drop · V view · Esc menu\n'
+              'G glide, with a glider in the bag · F fly, in a Creative world\n'
+              'T the time · F1 these controls\n'
               'A phone: a stick at the left, the world is the button',
             ),
             const SizedBox(height: 12),

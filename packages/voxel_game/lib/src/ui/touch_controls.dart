@@ -9,9 +9,12 @@ import 'hud_selector.dart';
 
 /// The controls a finger plays with, laid out by a [TouchControlsSpec] inside
 /// the safe area: a floating stick in the lower-left zone, jump and sneak at
-/// the bottom right, the view and pause at the top right. The hotbar is the
-/// HUD's (`DefaultHud` takes its own taps), and the world is the attack and
-/// use button.
+/// the bottom right, the view and pause at the top right. In a row left of
+/// sneak, a button for each of the game's own actions that declares one
+/// (`ActionSpec.touch`), then fly in creative (`PlayerSpec.creative`) and
+/// glide while the bag holds a glider (`PlayerEntity.glider`). The hotbar is
+/// the HUD's (`DefaultHud` takes its own taps), and the world is the attack
+/// and use button.
 ///
 /// It shows itself only while the last device was a finger
 /// (`InputMap.lastDevice`), the game is in `gameplay` and no screen is open,
@@ -56,6 +59,43 @@ class _TouchLayer extends StatelessWidget {
     final pad = MediaQuery.paddingOf(context);
     final small = spec.buttonSize * 0.75;
     final jump = spec.buttonSize * 1.25;
+    final button = spec.buttonSize;
+    // One row left of sneak, above the hotbar and its bars: the game's own
+    // actions, then fly and glide nearest the vertical moves. The glide comes
+    // and goes with the glider, and the row closes up behind it.
+    final gameButtons = [
+      for (final a in game.spec.actions)
+        if (a.touch case final icon?)
+          _HoldButton(game, hold: (h) => game.actions.hold(a.id, h), icon: icon, size: button),
+    ];
+    final fly = game.spec.player.creative
+        ? _PressButton(
+            game,
+            action: VoxelAction.fly,
+            icon: Icons.flight_takeoff,
+            size: button,
+            lit: () => game.player.flying,
+          )
+        : null;
+    final row = HudSelector(
+      frames: game.frames,
+      select: () => game.player.glider != null,
+      builder: (context, glides) => Row(
+        mainAxisSize: MainAxisSize.min,
+        spacing: _margin,
+        children: [
+          ...gameButtons,
+          ?fly,
+          if (glides)
+            _HoldButton(
+              game,
+              hold: (h) => game.input.setTouchHeld(VoxelAction.glide, h),
+              icon: Icons.paragliding,
+              size: button,
+            ),
+        ],
+      ),
+    );
     return Padding(
       padding: pad,
       child: LayoutBuilder(
@@ -73,15 +113,26 @@ class _TouchLayer extends StatelessWidget {
               Positioned(
                 right: _margin,
                 bottom: _margin,
-                child: _HoldButton(game, action: VoxelAction.jump, icon: Icons.arrow_upward, size: jump),
+                child: _HoldButton(
+                  game,
+                  hold: (h) => game.input.setTouchHeld(VoxelAction.jump, h),
+                  icon: Icons.arrow_upward,
+                  size: jump,
+                ),
               ),
               Positioned(
-                right: _margin + (jump - spec.buttonSize) * 0.5,
+                right: _margin + (jump - button) * 0.5,
                 bottom: _margin * 2 + jump,
                 child: spec.sneakToggles
-                    ? _SwitchButton(game, action: VoxelAction.sneak, icon: Icons.arrow_downward, size: spec.buttonSize)
-                    : _HoldButton(game, action: VoxelAction.sneak, icon: Icons.arrow_downward, size: spec.buttonSize),
+                    ? _SwitchButton(game, action: VoxelAction.sneak, icon: Icons.arrow_downward, size: button)
+                    : _HoldButton(
+                        game,
+                        hold: (h) => game.input.setTouchHeld(VoxelAction.sneak, h),
+                        icon: Icons.arrow_downward,
+                        size: button,
+                      ),
               ),
+              Positioned(right: _margin * 2 + (jump + button) * 0.5, bottom: _margin * 2 + jump, child: row),
               Positioned(
                 right: _margin,
                 top: _margin,
@@ -141,12 +192,14 @@ class _ButtonFace extends StatelessWidget {
   );
 }
 
-/// Holds its action while a finger is on it (jump: also swims up and climbs).
+/// Holds its action while a finger is on it (jump: also swims up and climbs;
+/// glide; a game's own): [hold] takes it as the finger lands and lets it go
+/// as the finger lifts.
 class _HoldButton extends StatefulWidget {
-  const _HoldButton(this.game, {required this.action, required this.icon, required this.size});
+  const _HoldButton(this.game, {required this.hold, required this.icon, required this.size});
 
   final VoxelGame game;
-  final VoxelAction action;
+  final void Function(bool held) hold;
   final IconData icon;
   final double size;
 
@@ -159,7 +212,7 @@ class _HoldButtonState extends State<_HoldButton> {
 
   void _press(int pointer) {
     if (_pointer != null) return;
-    widget.game.input.setTouchHeld(widget.action, true);
+    widget.hold(true);
     setState(() => _pointer = pointer);
   }
 
@@ -167,7 +220,7 @@ class _HoldButtonState extends State<_HoldButton> {
     // A finger keeps the route it landed on: a button taken off the screen
     // under it still hears it lift, after [dispose] has let go.
     if (!mounted || pointer != _pointer) return;
-    widget.game.input.setTouchHeld(widget.action, false);
+    widget.hold(false);
     setState(() => _pointer = null);
   }
 
@@ -175,7 +228,7 @@ class _HoldButtonState extends State<_HoldButton> {
   void dispose() {
     // Taken off the screen under the finger (a screen opened, a key was
     // pressed): the lift will never come here, so let go now.
-    if (_pointer != null) widget.game.input.setTouchHeld(widget.action, false);
+    if (_pointer != null) widget.hold(false);
     super.dispose();
   }
 
@@ -211,21 +264,32 @@ class _SwitchButton extends StatelessWidget {
   );
 }
 
-/// Presses its action once as the finger lands (the view, pause).
+/// Presses its action once as the finger lands (the view, pause, fly), drawn
+/// lit while [lit] says so (flying).
 class _PressButton extends StatelessWidget {
-  const _PressButton(this.game, {required this.action, required this.icon, required this.size});
+  const _PressButton(this.game, {required this.action, required this.icon, required this.size, this.lit});
 
   final VoxelGame game;
   final VoxelAction action;
   final IconData icon;
   final double size;
+  final bool Function()? lit;
 
   @override
-  Widget build(BuildContext context) => _claiming(
-    game,
-    _ButtonFace(icon: icon, size: size, lit: false),
-    down: (_) => game.input.touchPress(action),
-  );
+  Widget build(BuildContext context) {
+    final on = lit;
+    return _claiming(
+      game,
+      on == null
+          ? _ButtonFace(icon: icon, size: size, lit: false)
+          : HudSelector(
+              frames: game.frames,
+              select: on,
+              builder: (context, lit) => _ButtonFace(icon: icon, size: size, lit: lit),
+            ),
+      down: (_) => game.input.touchPress(action),
+    );
+  }
 }
 
 /// The movement stick: a thumb that lands anywhere in the zone grabs it, the

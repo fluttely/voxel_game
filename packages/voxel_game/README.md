@@ -117,7 +117,8 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
   the settings (`SettingsScreen`, back to the menu), the death
   screen (`DeathScreen`, left only by a respawn: its button, or jump) and your own
   (`DeclaredScreen('journal')`, built by `VoxelGameSpec.screens: {'journal':
-  ScreenSpec(buildJournal, menu: 'Journal')}`). `openScreen`, `closeScreen` and `respawn`
+  ScreenSpec(buildJournal, menu: 'Journal', action: 'journal')}`, opened and closed by the
+  game's own `journal` action as well). `openScreen`, `closeScreen` and `respawn`
   change it and refuse what cannot be. A screen gates the controls, never the world: the
   game keeps stepping behind every one.
 - The player's settings (`GameSettings`): render distance, look speed (mouse, finger and
@@ -161,6 +162,18 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
   draws its own; `TouchControls` is public, and `InputMap.touchMove` / `setTouchHeld` /
   `touchToggle` / `touchPress` / `touchDigit` / `claimTouch` are what any control writes,
   read by the game as the same actions a key presses.
+- A game's own actions: `VoxelGameSpec.actions` of `ActionSpec('journal', keys: [...],
+  gamepad: [...], touch: Icons.book)`, pressed by the same keys and pad as the kit's, by a
+  button among the touch controls when it has an icon, or from code; a `GameSystem` reads
+  them in the step (`game.actions.justPressed('journal')`), and `ScreenSpec.action` opens a
+  screen on one. A key or button that already presses something throws when the game is
+  made; `VoxelGameSpec.bindings` moves the kit's actions
+  (`VoxelAction.defaultBindings.rebind(keys: {VoxelAction.toggleView: [keyV]})`).
+- Flying in creative (`VoxelAction.fly`, F: jump rises, sneak sinks, at
+  `PlayerSpec.flySpeed`) and gliding with an item that glides in the bag (`ItemType.glider`,
+  a `Glider` of its speed and sink; hold `VoxelAction.glide`, G, in the air; the model
+  spreads its arms). A phone gets a button for each, fly in creative, glide while the bag
+  holds a glider.
 - `MobSpec` with a `Rig` (humanoid, quadruped, bird, blob), a `Gait` and a brain of goals:
   `Wander`, `Hunt`, `MeleeAttack`, `RangedAttack`, `FleeWhenHurt`, `Explode`, `LookAtPlayer`, or `Behavior.custom`.
 - `Goal` / `GoalSelector`: the same goal system for your own creature classes.
@@ -325,7 +338,8 @@ flutter run -d macos
 
 [`example/lib/main.dart`](example/lib/main.dart) is a small game in one file:
 twelve blocks, two biomes with trees and coal, a few recipes, a player with a
-pickaxe, sheep by day and zombies by night.
+pickaxe and a glider, sheep by day and zombies by night, two actions of its own
+(F1 the controls, T the time) and a title whose Creative worlds fly.
 
 ## Working on the kit
 

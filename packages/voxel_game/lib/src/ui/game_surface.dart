@@ -23,7 +23,8 @@ typedef HudBuilder = Widget Function(BuildContext context, VoxelGame game);
 /// A loaded game on screen: [world] under the touch controls, the HUD and the
 /// open screen ([VoxelGame.screen], each [GameScreen] as its widget), all
 /// inside the one `Listener` that hands every pointer to [VoxelGame.input],
-/// and a `Focus` that hands it the keys.
+/// and a `Focus` that hands it the keys — the kit's actions' and the game's
+/// own ([VoxelGame.actions] reads the keys and pad buttons it records).
 ///
 /// It is the arbiter of the pointer: the first press while the game does not
 /// want the pointer takes it (and is nothing else), a press while a screen is
@@ -91,6 +92,7 @@ class _GameSurfaceState extends State<GameSurface> {
       input
         ..release()
         ..releaseKeys();
+      widget.game.actions.releaseHeld();
     } else {
       input.capture();
     }

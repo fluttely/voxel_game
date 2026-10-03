@@ -100,6 +100,12 @@ class RigAnimator {
   /// How much of the beat is in against the fold.
   double wingWeight = 0.0;
 
+  /// How far a humanoid's arms are spread for a glide, 0 to 1.
+  double glideWeight = 0.0;
+
+  /// How far a gliding humanoid's arms reach out from its sides, radians.
+  static const double glideSpread = 1.4;
+
   /// The attack swing, 1 down to 0.
   double swing = 0.0;
 
@@ -121,7 +127,8 @@ class RigAnimator {
   /// [verticalSpeed]; [lookYaw] turns the head (relative to the body), null
   /// for straight ahead. [seated], a humanoid sits, its legs out in front
   /// ([seatedLegs]); the other plans have no seat of their own and only
-  /// stand still. Parts are applied by the caller.
+  /// stand still. [gliding], a humanoid spreads its arms ([glideSpread]).
+  /// Parts are applied by the caller.
   void pose(
     double dt, {
     required double age,
@@ -131,6 +138,7 @@ class RigAnimator {
     double? lookYaw,
     double verticalSpeed = 0.0,
     bool seated = false,
+    bool gliding = false,
   }) {
     moveWeight = lerpd(moveWeight, speed > 0.3 ? 1.0 : 0.0, math.min(1.0, dt * 8.0));
     phase += dt * speed * _gaitRate;
@@ -188,11 +196,17 @@ class RigAnimator {
           ?..offY = lift * 0.8
           ..rx = math.sin(phase * 2.0 + 0.7) * 0.10 * moveWeight - swing * motion.swingNod;
       case RigKind.humanoid:
-        // Arms at the sides swing with the stride; arms held out only stir.
-        final reach = armRest == 0.0 ? 0.8 : 0.3;
+        // Arms at the sides swing with the stride; arms held out only stir;
+        // arms spread for a glide hold still.
+        glideWeight = lerpd(glideWeight, gliding ? 1.0 : 0.0, math.min(1.0, dt * 8.0));
+        final reach = (armRest == 0.0 ? 0.8 : 0.3) * (1.0 - glideWeight);
         final chop = math.sin((1.0 - swing) * math.pi) * 1.3 * (swing > 0.0 ? 1.0 : 0.0);
-        parts['arm0']?.rx = armRest - a * reach + chop;
-        parts['arm1']?.rx = armRest + a * reach;
+        parts['arm0']
+          ?..rx = armRest - a * reach + chop
+          ..rz = -glideSpread * glideWeight;
+        parts['arm1']
+          ?..rx = armRest + a * reach
+          ..rz = glideSpread * glideWeight;
         final bob = math.sin(phase).abs() * 0.02 * moveWeight;
         parts['body']
           ?..ry = -a * 0.12

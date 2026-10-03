@@ -400,6 +400,7 @@ class _VoxelGameWidgetState extends State<VoxelGameWidget> with SingleTickerProv
     if (input.captureLost) {
       input.captureLost = false;
       input.releaseKeys();
+      game.actions.releaseHeld();
       // Focus left the window mid-play: the game menu is up when it comes back.
       if (_stage == LoadingStage.playing && game.screen.value == null) game.openScreen(const PauseScreen());
     }

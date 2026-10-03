@@ -1,4 +1,6 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show PhysicalKeyboardKey;
+import 'package:gamepads/gamepads.dart' show GamepadButton;
 import 'package:voxel_engine/content.dart';
 import 'package:voxel_engine/core.dart';
 import 'package:voxel_engine/worldgen.dart';
@@ -11,8 +13,11 @@ import '../mobs/mob.dart';
 import '../mobs/mob_spec.dart';
 import '../player/player_spec.dart';
 import '../fishing/fishing_spec.dart';
+import '../input/input_map.dart';
+import '../input/voxel_action.dart';
 import '../vehicles/vehicle_spec.dart';
 import '../world/game_world.dart';
+import 'action_spec.dart';
 import 'graphics_spec.dart';
 import 'portal_spec.dart';
 import 'screen_spec.dart';
@@ -56,6 +61,8 @@ class VoxelGameSpec {
     this.renderDistance = 6,
     this.graphics,
     this.touchControls = TouchControlsSpec.standard,
+    this.bindings = VoxelAction.defaultBindings,
+    this.actions = const [],
     this.screens = const {},
     this.mining = const MiningRules(),
     this.liquids = const {},
@@ -143,6 +150,15 @@ class VoxelGameSpec {
   /// takes no finger either).
   final TouchControlsSpec? touchControls;
 
+  /// What presses the kit's actions: [VoxelAction.defaultBindings], or those
+  /// with an action moved ([InputBindings.rebind]), to free a key for an
+  /// action of the game's own or to put one where the game wants it.
+  final InputBindings<VoxelAction> bindings;
+
+  /// The game's own actions, read through `VoxelGame.actions` (see
+  /// [checkActions]).
+  final List<ActionSpec> actions;
+
   /// The game's own screens, by the id a `DeclaredScreen` opens; those with a
   /// `ScreenSpec.menu` are listed in the game menu, in this order.
   final Map<String, ScreenSpec> screens;
@@ -193,6 +209,8 @@ class VoxelGameSpec {
     int? renderDistance,
     ValueGetter<GraphicsSpec?>? graphics,
     ValueGetter<TouchControlsSpec?>? touchControls,
+    InputBindings<VoxelAction>? bindings,
+    List<ActionSpec>? actions,
     Map<String, ScreenSpec>? screens,
     MiningRules? mining,
     Map<String, LiquidSpec>? liquids,
@@ -220,6 +238,8 @@ class VoxelGameSpec {
     renderDistance: renderDistance ?? this.renderDistance,
     graphics: graphics == null ? this.graphics : graphics(),
     touchControls: touchControls == null ? this.touchControls : touchControls(),
+    bindings: bindings ?? this.bindings,
+    actions: actions ?? this.actions,
     screens: screens ?? this.screens,
     mining: mining ?? this.mining,
     liquids: liquids ?? this.liquids,
@@ -338,6 +358,44 @@ class VoxelGameSpec {
       if (m.xp > 0 && player.xp == null) {
         throw ArgumentError.value(m.xp, m.id, 'the mob is worth experience and the player gains none');
       }
+    }
+  }
+
+  /// Throws [ArgumentError] for two of [actions] of one id, a key or pad
+  /// button that presses two actions (two of the game's, or one of the game's
+  /// and one of the kit's: move the kit's off it in [bindings]), and a
+  /// screen opened by an action not declared or by one that opens another.
+  void checkActions() {
+    final ids = <String>{};
+    for (final a in actions) {
+      if (!ids.add(a.id)) throw ArgumentError.value(a.id, 'actions', 'two actions of one id');
+    }
+    final keys = <PhysicalKeyboardKey, String>{
+      for (final e in bindings.keys.entries)
+        for (final k in e.value) k: 'the kit\'s ${e.key.name}',
+    };
+    final pad = <GamepadButton, String>{for (final e in bindings.gamepad.entries) e.value: 'the kit\'s ${e.key.name}'};
+    for (final a in actions) {
+      for (final k in a.keys) {
+        if (keys[k] case final other?) {
+          throw ArgumentError.value(k.debugName, a.id, 'the key already presses $other');
+        }
+        keys[k] = a.id;
+      }
+      for (final b in a.gamepad) {
+        if (pad[b] case final other?) throw ArgumentError.value(b.name, a.id, 'the button already presses $other');
+        pad[b] = a.id;
+      }
+    }
+    final opened = <String, String>{};
+    for (final e in screens.entries) {
+      final action = e.value.action;
+      if (action == null) continue;
+      if (!ids.contains(action)) throw ArgumentError.value(action, e.key, 'the screen opens on an action not declared');
+      if (opened[action] case final other?) {
+        throw ArgumentError.value(action, e.key, 'the action opens the screen $other already');
+      }
+      opened[action] = e.key;
     }
   }
 

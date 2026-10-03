@@ -502,7 +502,7 @@ class RigInstance {
   /// facing [targetYaw], standing [onFloor] or [flying]; [lookYaw] turns the
   /// head toward something (relative to the body), null for straight ahead.
   /// [seated], a humanoid sits (`RigAnimator.seatedLegs`): its owner places
-  /// it [seatDrop] lower.
+  /// it [seatDrop] lower. [gliding], a humanoid spreads its arms.
   void animate(
     double dt, {
     required double speed,
@@ -512,6 +512,7 @@ class RigInstance {
     double? lookYaw,
     double verticalSpeed = 0.0,
     bool seated = false,
+    bool gliding = false,
   }) {
     _age += dt;
     _yaw = lerpAngle(_yaw, targetYaw, math.min(1.0, dt * 12.0));
@@ -524,6 +525,7 @@ class RigInstance {
       lookYaw: lookYaw,
       verticalSpeed: verticalSpeed,
       seated: seated,
+      gliding: gliding,
     );
     for (final p in parts.values) {
       p.apply();

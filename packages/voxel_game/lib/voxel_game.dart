@@ -4,7 +4,9 @@
 /// sound_recipes a game declares with, so a game imports this one library.
 library;
 
+export 'package:flutter/services.dart' show PhysicalKeyboardKey;
 export 'package:flutter_scene/scene.dart' show AntiAliasingMode;
+export 'package:gamepads/gamepads.dart' show GamepadButton;
 
 export 'package:sound_recipes/sound_recipes.dart'
     show
@@ -56,6 +58,7 @@ export 'src/entities/game_entity.dart';
 export 'src/entities/item_pickup.dart';
 export 'src/entities/projectile.dart';
 export 'src/entities/target.dart';
+export 'src/input/game_actions.dart';
 export 'src/input/input_device.dart';
 export 'src/input/input_map.dart';
 export 'src/input/voxel_action.dart';
@@ -80,6 +83,7 @@ export 'src/player/player_spec.dart';
 export 'src/player/xp_spec.dart';
 export 'src/settings/game_settings.dart';
 export 'src/settings/settings_store.dart';
+export 'src/spec/action_spec.dart';
 export 'src/spec/graphics_spec.dart';
 export 'src/spec/portal_spec.dart';
 export 'src/spec/screen_spec.dart';

@@ -2,6 +2,10 @@
 
 ## 0.3.0-dev
 
+- `ItemType.glider` (new) of `Glider` (new: `speed`, `fall`, `steer`, a hang glider's by
+  default): an item that glides, carried in the bag. The engine only declares it; the kit's
+  player glides with it (`VoxelAction.glide`).
+
 - `Inventory.roomForStack` (new): how many of a stack `put` would take — a new one as many as
   `roomFor`, a worn or bonused one all or nothing. A host reads it of a peer's declared bag
   before it hands a drop over.

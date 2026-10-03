@@ -2,6 +2,42 @@
 
 ## Unreleased
 
+- **Actions (VA-Za).** A game's own actions, and two of the kit's for flying and gliding.
+  - `VoxelGameSpec.actions` (new) of `ActionSpec` (new): an id, the keys and pad buttons that
+    press it and the icon of its touch button (optional). `VoxelGame.actions` (new, a
+    `GameActions`) reads them from the same keys and pad the kit's `InputMap` records
+    (`InputMap.keyDown` / `keyPressed` / `padDown` / `padPressed`, new) and from their
+    buttons: `down`, `justPressed`, `hold`, `tap`, cleared after every step as the kit's
+    are; `GameSurface` and `VoxelGameWidget` let go of what a button held when a screen
+    opens or the pointer is lost. A `GameSystem` reads them in the step, while `gameplay`.
+  - `ScreenSpec.action` (new): a game's action that opens its screen while the player plays
+    and closes it again (as the bag's key does); pause still closes it.
+  - `VoxelGameSpec.bindings` (new, `VoxelAction.defaultBindings` by default) and
+    `InputBindings.rebind` (new): a game moves a kit action to another key or pad button,
+    or off one it wants. `VoxelGameSpec.checkActions` (new, run when the game is made)
+    throws for two actions of one id, a key or button that presses two actions (two of the
+    game's, or one of the game's and one of the kit's) and a screen opened by an action not
+    declared or one that opens another.
+  - `VoxelAction.fly` (new, F, dpad right): in creative, takes off and lands
+    (`PlayerEntity.flying`, new; setting it on throws for a player who is not creative, is
+    dead or rides). A flyer has no gravity and no fall, rises with jump, sinks with sneak,
+    and moves at `PlayerSpec.flySpeed` (new, 11.5), a run faster by as much as it walks
+    faster. Riding and dying land it.
+  - `VoxelAction.glide` (new, G, dpad up): held in the air with an item that glides in the
+    bag (`ItemType.glider`, voxel_engine), the fall is capped at the glider's sink, the body
+    sails toward the look (steered by the move) at its speed, and the landing never hurts.
+    `PlayerEntity.glider` (new) is the first glider in the bag, `PlayerEntity.gliding` (new)
+    whether it glided this step. `CharacterMotor.step` takes `glideFall` (new), a glider's
+    own cap for the step. `RigInstance.animate` and `RigAnimator.pose` take `gliding`
+    (new): a humanoid spreads its arms (`RigAnimator.glideSpread`, 1.4 rad).
+  - `TouchControls` puts a row left of sneak: a button for each of the game's actions with
+    an icon (held while the finger is on it), then fly in creative (lit while flying) and
+    glide while the bag holds a glider.
+  - The library re-exports `PhysicalKeyboardKey` and `GamepadButton`, so a game declares
+    its actions with one import.
+  - The example declares two actions (F1 the controls, a screen's action; T the time, read by
+    a system), a glider it starts with and crafts from wool, and opens on the title, whose
+    Creative worlds fly.
 - **Sound catches up, footsteps (VA17b).** A block tagged `step:<kind>` sounds `step_<kind>`
   when walked on; untagged, `step_<family>` as before (its `sound:` tag, else the guess).
   `VoxelGame.stepSound` (new) is that choice. A `step:` kind must be a sound the game has —

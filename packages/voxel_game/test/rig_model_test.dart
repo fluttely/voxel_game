@@ -63,4 +63,21 @@ void main() {
     animator.pose(1 / 60, age: 0.0, speed: 0.0);
     expect([parts['leg0']!.rx, parts['leg1']!.rx], [0.0, 0.0], reason: 'standing again');
   });
+
+  test('a gliding humanoid spreads its arms, and folds them back after', () {
+    final parts = {
+      for (final n in ['leg0', 'leg1', 'body', 'arm0', 'arm1', 'head']) n: RigPart(Node(), Vector3.zero()),
+    };
+    final animator = RigAnimator(RigKind.humanoid, parts);
+    for (var i = 0; i < 60; i++) {
+      animator.pose(1 / 60, age: i / 60, speed: 10.0, gliding: true);
+    }
+    expect(parts['arm0']!.rz, closeTo(-RigAnimator.glideSpread, 1e-3), reason: 'the left arm out to the left');
+    expect(parts['arm1']!.rz, closeTo(RigAnimator.glideSpread, 1e-3));
+    expect(parts['arm1']!.rx, closeTo(0.0, 1e-3), reason: 'spread arms do not swing with the stride');
+    for (var i = 0; i < 60; i++) {
+      animator.pose(1 / 60, age: 1.0 + i / 60, speed: 0.0);
+    }
+    expect([parts['arm0']!.rz, parts['arm1']!.rz], [closeTo(0.0, 1e-3), closeTo(0.0, 1e-3)]);
+  });
 }

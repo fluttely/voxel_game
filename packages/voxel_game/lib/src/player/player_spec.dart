@@ -23,6 +23,7 @@ class PlayerSpec {
     this.sprintSpeed = 7.6,
     this.sneakSpeed = 2.0,
     this.swimSpeed = 3.0,
+    this.flySpeed = 11.5,
     this.jumpVelocity = 8.6,
     this.eyeHeight = 1.62,
     this.halfWidth = 0.3,
@@ -68,6 +69,10 @@ class PlayerSpec {
   /// Swimming speed.
   final double swimSpeed;
 
+  /// Flying speed, in creative (`VoxelAction.fly`); a run flies faster by as
+  /// much as it walks faster ([sprintSpeed] over [walkSpeed]).
+  final double flySpeed;
+
   /// Jump launch speed.
   final double jumpVelocity;
 
@@ -90,7 +95,8 @@ class PlayerSpec {
   /// What the player starts with: item id to count.
   final Map<String, int> startingItems;
 
-  /// Blocks break at once and placing uses nothing up; no damage.
+  /// Blocks break at once and placing uses nothing up; no damage; a press of
+  /// `VoxelAction.fly` takes off and lands.
   final bool creative;
 
   /// Whether falls of more than 4 blocks hurt.
@@ -141,6 +147,7 @@ class PlayerSpec {
     double? sprintSpeed,
     double? sneakSpeed,
     double? swimSpeed,
+    double? flySpeed,
     double? jumpVelocity,
     double? eyeHeight,
     double? halfWidth,
@@ -168,6 +175,7 @@ class PlayerSpec {
     sprintSpeed: sprintSpeed ?? this.sprintSpeed,
     sneakSpeed: sneakSpeed ?? this.sneakSpeed,
     swimSpeed: swimSpeed ?? this.swimSpeed,
+    flySpeed: flySpeed ?? this.flySpeed,
     jumpVelocity: jumpVelocity ?? this.jumpVelocity,
     eyeHeight: eyeHeight ?? this.eyeHeight,
     halfWidth: halfWidth ?? this.halfWidth,

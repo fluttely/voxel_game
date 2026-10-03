@@ -190,6 +190,32 @@ class PlayerEntity extends NodeBody implements Target, Angler {
   /// player's input, and sneak gets off ([dismount]).
   Rideable? riding;
 
+  /// Whether the player flies (creative only): no gravity and no fall, jump
+  /// rises and sneak sinks. A press of `VoxelAction.fly` flips it; riding,
+  /// dying and a world that is not creative end it. Throws when set on while
+  /// the player is not creative, dead or riding.
+  bool get flying => _flying;
+  bool _flying = false;
+  set flying(bool on) {
+    if (on && !spec.creative) throw StateError('only a creative player flies');
+    if (on && (_dead || riding != null)) throw StateError('the dead and the riding do not fly');
+    _flying = on;
+  }
+
+  /// Whether the player glided this step: glide held in the air with a
+  /// [glider] in the bag.
+  bool get gliding => motor.gliding;
+
+  /// What the player glides with: the first item in the bag that glides
+  /// (`ItemType.glider`), or null for none.
+  Glider? get glider {
+    for (final s in inventory.slots) {
+      if (s == null) continue;
+      if (_game.items[s.id].glider case final g?) return g;
+    }
+    return null;
+  }
+
   /// The float of the line the player has out (`VoxelGameSpec.fishing`), or
   /// null. It is reeled in when the rod leaves the hand, when the player is
   /// twice the cast's reach from it, and when the player dies.
@@ -395,6 +421,7 @@ class PlayerEntity extends NodeBody implements Target, Angler {
     if (_bobber != null) _reelIn();
     hp = 0.0;
     _dead = true;
+    _flying = false;
     _deadFor = 0.0;
     _game.playerDied();
   }
@@ -438,6 +465,7 @@ class PlayerEntity extends NodeBody implements Target, Angler {
         cameraMode = cameraMode == CameraMode.firstPerson ? CameraMode.thirdPerson : CameraMode.firstPerson;
       }
       if (input.justPressed(VoxelAction.drop)) _dropHeld();
+      if (input.justPressed(VoxelAction.fly) && spec.creative && riding == null) flying = !_flying;
       // The bag is not opened from here: `VoxelGame.step` is the one reader of
       // that button, so a press cannot open it and close it in one step.
     }
@@ -483,6 +511,17 @@ class PlayerEntity extends NodeBody implements Target, Angler {
     if (wish.length > 1.0) wish = wish.normalized();
     final sneaking = gameplay && input.down(VoxelAction.sneak);
     final sprinting = gameplay && input.down(VoxelAction.sprint) && y < 0.0 && !motor.swimming;
+    if (_flying) {
+      final run = sprinting ? spec.sprintSpeed / spec.walkSpeed : 1.0;
+      motor.fly(
+        dt,
+        wish: wish,
+        speed: spec.flySpeed * run * effects.multiplier(speedStat),
+        rise: gameplay && input.down(VoxelAction.jump),
+        sink: sneaking,
+      );
+      return;
+    }
     var speed = sprinting ? spec.sprintSpeed : (sneaking ? spec.sneakSpeed : spec.walkSpeed);
     if (motor.swimming) {
       speed = spec.swimSpeed;
@@ -492,6 +531,12 @@ class PlayerEntity extends NodeBody implements Target, Angler {
     speed *= effects.multiplier(speedStat);
     final floor = _game.world.getBlockXYZ(position.x.floor(), (position.y - 0.05).floor(), position.z.floor());
     if (onFloor) speed *= _game.blocks[floor].speed;
+    // A glide sails toward the look, steered by the move, whatever the walk was.
+    final glide = gameplay && input.down(VoxelAction.glide) && motor.canGlide ? glider : null;
+    if (glide != null) {
+      if (wish.length2 < 0.01) wish = flatForward;
+      speed = glide.speed;
+    }
     final events = motor.step(
       dt,
       wish: wish,
@@ -499,6 +544,9 @@ class PlayerEntity extends NodeBody implements Target, Angler {
       jump: gameplay && input.down(VoxelAction.jump),
       sneak: sneaking,
       onLadder: _onLadder(),
+      glide: glide != null,
+      glideFall: glide?.fall,
+      accel: glide?.steer,
     );
     // A step every 0.4 s on foot (0.3 running), sounding like the ground.
     final horizontal = math.sqrt(velocity.x * velocity.x + velocity.z * velocity.z);
@@ -553,6 +601,7 @@ class PlayerEntity extends NodeBody implements Target, Angler {
     if (!seat.takes(this)) throw StateError('the ${seat.name.toLowerCase()} does not take the player');
     riding = seat;
     seat.rider = this;
+    _flying = false;
     mineProgress = 0.0;
     _miningCell = null;
     position = seat.seat();
@@ -1233,7 +1282,14 @@ class PlayerEntity extends NodeBody implements Target, Angler {
         : yaw;
     // The hit-stop: the pose holds, the body still moves.
     if (!frozen) {
-      r.animate(dt, speed: seated ? 0.0 : speed, targetYaw: face, onFloor: seated || onFloor, seated: seated);
+      r.animate(
+        dt,
+        speed: seated ? 0.0 : speed,
+        targetYaw: face,
+        onFloor: seated || onFloor || _flying,
+        seated: seated,
+        gliding: gliding,
+      );
     }
     r.paint(flashing ? VoxelModelMesh.flash() : VoxelModelMesh.material());
     r.place(Vector3(0, seated ? -r.seatDrop : 0.0, 0));

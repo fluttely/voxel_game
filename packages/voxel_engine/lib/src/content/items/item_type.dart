@@ -1,11 +1,12 @@
 import 'armor.dart';
 import 'bucket.dart';
 import 'food.dart';
+import 'glider.dart';
 import 'item_shape.dart';
 
 /// One item of a game. A block's item names that block in [block]; one that
 /// is eaten says what it does in [food], one that is worn in [armor], one
-/// that carries a liquid in [bucket]. What it looks like is its [shape].
+/// that carries a liquid in [bucket], one that glides in [glider]. What it looks like is its [shape].
 ///
 /// A game with more to say about its items subclasses this and keeps an
 /// `ItemRegistry<ItsType>`.
@@ -24,6 +25,7 @@ class ItemType {
     this.food,
     this.armor,
     this.bucket,
+    this.glider,
     this.shape,
     this.tags = const {},
   }) : r = ((color >> 16) & 0xFF) / 255.0,
@@ -46,6 +48,7 @@ class ItemType {
     this.food,
     this.armor,
     this.bucket,
+    this.glider,
     this.shape,
     this.tags = const {},
   });
@@ -88,6 +91,9 @@ class ItemType {
 
   /// What it does with a liquid, or null for an item that is not a bucket.
   final Bucket? bucket;
+
+  /// How it glides, carried in the bag, or null for an item that does not.
+  final Glider? glider;
 
   /// What it looks like in the hand, on the ground and in a slot; null takes
   /// one from the rest of the row (`ItemModel.shapeOf`).

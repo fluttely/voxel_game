@@ -57,12 +57,43 @@ class InputBindings<A extends Object> {
 
   /// Gamepad triggers per action.
   final Map<A, TriggerBinding> triggers;
+
+  /// These bindings with [keys] and [gamepad] replaced for the actions they
+  /// name, the rest kept: an empty list of keys unbinds an action's keys, a
+  /// null button its pad button. How a game moves an action to another key,
+  /// or off one it wants for an action of its own (`VoxelGameSpec.bindings`):
+  ///
+  /// ```dart
+  /// VoxelAction.defaultBindings.rebind(keys: {
+  ///   VoxelAction.toggleView: [PhysicalKeyboardKey.keyV],
+  ///   VoxelAction.fly: [PhysicalKeyboardKey.f5],
+  /// })
+  /// ```
+  InputBindings<A> rebind({
+    Map<A, List<PhysicalKeyboardKey>> keys = const {},
+    Map<A, GamepadButton?> gamepad = const {},
+  }) => InputBindings(
+    keys: {
+      for (final e in this.keys.entries)
+        if (!keys.containsKey(e.key)) e.key: e.value,
+      for (final e in keys.entries)
+        if (e.value.isNotEmpty) e.key: e.value,
+    },
+    mouse: mouse,
+    gamepad: {
+      for (final e in this.gamepad.entries)
+        if (!gamepad.containsKey(e.key)) e.key: e.value,
+      for (final e in gamepad.entries) e.key: ?e.value,
+    },
+    triggers: triggers,
+  );
 }
 
 /// Held and just-pressed actions and the wheel, read by the simulation once
 /// per step and cleared by [endTick], and the look motion (mouse and right
-/// stick), drained once a frame by [takeLook]. Generic over the game's own
-/// action type; `VoxelAction` is the kit's.
+/// stick), drained once a frame by [takeLook]. Generic over the action type;
+/// `VoxelAction` is the kit's, and a game's own actions read the keys and pad
+/// buttons it records through [keyDown] / [padDown] (`GameActions`).
 ///
 /// Feed it from a widget ([onKey], the pointer callbacks) and [attachDevices];
 /// or drive it from code with [hold] (tests, bots, cutscenes).
@@ -164,8 +195,10 @@ class InputMap<A extends Object> {
   /// the right hints.
   InputDevice lastDevice = switch (defaultTargetPlatform) {
     TargetPlatform.android || TargetPlatform.iOS => InputDevice.touch,
-    TargetPlatform.fuchsia || TargetPlatform.linux || TargetPlatform.macOS || TargetPlatform.windows =>
-      InputDevice.keyboardMouse,
+    TargetPlatform.fuchsia ||
+    TargetPlatform.linux ||
+    TargetPlatform.macOS ||
+    TargetPlatform.windows => InputDevice.keyboardMouse,
   };
 
   /// Whether the game wants the mouse captured (looking around).
@@ -437,14 +470,14 @@ class InputMap<A extends Object> {
   bool down(A action) {
     if (_scriptHeld.contains(action) || _touchHeld.contains(action)) return true;
     for (final k in bindings.keys[action] ?? const <PhysicalKeyboardKey>[]) {
-      if (_held.contains(k)) return true;
+      if (keyDown(k)) return true;
     }
     final m = bindings.mouse[action];
     // A finger that stayed put holds the primary button: the same action a
     // mouse's own left button holds, whichever one the game bound to it.
     if (m != null && (_mouseHeld.contains(m) || (m == MouseBinding.left && _touchMining.isNotEmpty))) return true;
     final g = bindings.gamepad[action];
-    if (g != null && _pad.isPressed(g)) return true;
+    if (g != null && padDown(g)) return true;
     final t = bindings.triggers[action];
     return t != null && _triggerHeld.contains(t);
   }
@@ -453,15 +486,28 @@ class InputMap<A extends Object> {
   bool justPressed(A action) {
     if (_scriptPressed.contains(action) || _touchPressed.contains(action)) return true;
     for (final k in bindings.keys[action] ?? const <PhysicalKeyboardKey>[]) {
-      if (_pressed.contains(k)) return true;
+      if (keyPressed(k)) return true;
     }
     final m = bindings.mouse[action];
     if (m != null && _mousePressed.contains(m)) return true;
     final g = bindings.gamepad[action];
-    if (g != null && _padPressed.contains(g)) return true;
+    if (g != null && padPressed(g)) return true;
     final t = bindings.triggers[action];
     return t != null && _triggerPressed.contains(t);
   }
+
+  /// Whether [key] is held, whatever it is bound to: what a game's own
+  /// actions read (`GameActions`), fed by the same [onKey] as the kit's.
+  bool keyDown(PhysicalKeyboardKey key) => _held.contains(key);
+
+  /// Whether [key] was pressed since the last [endTick].
+  bool keyPressed(PhysicalKeyboardKey key) => _pressed.contains(key);
+
+  /// Whether the pad's [button] is held, whatever it is bound to.
+  bool padDown(GamepadButton button) => _pad.isPressed(button);
+
+  /// Whether the pad's [button] was pressed since the last [endTick].
+  bool padPressed(GamepadButton button) => _padPressed.contains(button);
 
   /// -1..1 from [negative] and [positive] held, plus [stick] past the
   /// deadzone ([invertStick] flips it: a stick's up is -y on screen) and

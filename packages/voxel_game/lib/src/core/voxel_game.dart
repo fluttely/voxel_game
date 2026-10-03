@@ -16,6 +16,7 @@ import '../entities/game_entity.dart';
 import '../entities/item_pickup.dart';
 import '../entities/projectile.dart';
 import '../entities/target.dart';
+import '../input/game_actions.dart';
 import '../input/input_map.dart';
 import '../input/voxel_action.dart';
 import '../loop/fixed_step_loop.dart';
@@ -65,12 +66,14 @@ class VoxelGame {
     required this.headless,
     this.authority = true,
   }) : random = math.Random(spec.seed),
-       input = InputMap<VoxelAction>(VoxelAction.defaultBindings),
+       input = InputMap<VoxelAction>(spec.bindings),
        recipes = RecipeBook(spec.recipes),
        timeOfDay = spec.sky.startTime,
        weather = Weather(spec.sky.weather, spec.dimensionWorlds, seed: spec.seed),
        _settings = ValueNotifier(settings) {
     assert(settings.renderDistance == world.loadRadius, 'the world streams the settings\' render distance');
+    spec.checkActions();
+    actions = GameActions(spec.actions, input);
     spec.checkDimensions(blocks, items);
     spec.checkMobs(items);
     spec.checkVehicles(items);
@@ -526,6 +529,11 @@ class VoxelGame {
   /// The player's controls. A widget feeds it; code can [InputMap.hold].
   final InputMap<VoxelAction> input;
 
+  /// The game's own actions (`VoxelGameSpec.actions`), fed by the same keys
+  /// and pad as [input] and by their touch buttons; a `GameSystem` reads them
+  /// in the step, while [gameplay].
+  late final GameActions actions;
+
   /// Crafting.
   final RecipeBook recipes;
 
@@ -957,10 +965,20 @@ class VoxelGame {
           openScreen(const BagScreen());
         } else if (gameplay && input.justPressed(VoxelAction.pause)) {
           openScreen(const PauseScreen());
+        } else if (gameplay) {
+          for (final e in spec.screens.entries) {
+            if (e.value.action case final a? when actions.justPressed(a)) {
+              openScreen(DeclaredScreen(e.key));
+              break;
+            }
+          }
         }
       case BagScreen() || StorageScreen():
         if (input.justPressed(VoxelAction.inventory) || input.justPressed(VoxelAction.pause)) closeScreen();
-      case PauseScreen() || DeclaredScreen():
+      case DeclaredScreen(:final id):
+        final action = spec.screens[id]!.action;
+        if (input.justPressed(VoxelAction.pause) || (action != null && actions.justPressed(action))) closeScreen();
+      case PauseScreen():
         if (input.justPressed(VoxelAction.pause)) closeScreen();
       case SettingsScreen():
         if (input.justPressed(VoxelAction.pause)) openScreen(const PauseScreen());
@@ -975,7 +993,7 @@ class VoxelGame {
     } else if (!player.placed) {
       // The first stand: the world waits for the player.
       player.tryPlace(_spawnColumn.x, _spawnColumn.z);
-      input.endTick();
+      _endTick();
       return;
     }
     searchesLeft = Mob.searchesPerStep;
@@ -1015,7 +1033,12 @@ class VoxelGame {
     // Last, so every edit of this step, whoever made it, leaves in this step.
     session?.tick(this, dt);
     _prune();
+    _endTick();
+  }
+
+  void _endTick() {
     input.endTick();
+    actions.endTick();
   }
 
   void _prune() {

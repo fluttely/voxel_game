@@ -193,6 +193,17 @@ void main() {
       // ignore: prefer_const_constructors
       expect(() => Armor('chest', 0), throwsA(isA<AssertionError>()));
     });
+
+    test('an item says how it glides; a glider that does not fly forward, sink or turn is refused', () {
+      const wings = ItemType('wings', color: 0xE04030, stack: 1, glider: Glider(speed: 14.0));
+      expect(wings.glider!.speed, 14.0);
+      expect(wings.glider!.fall, 1.6, reason: 'a hang glider\'s sink unless told');
+      expect(items['stone'].glider, isNull);
+      // ignore: prefer_const_constructors
+      expect(() => Glider(fall: 0.0), throwsA(isA<AssertionError>()));
+      // ignore: prefer_const_constructors
+      expect(() => Glider(steer: -1.0), throwsA(isA<AssertionError>()));
+    });
   });
 
   group('Inventory', () {

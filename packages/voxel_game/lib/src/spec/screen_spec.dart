@@ -12,11 +12,12 @@ typedef ScreenBuilder = Widget Function(BuildContext context, VoxelGame game);
 /// `DeclaredScreen` of its key in `VoxelGameSpec.screens`.
 ///
 /// ```dart
-/// screens: {'controls': ScreenSpec(controlsScreen, menu: 'Controls')},
+/// screens: {'controls': ScreenSpec(controlsScreen, menu: 'Controls', action: 'controls')},
 /// ```
 class ScreenSpec {
-  /// A screen built by [build], listed in the game menu as [menu] when given.
-  const ScreenSpec(this.build, {this.menu});
+  /// A screen built by [build], listed in the game menu as [menu] when given
+  /// and opened by [action] when given.
+  const ScreenSpec(this.build, {this.menu, this.action});
 
   /// Builds it.
   final ScreenBuilder build;
@@ -25,4 +26,9 @@ class ScreenSpec {
   /// a screen only the game's code opens (a trade, from a creature). On a
   /// phone the menu is the one way to a screen a desktop opens with a key.
   final String? menu;
+
+  /// The id of one of the game's own actions (`VoxelGameSpec.actions`) that
+  /// opens it while the player plays and closes it again, as the bag's key
+  /// opens and closes the bag; null for none.
+  final String? action;
 }
