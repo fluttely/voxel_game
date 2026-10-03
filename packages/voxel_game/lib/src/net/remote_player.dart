@@ -199,10 +199,10 @@ class RemotePlayer extends GameEntity implements Target, Angler {
   }
 
   // Draws it with the rig its options make, built again when they make
-  // another one.
+  // another one; until its first pose says them, as the declared player.
   void _dress(VoxelGame game) {
     _restyled = false;
-    final want = game.spec.playerWith(_options).rig;
+    final want = (_options.isEmpty ? game.spec.player : game.spec.playerWith(_options)).rig;
     if (identical(want, _drawn)) return;
     if (rig case final old?) node.remove(old.root);
     _drawn = want;

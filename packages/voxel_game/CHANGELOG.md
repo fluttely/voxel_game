@@ -14,6 +14,7 @@
   - A pose carries its game's options (`op`), read as `RemotePlayer.options`; another
     player is drawn with the rig of the player its options make, built again when they
     change, so a class's colours show on every side with no code of the game's.
+    Until its first pose says them, a peer is drawn as the declared player.
 - **A shot a game pays for (VA-Zj).** `PlayerEntity.shotVetoes` (new): by source, a reason
   refuses the shot of the launcher in hand (told once a hold and at each press, as an
   empty quiver is, and nothing spent); `ShotFired` (new event) is raised for each shot that
