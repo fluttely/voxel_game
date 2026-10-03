@@ -64,6 +64,13 @@
 - **Cost of leaving it:** a field added to any of them later is silently dropped from every derived creature (a field like `hurtSound`, added later, would leave the app's 132 elites without it) and nothing fails; every game that scales a creature (a variant, a difficulty, a test) writes the same copy. `VoxelGameSpec` and `GraphicsSpec` have one already (`KL-010` is the nullable-field question it raised).
 - **Found while:** 2026-10-03 — VA-Zh, generating the app's elites as `MobSpec` variants.
 
+### KL-019 · A title has no music of its own: a game that wants some opens a second audio device
+
+- **Lens:** kit API / audio
+- **Evidence:** `TitleSpec` (`packages/voxel_game/lib/src/spec/title_spec.dart:49`) takes a `background` and no track, and the kit plays music only inside a world: `VoxelGameWidget._startAudio` (`packages/voxel_game/lib/src/ui/voxel_game_widget.dart:304-327`) opens a `SoundBank`, maps the spec's `MusicSpec` tracks to a `MusicDirector`'s two maps and follows `GameSettings`. The minecraft example's title vista (`examples/voxel_game_minecraft/lib/src/ui/title_vista.dart:121-136`) repeats that: its own `SoundBank` (opened bare, for the device), the same mapping for one track, and the gain read once from `settings.json`, because a background is handed only a `BuildContext`; the title's Settings panel (`title_screen.dart:85-88`) writes the file but tells nobody, so a volume moved there reaches the title's track only when the title opens again.
+- **Cost of leaving it:** every game with music under its title copies the mapping and the device's lifetime (open it, close it before the game's widget opens its own, or the two fight over SoLoud), and its title ignores the music slider the title itself shows. A `TitleSpec.music` naming one of the spec's tracks, played by `TitleScreen` through the kit's mapping and its live settings, would carry it.
+- **Found while:** 2026-10-03 — VA-Zi, porting the app's title vista and its meadow track onto `TitleSpec.background`.
+
 ## Closed
 
 ### KL-015 · A ghost cannot be drawn see-through: every rig shares one opaque material

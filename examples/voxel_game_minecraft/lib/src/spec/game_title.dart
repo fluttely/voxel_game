@@ -1,17 +1,20 @@
 import 'dart:io' show Platform;
 
+import 'package:flutter/widgets.dart';
 import 'package:voxel_game/voxel_game.dart';
 
 /// The title the game opens on: Play (the world list), Multiplayer (host a
 /// world on 7777, or join one), Settings, the [credits] and, on a desktop,
 /// Quit. A new world is made with two choices of the game's own, kept in its
 /// `world.json`: the class its player plays ([classOption]) and whether it
-/// is a playground ([playgroundOption]).
-TitleSpec gameTitle({required List<String> credits}) => TitleSpec(
+/// is a playground ([playgroundOption]). The menu sits on [background] (the
+/// app's `TitleVista`), the kit's dusk when null.
+TitleSpec gameTitle({required List<String> credits, WidgetBuilder? background}) => TitleSpec(
   name: 'Voxel Minecraft',
   tagline: 'a Minecraft clone built on voxel_game',
   worldOptions: const [classOption, playgroundOption],
   credits: credits,
+  background: background,
 );
 
 /// The class a new world's player plays, the warrior until another is
