@@ -145,8 +145,9 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
   keeps a `world.json` (`WorldInfo`: name, seed, mode, options, made, last played, play
   time) beside its save; `WorldSaves.create` / `rename` / `worlds` read and write it, and a
   save from before it still loads. A game's own per-world choices (a class, a playground)
-  are `TitleSpec.worldOptions`, picked in the new-world form and read by a system as
-  `game.worldInfo?.options['class']`.
+  are `TitleSpec.worldOptions`, picked in the new-world form (and in the join form, for
+  one marked `join`) and read by a system as `game.options['class']`; the player they make
+  is `VoxelGameSpec.playerFor`'s, which every other side draws too.
 - The bag (`InventoryScreen`): a click or a tap picks a stack up or puts it down, a
   right-click or a long press takes half or leaves one; the held stack follows the pointer
   (above a finger), a tooltip reads the item's row (tool and tier, damage, uses left, food,

@@ -211,6 +211,27 @@ void main() {
     );
   });
 
+  test('a world\'s options make its player, and its mode then plays it', () {
+    final spec = _spec.copyWith(
+      playerFor: () =>
+          (player, options) => player.copyWith(hp: options['class'] == 'mage' ? 18.0 : 30.0),
+    );
+    const mage = WorldInfo(
+      slot: 's',
+      name: 'S',
+      seed: 1,
+      saved: false,
+      mode: WorldMode.creative,
+      options: {'class': 'mage'},
+    );
+    final played = mage.applyTo(spec);
+    expect(played.player.hp, 18.0);
+    expect(played.player.creative, isTrue, reason: 'the mode over the class');
+    expect(const WorldInfo(slot: 's', name: 'S', seed: 1, saved: false).applyTo(spec).player.hp, 30.0);
+    expect(spec.playerWith(const {}).hp, 30.0);
+    expect(_spec.playerWith(const {'class': 'mage'}), same(_spec.player), reason: 'no playerFor: the player');
+  });
+
   test('the world list says how long and when', () {
     expect(WorldList.playTimeLabel(const Duration(seconds: 45)), '45 s');
     expect(WorldList.playTimeLabel(const Duration(minutes: 12, seconds: 5)), '12 min');
@@ -494,6 +515,30 @@ void main() {
       await tester.pump();
       await tester.tap(join());
       expect(picked.last, isA<JoinHost>().having((j) => j.address, 'address', 'lan-box:7000'));
+    });
+
+    testWidgets('the join form offers the options a player joins with, and only those', (tester) async {
+      final (saves, _) = _saves();
+      const menu = TitleSpec(
+        name: 'Blocks',
+        worldOptions: [
+          WorldOption('class', label: 'Class', choices: {'warrior': 'Warrior', 'mage': 'Mage'}, join: true),
+          WorldOption('kind', label: 'Kind', choices: {'open': 'Open', 'playground': 'Playground'}),
+        ],
+      );
+      final picked = await mount(tester, saves, store(saves), menu: menu);
+      await tester.tap(find.text('Multiplayer'));
+      await tester.pump();
+      expect(find.text('Class'), findsOneWidget);
+      expect(find.text('Kind'), findsNothing, reason: 'a world\'s own choice');
+      await tester.tap(find.text('Warrior'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Mage').last);
+      await tester.pumpAndSettle();
+      await tester.enterText(find.widgetWithText(TextField, 'Address'), 'lan-box');
+      await tester.pump();
+      await tester.tap(find.widgetWithText(FilledButton, 'Join'));
+      expect(picked.last, isA<JoinHost>().having((j) => j.options, 'options', {'class': 'mage'}));
     });
   });
 

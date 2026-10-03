@@ -108,6 +108,10 @@ class _VoxelGameHomeState extends State<VoxelGameHome> {
         PlayWorld() => null,
         JoinHost(:final address) => address,
       },
+      joinOptions: switch (playing) {
+        PlayWorld() => const {},
+        JoinHost(:final options) => options,
+      },
       onQuit: _back,
       onNetError: _netFailed,
     );

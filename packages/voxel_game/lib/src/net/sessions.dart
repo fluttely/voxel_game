@@ -16,7 +16,6 @@ import '../entities/projectile.dart';
 import '../entities/target.dart';
 import '../mobs/hit_effect.dart';
 import '../mobs/mob.dart';
-import '../player/player_entity.dart';
 import '../ui/game_screen.dart';
 import '../vehicles/vehicle.dart';
 import '../weather/weather.dart';
@@ -118,7 +117,7 @@ typedef _StoreEdit = ({int n, int opening, int slot, ItemStack? before, ItemStac
 /// amount, where from, the shove, its source and the effect it leaves,
 /// worn on the peer's side). A client stuns (`mob_stun`), slows
 /// (`mob_slow`) and calms (`mob_forget`) the host's creatures through the
-/// host. A player's pose carries its name (`nm`) and its game's extras
+/// host. A player's pose carries its name (`nm`), its game's options (`op`) and its game's extras
 /// (`x`). A game's own messages travel as `game` (its type and the game's
 /// message), handed to the handler `VoxelGameSpec.messages` gives its type.
 /// Every peer runs the same spec, so a dimension's number is the same
@@ -302,18 +301,26 @@ abstract class GameSession extends GameSystem {
   /// The way a peer's seat points ([o], null for none).
   static double? _seat(Object? o) => (o as num?)?.toDouble();
 
-  /// What a pose of [p] says beyond where it stands: the way its seat
-  /// points while it rides, its float while a line is out, its name and its
-  /// game's extras.
-  static Map<String, Object?> _beyond(PlayerEntity p) => {
-    if (p.riding case final r?) 's': r.facing,
-    if (p.bobber case final b?) 'f': _v(b.position),
-    'nm': ?p.name,
-    if (p.poseExtras.isNotEmpty) 'x': p.poseExtras,
-  };
+  /// What a pose of [game]'s player says beyond where it stands: the way its
+  /// seat points while it rides, its float while a line is out, its name,
+  /// its game's options (`VoxelGame.options`) and its game's extras.
+  static Map<String, Object?> _beyond(VoxelGame game) {
+    final p = game.player;
+    return {
+      if (p.riding case final r?) 's': r.facing,
+      if (p.bobber case final b?) 'f': _v(b.position),
+      'nm': ?p.name,
+      if (game.options.isNotEmpty) 'op': game.options,
+      if (p.poseExtras.isNotEmpty) 'x': p.poseExtras,
+    };
+  }
 
   /// The extras of a pose a peer sent as [o] (null for none).
   static Map<String, Object?> _extras(Object? o) => o == null ? const {} : o as Map<String, Object?>;
+
+  /// The options of a pose a peer sent as [o] (null for none).
+  static Map<String, String> _options(Object? o) =>
+      o == null ? const {} : (o as Map<String, Object?>).map((k, v) => MapEntry(k, v! as String));
 
   /// A `hurt` message of [d], dealt to a peer's player.
   static NetMessage _hurtMessage(Damage d) => {
@@ -571,6 +578,7 @@ class HostSession extends GameSession {
           seat: GameSession._seat(m['s']),
           float: _float(m['f']),
           name: m['nm'] as String?,
+          options: GameSession._options(m['op']),
           extras: GameSession._extras(m['x']),
         );
         _ridden(puppet, m['m']);
@@ -974,7 +982,7 @@ class HostSession extends GameSession {
           'dead': p.isDead,
           'd': game.world.dimension,
           if (p.sleeping) 'z': true,
-          ...GameSession._beyond(p),
+          ...GameSession._beyond(game),
         },
         for (final r in players.values)
           {
@@ -988,6 +996,7 @@ class HostSession extends GameSession {
             's': ?r.seat,
             if (r.float case final f?) 'f': _v(f),
             'nm': r.name,
+            if (r.options.isNotEmpty) 'op': r.options,
             if (r.extras.isNotEmpty) 'x': r.extras,
           },
       ],
@@ -1614,6 +1623,7 @@ class ClientSession extends GameSession {
         seat: GameSession._seat(r['s']),
         float: _float(r['f']),
         name: r['nm'] as String?,
+        options: GameSession._options(r['op']),
         extras: GameSession._extras(r['x']),
       );
     }
@@ -1713,7 +1723,7 @@ class ClientSession extends GameSession {
       'dead': p.isDead,
       'd': game.world.dimension,
       if (p.sleeping) 'z': true,
-      ...GameSession._beyond(p),
+      ...GameSession._beyond(game),
       if (p.riding case final Mob mount) 'm': {'n': mount.netId, 'p': _v(mount.position), 'yaw': mount.facing},
       if (p.riding case final Vehicle v when v.replica) 'v': {'n': v.netId, 'v': v.row},
     });

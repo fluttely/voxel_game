@@ -72,6 +72,7 @@ class VoxelGameSpec {
     this.mobUses = const {},
     this.structureLoot = const {},
     this.messages = const {},
+    this.playerFor,
   });
 
   /// The blocks, air first or added; their order is the save contract.
@@ -222,6 +223,18 @@ class VoxelGameSpec {
   /// ```
   final Map<String, MessageHandler> messages;
 
+  /// The player as a world's options make it (`VoxelGame.options`: what the
+  /// new-world form or the join form picked, `WorldOption`): a class, say,
+  /// given [player] and the options. Null plays [player] in every world.
+  ///
+  /// ```dart
+  /// playerFor: (player, options) => classes[options['class']]!.applyTo(player),
+  /// ```
+  final PlayerSpec Function(PlayerSpec player, Map<String, String> options)? playerFor;
+
+  /// The player a game with [options] plays: [playerFor]'s, else [player].
+  PlayerSpec playerWith(Map<String, String> options) => playerFor?.call(player, options) ?? player;
+
   /// This game with the given fields replaced: the same world at another
   /// render distance, say, or with a system of a test's.
   ///
@@ -258,6 +271,7 @@ class VoxelGameSpec {
     Map<String, MobUse>? mobUses,
     Map<String, StructureLoot>? structureLoot,
     Map<String, MessageHandler>? messages,
+    ValueGetter<PlayerSpec Function(PlayerSpec player, Map<String, String> options)?>? playerFor,
   }) => VoxelGameSpec(
     blocks: blocks ?? this.blocks,
     world: world ?? this.world,
@@ -288,6 +302,7 @@ class VoxelGameSpec {
     mobUses: mobUses ?? this.mobUses,
     structureLoot: structureLoot ?? this.structureLoot,
     messages: messages ?? this.messages,
+    playerFor: playerFor == null ? this.playerFor : playerFor(),
   );
 
   /// The block registry: [blocks] with air first.

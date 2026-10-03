@@ -64,13 +64,15 @@ class WorldInfo {
   /// was made.
   DateTime get touched => (lastPlayed ?? created)!;
 
-  /// [spec] as this world is played: its [seed], and its [mode] when it has
-  /// one. (A saved world's seed wins anyway: `VoxelGame.start`.)
+  /// [spec] as this world is played: its [seed], its player as its
+  /// [options] make it (`VoxelGameSpec.playerFor`), and its [mode] when it
+  /// has one. (A saved world's seed wins anyway: `VoxelGame.start`.)
   VoxelGameSpec applyTo(VoxelGameSpec spec) {
     final m = mode;
+    final player = spec.playerWith(options);
     return spec.copyWith(
       seed: seed,
-      player: m == null ? null : spec.player.copyWith(creative: m == WorldMode.creative),
+      player: m == null ? player : player.copyWith(creative: m == WorldMode.creative),
     );
   }
 

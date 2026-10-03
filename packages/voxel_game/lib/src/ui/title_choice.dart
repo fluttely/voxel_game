@@ -16,11 +16,15 @@ final class PlayWorld extends TitleChoice {
   final int? hostPort;
 }
 
-/// Somebody else's world, joined at [address].
+/// Somebody else's world, joined at [address] with the [options] the join
+/// form picked.
 final class JoinHost extends TitleChoice {
   /// The host at [address] (`host` or `host:port`).
-  const JoinHost(this.address);
+  const JoinHost(this.address, {this.options = const {}});
 
   /// Where the host is.
   final String address;
+
+  /// The game's own choices this player joins with (`WorldOption.join`).
+  final Map<String, String> options;
 }

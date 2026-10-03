@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show mapEquals;
 import 'package:vector_math/vector_math.dart';
 import 'package:voxel_engine/content.dart' show Inventory, ItemStack;
 import 'package:voxel_engine/core.dart';
@@ -13,7 +14,8 @@ import '../mobs/rig.dart';
 import '../player/held_light.dart';
 
 /// Another player in a networked game: a body standing where its peer says,
-/// drawn with the player's rig, seated when its peer rides, lying down when
+/// drawn with the rig of the player its peer's [options] make
+/// (`VoxelGameSpec.playerWith`: a class's colours), seated when its peer rides, lying down when
 /// it sleeps, lit by the light of what it holds, and its float on
 /// the water with a line from its hand when its peer fishes, its [name] over
 /// it (`DefaultHud`), and what its peer's game sends with each pose in
@@ -99,11 +101,18 @@ class RemotePlayer extends GameEntity implements Target, Angler {
   Vector3? _float;
   Bobber? _bobber;
   String? _name;
+  Map<String, String> _options = const {};
   Map<String, Object?> _extras = const {};
+  Rig? _drawn;
+  bool _restyled = false;
 
   /// The name its peer gave its player (`PlayerEntity.name`), or
   /// `Player <peer>` for none.
   String get name => _name ?? 'Player $peer';
+
+  /// The game's own choices its peer plays with (`VoxelGame.options`), as
+  /// last said; read-only.
+  Map<String, String> get options => _options;
 
   /// What its peer's game sends with each pose (`PlayerEntity.poseExtras`),
   /// as last said; read-only.
@@ -139,7 +148,8 @@ class RemotePlayer extends GameEntity implements Target, Angler {
   /// Where the peer says its player is, in which dimension, looking where,
   /// holding what (`''` for nothing), alive or not, asleep or not, on a seat
   /// pointing [seat] (null for none), its float at [float] (null for none),
-  /// named [name] (null for none) and with its game's [extras].
+  /// named [name] (null for none), playing with [options] and with its
+  /// game's [extras].
   void setPose(
     Vector3 at,
     double yaw, {
@@ -150,6 +160,7 @@ class RemotePlayer extends GameEntity implements Target, Angler {
     double? seat,
     Vector3? float,
     String? name,
+    Map<String, String> options = const {},
     Map<String, Object?> extras = const {},
   }) {
     if (dimension != this.dimension) position = at.clone(); // across dimensions it does not walk
@@ -162,6 +173,10 @@ class RemotePlayer extends GameEntity implements Target, Angler {
     _seat = seat;
     _float = float?.clone();
     _name = name;
+    if (!mapEquals(options, _options)) {
+      _options = Map.unmodifiable(options);
+      _restyled = true;
+    }
     _extras = Map.unmodifiable(extras);
   }
 
@@ -179,10 +194,20 @@ class RemotePlayer extends GameEntity implements Target, Angler {
   void attached(VoxelGame game) {
     setup(game.world, 0.3, 1.75);
     if (game.headless) return;
-    final r = game.spec.player.rig.build(0.3, 1.75);
-    rig = r;
-    node.add(r.root);
+    _dress(game);
     _light = HeldLight(node);
+  }
+
+  // Draws it with the rig its options make, built again when they make
+  // another one.
+  void _dress(VoxelGame game) {
+    _restyled = false;
+    final want = game.spec.playerWith(_options).rig;
+    if (identical(want, _drawn)) return;
+    if (rig case final old?) node.remove(old.root);
+    _drawn = want;
+    final r = rig = want.build(0.3, 1.75);
+    node.add(r.root);
   }
 
   @override
@@ -193,6 +218,7 @@ class RemotePlayer extends GameEntity implements Target, Angler {
       ..y = 0;
     _speed = lerpd(_speed, moved.length / math.max(dt, 1e-6), math.min(1.0, dt * 8.0));
     final seat = _seat;
+    if (_restyled && rig != null) _dress(game);
     final r = rig;
     if (r != null) {
       r.root.visible = !_dead && dimension == game.world.dimension;

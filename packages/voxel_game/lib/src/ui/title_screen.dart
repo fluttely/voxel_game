@@ -69,6 +69,11 @@ class _TitleScreenState extends State<TitleScreen> {
   Timer? _settingsWrite;
   final TextEditingController _address = TextEditingController();
   String? _host;
+  // What the join form picked of the options it offers (`WorldOption.join`).
+  late final Map<String, String> _joinOptions = {
+    for (final o in widget.menu.worldOptions)
+      if (o.join) o.id: o.first,
+  };
   // Asked once, when Multiplayer first opens.
   late final Future<List<NetworkInterface>> _interfaces = NetworkInterface.list(type: InternetAddressType.IPv4);
 
@@ -244,6 +249,14 @@ class _TitleScreenState extends State<TitleScreen> {
             onChanged: (_) => setState(() {}),
             onSubmitted: (_) => _join(),
           ),
+          for (final o in widget.menu.worldOptions)
+            if (o.join)
+              DropdownButtonFormField<String>(
+                initialValue: _joinOptions[o.id],
+                decoration: InputDecoration(labelText: o.label),
+                items: [for (final c in o.choices.entries) DropdownMenuItem(value: c.key, child: Text(c.value))],
+                onChanged: (v) => setState(() => _joinOptions[o.id] = v!),
+              ),
           const SizedBox(height: 8),
           FilledButton(onPressed: _addressPattern.hasMatch(address) ? _join : null, child: const Text('Join')),
           const SizedBox(height: 8),
@@ -256,7 +269,9 @@ class _TitleScreenState extends State<TitleScreen> {
   void _join() {
     final address = _address.text.trim();
     if (!_addressPattern.hasMatch(address)) return;
-    widget.onChoice(JoinHost(address.contains(':') ? address : '$address:${widget.menu.port}'));
+    widget.onChoice(
+      JoinHost(address.contains(':') ? address : '$address:${widget.menu.port}', options: Map.of(_joinOptions)),
+    );
   }
 
   Widget _framed(String? title, Widget child, {double width = 440}) => Padding(

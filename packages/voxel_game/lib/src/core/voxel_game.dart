@@ -73,7 +73,9 @@ class VoxelGame {
     required this.headless,
     this.authority = true,
     this.worldInfo,
-  }) : random = math.Random(spec.seed),
+    Map<String, String>? options,
+  }) : options = Map.unmodifiable(_optionsOf(worldInfo, options)),
+       random = math.Random(spec.seed),
        systems = List.unmodifiable(spec.systems()),
        input = InputMap<VoxelAction>(spec.bindings),
        recipes = RecipeBook(spec.recipes),
@@ -248,13 +250,15 @@ class VoxelGame {
   ///
   /// With [save] the world is the saved one: its seed, its edits, its clock
   /// and its player. With [settings] the player's own ([GameSettings.of] the
-  /// spec when null). [info] is the slot's ([worldInfo]).
+  /// spec when null). [info] is the slot's ([worldInfo]); [options] those of
+  /// a game in no slot ([VoxelGame.options]).
   static Future<VoxelGame> start(
     VoxelGameSpec spec, {
     SavedWorld? save,
     GameSettings? settings,
     bool authority = true,
     WorldInfo? info,
+    Map<String, String>? options,
   }) async {
     final blocks = spec.buildBlocks();
     final chosen = settings ?? GameSettings.of(spec);
@@ -274,6 +278,7 @@ class VoxelGame {
       headless: false,
       authority: authority,
       worldInfo: info,
+      options: options,
     );
     final g = game.graphics, shadows = g.shadows;
     game.scene = MeasuredScene(game.stats, paced: g.paced)
@@ -299,13 +304,15 @@ class VoxelGame {
   /// A game with no renderer and no isolates: chunks are generated as they
   /// are needed, on this isolate. [loadRadius] chunks around the player: its
   /// [settings] are the spec's at that render distance. [info] is the slot's
-  /// ([worldInfo]).
+  /// ([worldInfo]); [options] those of a game in no slot
+  /// ([VoxelGame.options]).
   static Future<VoxelGame> startHeadless(
     VoxelGameSpec spec, {
     int loadRadius = 2,
     SavedWorld? save,
     bool authority = true,
     WorldInfo? info,
+    Map<String, String>? options,
   }) async {
     final blocks = spec.buildBlocks();
     final world = GameWorld.headless(
@@ -324,6 +331,7 @@ class VoxelGame {
       headless: true,
       authority: authority,
       worldInfo: info,
+      options: options,
     );
     game._begin(save);
     await world.start();
@@ -485,18 +493,22 @@ class VoxelGame {
   }
 
   /// Joins the game hosted at [address]:[port]: its world, its players, its
-  /// mobs, seen with this player's [settings]. [headless] for a test or a bot.
+  /// mobs, seen with this player's [settings], played with the [options]
+  /// picked in the join form (its player `VoxelGameSpec.playerWith` them).
+  /// [headless] for a test or a bot.
   static Future<VoxelGame> joinGame(
     VoxelGameSpec spec,
     String address, {
     int port = 7777,
     GameSettings? settings,
+    Map<String, String> options = const {},
     bool headless = false,
   }) async {
     final hello = await joinHost(address, port: port);
+    final played = spec.copyWith(player: spec.playerWith(options));
     final game = headless
-        ? await startHeadless(spec, save: hello.world, authority: false)
-        : await start(spec, save: hello.world, settings: settings, authority: false);
+        ? await startHeadless(played, save: hello.world, authority: false, options: options)
+        : await start(played, save: hello.world, settings: settings, authority: false, options: options);
     game.player.restore(hello.spawn, hello.spawn);
     game.session = ClientSession(
       game,
@@ -524,6 +536,16 @@ class VoxelGame {
   /// its options (`WorldInfo.options`, chosen in the new-world form); null
   /// for a game in no slot (one made from code, a test's, a joined one).
   final WorldInfo? worldInfo;
+
+  /// The game's own choices this game plays with, by option id
+  /// (`WorldOption`): its [worldInfo]'s, or a joined game's from the join
+  /// form; empty for none. Its player is `VoxelGameSpec.playerWith` them.
+  final Map<String, String> options;
+
+  static Map<String, String> _optionsOf(WorldInfo? info, Map<String, String>? options) {
+    if (info != null && options != null) throw ArgumentError('a world\'s options are its info\'s');
+    return info?.options ?? options ?? const {};
+  }
 
   /// The game's own systems, made for this game by `VoxelGameSpec.systems`,
   /// in its order.

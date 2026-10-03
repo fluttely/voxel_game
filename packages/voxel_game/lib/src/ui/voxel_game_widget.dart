@@ -141,6 +141,7 @@ class VoxelGameWidget extends StatefulWidget {
     this.autosave = const Duration(minutes: 1),
     this.hostPort,
     this.join,
+    this.joinOptions = const {},
     this.onQuit,
     this.onNetError,
   });
@@ -161,6 +162,9 @@ class VoxelGameWidget extends StatefulWidget {
   /// default) instead of starting one; its world is the host's and is never
   /// saved here.
   final String? join;
+
+  /// The game's own choices a [join] plays with (`VoxelGame.options`).
+  final Map<String, String> joinOptions;
 
   /// The game.
   final VoxelGameSpec spec;
@@ -275,6 +279,7 @@ class _VoxelGameWidgetState extends State<VoxelGameWidget> with SingleTickerProv
         parts[0],
         port: parts.length > 1 ? int.parse(parts[1]) : 7777,
         settings: settings,
+        options: widget.joinOptions,
       );
     }
     var spec = widget.spec;

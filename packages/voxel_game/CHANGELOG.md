@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- **A world's options make its player (VA-Zj).**
+  - `VoxelGameSpec.playerFor` (new): the player a game's options make (a class), given the
+    declared one; `playerWith(options)` reads it. `WorldInfo.applyTo` plays a world's
+    player through it before its mode.
+  - `VoxelGame.options` (new): the choices a game plays with, its `worldInfo`'s or, joined,
+    the join form's. `start` and `startHeadless` take `options` for a game in no slot (with
+    an `info` too, they throw); `joinGame` takes `options` and plays `playerWith` them.
+  - `WorldOption.join` (new, off): the join form offers that option too, and `JoinHost`
+    carries what it picked (`options`), which `VoxelGameWidget.joinOptions` plays with.
+  - A pose carries its game's options (`op`), read as `RemotePlayer.options`; another
+    player is drawn with the rig of the player its options make, built again when they
+    change, so a class's colours show on every side with no code of the game's.
 - **Frame pacing (VA-Zg).**
   - `GraphicsSpec.paced` (new, off in both presets): the world reaches the screen only
     once the GPU has finished drawing it, voxel_scene's `GpuPacedScene`. On Metal a

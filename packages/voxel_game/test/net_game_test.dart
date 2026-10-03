@@ -1486,6 +1486,52 @@ void main() {
     await _close(session, clients);
   });
 
+  test("a client plays with the options it joins with, and every side draws it as they make it", () async {
+    const mageRig = Rig.humanoid(shirt: 0x5A47BF);
+    final spec = _spec.copyWith(
+      playerFor: () =>
+          (player, options) =>
+              options['class'] == 'mage' ? player.copyWith(hp: 18.0, rig: mageRig) : player.copyWith(hp: 30.0),
+    );
+    final host = await VoxelGame.startHeadless(spec, options: const {'class': 'warrior'});
+    host.spawner.enabled = false;
+    await _run([host], 1.0);
+    final session = await host.host(port: 0);
+    final a = await VoxelGame.joinGame(
+      spec,
+      '127.0.0.1',
+      port: session.net.port,
+      options: const {'class': 'mage'},
+      headless: true,
+    );
+    final b = await VoxelGame.joinGame(spec, '127.0.0.1', port: session.net.port, headless: true);
+    final all = [host, a, b];
+    await _run(all, 2.0);
+    expect(a.options, {'class': 'mage'});
+    expect(a.player.spec.hp, 18.0, reason: 'its player is the one its options make');
+    expect(a.player.hp, 18.0);
+    expect(b.options, isEmpty);
+    expect(b.player.spec.hp, 30.0);
+    final peerA = _client(a).peer;
+    for (final r in [session.players[peerA]!, b.session!.players[peerA]!]) {
+      expect(r.options, {'class': 'mage'}, reason: "the host's puppet and the other client's alike");
+      expect(spec.playerWith(r.options).rig, same(mageRig));
+    }
+    expect(a.session!.players[GameSession.hostPeer]!.options, {'class': 'warrior'});
+    expect(session.players[_client(b).peer]!.options, isEmpty);
+    expect(() => a.options['class'] = 'rogue', throwsUnsupportedError);
+    expect(
+      () => VoxelGame.startHeadless(
+        spec,
+        info: const WorldInfo(slot: 's', name: 'S', seed: 1, saved: false),
+        options: const {'class': 'mage'},
+      ),
+      throwsArgumentError,
+      reason: "a world's options are its info's",
+    );
+    await _close(session, [a, b]);
+  });
+
   test("a hurt the host deals a client's player leaves its effect there, and says what hurt it", () async {
     final spec = _spec.copyWith(
       effects: const [EffectType('poison', 'Poison', 0.3, 0.6, 0.2, period: 1.0, damage: 1.0, bad: true)],
