@@ -180,6 +180,13 @@ class PlayerEntity extends NodeBody implements Target, Angler {
   /// player does not sprint (out of stamina, say), on foot or in a saddle.
   final Map<String, bool Function()> sprintVetoes = {};
 
+  /// The game's say on a shot of the launcher in hand, by source: one that
+  /// returns a reason (`'Not enough mana'`) refuses it, and the player is
+  /// told so once a hold and at each press, as of an empty quiver; null lets
+  /// it. A shot that goes is raised as a [ShotFired], where the game pays
+  /// for it.
+  final Map<String, String? Function(ItemType launcher)> shotVetoes = {};
+
   /// The name the other players see over this one in a networked game
   /// (`RemotePlayer.name`); null for the kit's `Player <peer>`.
   String? name;
@@ -1242,19 +1249,25 @@ class PlayerEntity extends NodeBody implements Target, Angler {
   /// [damageMultiplier], rolled for a critical one and
   /// filtered by [damageOut] where it lands ([critical], [dealtTo]). One of
   /// its ammo is spent from the bag and the launcher wears (neither in
-  /// creative); with none in the bag the player is told so, once a hold
+  /// creative), and it is raised as a [ShotFired]; with none in the bag, or
+  /// refused by one of the [shotVetoes], the player is told why, once a hold
   /// and at each [pressed].
   void _shoot(Launcher launcher, {required bool pressed}) {
     _attackCooldown = launcher.cooldown;
+    final item = _heldType!;
     final ammo = launcher.ammo;
-    if (ammo != null && !spec.creative) {
-      if (inventory.countOf(ammo) <= 0) {
-        if (pressed || !_dry) _game.notify('No ${_game.items[ammo].name.toLowerCase()} to shoot');
-        _dry = true;
-        return;
-      }
-      inventory.remove(ammo, 1);
+    final String? refused;
+    if (ammo != null && !spec.creative && inventory.countOf(ammo) <= 0) {
+      refused = 'No ${_game.items[ammo].name.toLowerCase()} to shoot';
+    } else {
+      refused = shotVetoes.values.map((veto) => veto(item)).nonNulls.firstOrNull;
     }
+    if (refused != null) {
+      if (pressed || !_dry) _game.notify(refused);
+      _dry = true;
+      return;
+    }
+    if (ammo != null && !spec.creative) inventory.remove(ammo, 1);
     _dry = false;
     _swingArm();
     final dir = forward;
@@ -1271,8 +1284,8 @@ class PlayerEntity extends NodeBody implements Target, Angler {
       power: bonus == 0 ? damageMultiplier : damageMultiplier * (shot.damage + bonus) / shot.damage,
       overDrop: false,
     );
-    final item = _heldType!;
     if (!spec.creative && item.durability > 0) inventory.wear(selectedSlot);
+    _game.raise(ShotFired(item));
   }
 
   /// Uses the creature under the crosshair when the game has a use for it,

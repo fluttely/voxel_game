@@ -1,4 +1,4 @@
-import 'package:voxel_engine/content.dart' show ItemStack, Recipe;
+import 'package:voxel_engine/content.dart' show ItemStack, ItemType, Recipe;
 import 'package:voxel_engine/core.dart';
 
 import '../entities/target.dart';
@@ -185,4 +185,15 @@ final class Slept extends GameEvent {
 
   /// Where the bed is.
   final IVec3 bed;
+}
+
+/// The player shot [launcher] (`ItemType.launcher`): what a game pays for a
+/// shot of its own (mana, stamina; `PlayerEntity.shotVetoes` refuses one it
+/// cannot pay).
+final class ShotFired extends GameEvent {
+  /// A shot of [launcher].
+  const ShotFired(this.launcher);
+
+  /// The item shot with.
+  final ItemType launcher;
 }

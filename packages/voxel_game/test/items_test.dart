@@ -160,6 +160,29 @@ void main() {
     game.dispose();
   });
 
+  test('a game refuses a shot it cannot pay for, saying why, and pays for each that goes', () async {
+    final game = await _start(_flat(start: {'arrow': 5}));
+    final p = game.player;
+    _hold(game, 'bow');
+    p.pitch = 0.0;
+    await _run(game, 0.1);
+    var mana = 1;
+    p.shotVetoes['mana'] = (launcher) => launcher.id == 'bow' && mana <= 0 ? 'Not enough mana' : null;
+    game.input.tap(VoxelAction.attack);
+    await _run(game, 0.05);
+    final paid = game.system<Heard>().events.whereType<ShotFired>().toList();
+    expect(paid.single.launcher.id, 'bow');
+    mana = 0;
+    game.input.hold(VoxelAction.attack, true);
+    await _run(game, 1.2);
+    game.input.hold(VoxelAction.attack, false);
+    expect(_shots(game), hasLength(1), reason: 'refused: no shot');
+    expect(p.inventory.countOf('arrow'), 4, reason: 'and no arrow spent');
+    expect(game.notices.feed.where((n) => n.text == 'Not enough mana'), hasLength(1), reason: 'told once a hold');
+    expect(game.system<Heard>().events.whereType<ShotFired>(), hasLength(1));
+    game.dispose();
+  });
+
   test('a creative player shoots without arrows', () async {
     final game = await _start(_flat(creative: true));
     _hold(game, 'bow');
