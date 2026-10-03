@@ -8,7 +8,8 @@ import 'package:voxel_engine/core.dart';
 import 'package:voxel_engine/net.dart';
 
 import '../core/voxel_game.dart';
-import '../entities/game_entity.dart';
+import '../core/game_event.dart';
+import '../core/game_system.dart';
 import '../entities/item_pickup.dart';
 import '../entities/projectile.dart';
 import '../entities/target.dart';
@@ -104,7 +105,7 @@ typedef _StoreEdit = ({int n, int opening, int slot, ItemStack? before, ItemStac
 /// a client's is a `shoot`, which the host lands where it is and passes on.
 /// Every peer runs the same spec, so a dimension's number is the same
 /// everywhere, and a message no peer of that spec would send throws.
-abstract class GameSession implements GameSystem {
+abstract class GameSession extends GameSystem {
   /// Stops talking.
   Future<void> close();
 
@@ -1233,6 +1234,7 @@ class ClientSession extends GameSession {
         ..followRow(GameSession._vehicleRow(row, v.spec.item))
         ..takeOver();
       p.ride(v);
+      game.raise(Boarded(v));
       _aboard = v;
     } else {
       connection.send({'t': 'vehicle_leave', 'n': n, 'v': row});

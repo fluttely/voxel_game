@@ -6,6 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:vector_math/vector_math.dart';
 import 'package:voxel_game/voxel_game.dart';
 
+import 'support/heard.dart';
+
 const _boat = BoatSpec(item: 'boat');
 
 /// Level grass at y 20 (the first air cell), no caves, no trees; a nether to
@@ -165,7 +167,8 @@ void main() {
   });
 
   test('a use boards it, a sneak gets off beside it, and a seat taken throws', () async {
-    final game = await _start(_spec());
+    final heard = Heard();
+    final game = await _start(_spec().copyWith(systems: () => [heard]));
     final pond = _pond(game);
     final boat = game.placeVehicle('boat', _over(pond))!;
     await _run(game, 1.0);
@@ -179,6 +182,7 @@ void main() {
     expect(p.riding, same(boat));
     expect(p.aimedVehicle, isNull, reason: 'the rider does not aim at their own seat');
     expect(game.notices.feed.last.text, 'Riding the boat: sneak to get off');
+    expect(heard.events.whereType<Boarded>().single.vehicle, same(boat));
     expect(() => p.ride(boat), throwsStateError, reason: 'the player rides already');
     game.input.tap(VoxelAction.sneak);
     await _run(game, 0.1);
@@ -319,7 +323,7 @@ void main() {
       expect(game.vehicles, hasLength(1), reason: 'the nether\'s is parked');
       saves.save(game, 'boats');
       final json = jsonDecode(File('${dir.path}/boats/game.json').readAsStringSync()) as Map<String, Object?>;
-      expect(json['version'], 7);
+      expect(json['version'], WorldSaves.stateVersion);
       final rows = json['vehicles']! as Map<String, Object?>;
       expect((rows['world']! as List<Object?>).length, 1);
       expect((rows['nether']! as List<Object?>).length, 1);

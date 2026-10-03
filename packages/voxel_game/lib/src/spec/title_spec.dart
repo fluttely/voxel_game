@@ -1,5 +1,7 @@
 import 'package:flutter/widgets.dart';
 
+import 'world_option.dart';
+
 /// A title screen, declared: `runVoxelGame(spec, menu: TitleSpec(...))`
 /// opens on it instead of in a world. Its menu plays a world from the list
 /// (made, renamed and deleted there), hosts one or joins a host, and sets the
@@ -11,6 +13,7 @@ class TitleSpec {
     required this.name,
     this.tagline,
     this.modes = true,
+    this.worldOptions = const [],
     this.multiplayer = true,
     this.port = 7777,
     this.credits = const [],
@@ -26,6 +29,10 @@ class TitleSpec {
   /// Whether a new world is made for survival or creative (`WorldMode`);
   /// when not, every world plays as the spec declares.
   final bool modes;
+
+  /// The game's own choices a new world is made with, below the mode in the
+  /// new-world form (see [WorldOption]).
+  final List<WorldOption> worldOptions;
 
   /// Whether the menu hosts and joins (Multiplayer).
   final bool multiplayer;

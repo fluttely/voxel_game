@@ -170,9 +170,30 @@ void main() {
       final w = saves.create('Later', seed: 1);
       final file = File('${saves.directory.path}/${w.slot}/world.json');
       file.writeAsStringSync(
-        jsonEncode({...jsonDecode(file.readAsStringSync()) as Map<String, Object?>, 'version': 2}),
+        jsonEncode({...jsonDecode(file.readAsStringSync()) as Map<String, Object?>, 'version': 3}),
       );
       expect(() => saves.info(w.slot), throwsStateError);
+    });
+
+    test('a world keeps the options it was made with; a world.json of version 1 reads with none', () async {
+      final (saves, _) = _saves();
+      final w = saves.create('Arena', seed: 3, options: {'class': 'mage'});
+      expect(w.options, {'class': 'mage'});
+      final file = File('${saves.directory.path}/${w.slot}/world.json');
+      final json = jsonDecode(file.readAsStringSync()) as Map<String, Object?>;
+      expect(json['version'], 2);
+      expect(json['options'], {'class': 'mage'});
+      expect(saves.info(w.slot).options, {'class': 'mage'});
+      final game = await _start(saves.info(w.slot).applyTo(_spec));
+      saves.save(game, w.slot);
+      expect(saves.info(w.slot).options, {'class': 'mage'}, reason: 'a save keeps them');
+
+      json
+        ..['version'] = 1
+        ..remove('options');
+      file.writeAsStringSync(jsonEncode(json));
+      expect(saves.info(w.slot).options, isEmpty);
+      expect(saves.info(w.slot).name, 'Arena');
     });
   });
 
@@ -206,15 +227,55 @@ void main() {
     );
     expect(WorldList.detailsOf(w), 'Survival · seed 9 · played 3 min · last 2026-10-02 14:03');
     expect(WorldList.detailsOf(const WorldInfo(slot: 's', name: 'S', seed: 9, saved: false)), 'seed 9 · new');
+    const classes = [
+      WorldOption('class', label: 'Class', choices: {'warrior': 'Warrior', 'mage': 'Mage'}),
+    ];
+    expect(
+      WorldList.detailsOf(
+        const WorldInfo(slot: 's', name: 'S', seed: 9, saved: false, options: {'class': 'mage'}),
+        classes,
+      ),
+      'Mage · seed 9 · new',
+    );
+    expect(
+      WorldList.detailsOf(const WorldInfo(slot: 's', name: 'S', seed: 9, saved: false), classes),
+      'seed 9 · new',
+      reason: 'made before the option was offered',
+    );
+  });
+
+  test('world options are checked: an id, a choice, one option an id', () {
+    WorldOption.check(const [
+      WorldOption('class', label: 'Class', choices: {'warrior': 'Warrior'}),
+    ]);
+    expect(
+      () => WorldOption.check(const [
+        WorldOption('', label: 'Class', choices: {'a': 'A'}),
+      ]),
+      throwsArgumentError,
+    );
+    expect(() => WorldOption.check(const [WorldOption('class', label: 'Class', choices: {})]), throwsArgumentError);
+    expect(
+      () => WorldOption.check(const [
+        WorldOption('class', label: 'Class', choices: {'a': 'A'}),
+        WorldOption('class', label: 'Kind', choices: {'b': 'B'}),
+      ]),
+      throwsArgumentError,
+    );
   });
 
   group('WorldList', () {
-    Future<List<String>> mount(WidgetTester tester, WorldSaves saves, {bool modes = true}) async {
+    Future<List<String>> mount(
+      WidgetTester tester,
+      WorldSaves saves, {
+      bool modes = true,
+      List<WorldOption> options = const [],
+    }) async {
       final played = <String>[];
       await tester.pumpWidget(
         MaterialApp(
           home: Material(
-            child: WorldList(saves: saves, modes: modes, onPlay: played.add, onBack: () {}),
+            child: WorldList(saves: saves, modes: modes, options: options, onPlay: played.add, onBack: () {}),
           ),
         ),
       );
@@ -243,6 +304,32 @@ void main() {
       final info = saves.info('island');
       expect(info.seed, 1335831723);
       expect(info.mode, WorldMode.creative);
+    });
+
+    testWidgets('the game\'s own options are picked in the form, the first until another is', (tester) async {
+      final (saves, _) = _saves();
+      const options = [
+        WorldOption('class', label: 'Class', choices: {'warrior': 'Warrior', 'mage': 'Mage'}),
+        WorldOption('arena', label: 'Arena', choices: {'off': 'Plain world', 'on': 'Playground'}),
+      ];
+      final played = await mount(tester, saves, options: options);
+      await tester.tap(find.text('New world'));
+      await tester.pump();
+      expect(find.text('Warrior'), findsOneWidget);
+      expect(find.text('Plain world'), findsOneWidget);
+      await tester.tap(find.text('Warrior'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Mage').last);
+      await tester.pumpAndSettle();
+      await tester.enterText(find.widgetWithText(TextField, 'Name'), 'Tower');
+      await tester.tap(find.text('Create'));
+      await tester.pump();
+      expect(played, ['tower']);
+      expect(saves.info('tower').options, {'class': 'mage', 'arena': 'off'});
+
+      await tester.pumpWidget(const SizedBox());
+      await mount(tester, saves, options: options);
+      expect(find.text('Survival · Mage · Plain world · seed ${saves.info('tower').seed} · new'), findsOneWidget);
     });
 
     testWidgets('a game with no modes makes worlds that play as it declares', (tester) async {

@@ -125,6 +125,7 @@ class _TitleScreenState extends State<TitleScreen> {
                     WorldList(
                       saves: widget.saves,
                       modes: widget.menu.modes,
+                      options: widget.menu.worldOptions,
                       onPlay: (slot) => widget.onChoice(PlayWorld(slot)),
                       onBack: () => _open(_Panel.menu),
                     ),

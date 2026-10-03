@@ -53,6 +53,8 @@ export 'package:voxel_engine/worldgen.dart'
 export 'src/camera/shoulder_orbit.dart';
 export 'src/camera/view_bob.dart';
 export 'src/camera/view_camera.dart';
+export 'src/core/game_event.dart';
+export 'src/core/game_system.dart';
 export 'src/core/voxel_game.dart';
 export 'src/entities/game_entity.dart';
 export 'src/entities/item_pickup.dart';
@@ -91,6 +93,7 @@ export 'src/spec/sky_spec.dart';
 export 'src/spec/title_spec.dart';
 export 'src/spec/weather_odds.dart';
 export 'src/spec/weather_spec.dart';
+export 'src/spec/world_option.dart';
 export 'src/spec/touch_controls_spec.dart';
 export 'src/spec/voxel_game_spec.dart';
 export 'src/weather/weather.dart';

@@ -110,19 +110,19 @@ void main() {
   });
 
   test('copyWith can ask for null, and keeps a nullable field it is not given', () {
-    void tick(VoxelGame game, double dt) {}
-    final spec = VoxelGameSpec(
-      blocks: const [BlockType('stone', color: 0x808080)],
-      world: const WorldGenSpec(biomes: [Biome('plain', top: 'stone')]),
+    const spec = VoxelGameSpec(
+      blocks: [BlockType('stone', color: 0x808080)],
+      world: WorldGenSpec(biomes: [Biome('plain', top: 'stone')]),
       graphics: GraphicsSpec.phone,
-      onTick: tick,
     );
-    final bare = spec.copyWith(touchControls: () => null, onTick: () => null);
+    final bare = spec.copyWith(touchControls: () => null);
     expect(bare.touchControls, isNull);
-    expect(bare.onTick, isNull);
     expect(bare.graphics, same(GraphicsSpec.phone));
+    final plain = spec.copyWith(graphics: () => null);
+    expect(plain.graphics, isNull);
+    expect(plain.touchControls, same(TouchControlsSpec.standard));
     final kept = spec.copyWith(seed: 2);
-    expect(kept.onTick, same(spec.onTick));
+    expect(kept.graphics, same(GraphicsSpec.phone));
     expect(kept.touchControls, same(TouchControlsSpec.standard));
   });
 }

@@ -13,6 +13,8 @@ import 'package:voxel_engine/signals.dart';
 import '../camera/first_person_view.dart';
 import '../camera/view_camera.dart';
 import '../entities/game_entity.dart';
+import 'game_event.dart';
+import 'game_system.dart';
 import '../entities/item_pickup.dart';
 import '../entities/projectile.dart';
 import '../entities/target.dart';
@@ -47,6 +49,7 @@ import '../vehicles/minecart.dart';
 import '../vehicles/vehicle.dart';
 import '../vehicles/vehicle_spec.dart';
 import '../weather/weather.dart';
+import '../world/world_info.dart';
 import '../world/world_save.dart';
 
 /// A running game made from a [VoxelGameSpec]: the world, the player, the
@@ -65,13 +68,19 @@ class VoxelGame {
     GameSettings settings, {
     required this.headless,
     this.authority = true,
+    this.worldInfo,
   }) : random = math.Random(spec.seed),
+       systems = List.unmodifiable(spec.systems()),
        input = InputMap<VoxelAction>(spec.bindings),
        recipes = RecipeBook(spec.recipes),
        timeOfDay = spec.sky.startTime,
        weather = Weather(spec.sky.weather, spec.dimensionWorlds, seed: spec.seed),
        _settings = ValueNotifier(settings) {
     assert(settings.renderDistance == world.loadRadius, 'the world streams the settings\' render distance');
+    final keys = <String>{};
+    for (final s in systems.whereType<SavedSystem>()) {
+      if (!keys.add(s.saveKey)) throw ArgumentError.value(s.saveKey, 'systems', 'two systems save under one key');
+    }
     spec.checkActions();
     actions = GameActions(spec.actions, input);
     spec.checkDimensions(blocks, items);
@@ -231,12 +240,13 @@ class VoxelGame {
   ///
   /// With [save] the world is the saved one: its seed, its edits, its clock
   /// and its player. With [settings] the player's own ([GameSettings.of] the
-  /// spec when null).
+  /// spec when null). [info] is the slot's ([worldInfo]).
   static Future<VoxelGame> start(
     VoxelGameSpec spec, {
     SavedWorld? save,
     GameSettings? settings,
     bool authority = true,
+    WorldInfo? info,
   }) async {
     final blocks = spec.buildBlocks();
     final chosen = settings ?? GameSettings.of(spec);
@@ -255,6 +265,7 @@ class VoxelGame {
       chosen,
       headless: false,
       authority: authority,
+      worldInfo: info,
     );
     final g = game.graphics, shadows = g.shadows;
     game.scene = MeasuredScene(game.stats)
@@ -279,12 +290,14 @@ class VoxelGame {
 
   /// A game with no renderer and no isolates: chunks are generated as they
   /// are needed, on this isolate. [loadRadius] chunks around the player: its
-  /// [settings] are the spec's at that render distance.
+  /// [settings] are the spec's at that render distance. [info] is the slot's
+  /// ([worldInfo]).
   static Future<VoxelGame> startHeadless(
     VoxelGameSpec spec, {
     int loadRadius = 2,
     SavedWorld? save,
     bool authority = true,
+    WorldInfo? info,
   }) async {
     final blocks = spec.buildBlocks();
     final world = GameWorld.headless(
@@ -302,6 +315,7 @@ class VoxelGame {
       GameSettings.of(spec).copyWith(renderDistance: loadRadius),
       headless: true,
       authority: authority,
+      worldInfo: info,
     );
     game._begin(save);
     await world.start();
@@ -326,6 +340,8 @@ class VoxelGame {
     _spawnColumn = spawn;
     player.position = Vector3(spawn.x + 0.5, g.surfaceHeight(spawn.x, spawn.z).toDouble(), spawn.z + 0.5);
     if (save != null) WorldSaves.restore(this, save);
+    // A load is no event: the dead player and the tamed creatures it brings back.
+    _events.clear();
   }
 
   /// The id of the dimension the player is in (`VoxelGameSpec.dimensionIds`).
@@ -368,6 +384,7 @@ class VoxelGame {
     if (_screen.value is StorageScreen) closeScreen();
     final from = player.position;
     final x = (at?.x ?? from.x).floor(), z = (at?.z ?? from.z).floor();
+    raise(Travelled(this.dimension, dimension, through: through));
     world.switchDimension(d);
     restoreVehicles(dimension, _parked.remove(dimension) ?? const []);
     player.hold(at ?? Vector3(x + 0.5, world.generator.surfaceHeight(x, z).toDouble(), z + 0.5));
@@ -494,6 +511,27 @@ class VoxelGame {
 
   /// What was declared.
   final VoxelGameSpec spec;
+
+  /// The world's slot as it was when this game started: its name, its mode,
+  /// its options (`WorldInfo.options`, chosen in the new-world form); null
+  /// for a game in no slot (one made from code, a test's, a joined one).
+  final WorldInfo? worldInfo;
+
+  /// The game's own systems, made for this game by `VoxelGameSpec.systems`,
+  /// in its order.
+  final List<GameSystem> systems;
+
+  /// The one system of type [T] among [systems]: what a screen or a HUD of
+  /// the game's reads its state from. Throws when there is none or more than
+  /// one.
+  T system<T extends GameSystem>() => systems.whereType<T>().single;
+
+  /// Raises [event]: every system hears it (`GameSystem.onEvent`) at the
+  /// systems' next turn of a step, this step's when raised before it. The
+  /// kit raises its own; a game's code raises one for what it does in the
+  /// kit's place (a craft on a screen of its own).
+  void raise(GameEvent event) => _events.add(event);
+  final List<GameEvent> _events = [];
 
   /// The blocks, air first.
   final BlockRegistry<BlockType> blocks;
@@ -709,6 +747,7 @@ class VoxelGame {
         throw ArgumentError.value(id, 'id', 'the spec declares no such screen');
       case BagScreen() || StorageScreen() || PauseScreen() || SettingsScreen() || DeclaredScreen():
         _screen.value = next;
+        raise(ScreenOpened(next));
     }
   }
 
@@ -951,9 +990,10 @@ class VoxelGame {
   final FrameStats stats = FrameStats();
 
   /// One fixed step of [dt]: the clock and the weather, the player, the
-  /// creatures, the items, the liquids, spawning, then the spec's systems and
-  /// hook. Every body's pose
-  /// before it is kept first, for the frames to draw from.
+  /// creatures, the items, the liquids, spawning, then the game's [systems]:
+  /// each hears the events raised since their last turn, in order, then
+  /// each ticks. Every body's pose before it is kept first, for the frames to
+  /// draw from.
   void step(double dt) {
     _beginStep();
     // One arbiter for the buttons every screen shares: the step that drains
@@ -1026,10 +1066,16 @@ class VoxelGame {
       net.tick(dt);
     }
     spawner.tick(this, dt);
-    for (final s in spec.systems) {
+    final events = List.of(_events);
+    _events.clear();
+    for (final e in events) {
+      for (final s in systems) {
+        s.onEvent(this, e);
+      }
+    }
+    for (final s in systems) {
       s.tick(this, dt);
     }
-    spec.onTick?.call(this, dt);
     // Last, so every edit of this step, whoever made it, leaves in this step.
     session?.tick(this, dt);
     _prune();
@@ -1213,7 +1259,7 @@ class VoxelGame {
         if (item.isNotEmpty && items.has(item)) dropItem(item, 1, centre);
       }
     }
-    if (byPlayer) spec.onBlockBroken?.call(this, type.id, cell);
+    if (byPlayer) raise(BlockBroken(type.id, cell));
   }
 
   /// A blast at [centre]: up to [damage] to every target within [radius]
@@ -1245,11 +1291,14 @@ class VoxelGame {
   }
 
   /// Called by a mob as it dies.
-  void mobDied(Mob mob) => spec.onMobKilled?.call(this, mob);
+  void mobDied(Mob mob) => raise(MobKilled(mob, byPlayer: identical(mob.lastHurtBy, player)));
 
-  /// Called by the player as it dies: the [DeathScreen] replaces whatever
-  /// was open.
-  void playerDied() => _screen.value = const DeathScreen();
+  /// Called by the player as it dies, of [cause] when a blow killed it: the
+  /// [DeathScreen] replaces whatever was open.
+  void playerDied(Damage? cause) {
+    _screen.value = const DeathScreen();
+    raise(PlayerDied(cause));
+  }
 
   /// Stops the worker isolates, the input devices and the network.
   void dispose() {

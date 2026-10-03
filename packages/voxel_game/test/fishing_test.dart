@@ -4,6 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:vector_math/vector_math.dart';
 import 'package:voxel_game/voxel_game.dart';
 
+import 'support/heard.dart';
+
 /// Fishing with a wait of exactly one second and a catch that is always a
 /// fish, unless [catches] says otherwise.
 FishingSpec _fishing({LootTable? catches}) => FishingSpec(
@@ -118,7 +120,8 @@ void main() {
   });
 
   test('something bites after the wait; a use then lands the catch in the bag and experience, a use before or after reels in empty', () async {
-    final game = await _start(_spec());
+    final heard = Heard();
+    final game = await _start(_spec().copyWith(systems: () => [heard]));
     final p = game.player;
     final pool = _pool(game);
     await _useAt(game, pool);
@@ -142,6 +145,10 @@ void main() {
     game.input.tap(VoxelAction.use);
     await _run(game, 0.05);
     expect(p.inventory.countOf('raw_fish'), 1);
+    await _run(game, 0.05);
+    final caught = heard.events.whereType<Caught>().single.stacks.single;
+    expect((caught.id, caught.count), ('raw_fish', 1));
+    expect(heard.events.whereType<ItemPickedUp>().last.item, 'raw_fish');
     expect(p.xp, xp + 2);
     expect(p.bobber, isNull);
     expect(b.removed, isTrue);

@@ -7,6 +7,7 @@ import 'package:voxel_engine/content.dart';
 import 'package:voxel_engine/core.dart';
 import 'package:voxel_scene/voxel_scene.dart';
 
+import '../core/game_event.dart';
 import '../core/voxel_game.dart';
 import '../entities/target.dart';
 import '../input/input_map.dart';
@@ -366,15 +367,25 @@ class PlayerEntity extends NodeBody implements Target, Angler {
   }
 
   /// Puts [stack] in the bag (`Inventory.put`: a fresh one tops up stacks, a
-  /// worn or bonused one takes an empty slot whole), and tells the player
-  /// what went in (`VoxelGame.notices`); returns how many did not fit.
+  /// worn or bonused one takes an empty slot whole), tells the player what
+  /// went in (`VoxelGame.notices`) and raises an [ItemPickedUp] of it;
+  /// returns how many did not fit.
   int pickUpStack(ItemStack stack) {
     final left = inventory.put(stack);
     if (left < stack.count) {
       _game.playSound('pickup', volumeDb: -8.0, pitch: 1.0 + _game.random.nextDouble() * 0.3);
       _game.notices.picked(stack.id, _game.items[stack.id].name, stack.count - left);
+      _game.raise(ItemPickedUp(stack.id, stack.count - left));
     }
     return left;
+  }
+
+  /// Crafts [recipe] once from the bag (`RecipeBook.craft`) and raises an
+  /// [ItemCrafted]; false (nothing changed) when an ingredient is missing.
+  bool craft(Recipe recipe) {
+    if (!_game.recipes.craft(recipe, inventory)) return false;
+    _game.raise(ItemCrafted(recipe));
+    return true;
   }
 
   /// [count] new [item] into the bag, as [pickUpStack].
@@ -409,13 +420,14 @@ class PlayerEntity extends NodeBody implements Target, Angler {
       if (push.length2 > 0) push.normalize();
       motor.shove(Vector3(push.x * damage.knockback, 5.0, push.z * damage.knockback));
     }
-    if (hp <= 0.0) kill();
+    if (hp <= 0.0) kill(by: damage);
     return taken;
   }
 
   /// Kills the player where it stands, whatever it wears or is: what a blow
-  /// that takes the last of its health does, and a save that left it dead.
-  void kill() {
+  /// that takes the last of its health does ([by] it), and a save that left
+  /// it dead.
+  void kill({Damage? by}) {
     if (_dead) throw StateError('the player is already dead');
     if (riding != null) dismount();
     if (_bobber != null) _reelIn();
@@ -423,7 +435,7 @@ class PlayerEntity extends NodeBody implements Target, Angler {
     _dead = true;
     _flying = false;
     _deadFor = 0.0;
-    _game.playerDied();
+    _game.playerDied(by);
   }
 
   /// Turns the view by [look] radians (yaw right and pitch down positive):
@@ -641,6 +653,7 @@ class PlayerEntity extends NodeBody implements Target, Angler {
     _swingArm();
     if (mob.tamed) {
       ride(mob);
+      _game.raise(Mounted(mob));
       return;
     }
     final item = heldItem;
@@ -657,6 +670,7 @@ class PlayerEntity extends NodeBody implements Target, Angler {
   /// Says whether the taming of a [spec] creature [took]: here, or on the
   /// host for a client.
   void tamingTried(MobSpec spec, {required bool took}) {
+    if (took) _game.raise(Tamed(spec));
     final name = spec.name.toLowerCase();
     _game.notify(took ? 'The $name is tamed' : 'The $name is not won over yet');
   }
@@ -707,6 +721,7 @@ class PlayerEntity extends NodeBody implements Target, Angler {
       level++;
       hp += curve.hpPerLevel;
       _game.playSound('levelup', volumeDb: -4.0);
+      _game.raise(LevelGained(level));
     }
   }
 
@@ -736,6 +751,7 @@ class PlayerEntity extends NodeBody implements Target, Angler {
     final leaves = food.leaves;
     if (leaves != null) _keep(leaves, 1);
     _game.playSound('eat', volumeDb: -6.0);
+    _game.raise(FoodEaten(item.id));
     return true;
   }
 
@@ -995,6 +1011,7 @@ class PlayerEntity extends NodeBody implements Target, Angler {
           _game.session!.boardVehicle(vehicle);
         } else {
           ride(vehicle);
+          _game.raise(Boarded(vehicle));
         }
       }
       return;
@@ -1098,7 +1115,7 @@ class PlayerEntity extends NodeBody implements Target, Angler {
       volumeDb: -4.0,
     );
     if (!spec.creative) inventory.remove(item.id, 1);
-    _game.spec.onBlockPlaced?.call(_game, world.blocks.idOf(id), cell);
+    _game.raise(BlockPlaced(world.blocks.idOf(id), cell));
   }
 
   /// Puts a vehicle of [vehicle] down where its kind goes along the aim (a
@@ -1194,6 +1211,7 @@ class PlayerEntity extends NodeBody implements Target, Angler {
       if (left > 0) _game.dropItem(s.id, left, centre());
     }
     if (caught.isEmpty) _game.notify('Nothing on the line');
+    _game.raise(Caught([for (final s in caught) ItemStack(s.id, s.count)]));
     _game.playSound('splash', at: b.position, volumeDb: -6.0, pitch: 1.2);
     _swingArm();
     if (fishing.xp > 0) gainXp(fishing.xp);

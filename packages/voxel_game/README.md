@@ -134,9 +134,11 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
   rename, delete), Multiplayer hosts one of them or joins an address, Settings sets the
   player's settings with no game running, Credits rolls `TitleSpec.credits`, and Quit
   closes the app on a desktop. The game menu's Quit saves and comes back to it. Each world
-  keeps a `world.json` (`WorldInfo`: name, seed, mode, made, last played, play time) beside
-  its save; `WorldSaves.create` / `rename` / `worlds` read and write it, and a save from
-  before it still loads.
+  keeps a `world.json` (`WorldInfo`: name, seed, mode, options, made, last played, play
+  time) beside its save; `WorldSaves.create` / `rename` / `worlds` read and write it, and a
+  save from before it still loads. A game's own per-world choices (a class, a playground)
+  are `TitleSpec.worldOptions`, picked in the new-world form and read by a system as
+  `game.worldInfo?.options['class']`.
 - The bag (`InventoryScreen`): a click or a tap picks a stack up or puts it down, a
   right-click or a long press takes half or leaves one; the held stack follows the pointer
   (above a finger), a tooltip reads the item's row (tool and tier, damage, uses left, food,
@@ -208,7 +210,12 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
 - `SpawnRule.daylight()` / `SpawnRule.dark()` / `SpawnRule.cave()`, on the surface or in
   caves (`SpawnPlace`), weighted by biome (`biomeWeights`).
 - Save slots, and `hostPort` / `join` for multiplayer.
-- Hooks: `onBlockBroken`, `onBlockPlaced`, `onMobKilled`, `onTick`, and `GameSystem`s.
+- A game's own logic: `VoxelGameSpec.systems: () => [QuestLog()]`, a fresh set every game
+  (`VoxelGame.system<QuestLog>()` finds one). A `GameSystem` ticks every step and hears
+  every `GameEvent` — a block broken or placed, a creature killed, an item picked up,
+  crafted or eaten, a level, a death, a trip, a mount or a vehicle got on, a taming, a
+  catch, a screen opened — in `onEvent`. A `SavedSystem` keeps its state in the world's
+  save under its `saveKey`.
 - `GraphicsSpec`: render scale, a pixel-ratio cap, anti-aliasing and the sun's shadows, with
   a `desktop` and a `phone` preset (the phone's is picked on iOS and Android).
 - `VoxelGame.stats`: an FPS readout, and per-frame samples (UI, raster, simulation, scene

@@ -241,7 +241,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                           .join(', '),
                     ),
                     enabled: game.recipes.canCraft(r, _inv),
-                    onTap: () => game.recipes.craft(r, _inv),
+                    onTap: () => game.player.craft(r),
                   ),
               ],
             ),

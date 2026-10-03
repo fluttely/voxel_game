@@ -6,6 +6,8 @@ import 'package:vector_math/vector_math.dart';
 import 'package:voxel_engine/core.dart' show ChunkPos, EditDeltaCodec;
 import 'package:voxel_game/voxel_game.dart';
 
+import 'support/heard.dart';
+
 const _portal = PortalSpec(frame: 'obsidian', portal: 'portal', lighter: 'flint', to: 'nether');
 
 const _spec = VoxelGameSpec(
@@ -165,7 +167,8 @@ void main() {
 
   group('travel', () {
     test('takes the player to another dimension, standing at its column, and leaves the creatures behind', () async {
-      final game = await _start();
+      final heard = Heard();
+      final game = await _start(spec: _spec.copyWith(systems: () => [heard]));
       final at = game.player.position.clone();
       game.spawnMob('dummy', at + Vector3(0, 0, -5));
       await _run(game, 0.1);
@@ -177,6 +180,8 @@ void main() {
       expect(game.dimension, 'nether');
       expect(game.world.dimension, 1);
       await _arrive(game);
+      final trip = heard.events.whereType<Travelled>().single;
+      expect((trip.from, trip.to, trip.through), ('world', 'nether', null));
       expect(game.player.position.x, at.x);
       expect(game.player.position.z, at.z);
       expect(game.player.position.y, closeTo(40.0, 0.01), reason: 'on the nether\'s ground');

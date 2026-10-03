@@ -27,7 +27,7 @@ VoxelGameSpec _spec({
   List<ActionSpec> actions = const [_journal, _dash],
   InputBindings<VoxelAction> bindings = VoxelAction.defaultBindings,
   Map<String, ScreenSpec> screens = const {'journal': ScreenSpec(_journalScreen, action: 'journal')},
-  List<GameSystem> systems = const [],
+  List<GameSystem> Function() systems = VoxelGameSpec.noSystems,
 }) => VoxelGameSpec(
   blocks: _blocks,
   world: WorldGenSpec(
@@ -86,7 +86,7 @@ NormalizedGamepadEvent _pad(GamepadButton button, double value) => NormalizedGam
 );
 
 /// A system that writes down what the game's actions read in each step.
-class _Reader implements GameSystem {
+class _Reader extends GameSystem {
   final List<(bool, bool)> dash = [];
 
   @override
@@ -97,7 +97,7 @@ void main() {
   group('a game\'s own actions', () {
     test('a key, a pad button and code press them; a system reads them in the step', () async {
       final reader = _Reader();
-      final game = await _start(_spec(systems: [reader]));
+      final game = await _start(_spec(systems: () => [reader]));
       _key(game, PhysicalKeyboardKey.keyR);
       await _step(game);
       await _step(game);

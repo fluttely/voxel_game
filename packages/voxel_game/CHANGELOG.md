@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+- **Events and a game's save (VA-Zb). Breaking:** `VoxelGameSpec.onBlockBroken`,
+  `onBlockPlaced`, `onMobKilled` and `onTick` are gone, and `VoxelGameSpec.systems` is a
+  factory (`() => [QuestLog()]`, `VoxelGameSpec.noSystems` by default) instead of a list.
+  - `GameEvent` (new, sealed): `BlockBroken`, `BlockPlaced`, `MobKilled` (with `byPlayer`),
+    `ItemPickedUp`, `ItemCrafted`, `FoodEaten`, `LevelGained` (one a level), `PlayerDied`
+    (with the blow), `Travelled`, `Mounted`, `Boarded`, `Tamed`, `Caught`, `ScreenOpened`.
+    `VoxelGame.raise` (new) queues one; each step, after the game's own, every system hears
+    the events raised since its last turn, in order (`GameSystem.onEvent`), then ticks. A
+    load raises none. `PlayerEntity.craft` (new) crafts from the bag and raises
+    `ItemCrafted`; the bag screen crafts through it. `PlayerEntity.kill` takes the blow
+    (`by`), `VoxelGame.playerDied` takes the cause.
+  - `GameSystem` moved to `core/game_system.dart` and is an `abstract mixin class` whose
+    `tick` and `onEvent` do nothing until overridden (extend or mix it in; `implements`
+    must write both). `VoxelGame.systems` (new) holds the game's own set, made once a game,
+    so a second world from the title starts fresh; `VoxelGame.system<T>()` (new) finds one.
+  - `SavedSystem` (new): a system that writes `save` under its `saveKey` in `game.json`'s
+    `game` and gets it back in `restore` when the world loads. `game.json` is version 8;
+    a version 7 save loads with the systems as made, a key no system saves throws, and two
+    systems of one key throw when the game is made.
+  - `WorldInfo.options` (new): the game's per-world choices, offered in the new-world form
+    by `TitleSpec.worldOptions` (new, `WorldOption`s: an id, a label, choices by value; the
+    first chosen until another is), shown in the world's row, kept in `world.json` version
+    2 (version 1 reads with none), and read by a system as `VoxelGame.worldInfo` (new: the
+    slot's `WorldInfo`, null for a game in no slot; `VoxelGame.start` / `startHeadless`
+    take `info`). `WorldSaves.create` takes `options`.
+  - The example's clock (T) reads the world's `clock` option (24- or 12-hour), and a
+    `_Tally` system counts the blocks broken and placed and the creatures felled, kept in
+    the world's save.
 - **Actions (VA-Za).** A game's own actions, and two of the kit's for flying and gliding.
   - `VoxelGameSpec.actions` (new) of `ActionSpec` (new): an id, the keys and pad buttons that
     press it and the icon of its touch button (optional). `VoxelGame.actions` (new, a

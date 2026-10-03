@@ -2,11 +2,17 @@
 import 'package:flutter/material.dart';
 import 'package:voxel_game/voxel_game.dart';
 
-// The title lists the worlds; one made Creative flies (F, or the ✈ button on a phone).
+// The title lists the worlds; one made Creative flies (F, or the ✈ button on a phone). A new world also picks
+// how its clock reads, a choice of the game's own that the clock system reads back.
 void main() => runVoxelGame(
   game,
   title: 'Voxel game',
-  menu: const TitleSpec(name: 'Voxel game'),
+  menu: const TitleSpec(
+    name: 'Voxel game',
+    worldOptions: [
+      WorldOption('clock', label: 'Clock', choices: {'24h': '24-hour clock', '12h': '12-hour clock'}),
+    ],
+  ),
 );
 
 const game = VoxelGameSpec(
@@ -716,25 +722,62 @@ const game = VoxelGameSpec(
     ]),
   ),
   // 6. Actions of the game's own: keys, pad buttons and a button on a phone. A screen opens on one; a system
-  // reads another in the step.
+  // reads another in the step. Systems, made afresh for every world, hear what the player does; one saves.
   actions: [
     ActionSpec('controls', keys: [PhysicalKeyboardKey.f1], gamepad: [GamepadButton.back], touch: Icons.help_outline),
     ActionSpec('clock', keys: [PhysicalKeyboardKey.keyT], gamepad: [GamepadButton.x], touch: Icons.schedule),
   ],
-  systems: [_Clock()],
+  systems: _systems,
   // 7. Screens of the game's own: this one is a button in the game menu (Esc, or ⏸ on a phone), and F1.
   screens: {'controls': ScreenSpec(_controls, menu: 'Controls', action: 'controls')},
 );
 
-// Tells the time of day when the clock action is pressed.
-class _Clock implements GameSystem {
-  const _Clock();
+List<GameSystem> _systems() => [_Clock(), _Tally()];
 
+// Tells the time of day when the clock action is pressed, as the world's clock option reads it, and the tally.
+class _Clock extends GameSystem {
   @override
   void tick(VoxelGame game, double dt) {
     if (!game.gameplay || !game.actions.justPressed('clock')) return;
     final minutes = (game.timeOfDay * 24 * 60).floor();
-    game.notify('It is ${minutes ~/ 60}:${(minutes % 60).toString().padLeft(2, '0')}');
+    final h = minutes ~/ 60, m = (minutes % 60).toString().padLeft(2, '0');
+    final time = game.worldInfo?.options['clock'] == '12h'
+        ? '${(h + 11) % 12 + 1}:$m ${h < 12 ? 'am' : 'pm'}'
+        : '$h:$m';
+    final t = game.system<_Tally>();
+    game.notify('It is $time · ${t.broken} broken, ${t.placed} placed, ${t.felled} felled in this world');
+  }
+}
+
+// Counts the blocks the player breaks and places and the creatures they fell, kept in the world's save.
+class _Tally extends SavedSystem {
+  int broken = 0, placed = 0, felled = 0;
+
+  @override
+  String get saveKey => 'tally';
+
+  @override
+  void onEvent(VoxelGame game, GameEvent event) {
+    switch (event) {
+      case BlockBroken():
+        broken++;
+      case BlockPlaced():
+        placed++;
+      case MobKilled(byPlayer: true):
+        felled++;
+      default:
+    }
+  }
+
+  @override
+  Object? save(VoxelGame game) => {'broken': broken, 'placed': placed, 'felled': felled};
+
+  @override
+  void restore(VoxelGame game, Object? saved) {
+    final s = saved! as Map<String, Object?>;
+    broken = s['broken']! as int;
+    placed = s['placed']! as int;
+    felled = s['felled']! as int;
   }
 }
 

@@ -4,7 +4,7 @@ import 'package:vector_math/vector_math.dart';
 import 'package:voxel_engine/core.dart';
 
 import '../core/voxel_game.dart';
-import '../entities/game_entity.dart';
+import '../core/game_system.dart';
 import 'mob_spec.dart';
 import 'spawn_place.dart';
 
@@ -21,7 +21,7 @@ import 'spawn_place.dart';
 /// under the ground of their column, [caveShare] of the time a pocket of air
 /// near the player's height: a cave. In a dimension that is all cavern
 /// (`WorldGenSpec.cavern`) every spot is a pocket, and counts as its ground.
-class MobSpawner implements GameSystem {
+class MobSpawner extends GameSystem {
   /// The spawner of [game].
   MobSpawner(VoxelGame game);
 

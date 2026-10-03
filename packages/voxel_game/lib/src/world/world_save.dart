@@ -6,6 +6,7 @@ import 'package:vector_math/vector_math.dart';
 import 'package:voxel_engine/content.dart';
 import 'package:voxel_engine/core.dart';
 
+import '../core/game_system.dart';
 import '../core/voxel_game.dart';
 import '../player/player_spec.dart';
 import '../spec/voxel_game_spec.dart';
@@ -52,22 +53,25 @@ class SavedWorld {
 /// `MobSpec.persistent` — the vehicles of every dimension, where each was
 /// left (`VoxelGame.vehicleRows`), and the player: in which dimension, where,
 /// looking where, health, hunger, experience, the effects on them, the bag,
-/// what they wear, the spawn point). A rider is not kept: the player loads
-/// standing where saved.
+/// what they wear, the spawn point, and the game's own state: each
+/// `SavedSystem`'s under its key in `game`). A rider is not kept: the player
+/// loads standing where saved.
 ///
 /// A world [create]d and not yet played has only its `world.json`; a world
 /// saved before there was one has only the other two, and [info] reads it
 /// from them (its name is its slot, it plays as the game declares, when it
 /// was made is not known) until its next [save] or [rename] writes one.
 ///
-/// `game.json` is version 7. Older saves still load, each a branch on its
+/// `game.json` is version 8. Older saves still load, each a branch on its
 /// version: a version 1 save, from before the player had hunger, experience,
 /// effects and armour, stands its player up fed, at level 0, wearing nothing;
 /// a save before version 3 has no crops growing, and one before version 4
 /// no stores (a store found in its world is looked into afresh); a save
 /// before version 5 is of the main world alone, its crops and stores there,
 /// its player in it, and its `edits.bin` of version 1, one dimension; a save
-/// before version 6 keeps no creature, and one before version 7 no vehicle.
+/// before version 6 keeps no creature, one before version 7 no vehicle, and
+/// one before version 8 nothing of the game's own (its systems start as
+/// made).
 class WorldSaves {
   /// Saves under [directory]; [clock] says when a world is made and played.
   WorldSaves(this.directory, {this.clock = DateTime.now});
@@ -79,7 +83,7 @@ class WorldSaves {
   final DateTime Function() clock;
 
   /// The version of `game.json` [save] writes.
-  static const stateVersion = 7;
+  static const stateVersion = 8;
 
   /// The edit file's layout for a game of [dimensions]: magic `VXK1`,
   /// version 2, every dimension; a version 1 file, of one dimension, still
@@ -136,10 +140,11 @@ class WorldSaves {
   }
 
   /// Makes a world named [name] from [seed] (see [seedOf]), to be played as
-  /// [mode] (null: as the game declares), in a slot of its own: the name in
-  /// lower case, a number after it when that slot is taken. Nothing but its
-  /// `world.json` is written; its first [save] writes the rest.
-  WorldInfo create(String name, {required int seed, WorldMode? mode}) {
+  /// [mode] (null: as the game declares) with the game's [options]
+  /// (`WorldInfo.options`), in a slot of its own: the name in lower case, a
+  /// number after it when that slot is taken. Nothing but its `world.json`
+  /// is written; its first [save] writes the rest.
+  WorldInfo create(String name, {required int seed, WorldMode? mode, Map<String, String> options = const {}}) {
     final clean = name.trim();
     if (clean.isEmpty) throw ArgumentError.value(name, 'name', 'a world needs a name');
     final base = _slugOf(clean);
@@ -147,7 +152,15 @@ class WorldSaves {
     for (var n = 2; _slot(slot).existsSync(); n++) {
       slot = '${base}_$n';
     }
-    final info = WorldInfo(slot: slot, name: clean, seed: seed, saved: false, mode: mode, created: clock());
+    final info = WorldInfo(
+      slot: slot,
+      name: clean,
+      seed: seed,
+      saved: false,
+      mode: mode,
+      options: options,
+      created: clock(),
+    );
     _writeInfo(info);
     return info;
   }
@@ -263,6 +276,7 @@ class WorldSaves {
         'effects': p.effects.toJson(),
         'worn': {for (final e in p.worn.entries) e.key: e.value.toJson()},
       },
+      'game': {for (final s in game.systems.whereType<SavedSystem>()) s.saveKey: s.save(game)},
     };
     _writeAtomic(_state(slot), jsonEncode(state));
     final played = Duration(microseconds: (game.time * 1e6).round());
@@ -286,9 +300,11 @@ class WorldSaves {
     return SavedWorld(seed, decoded?.edits ?? <int, Map<ChunkPos, Map<int, int>>>{}, state, dimensions: dimensions);
   }
 
-  /// Puts [saved]'s clock, crops, stores, creatures, vehicles and player back
-  /// into [game] (its edits are handed to the world before it streams: see
-  /// `VoxelGame.start`). A tamed creature is the local player's.
+  /// Puts [saved]'s clock, crops, stores, creatures, vehicles, player and the
+  /// state of the game's systems back into [game] (its edits are handed to
+  /// the world before it streams: see `VoxelGame.start`). A tamed creature is
+  /// the local player's. Throws for a system's state saved under a key no
+  /// system of [game]'s saves under.
   static void restore(VoxelGame game, SavedWorld saved) {
     final s = saved.state;
     game.time = (s['time']! as num).toDouble();
@@ -348,6 +364,16 @@ class WorldSaves {
       for (final e in (s['vehicles']! as Map<String, Object?>).entries) {
         game.restoreVehicles(e.key, [for (final r in e.value! as List<Object?>) r! as Map<String, Object?>]);
       }
+    }
+    if (version >= 8) _restoreSystems(game, s['game']! as Map<String, Object?>);
+  }
+
+  static void _restoreSystems(VoxelGame game, Map<String, Object?> state) {
+    final byKey = {for (final s in game.systems.whereType<SavedSystem>()) s.saveKey: s};
+    for (final e in state.entries) {
+      final system = byKey[e.key];
+      if (system == null) throw StateError('the save keeps game state ${e.key}, which no system of the game saves');
+      system.restore(game, e.value);
     }
   }
 

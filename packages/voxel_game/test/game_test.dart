@@ -57,6 +57,16 @@ Future<void> _run(VoxelGame game, double seconds) async {
   }
 }
 
+/// A system that calls [step] every step.
+class _EveryStep extends GameSystem {
+  _EveryStep(this.step);
+
+  final void Function() step;
+
+  @override
+  void tick(VoxelGame game, double dt) => step();
+}
+
 void main() {
   test('the on-screen stick walks and, pushed to the rim, runs', () async {
     final game = await _start(_flat());
@@ -404,7 +414,7 @@ void main() {
       blocks: spec.blocks,
       world: spec.world,
       sky: spec.sky,
-      onTick: (game, dt) => steps++,
+      systems: () => [_EveryStep(() => steps++)],
     );
     final game = await _start(withSystem);
     final at = IVec3.floor(game.player.position) + const IVec3(3, 0, 3);

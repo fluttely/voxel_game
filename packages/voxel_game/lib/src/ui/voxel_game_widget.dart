@@ -22,6 +22,7 @@ import 'game_surface.dart';
 import 'loading_screen.dart';
 import 'loading_stage.dart';
 import 'voxel_game_home.dart';
+import '../world/world_info.dart';
 import '../world/world_save.dart';
 
 /// Loads the renderer and runs [spec] full screen: the one call a game's
@@ -176,7 +177,8 @@ class VoxelGameWidget extends StatefulWidget {
 
   /// The save slot the world lives in, or null for a world never saved. A
   /// slot that is a world (`WorldSaves.contains`) is played with its seed and
-  /// mode (`WorldInfo.applyTo`), saved or not yet.
+  /// mode (`WorldInfo.applyTo`), saved or not yet, and is the game's
+  /// `VoxelGame.worldInfo`.
   final String? saveSlot;
 
   /// Where the slots are; the app support folder's `worlds` when null.
@@ -277,12 +279,13 @@ class _VoxelGameWidgetState extends State<VoxelGameWidget> with SingleTickerProv
     }
     var spec = widget.spec;
     SavedWorld? saved;
+    WorldInfo? info;
     if (widget.saveSlot case final slot?) {
       final saves = _saves = widget.saves ?? await VoxelGameWidget.defaultSaves();
-      if (saves.contains(slot)) spec = saves.info(slot).applyTo(spec);
+      if (saves.contains(slot)) spec = (info = saves.info(slot)).applyTo(spec);
       if (saves.exists(slot)) saved = saves.read(slot);
     }
-    final game = await VoxelGame.start(spec, save: saved, settings: settings);
+    final game = await VoxelGame.start(spec, save: saved, settings: settings, info: info);
     if (widget.hostPort case final port?) {
       try {
         await game.host(port: port);

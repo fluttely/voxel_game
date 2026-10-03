@@ -6,6 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:vector_math/vector_math.dart';
 import 'package:voxel_game/voxel_game.dart';
 
+import 'support/heard.dart';
+
 const _blocks = [
   BlockType('stone', color: 0x808080, hardness: 1.5),
   BlockType('dirt', color: 0x74502F, hardness: 0.5),
@@ -300,7 +302,8 @@ void main() {
   });
 
   test('a tamed mount is ridden by a use, walks by the rider\'s input, and a sneak gets off', () async {
-    final game = await _start(_flat(mobs: const [_horse]));
+    final heard = Heard();
+    final game = await _start(_flat(mobs: const [_horse]).copyWith(systems: () => [heard]));
     final p = game.player;
     final horse = game.spawnMob('horse', p.position + Vector3(0, 0, -2.5));
     _face(game, horse);
@@ -314,6 +317,8 @@ void main() {
     await _run(game, 0.1);
     expect(p.riding, same(horse));
     expect(horse.rider, same(p));
+    expect(heard.events.whereType<Mounted>().single.mount, same(horse));
+    expect(heard.events.whereType<Tamed>(), isEmpty, reason: 'tamed by code, not by the player');
     expect(p.position.distanceTo(horse.seat()), lessThan(1e-6));
     p.yaw = 0.0;
     final from = horse.position.clone();

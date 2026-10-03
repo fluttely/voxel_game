@@ -1,22 +1,35 @@
 import 'package:flutter/material.dart';
 
+import '../spec/world_option.dart';
 import '../world/world_info.dart';
 import '../world/world_save.dart';
 
 /// The worlds under [saves], the last played first: a row each (its name, its
 /// mode, its seed, how long it has been played and when last), Play, Rename
 /// and Delete on the one selected, and New world, a form for a name, a seed
-/// (any text, `WorldSaves.seedOf`) and, with [modes], survival or creative.
-/// A world made is played at once. Every change goes through [saves].
+/// (any text, `WorldSaves.seedOf`), with [modes] survival or creative, and
+/// a pick of each of the game's [options]. A world made is played at once.
+/// Every change goes through [saves].
 class WorldList extends StatefulWidget {
   /// The worlds of [saves]; [onPlay] takes the slot to play, [onBack] leaves.
-  const WorldList({super.key, required this.saves, required this.onPlay, required this.onBack, this.modes = true});
+  const WorldList({
+    super.key,
+    required this.saves,
+    required this.onPlay,
+    required this.onBack,
+    this.modes = true,
+    this.options = const [],
+  });
 
   /// Where the worlds are.
   final WorldSaves saves;
 
   /// Whether a new world picks its `WorldMode`.
   final bool modes;
+
+  /// The game's own choices a new world picks (`TitleSpec.worldOptions`);
+  /// [WorldOption.check]ed as the list is built.
+  final List<WorldOption> options;
 
   /// Plays the world in this slot.
   final ValueChanged<String> onPlay;
@@ -37,13 +50,16 @@ class WorldList extends StatefulWidget {
     return '${t.year}-${two(t.month)}-${two(t.day)} ${two(t.hour)}:${two(t.minute)}';
   }
 
-  /// The line under a world's name.
-  static String detailsOf(WorldInfo w) => [
+  /// The line under a world's name: its mode, what it chose of [options]
+  /// (a world made before an option was offered has nothing of it), its
+  /// seed, its play time.
+  static String detailsOf(WorldInfo w, [List<WorldOption> options = const []]) => [
     if (w.mode case final m?)
       switch (m) {
         WorldMode.survival => 'Survival',
         WorldMode.creative => 'Creative',
       },
+    for (final o in options) ?o.choices[w.options[o.id]],
     'seed ${w.seed}',
     if (w.lastPlayed case final at?) ...['played ${playTimeLabel(w.playTime)}', 'last ${dateLabel(at)}'] else 'new',
   ].join(' · ');
@@ -59,10 +75,12 @@ class _WorldListState extends State<WorldList> {
   final TextEditingController _name = TextEditingController(text: 'New world');
   final TextEditingController _seed = TextEditingController();
   WorldMode _mode = WorldMode.survival;
+  late final Map<String, String> _options = {for (final o in widget.options) o.id: o.first};
 
   @override
   void initState() {
     super.initState();
+    WorldOption.check(widget.options);
     _selected = _worlds.firstOrNull?.slot;
   }
 
@@ -81,7 +99,12 @@ class _WorldListState extends State<WorldList> {
   });
 
   void _create() {
-    final w = widget.saves.create(_name.text, seed: WorldSaves.seedOf(_seed.text), mode: widget.modes ? _mode : null);
+    final w = widget.saves.create(
+      _name.text,
+      seed: WorldSaves.seedOf(_seed.text),
+      mode: widget.modes ? _mode : null,
+      options: _options,
+    );
     widget.onPlay(w.slot);
   }
 
@@ -133,7 +156,7 @@ class _WorldListState extends State<WorldList> {
                         selected: w.slot == _selected,
                         selectedTileColor: Colors.white12,
                         title: Text(w.name),
-                        subtitle: Text(WorldList.detailsOf(w)),
+                        subtitle: Text(WorldList.detailsOf(w, widget.options)),
                         onTap: () => setState(() => _selected = w.slot),
                       ),
                   ],
@@ -184,6 +207,15 @@ class _WorldListState extends State<WorldList> {
             ],
             selected: {_mode},
             onSelectionChanged: (s) => setState(() => _mode = s.single),
+          ),
+        ],
+        for (final o in widget.options) ...[
+          const SizedBox(height: 8),
+          DropdownButtonFormField<String>(
+            initialValue: _options[o.id],
+            decoration: InputDecoration(labelText: o.label),
+            items: [for (final c in o.choices.entries) DropdownMenuItem(value: c.key, child: Text(c.value))],
+            onChanged: (v) => setState(() => _options[o.id] = v!),
           ),
         ],
         const SizedBox(height: 12),

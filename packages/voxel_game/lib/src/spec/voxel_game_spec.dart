@@ -2,14 +2,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show PhysicalKeyboardKey;
 import 'package:gamepads/gamepads.dart' show GamepadButton;
 import 'package:voxel_engine/content.dart';
-import 'package:voxel_engine/core.dart';
 import 'package:voxel_engine/worldgen.dart';
 
-import '../core/voxel_game.dart';
-import '../entities/game_entity.dart';
+import '../core/game_system.dart';
 import '../entities/projectile.dart';
 import '../mobs/behaviors.dart';
-import '../mobs/mob.dart';
 import '../mobs/mob_spec.dart';
 import '../player/player_spec.dart';
 import '../fishing/fishing_spec.dart';
@@ -66,11 +63,7 @@ class VoxelGameSpec {
     this.screens = const {},
     this.mining = const MiningRules(),
     this.liquids = const {},
-    this.systems = const [],
-    this.onBlockBroken,
-    this.onBlockPlaced,
-    this.onMobKilled,
-    this.onTick,
+    this.systems = noSystems,
   });
 
   /// The blocks, air first or added; their order is the save contract.
@@ -169,23 +162,22 @@ class VoxelGameSpec {
   /// How each liquid kind flows (water and lava have defaults).
   final Map<String, LiquidSpec> liquids;
 
-  /// Game logic run every step after the game's own.
-  final List<GameSystem> systems;
+  /// The game's own logic: makes a fresh set of [GameSystem]s, called once
+  /// for every game made (`VoxelGame.systems`), so a second world opened from
+  /// the title starts from nothing of the first one's. They hear the events
+  /// (`GameEvent`), run every step after the game's own, and those that save
+  /// (`SavedSystem`) keep their state in the world's.
+  ///
+  /// ```dart
+  /// systems: () => [QuestLog(), Bestiary()],
+  /// ```
+  final List<GameSystem> Function() systems;
 
-  /// After the player breaks a block (by name) at a cell.
-  final void Function(VoxelGame game, String block, IVec3 cell)? onBlockBroken;
-
-  /// After the player places a block (by name) at a cell.
-  final void Function(VoxelGame game, String block, IVec3 cell)? onBlockPlaced;
-
-  /// After a mob dies.
-  final void Function(VoxelGame game, Mob mob)? onMobKilled;
-
-  /// After every simulation step.
-  final void Function(VoxelGame game, double dt)? onTick;
+  /// [systems] for a game with none of its own.
+  static List<GameSystem> noSystems() => const [];
 
   /// This game with the given fields replaced: the same world at another
-  /// render distance, say, or with a hook of a test's.
+  /// render distance, say, or with a system of a test's.
   ///
   /// A field that may be null is given as a getter of its new value, so null
   /// can be asked for: `copyWith(touchControls: () => null)` takes the kit's
@@ -214,11 +206,7 @@ class VoxelGameSpec {
     Map<String, ScreenSpec>? screens,
     MiningRules? mining,
     Map<String, LiquidSpec>? liquids,
-    List<GameSystem>? systems,
-    ValueGetter<void Function(VoxelGame game, String block, IVec3 cell)?>? onBlockBroken,
-    ValueGetter<void Function(VoxelGame game, String block, IVec3 cell)?>? onBlockPlaced,
-    ValueGetter<void Function(VoxelGame game, Mob mob)?>? onMobKilled,
-    ValueGetter<void Function(VoxelGame game, double dt)?>? onTick,
+    List<GameSystem> Function()? systems,
   }) => VoxelGameSpec(
     blocks: blocks ?? this.blocks,
     world: world ?? this.world,
@@ -244,10 +232,6 @@ class VoxelGameSpec {
     mining: mining ?? this.mining,
     liquids: liquids ?? this.liquids,
     systems: systems ?? this.systems,
-    onBlockBroken: onBlockBroken == null ? this.onBlockBroken : onBlockBroken(),
-    onBlockPlaced: onBlockPlaced == null ? this.onBlockPlaced : onBlockPlaced(),
-    onMobKilled: onMobKilled == null ? this.onMobKilled : onMobKilled(),
-    onTick: onTick == null ? this.onTick : onTick(),
   );
 
   /// The block registry: [blocks] with air first.
