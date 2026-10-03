@@ -18,11 +18,12 @@ TitleSpec gameTitle({required List<String> credits, WidgetBuilder? background}) 
 );
 
 /// The class a new world's player plays, the warrior until another is
-/// picked.
+/// picked; a player joining a hosted world picks its own (`playerClasses`).
 const WorldOption classOption = WorldOption(
   'class',
   label: 'Class',
   choices: {'warrior': 'Warrior', 'ranger': 'Ranger', 'mage': 'Mage', 'rogue': 'Rogue'},
+  join: true,
 );
 
 /// Whether a new world is an open world or a playground, every feature laid

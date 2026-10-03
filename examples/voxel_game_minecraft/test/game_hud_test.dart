@@ -3,7 +3,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:vector_math/vector_math.dart' show Vector3;
 import 'package:voxel_game/voxel_game.dart';
 import 'package:voxel_game_minecraft/src/spec/game_spec.dart';
+import 'package:voxel_game_minecraft/src/classes/class_system.dart';
 import 'package:voxel_game_minecraft/src/ui/game_hud.dart';
+import 'package:voxel_game_minecraft/src/ui/talent_screen.dart';
 
 class _Heard implements SoundPlayer {
   final List<String> played = [];
@@ -17,7 +19,7 @@ class _Heard implements SoundPlayer {
 void main() {
   Future<VoxelGame> start(WidgetTester tester) async {
     final game = (await tester.runAsync(() async {
-      final game = await VoxelGame.startHeadless(gameSpec);
+      final game = await VoxelGame.startHeadless(gameSpec, options: const {'class': 'warrior'});
       game.spawner.enabled = false;
       for (var i = 0; i < 600 && !game.ready; i++) {
         game.frame(1 / 60);
@@ -57,6 +59,36 @@ void main() {
     game.weather.set(WeatherKind.storm, now: true);
     await step(tester, game);
     expect(find.text('21:36   Plains   (night)   Storm'), findsOneWidget);
+    game.dispose();
+  });
+
+  testWidgets('the class\'s stamina and mana are bars, its abilities listed with what is left of a cooldown', (
+    tester,
+  ) async {
+    final game = await start(tester);
+    expect(find.text('Stamina'), findsOneWidget);
+    expect(find.text('Mana'), findsOneWidget);
+    expect(GameHud.abilitiesOf(game), ['[R] Whirlwind', '[F] Shield Bash', '[Alt] Dodge']);
+    game.actions.tap('ability');
+    await step(tester, game);
+    expect(find.textContaining('[R] Whirlwind  8s'), findsOneWidget);
+    game.dispose();
+  });
+
+  testWidgets('the journal spends a talent point on a rank, and no more than there are', (tester) async {
+    final game = await start(tester);
+    ClassSystem.of(game).points = 1;
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: TalentScreen(game))));
+    expect(find.text('Warrior talents'), findsOneWidget);
+    expect(find.text('Talent points: 1   (you get one each level)'), findsOneWidget);
+    expect(find.text('Rage  0/3', skipOffstage: false), findsOneWidget, reason: 'the class\'s own, after the six');
+    await tester.tap(find.widgetWithText(FilledButton, 'Learn').first);
+    await tester.pump();
+    expect(find.text('Vitality  1/3'), findsOneWidget);
+    expect(find.text('Talent points: 0   (you get one each level)'), findsOneWidget);
+    for (final b in tester.widgetList<FilledButton>(find.widgetWithText(FilledButton, 'Learn'))) {
+      expect(b.onPressed, isNull, reason: 'no point left');
+    }
     game.dispose();
   });
 

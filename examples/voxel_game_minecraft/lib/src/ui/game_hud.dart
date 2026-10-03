@@ -4,12 +4,15 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:voxel_game/voxel_game.dart';
 
+import '../classes/class_system.dart';
 import '../player/heartbeat.dart';
 
 /// The kit's HUD ([DefaultHud]) with the game's own pieces on it: the clock
 /// line at the top ([clockOf]), the name and health of the creature in the
-/// crosshair over it ([aimedOf]), and while the player's health is low
-/// (`Heartbeat.isLow`) a red edge pulsing under it all, as the heart beats.
+/// crosshair over it ([aimedOf]), the class's stamina and mana as bars under
+/// the hearts and its abilities at the bottom left ([abilitiesOf]), and
+/// while the player's health is low (`Heartbeat.isLow`) a red edge pulsing
+/// under it all, as the heart beats.
 ///
 /// Every piece of the game's is behind an [IgnorePointer]: a finger still
 /// reaches the kit's hotbar and the world.
@@ -53,6 +56,32 @@ class GameHud extends StatelessWidget {
     return '${m.name}  ${m.hp.ceil()}/${m.maxHp.ceil()}';
   }
 
+  /// The class's abilities as the HUD lists them, a line each: the key
+  /// and the name, and the seconds left while one comes back
+  /// (`[F] Shield Bash  4s`).
+  static List<String> abilitiesOf(VoxelGame game) {
+    final classes = ClassSystem.of(game);
+    return [
+      for (final MapEntry(key: action, value: a) in classes.playerClass.abilities.entries)
+        '[${_keys[action]}] ${a.name}${classes.cooldownOf(action) > 0.0 ? '  ${classes.cooldownOf(action).ceil()}s' : ''}',
+      '[Alt] Dodge',
+    ];
+  }
+
+  // The key that casts each ability (`gameSpec.actions`).
+  static const _keys = {'ability': 'R', 'ability2': 'F'};
+
+  /// The stamina bar's colour.
+  static const Color staminaColor = Color(0xFF40BF40);
+
+  /// The mana bar's colour.
+  static const Color manaColor = Color(0xFF4D73F2);
+
+  static final List<HudBar> _bars = [
+    HudBar('Stamina', color: staminaColor, fill: (game) => ClassSystem.of(game).staminaShare),
+    HudBar('Mana', color: manaColor, fill: (game) => ClassSystem.of(game).manaShare),
+  ];
+
   static String _two(int n) => n.toString().padLeft(2, '0');
 
   // An id as a name: `frozen_shore` is Frozen Shore.
@@ -72,7 +101,7 @@ class GameHud extends StatelessWidget {
             builder: (context, low) => low ? CustomPaint(painter: LowHealthEdge(game)) : const SizedBox.shrink(),
           ),
         ),
-        DefaultHud(game),
+        DefaultHud(game, bars: _bars),
         IgnorePointer(
           child: Stack(
             fit: StackFit.expand,
@@ -86,6 +115,15 @@ class GameHud extends StatelessWidget {
                     padding: EdgeInsets.only(top: 12 + (s.boss ? underBossBar : 0)),
                     child: Text(s.line, style: const TextStyle(fontSize: 16, shadows: _shadow)),
                   ),
+                ),
+              ),
+              Positioned(
+                left: 16,
+                bottom: 16,
+                child: HudSelector(
+                  frames: frames,
+                  select: () => abilitiesOf(game).join('\n'),
+                  builder: (context, lines) => Text(lines, style: const TextStyle(fontSize: 14, shadows: _shadow)),
                 ),
               ),
               Center(

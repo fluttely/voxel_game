@@ -1,8 +1,12 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/services.dart';
 import 'package:voxel_game/voxel_game.dart';
 
+import '../classes/class_system.dart';
+import '../classes/class_table.dart';
 import '../player/heartbeat.dart';
+import '../ui/talent_screen.dart';
 import 'block_table.dart';
 import 'effect_table.dart';
 import 'game_sounds.dart';
@@ -15,9 +19,13 @@ import 'world_table.dart';
 /// world and the underworld a portal leads to, circuits, creatures, vehicles,
 /// fishing, the sky and the weather, sounds and music, and the player.
 ///
-/// What only this game has (classes, quests, the bosses and their structures,
+/// The player is the class the world was made with (`classPlayer`, the
+/// title's `classOption`): its abilities on R and F, a dodge on Alt and its
+/// talents in the journal on J (`ClassSystem`, `TalentScreen`).
+///
+/// What else only this game has (quests, the bosses and their structures,
 /// villagers' trades, the map) comes in as its own systems and screens on top
-/// (VA-Zj to VA-Zl).
+/// (VA-Zk and VA-Zl).
 final VoxelGameSpec gameSpec = VoxelGameSpec(
   seed: 1337,
   blocks: blockTable,
@@ -70,12 +78,31 @@ final VoxelGameSpec gameSpec = VoxelGameSpec(
   player: const PlayerSpec(
     startingItems: {'wooden_pickaxe': 1, 'wooden_axe': 1, 'apple': 5, 'torch': 8},
     hunger: HungerSpec(),
-    xp: XpSpec(),
+    xp: XpSpec(hpPerLevel: 3.0),
     critChance: 0.1,
   ),
+  playerFor: classPlayer,
   mobs: mobTable,
-  // The player's heart is heard while its health is low.
+  // The player's heart is heard while its health is low; the class plays its abilities, stamina and mana.
   systems: _systems,
+  // The class's two abilities, the dodge, and the journal of its talents.
+  actions: const [
+    ActionSpec('ability', keys: [PhysicalKeyboardKey.keyR], gamepad: [GamepadButton.leftBumper], touch: Icons.flash_on),
+    ActionSpec(
+      'ability2',
+      keys: [PhysicalKeyboardKey.keyF],
+      gamepad: [GamepadButton.rightBumper],
+      touch: Icons.auto_awesome,
+    ),
+    ActionSpec(
+      'dodge',
+      keys: [PhysicalKeyboardKey.altLeft, PhysicalKeyboardKey.altRight],
+      gamepad: [GamepadButton.x],
+      touch: Icons.double_arrow,
+    ),
+    ActionSpec('journal', keys: [PhysicalKeyboardKey.keyJ], gamepad: [GamepadButton.touchpad], touch: Icons.menu_book),
+  ],
+  screens: const {'journal': ScreenSpec(TalentScreen.builder, menu: 'Talents', action: 'journal')},
   vehicles: const [
     BoatSpec(item: 'boat'),
     CartSpec(item: 'minecart'),
@@ -105,6 +132,6 @@ final VoxelGameSpec gameSpec = VoxelGameSpec(
   graphics: (_phone ? GraphicsSpec.phone : GraphicsSpec.desktop).copyWith(paced: true),
 );
 
-List<GameSystem> _systems() => [Heartbeat()];
+List<GameSystem> _systems() => [Heartbeat(), ClassSystem()];
 
 bool get _phone => defaultTargetPlatform == TargetPlatform.iOS || defaultTargetPlatform == TargetPlatform.android;
