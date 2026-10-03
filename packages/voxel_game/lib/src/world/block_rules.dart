@@ -100,13 +100,20 @@ class BlockRules {
     hotbarSize: 0,
   );
 
+  /// A generated store at [cell] as it is found: its structure's loot
+  /// (`VoxelGameSpec.structureLoot`) with its bonus, else its block's.
   Inventory _found(IVec3 cell, Storage storage) {
     final inv = _empty(storage.slots);
-    final loot = storage.loot;
+    final structure = game.structureAt(cell);
+    final own = structure == null ? null : game.spec.structureLoot[structure.name];
+    final loot = own?.table ?? storage.loot;
     if (loot == null) return inv;
-    for (final s in loot.roll(math.Random(LootTable.seedFor(cell, game.world.generator.seed)))) {
+    final rng = math.Random(LootTable.seedFor(cell, game.world.generator.seed));
+    for (final s in loot.roll(rng)) {
       inv.add(s.id, s.count);
     }
+    final prize = own?.bonus?.roll(rng);
+    if (prize != null) inv.addStack(prize);
     return inv;
   }
 

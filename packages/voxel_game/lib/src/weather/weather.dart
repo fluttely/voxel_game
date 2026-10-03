@@ -1,6 +1,6 @@
 import 'dart:math' as math;
 
-import 'package:voxel_engine/worldgen.dart' show Biome, Precipitation, WorldGenSpec;
+import 'package:voxel_engine/worldgen.dart' show Precipitation, WorldGenSpec;
 
 import '../core/voxel_game.dart';
 import '../spec/weather_spec.dart';
@@ -25,7 +25,7 @@ class Weather {
     if (s == null) return;
     final names = {
       for (final w in worlds)
-        for (final b in <Biome>[...w.biomes, ?w.ocean, ?w.beach]) b.name,
+        for (final b in w.allBiomes) b.name,
     };
     for (final name in s.biomes.keys) {
       if (!names.contains(name)) throw ArgumentError.value(name, 'biomes', 'the world has no such biome');

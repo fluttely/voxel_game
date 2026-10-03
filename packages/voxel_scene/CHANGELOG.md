@@ -2,6 +2,14 @@
 
 ## 0.3.0-dev
 
+- A dimension's own sky and a haze (VA-Ze). `StillSky` (new): zenith, horizon, ground and
+  ambient colours (`0xRRGGBB`), its ambient's energy and its sky light, no sun;
+  `SkyLook.still` (new) is how it looks, and `SkyLook.ground` (new) the colour below the
+  horizon. `Haze` (new): an exponential fog from the eye of one colour and density, darkening
+  with the sky light when it `followsSky` (water at night); `applyTo(fog, skyLight)`.
+  `DayNightSky.update` takes `still:` and `haze:`; a still sky coming or going rebuilds the
+  ambient at once, and the fog goes back to the linear distance band when the haze goes.
+
 - `VoxelModelMesh.flash()` (new): the white a model turns for a moment when it is hit,
   unlit, one material for every model. `VoxelModelMesh.tinted(rgba)` (new): the shared
   material multiplied by a tint, see-through (the translucent pass, no shadow) when its

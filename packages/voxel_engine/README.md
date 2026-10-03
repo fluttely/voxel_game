@@ -175,7 +175,7 @@ sockets, through `dart:isolate` and `dart:io`, which a browser does not have.
    `biomeAt(x, z)`, `structuresNear(cx, cz)`.
 
 5. **Add structures**: a stock one (`Dungeon`, `Tower`, `Well`, `Camp`, `Ruins`, `Mine`,
-   `Village`) takes its blocks by name; your own is a build function. Structures keep
+   `Village`, `Temple`) takes its blocks by name; your own is a build function. Structures keep
    apart: a site within reach of an earlier one's is dropped.
 
    ```dart

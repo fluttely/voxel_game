@@ -14,14 +14,21 @@ typedef BlockChangedListener = void Function(IVec3 cell, int oldId, int newId);
 /// How one liquid kind flows in a [GameWorld], and how it looks from inside.
 class LiquidSpec {
   /// A liquid stepping every [period] seconds, spreading [reach] cells from a
-  /// source, washing the screen at [tint] opacity while the camera is in it.
-  const LiquidSpec({this.period = 0.25, this.reach = 4, this.tint = 0.25})
+  /// source, washing the screen at [tint] opacity and closing the view in to
+  /// [haze] while the camera is in it.
+  const LiquidSpec({this.period = 0.25, this.reach = 4, this.tint = 0.25, this.haze = water})
     : assert(tint >= 0.0 && tint <= 1.0, 'LiquidSpec.tint is an opacity, 0..1');
+
+  /// Water's murk: a deep blue, 63 % at 20 m, darkening with the sky.
+  static const Haze water = Haze(0x081F47, 0.05, followsSky: true);
+
+  /// Lava's glare: orange, 70 % a metre off.
+  static const Haze lava = Haze(0xBF3805, 1.2);
 
   /// What a kind not in `VoxelGameSpec.liquids` does: lava is slow, short and
   /// thick, any other flows like water.
   static LiquidSpec defaultFor(String kind) =>
-      kind == 'lava' ? const LiquidSpec(period: 0.6, reach: 2, tint: 0.55) : const LiquidSpec();
+      kind == 'lava' ? const LiquidSpec(period: 0.6, reach: 2, tint: 0.55, haze: lava) : const LiquidSpec();
 
   /// Seconds between steps.
   final double period;
@@ -32,6 +39,9 @@ class LiquidSpec {
   /// How opaque the wash over the screen is while the camera is in it, in the
   /// colour of the block it is in (the default HUD's); 0 for none.
   final double tint;
+
+  /// The fog around the camera while it is in it, or null for the sky's.
+  final Haze? haze;
 }
 
 /// The world of a game: blocks streamed around a focus point, generated from

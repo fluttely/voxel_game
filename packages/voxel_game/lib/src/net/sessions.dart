@@ -11,6 +11,7 @@ import '../core/voxel_game.dart';
 import '../core/game_event.dart';
 import '../core/game_system.dart';
 import '../entities/item_pickup.dart';
+import '../entities/lit_explosive.dart';
 import '../entities/projectile.dart';
 import '../entities/target.dart';
 import '../mobs/mob.dart';
@@ -106,6 +107,9 @@ typedef _StoreEdit = ({int n, int opening, int slot, ItemStack? before, ItemStac
 /// dimension, its `ProjectileSpec`, where from, how fast, and its shooter: a
 /// player's peer or a creature's number), drawn by the clients as replicas;
 /// a client's is a `shoot`, which the host lands where it is and passes on.
+/// An explosive the host lights goes out as `lit` (its dimension, its block,
+/// where it stands, its fuse), drawn by the clients as a replica that sounds
+/// at its end; the host's blast reaches them as edits and `hurt`.
 /// Every peer runs the same spec, so a dimension's number is the same
 /// everywhere, and a message no peer of that spec would send throws.
 abstract class GameSession extends GameSystem {
@@ -136,6 +140,10 @@ abstract class GameSession extends GameSystem {
   /// where the host is, makes its own a replica, the host landing the shot.
   /// A client shoots for its own player only, and throws for anyone else.
   void fired(Projectile shot);
+
+  /// The host lit [explosive] (`VoxelGame.ignite`), already added: it shows
+  /// it to its clients. A client lights none.
+  void lit(LitExplosive explosive) => throw StateError('a client lights nothing: the host runs the circuits');
 
   /// Takes the vehicle of [item] the game is putting down at [at], pointing
   /// [facing]: true when it went to the host (a client where the host is),
@@ -581,6 +589,15 @@ class HostSession extends GameSession {
     }
     net.broadcast(GameSession._shotMessage(d, spec, from, velocity, {'o': peer.id}), except: peer.id);
   }
+
+  @override
+  void lit(LitExplosive explosive) => net.broadcast({
+    't': 'lit',
+    'd': game.world.dimension,
+    'b': game.blocks.indexOf(explosive.block.id),
+    'p': _v(explosive.position),
+    'f': explosive.fuse,
+  });
 
   @override
   void fired(Projectile shot) => net.broadcast(
@@ -1216,6 +1233,17 @@ class ClientSession extends GameSession {
     game.add(Projectile(spec, from, _vec(m['v']), shooter)..replica = true);
   }
 
+  /// The host's lit explosive (a `lit`, [m]), drawn as a replica where the
+  /// player is in its dimension.
+  void _litIn(NetMessage m) {
+    final id = _block(m['b']! as int);
+    final explosive = game.explosives[id];
+    if (explosive == null) throw FormatException('a lit ${game.blocks[id].id}, which is no explosive');
+    if (_dimension(m['d']! as int) != game.world.dimension) return;
+    final fuse = (m['f']! as num).toDouble();
+    game.add(LitExplosive(game.blocks[id], explosive, _vec(m['p']), fuse: fuse)..replica = true);
+  }
+
   @override
   void fired(Projectile shot) {
     if (!identical(shot.owner, game.player)) {
@@ -1332,6 +1360,8 @@ class ClientSession extends GameSession {
         if (m['ok'] == true) _boarded(m['n']! as int, m['v']! as Map<String, Object?>);
       case 'shot':
         _shotIn(m);
+      case 'lit':
+        _litIn(m);
       case 'give':
         final stack = _stack(m['s']);
         final left = game.player.pickUpStack(stack);

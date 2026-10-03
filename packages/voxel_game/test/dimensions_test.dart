@@ -521,4 +521,37 @@ void main() {
     host.dispose();
     client.dispose();
   });
+
+  test('a dimension of its own sky is under it, in its haze, but for the liquid the camera is in', () async {
+    const nether = DimensionSky(
+      StillSky(zenith: 0x0F0303, horizon: 0x470D08, ambient: 0xFF8C6B),
+      haze: Haze(0x4C0F0A, 0.014),
+    );
+    final spec = _spec.copyWith(
+      sky: const SkySpec(
+        startTime: 0.5,
+        cycle: false,
+        dimensions: {'nether': nether, 'sea': DimensionSky(StillSky(zenith: 0, horizon: 0, ambient: 0))},
+      ),
+    );
+    final game = await _start(spec: spec);
+    expect(game.dimensionSky, isNull, reason: 'the main world is under the day');
+    expect(game.haze, isNull);
+    game.travel('nether');
+    await _arrive(game);
+    expect(game.dimensionSky, same(nether));
+    expect(game.haze, same(nether.haze));
+    game.world.setBlockNamed(IVec3.floor(game.camera().position), 'lava');
+    expect(game.haze, same(LiquidSpec.lava), reason: 'the liquid\'s haze over the dimension\'s');
+    game.world.setBlockNamed(IVec3.floor(game.camera().position), 'air');
+    game.travel('sea');
+    await _arrive(game);
+    expect(game.dimensionSky, isNotNull);
+    expect(game.haze, isNull, reason: 'a sky of its own with no haze: the distance fog');
+    game.dispose();
+    await expectLater(
+      VoxelGame.startHeadless(_spec.copyWith(sky: const SkySpec(dimensions: {'moon': nether}))),
+      throwsA(isA<ArgumentError>().having((e) => e.invalidValue, 'dimension', 'moon')),
+    );
+  });
 }

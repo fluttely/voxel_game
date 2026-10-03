@@ -21,6 +21,7 @@ import 'screen_spec.dart';
 import 'signal_spec.dart';
 import 'sky_spec.dart';
 import 'sound_spec.dart';
+import 'structure_loot.dart';
 import 'touch_controls_spec.dart';
 import 'use_handlers.dart';
 
@@ -68,6 +69,7 @@ class VoxelGameSpec {
     this.systems = noSystems,
     this.blockUses = const {},
     this.mobUses = const {},
+    this.structureLoot = const {},
   });
 
   /// The blocks, air first or added; their order is the save contract.
@@ -125,6 +127,13 @@ class VoxelGameSpec {
   /// shots: {'arrow': ProjectileSpec(speed: 36, gravity: 14, damage: 6)},
   /// ```
   final Map<String, ProjectileSpec> shots;
+
+  /// What the stores of a structure hold, by the structure's name (a
+  /// `StructureSpec.name` of [world] or one of [dimensions]), in place of
+  /// their block's `Storage.loot` (see [checkStructureLoot]). A store belongs
+  /// to the nearest structure of its dimension whose reach (its
+  /// `Structure.radius`, sideways) holds it.
+  final Map<String, StructureLoot> structureLoot;
 
   /// How the player fishes: the rod, what bites, where; null for a game with
   /// no fishing (see [checkFishing]).
@@ -234,6 +243,7 @@ class VoxelGameSpec {
     List<GameSystem> Function()? systems,
     Map<String, BlockUse>? blockUses,
     Map<String, MobUse>? mobUses,
+    Map<String, StructureLoot>? structureLoot,
   }) => VoxelGameSpec(
     blocks: blocks ?? this.blocks,
     world: world ?? this.world,
@@ -262,6 +272,7 @@ class VoxelGameSpec {
     systems: systems ?? this.systems,
     blockUses: blockUses ?? this.blockUses,
     mobUses: mobUses ?? this.mobUses,
+    structureLoot: structureLoot ?? this.structureLoot,
   );
 
   /// The block registry: [blocks] with air first.
@@ -420,6 +431,25 @@ class VoxelGameSpec {
     }
   }
 
+  /// Throws [ArgumentError] for loot of a structure no dimension has, for a
+  /// table (or a bonus) of an item not in [items], for a bonus of no items,
+  /// and for a one-of table whose chances sum over 1.
+  void checkStructureLoot(ItemRegistry<ItemType> items) {
+    final names = {
+      for (final w in dimensionWorlds)
+        for (final s in w.structures) s.name,
+    };
+    for (final MapEntry(key: name, value: loot) in structureLoot.entries) {
+      if (!names.contains(name)) throw ArgumentError.value(name, 'structureLoot', 'no such structure');
+      loot.table.check();
+      final bonus = loot.bonus;
+      if (bonus != null && bonus.items.isEmpty) throw ArgumentError.value(name, 'structureLoot', 'a bonus of nothing');
+      for (final item in [for (final e in loot.table.entries) e.item, ...?bonus?.items]) {
+        if (!items.has(item)) throw ArgumentError.value(item, name, 'the structure holds an item that does not exist');
+      }
+    }
+  }
+
   /// Throws [ArgumentError] for two of [actions] of one id, a key or pad
   /// button that presses two actions (two of the game's, or one of the game's
   /// and one of the kit's: move the kit's off it in [bindings]), and a
@@ -512,7 +542,7 @@ class VoxelGameSpec {
   /// has not, a biome no dimension's world has, or a dimension not declared.
   void checkMusic() => sounds.music?.check(
     biomeNames: {
-      for (final w in dimensionWorlds) ...[for (final b in w.biomes) b.name, ?w.ocean?.name, ?w.beach?.name],
+      for (final w in dimensionWorlds) ...[for (final b in w.allBiomes) b.name],
     },
     dimensionIds: dimensionIds,
   );
@@ -554,8 +584,8 @@ class VoxelGameSpec {
 
   /// Throws [ArgumentError] for a dimension named [mainDimension], and for a
   /// portal between dimensions not declared (or one and the same), of blocks
-  /// not in [registry], a solid portal block or one another portal has, or a
-  /// lighter not in [items].
+  /// not in [registry], a solid portal block or one another portal has, a
+  /// lighter not in [items], or a sky of its own for a dimension not declared.
   void checkDimensions(BlockRegistry<BlockType> registry, ItemRegistry<ItemType> items) {
     if (dimensions.containsKey(mainDimension)) {
       throw ArgumentError.value(mainDimension, 'dimensions', 'the main world is `world`, not a dimension');
@@ -575,6 +605,9 @@ class VoxelGameSpec {
         throw ArgumentError.value(p.portal, 'portal', 'a portal block must not be solid: a body stands in it');
       }
       if (!items.has(p.lighter)) throw ArgumentError.value(p.lighter, 'portal', 'no such item');
+    }
+    for (final d in sky.dimensions.keys) {
+      if (!ids.contains(d)) throw ArgumentError.value(d, 'sky.dimensions', 'no such dimension');
     }
   }
 

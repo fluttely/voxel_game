@@ -31,7 +31,8 @@ class SpecGenerator implements ChunkGenerator {
     final cavern = spec.cavern;
     if (cavern != null) {
       if (spec.caves.enabled) throw ArgumentError.value(spec.caves, 'caves', 'a cavern is open already: CaveSpec.none');
-      for (final b in [...spec.biomes, ?spec.ocean, ?spec.beach]) {
+      for (final b in spec.allBiomes) {
+        if (b.flats != null) throw ArgumentError.value(b.name, 'biomes', 'a cavern presses no flats');
         if (b.trees.isNotEmpty) throw ArgumentError.value(b.name, 'biomes', 'a cavern grows no trees');
         if (b.pools != null) throw ArgumentError.value(b.name, 'biomes', 'a cavern holds no pools');
         if (b.plants.any((p) => p.spread != 0 || p.byWater)) {
@@ -58,7 +59,15 @@ class SpecGenerator implements ChunkGenerator {
         }
       }
     }
+    for (final b in [...spec.shores, ?spec.ocean, ?spec.beach]) {
+      if (b.flats != null) throw ArgumentError.value(b.name, 'flats', 'only a land biome presses its ground flat');
+    }
     _land = [for (final b in spec.biomes) _compileBiome(b)];
+    _flats = [
+      for (final b in _land)
+        if (b.spec.flats != null) b,
+    ];
+    _shores = [for (final b in spec.shores) _compileBiome(b)];
     _ocean = spec.ocean == null ? null : _compileBiome(spec.ocean!);
     _beach = spec.beach == null ? null : _compileBiome(spec.beach!);
     var upTo = 0;
@@ -68,9 +77,9 @@ class SpecGenerator implements ChunkGenerator {
     _lava = spec.caves.lava == null ? 0 : _id(spec.caves.lava!);
     _rockIds = {_stone, for (final s in spec.strata) _id(s.block), for (final o in spec.ores) _id(o.block)};
     _liquidIds = {_water, if (_lava != 0) _lava};
-    _spreads = [..._land, ?_ocean, ?_beach].any((b) => b.plants.any((p) => p.spec.spread != 0));
+    _spreads = [..._land, ..._shores, ?_ocean, ?_beach].any((b) => b.plants.any((p) => p.spec.spread != 0));
     _soft = {
-      for (final b in [..._land, ?_ocean, ?_beach])
+      for (final b in [..._land, ..._shores, ?_ocean, ?_beach])
         for (final t in b.trees) ...[t.blocks.leaves, if (t.blocks.vines != 0) t.blocks.vines],
     };
     _canvas = TreeCanvas(isSoft: _soft.contains, groundAt: surfaceHeight, floorY: spec.seaLevel, hash: hash);
@@ -119,7 +128,10 @@ class SpecGenerator implements ChunkGenerator {
   late final Uint8List _rock;
   late final Set<int> _rockIds, _liquidIds;
   late final bool _spreads;
-  late final List<_Biome> _land;
+  late final List<_Biome> _land, _shores;
+
+  /// The land biomes that press their ground flat, in order.
+  late final List<_Biome> _flats;
   late final _Biome? _ocean, _beach;
   late final OreTable _ores;
   late final Set<int> _soft;
@@ -198,16 +210,39 @@ class SpecGenerator implements ChunkGenerator {
         h = lerpd(sea - 3 + k * k * 2.0, h, k * k * k);
       }
     }
-    return h.toInt().clamp(6, ChunkSize.sizeY - 6);
+    if (_flats.isNotEmpty) h = _flatten(x, z, h);
+    return _clampHeight(h);
+  }
+
+  static int _clampHeight(double h) => h.toInt().clamp(6, ChunkSize.sizeY - 6);
+
+  /// Ground [h] of column ([x], [z]) pressed by the first biome of [_flats]
+  /// that would grow on it pressed, or [h] as it stands.
+  double _flatten(int x, int z, double h) {
+    final sea = spec.seaLevel;
+    for (final b in _flats) {
+      final f = b.spec.flats!;
+      if (h < sea + 1 || h >= sea + f.reach) continue;
+      final flat = sea + f.height + (h - sea - f.height) * f.keep;
+      if (identical(_biomeFor(x, z, _clampHeight(flat)), b)) return flat;
+    }
+    return h;
   }
 
   _Biome _biomeFor(int x, int z, int h) {
     final sea = spec.seaLevel;
     if (h < sea - 2 && _ocean != null) return _ocean;
-    if (h <= sea + 1 && _beach != null) return _beach;
+    final shore = h <= sea + 1;
+    if (shore && _shores.isEmpty && _beach != null) return _beach;
     final xd = x.toDouble(), zd = z.toDouble();
     final t = _temperature.getNoise2(xd, zd) - math.max(0, h - 72) / 50.0;
     final hum = _humidity.getNoise2(xd, zd);
+    if (shore) {
+      for (final b in _shores) {
+        if (b.spec.climate.contains(t, hum, h)) return b;
+      }
+      if (_beach != null) return _beach;
+    }
     for (final b in _land) {
       if (b.spec.climate.contains(t, hum, h)) return b;
     }
@@ -219,6 +254,10 @@ class SpecGenerator implements ChunkGenerator {
 
   /// Whether the rock at ([x], [y], [z]) is carved into a cave.
   bool isCave(int x, int y, int z) => spec.caves.enabled && _caves.carved(x, y, z, surfaceHeight(x, z));
+
+  /// The structure of the spec named [name]; throws [ArgumentError] for none.
+  StructureSpec structureNamed(String name) =>
+      _byName[name] ?? (throw ArgumentError.value(name, 'name', 'no such structure'));
 
   /// The structures whose regions touch chunk ([chunkX], [chunkZ]).
   List<PlacedStructure> structuresNear(int chunkX, int chunkZ) => [

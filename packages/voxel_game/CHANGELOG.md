@@ -2,6 +2,37 @@
 
 ## Unreleased
 
+- **Minecraft's world (VA-Ze).**
+  - **Breaking:** `SignalSpec.explosives` maps a block to an `Explosive` (new: `radius` 3.5,
+    `damage` 18, `fuse` 3.2 s, `chainFuse` 0.5 s, the app's TNT), not a radius. Powered, an
+    explosive is lit (`VoxelGame.ignite`, new; the authority's alone): the block goes and a
+    `LitExplosive` (new entity) flashes white every 0.4 s where it stood, falling as a body,
+    until its fuse runs out and it bursts (`VoxelGame.explode`). A blast lights the
+    explosives it reaches on a fuse of `chainFuse` to three times it instead of breaking
+    them. The host sends `lit`; a client draws a replica that sounds at its end. A lit one
+    is not saved. `VoxelGame.explosives` (new) by block id.
+  - `VoxelGameSpec.structureLoot` (new): a structure's name → `StructureLoot` (new: a
+    `LootTable` and a `LootBonus`, new: one of its items in `chance` of the stores with an
+    `ItemStack.bonus` from `min` to `max`, the app's 45 % and 1..6). A store the world
+    generated within a structure's reach is found with it instead of its block's loot,
+    seeded by its cell and the world. `VoxelGame.structureAt` (new) is the nearest structure
+    whose reach holds a cell. `checkStructureLoot` (new, at start) throws for an unknown
+    structure or item, a bonus of nothing, a one-of table over 1. (The loot is the kit's,
+    not `StructureSpec`'s: voxel_engine's worldgen may not import its content.)
+  - A stack's `bonus` now counts: it adds to a swing's damage and to the shot of the
+    launcher holding it (it was only shown).
+  - `SkySpec.dimensions` (new): a dimension id → `DimensionSky` (new: a `StillSky` and a
+    `Haze`, both voxel_scene's, re-exported); `checkDimensions` throws for an unknown one.
+    `VoxelGame.dimensionSky` and `VoxelGame.haze` (new): the frame draws the still sky and
+    the haze of the liquid the camera is in, else the dimension's.
+  - `LiquidSpec.haze` (new): water's `LiquidSpec.water` (a deep blue, 0.05, following the
+    sky) and lava's `LiquidSpec.lava` (orange, 1.2) by default, the app's numbers; null for
+    the sky's fog.
+  - Re-exported `Flats`, `Temple`, `PlacedStructure`.
+  - The example: TNT and a plate (`signals`), a desert temple with its trap and loot, a
+    dungeon's loot with a bonus bow, the swamp's flats, a frozen shore, the underworld's
+    still sky and red haze. Its world (and the benchmark's) moves on purpose.
+
 - **Minecraft's items (VA-Zd).**
   - A bow: an item with a `Launcher` (voxel_engine) shoots on attack — pressed, or held at
     its cooldown — the `ProjectileSpec` its `shot` names in `VoxelGameSpec.shots` (new),

@@ -20,6 +20,7 @@ export 'src/worldgen/structures/camp.dart';
 export 'src/worldgen/structures/dungeon.dart';
 export 'src/worldgen/structures/mine.dart';
 export 'src/worldgen/structures/ruins.dart';
+export 'src/worldgen/structures/temple.dart';
 export 'src/worldgen/structures/tower.dart';
 export 'src/worldgen/structures/village.dart';
 export 'src/worldgen/structures/well.dart';

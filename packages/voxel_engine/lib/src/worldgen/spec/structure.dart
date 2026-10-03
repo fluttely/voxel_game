@@ -6,7 +6,7 @@ typedef StructureBuild = void Function(StructureSite site);
 /// What a structure is: how far it reaches, how deep it sits, the blocks it
 /// uses, and how it is drawn around a [StructureSite]. A [StructureSpec]
 /// places one in the world; the stock ones (`Dungeon`, `Tower`, `Well`,
-/// `Camp`, `Ruins`, `Mine`, `Village`) take their blocks by name, and a
+/// `Camp`, `Ruins`, `Mine`, `Village`, `Temple`) take their blocks by name, and a
 /// game's own is a [CustomStructure] or a subclass.
 ///
 /// [build] is called once for every chunk the structure may reach, and must

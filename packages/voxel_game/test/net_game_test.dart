@@ -1373,4 +1373,29 @@ void main() {
       await _close(session, clients);
     },
   );
+
+  test('an explosive the host lights burns on the client as a replica, and its blast reaches it', () async {
+    final spec = _spec.copyWith(
+      blocks: [..._blocks, const BlockType('tnt', color: 0xD03020, hardness: 0)],
+      signals: () =>
+          const SignalSpec(wire: ('wire', 'wire_lit'), explosives: {'tnt': Explosive(radius: 2.0, fuse: 1.0)}),
+    );
+    final (host, session, clients) = await _session(1, spec: spec);
+    final client = clients.single;
+    final cell = IVec3.floor(host.player.position) + const IVec3(10, 0, 0);
+    host.world.setBlockNamed(cell, 'tnt');
+    await _run([host, client], 0.2);
+    expect(() => client.ignite(cell), throwsStateError, reason: 'a client lights nothing');
+    host.ignite(cell);
+    await _run([host, client], 0.2);
+    final replica = client.entities.whereType<LitExplosive>().single;
+    expect(replica.replica, isTrue);
+    expect(replica.fuse, 1.0);
+    expect(replica.position.distanceTo(Vector3(cell.x + 0.5, cell.y.toDouble(), cell.z + 0.5)), lessThan(0.3));
+    expect(client.world.blockNameAt(cell), 'air');
+    await _run([host, client], 1.0);
+    expect(client.entities.whereType<LitExplosive>().where((e) => !e.removed), isEmpty);
+    expect(client.world.blockNameAt(cell + IVec3.down), 'air', reason: 'the host\'s crater, as edits');
+    await _close(session, clients);
+  });
 }

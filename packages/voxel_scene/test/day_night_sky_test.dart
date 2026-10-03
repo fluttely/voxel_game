@@ -1,3 +1,4 @@
+import 'package:flutter_scene/scene.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:voxel_scene/voxel_scene.dart';
 
@@ -41,6 +42,40 @@ void main() {
       expect(() => SkyLook.at(0.5, overcast: 1.5), throwsArgumentError);
       expect(() => SkyLook.at(0.5, flash: -0.1), throwsArgumentError);
       expect(() => SkyLook.at(0.5, overcast: double.nan), throwsArgumentError);
+    });
+  });
+
+  group('a dimension\'s own sky and haze', () {
+    const underworld = StillSky(zenith: 0x0F0303, horizon: 0x470D08, ground: 0x1F0505, ambient: 0xFF8C6B);
+
+    test('a still sky has no sun, its own colours, and looks the same at every hour', () {
+      final look = SkyLook.still(underworld);
+      expect(look.sunIntensity, 0.0);
+      expect(look.sunDiscColor.length, 0.0);
+      expect(look.skyLight, 0.0);
+      expect(look.fogReach, 1.0);
+      expect(look.horizon.r, closeTo(0x47 / 255, 1e-6));
+      expect(look.ground.r, closeTo(0x1F / 255, 1e-6));
+      expect(look.ambient.r, closeTo(0.55 * 1.25, 1e-6), reason: 'the ambient at its energy, as SkyLook.at counts it');
+      expect(const StillSky(zenith: 0, horizon: 0x102030, ambient: 0).ground, 0x102030, reason: 'the horizon\'s');
+    });
+
+    test('a haze is an exponential fog from the eye; one that follows the sky darkens with it', () {
+      const water = Haze(0x081F47, 0.05, followsSky: true);
+      final fog = Fog()
+        ..mode = FogMode.linear
+        ..start = 100.0;
+      water.applyTo(fog, 1.0);
+      expect(fog.mode, FogMode.exponential);
+      expect(fog.start, 0.0);
+      expect(fog.density, 0.05);
+      expect(fog.color.b, closeTo(0x47 / 255, 1e-6));
+      expect(water.colorAt(0.0).b, closeTo(0x47 / 255 * 0.25, 1e-6), reason: 'a quarter at no sky light');
+      expect(
+        const Haze(0x4C0F0A, 0.014).colorAt(0.0).r,
+        closeTo(0x4C / 255, 1e-6),
+        reason: 'a haze of its own keeps its colour',
+      );
     });
   });
 }

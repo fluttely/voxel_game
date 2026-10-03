@@ -2,6 +2,21 @@
 
 ## 0.3.0-dev
 
+- Minecraft's world, as rows (VA-Ze).
+  - `Biome.flats` (new) of `Flats` (new: `height` 2, `keep` 0.3, `reach` 9, the app's swamp):
+    a column standing from one to `reach` blocks over the sea is pressed toward `height`
+    over it, wherever the biome declaring it is the one the column would then grow (so a
+    desert tried first keeps its ground). Only a land biome's; a cavern's or a shore's throws.
+  - `WorldGenSpec.shores` (new): biomes tried in order on the beach's columns, the first
+    whose climate holds taking it, else the beach. A cold one with `ice` is a frozen shore.
+    `WorldGenSpec.allBiomes` (new) lists the land's, the shores, the ocean and the beach.
+  - `Temple` (new, stock): a step pyramid of `stone`, 9 x 9 and five steps, over a 3 x 3 x 3
+    chamber reached from the south, two `chest`s, a `light`, a `plate` on a `trap`; every
+    furnishing nullable. (The app's fortress stays its own `CustomStructure`: its layout is
+    read by its boss, VA-Zl.)
+  - `SpecGenerator.structureNamed` (new).
+  A spec using none of them generates what it did.
+
 - Minecraft's items, declared as rows (VA-Zd); the engine only declares them, the kit's
   player does what they say.
   - `ItemType.launcher` (new) of `Launcher` (new: the `shot` by name, the `ammo` item a shot

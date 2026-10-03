@@ -9,6 +9,7 @@ import 'package:voxel_engine/net.dart' show NetHost;
 import 'package:voxel_engine/core.dart';
 import 'package:voxel_scene/voxel_scene.dart';
 import 'package:voxel_engine/signals.dart';
+import 'package:voxel_engine/worldgen.dart' show PlacedStructure;
 
 import '../camera/first_person_view.dart';
 import '../camera/view_camera.dart';
@@ -16,6 +17,7 @@ import '../entities/game_entity.dart';
 import 'game_event.dart';
 import 'game_system.dart';
 import '../entities/item_pickup.dart';
+import '../entities/lit_explosive.dart';
 import '../entities/projectile.dart';
 import '../entities/target.dart';
 import '../input/game_actions.dart';
@@ -31,6 +33,8 @@ import '../net/remote_player.dart';
 import '../net/sessions.dart';
 import '../player/player_entity.dart';
 import '../settings/game_settings.dart';
+import '../spec/dimension_sky.dart';
+import '../spec/explosive.dart';
 import '../spec/graphics_spec.dart';
 import '../spec/signal_spec.dart';
 import '../spec/sound_spec.dart';
@@ -87,6 +91,7 @@ class VoxelGame {
     spec.checkMobs(items);
     spec.checkVehicles(items);
     spec.checkShots(items);
+    spec.checkStructureLoot(items);
     spec.checkFishing(blocks, items);
     spec.checkMusic();
     spec.checkSteps();
@@ -104,7 +109,10 @@ class VoxelGame {
     rails = Rails(blocks, spec.signals);
     final s = spec.signals;
     // A client knows the rules too, to flip a lever as an edit of its own.
-    if (s != null) _signals = _signalRules(s);
+    if (s != null) {
+      _signals = _signalRules(s);
+      explosives = {for (final e in s.explosives.entries) blocks.indexOf(e.key): e.value};
+    }
     if (!authority) {
       // A client: the host runs the liquids, the circuits and the spawning.
       world.flow.enabled = false;
@@ -166,11 +174,9 @@ class VoxelGame {
         reactions[e.value] = run;
       }
     }
-    for (final e in s.explosives.entries) {
-      reactions[id(e.key)] = SignalReactions.trigger((c) {
-        world.setBlock(c, BlockRegistry.air);
-        explode(Vector3(c.x + 0.5, c.y + 0.5, c.z + 0.5), radius: e.value, damage: e.value * 4.0);
-      });
+    final lit = SignalReactions.trigger(ignite);
+    for (final name in s.explosives.keys) {
+      reactions[id(name)] = lit;
     }
     return SignalRules(
       wireOff: id(s.wire.$1),
@@ -953,7 +959,14 @@ class VoxelGame {
     final s = sky;
     if (s != null) {
       final w = weather;
-      _skyLight = s.update(timeOfDay, fogDistance: viewDistance, overcast: w.overcast, flash: w.flash);
+      _skyLight = s.update(
+        timeOfDay,
+        fogDistance: viewDistance,
+        overcast: w.overcast,
+        flash: w.flash,
+        still: dimensionSky?.sky,
+        haze: haze,
+      );
       world.setSkyIntensity(_skyLight);
       weatherParticles?.update(player.eyePosition, rainShare: w.rainShare, snowShare: w.snowShare);
     }
@@ -1138,6 +1151,36 @@ class VoxelGame {
     return t.isLiquid ? t : null;
   }
 
+  /// The structure of the dimension streaming whose reach (its
+  /// `Structure.radius` about its site, sideways) holds [cell], the nearest
+  /// when several do; null for none.
+  PlacedStructure? structureAt(IVec3 cell) {
+    final g = world.generator;
+    final chunk = ChunkStreamer.chunkOf(cell);
+    PlacedStructure? best;
+    var nearest = 1 << 30;
+    for (final s in g.structuresNear(chunk.x, chunk.z)) {
+      final d = math.max((s.x - cell.x).abs(), (s.z - cell.z).abs());
+      if (d <= g.structureNamed(s.name).structure.radius && d < nearest) {
+        best = s;
+        nearest = d;
+      }
+    }
+    return best;
+  }
+
+  /// The sky of its own of the dimension streaming (`SkySpec.dimensions`),
+  /// or null for the day's.
+  DimensionSky? get dimensionSky => spec.sky.dimensions[spec.dimensionIds[world.dimension]];
+
+  /// The fog a frame draws in place of the distance fog: the haze of the
+  /// liquid the camera is in ([eyeLiquid], `LiquidSpec.haze`), else the
+  /// dimension's ([dimensionSky]); null for neither.
+  Haze? get haze {
+    final eye = eyeLiquid;
+    return (eye == null ? null : liquid(eye.liquid!).haze) ?? dimensionSky?.haze;
+  }
+
   /// How liquid [kind] flows and looks: the spec's, or its default.
   LiquidSpec liquid(String kind) => spec.liquids[kind] ?? LiquidSpec.defaultFor(kind);
 
@@ -1294,9 +1337,30 @@ class VoxelGame {
     if (byPlayer) raise(BlockBroken(type.id, cell));
   }
 
+  /// The explosives of `SignalSpec.explosives`, by block id.
+  Map<int, Explosive> explosives = const {};
+
+  /// Lights the explosive at [cell] (`SignalSpec.explosives`): the block goes
+  /// and a [LitExplosive] burns in its place for [fuse] seconds (its
+  /// `Explosive.fuse` by default), shown to the clients. The authority's
+  /// alone: a client sees the host's. Throws where no explosive stands.
+  LitExplosive ignite(IVec3 cell, {double? fuse}) {
+    if (!authority) throw StateError('a client lights nothing: the host runs the circuits');
+    final id = world.getBlock(cell);
+    final explosive = explosives[id];
+    if (explosive == null) throw ArgumentError.value(cell, 'cell', 'no explosive here: ${blocks[id].id}');
+    world.setBlock(cell, BlockRegistry.air);
+    final at = Vector3(cell.x + 0.5, cell.y.toDouble(), cell.z + 0.5);
+    playSound('dig', at: at, volumeDb: -6.0, pitch: 1.5);
+    final lit = add(LitExplosive(blocks[id], explosive, at, fuse: fuse ?? explosive.fuse));
+    session?.lit(lit);
+    return lit;
+  }
+
   /// A blast at [centre]: up to [damage] to every target within [radius]
   /// (falling to 0 at the edge) and, with [breaksBlocks], the breakable
-  /// blocks inside it gone.
+  /// blocks inside it gone, but for an explosive, which is lit ([ignite]) on
+  /// a short fuse of its own.
   void explode(Vector3 centre, {double radius = 3.0, double damage = 12.0, bool breaksBlocks = true, Target? source}) {
     playSound('explode', at: centre);
     for (final t in allTargets.toList()) {
@@ -1316,6 +1380,11 @@ class VoxelGame {
           final cell = c + IVec3(x, y, z);
           final id = world.getBlock(cell);
           if (id == BlockRegistry.air || blocks[id].hardness < 0 || blocks[id].isLiquid) continue;
+          final explosive = explosives[id];
+          if (explosive != null) {
+            ignite(cell, fuse: explosive.chainFuse * (1.0 + 2.0 * random.nextDouble()));
+            continue;
+          }
           breakBlock(cell, drop: random.nextDouble() < 0.3);
         }
       }

@@ -8,6 +8,7 @@ const List<String> _names = [
   'stone', 'dirt', 'grass', 'sand', 'water', 'log', 'leaves', 'planks', 'cobblestone', 'bricks', //
   'mossy', 'ladder', 'lamp', 'spawner', 'chest', 'bones', 'gold', 'iron', 'slab', 'glass', 'bed',
   'torch', 'table', 'furnace', 'fence', 'gravel', 'farmland', 'wheat', 'rail', 'flower', 'bedrock',
+  'sandstone', 'plate', 'tnt',
 ];
 final Map<String, int> _ids = {for (var i = 0; i < _names.length; i++) _names[i]: i + 1};
 int _id(String name) => _ids[name]!;
@@ -25,6 +26,7 @@ const _dungeon = Dungeon(
 const _tower = Tower(walls: 'bricks', mossy: 'mossy', floor: 'planks', ladder: 'ladder', chest: 'chest', light: 'lamp');
 const _well = Well(rim: 'cobblestone', water: 'water', posts: 'fence', roof: 'planks');
 const _camp = Camp(cloth: 'planks', poles: 'log', chest: 'chest', light: 'lamp');
+const _temple = Temple(stone: 'sandstone', chest: 'chest', light: 'lamp', plate: 'plate', trap: 'tnt');
 const _ruins = Ruins(
   floor: 'cobblestone',
   ground: 'grass',
@@ -116,7 +118,7 @@ class _Flat {
 
 void main() {
   test('every stock structure names its blocks, and a world fails to compile without one', () {
-    for (final s in [_dungeon, _tower, _well, _camp, _ruins, _mine, _village]) {
+    for (final s in [_dungeon, _tower, _well, _camp, _ruins, _mine, _village, _temple]) {
       expect(s.blockNames, isNotEmpty);
       expect(s.blockNames.every(_ids.containsKey), isTrue, reason: '$s');
     }
@@ -222,6 +224,27 @@ void main() {
       final bed = f.all('bed').firstWhere((b) => b.$3 == z && (b.$1 - x) == 2);
       expect(bed.$2, 41);
     }
+  });
+
+  test('a temple: a step pyramid over a chamber, two chests, a plate on its trap, a way in from the south', () {
+    final f = _Flat(_temple);
+    expect(f.at(0, 39, 0), _id('tnt'));
+    expect(f.at(0, 40, 0), _id('plate'));
+    expect(f.all('chest'), unorderedEquals([(-1, 41, -1), (1, 41, -1)]));
+    expect(f.at(0, 44, 0), _id('lamp'));
+    for (var y = 41; y <= 43; y++) {
+      expect(f.at(0, y, 1), 0, reason: 'the chamber at $y');
+    }
+    expect([f.at(0, 41, 4), f.at(0, 42, 4)], [0, 0], reason: 'the corridor opens on the south face');
+    expect(f.at(0, 43, 3), _id('sandstone'), reason: 'over the corridor');
+    expect(f.at(4, 40, 4), _id('sandstone'), reason: 'the base is 9 x 9');
+    expect(f.at(5, 40, 0), 0);
+    expect(f.at(0, 49, 0), _id('sandstone'), reason: 'the top step');
+    expect(f.at(1, 49, 0), 0);
+    expect(f.at(0, 50, 0), 0);
+    final bare = _Flat(const Temple(stone: 'sandstone'));
+    expect(bare.at(0, 39, 0), _id('grass'), reason: 'no trap: the ground stays');
+    expect(bare.all('chest'), isEmpty);
   });
 
   group('in a world', () {

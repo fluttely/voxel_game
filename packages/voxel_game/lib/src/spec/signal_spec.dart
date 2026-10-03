@@ -1,3 +1,5 @@
+import 'explosive.dart';
+
 /// A game's circuits, by block name: what carries power, what makes it, what
 /// answers it. Every state is its own block (a lever off and on, a lamp lit
 /// and dark), so a flip is a plain block edit that saves and meshes like any
@@ -8,7 +10,7 @@
 ///   wire: ('wire', 'wire_lit'),
 ///   levers: {'lever': 'lever_on'},
 ///   lamps: {'lamp': 'lamp_lit'},
-///   explosives: {'tnt': 4.0},
+///   explosives: {'tnt': Explosive()},
 ///   pistons: {'piston': 'piston_out', 'piston_e': 'piston_e_out', ...},
 ///   poweredRails: {'powered_rail': 'powered_rail_on'},
 /// ),
@@ -50,8 +52,9 @@ class SignalSpec {
   /// Two-high doors: closed to open while powered.
   final Map<String, String> doors;
 
-  /// Blocks that blow up when powered, and how far the blast reaches.
-  final Map<String, double> explosives;
+  /// Blocks that are lit when powered, and how they burn and burst. A blast
+  /// lights the ones it reaches instead of breaking them.
+  final Map<String, Explosive> explosives;
 
   /// Pistons: retracted to extended. Powered, a piston pushes the block in
   /// front of it one cell on, when that block can move (it breaks, holds no

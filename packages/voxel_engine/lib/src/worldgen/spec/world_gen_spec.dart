@@ -30,8 +30,9 @@ class WorldGenSpec {
   /// A world. [biomes] are tried in order and the first whose [Climate]
   /// matches a column wins; the last one is the fallback, whatever its
   /// climate. [ocean] and [beach] take the columns below and just above
-  /// [seaLevel] when given. With a [cavern] the world is a roofed slab of
-  /// [stone] instead (see [CavernSpec]).
+  /// [seaLevel] when given, and [shores] the beach's where their climate
+  /// holds. With a [cavern] the world is a roofed slab of [stone] instead
+  /// (see [CavernSpec]).
   const WorldGenSpec({
     required this.biomes,
     this.seaLevel = 46,
@@ -41,6 +42,7 @@ class WorldGenSpec {
     this.bedrock,
     this.ocean,
     this.beach,
+    this.shores = const [],
     this.strata = const [],
     this.ores = const [],
     this.caves = const CaveSpec(),
@@ -72,6 +74,20 @@ class WorldGenSpec {
   /// The biome of the shore (at most one block above [seaLevel]).
   final Biome? beach;
 
+  /// Shores of their own, tried in order on the [beach]'s columns (from two
+  /// blocks under [seaLevel] to one over it): the first whose [Climate] holds
+  /// takes the column, else the beach does (or, with none, the land biomes).
+  /// A frozen shore is a cold one whose sea freezes:
+  ///
+  /// ```dart
+  /// shores: [Biome('frozen_shore', top: 'snow', under: 'sand', climate: Climate(maxTemperature: -0.4), ice: 'ice')],
+  /// ```
+  final List<Biome> shores;
+
+  /// Every biome of the world: the land's, the [shores], the [ocean] and the
+  /// [beach].
+  List<Biome> get allBiomes => [...biomes, ...shores, ?ocean, ?beach];
+
   /// The rock by depth, tried in order: a cell of rock below a stratum's
   /// `belowY` is its block instead of [stone]. Ores vein it as they do stone.
   final List<Stratum> strata;
@@ -95,7 +111,7 @@ class WorldGenSpec {
     stone,
     water,
     ?bedrock,
-    for (final b in [...biomes, ?ocean, ?beach]) ...b.blockNames,
+    for (final b in allBiomes) ...b.blockNames,
     for (final s in strata) s.block,
     for (final o in ores) o.block,
     ?caves.lava,
@@ -261,6 +277,27 @@ class Climate {
       (maxHeight == null || height <= maxHeight!);
 }
 
+/// Low ground pressed flat, as a swamp's is: a column standing from one to
+/// [reach] blocks over the sea is pressed toward [height] over it, keeping
+/// [keep] of its rise past that, wherever the biome declaring it is the one
+/// the column would then grow. The hills by a swamp stay hills, and a desert
+/// tried before it keeps its own ground.
+class Flats {
+  /// Ground pressed toward [height] blocks over the sea.
+  const Flats({this.height = 2, this.keep = 0.3, this.reach = 9})
+    : assert(height >= 1 && height < reach),
+      assert(keep >= 0.0 && keep < 1.0);
+
+  /// Blocks over the sea the ground is pressed toward.
+  final int height;
+
+  /// The share of its rise past [height] the ground keeps: 0 dead level.
+  final double keep;
+
+  /// Ground this many blocks or more over the sea is left as it is.
+  final int reach;
+}
+
 /// What falls from a biome's sky when the weather turns: Minecraft's own
 /// three. A game reads it; the generator does not.
 enum Precipitation {
@@ -291,6 +328,7 @@ class Biome {
     this.covers = const [],
     this.pools,
     this.ice,
+    this.flats,
     this.precipitation = Precipitation.rain,
   }) : under = under ?? top;
 
@@ -329,6 +367,11 @@ class Biome {
 
   /// The block the sea's surface freezes to here, or null for open water.
   final String? ice;
+
+  /// The low ground pressed flat where this biome would grow on it (a
+  /// swamp's), or null for the ground as the terrain made it. Only a land
+  /// biome's.
+  final Flats? flats;
 
   /// What falls here when the weather turns.
   final Precipitation precipitation;

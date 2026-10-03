@@ -511,7 +511,7 @@ void main() {
           levers: {'lever': 'lever_on'},
           plates: {'plate'},
           lamps: {'lamp': 'lamp_lit'},
-          explosives: {'tnt': 2.0},
+          explosives: {'tnt': Explosive(radius: 2.0, damage: 8.0)},
         ),
       ),
     );
@@ -538,10 +538,14 @@ void main() {
     await _run(game, 0.5);
     expect(w.blockNameAt(feet + const IVec3(0, 0, -2)), 'lamp_lit');
 
-    // TNT beside the lit wire goes off.
+    // TNT beside the lit wire is lit, and goes off when its fuse runs out.
     w.setBlockNamed(base + const IVec3(2, 0, 1), 'tnt');
     await _run(game, 0.3);
     expect(w.blockNameAt(base + const IVec3(2, 0, 1)), 'air');
+    expect(game.entities.whereType<LitExplosive>(), hasLength(1));
+    expect(w.blockNameAt(base + const IVec3(2, -1, 1)), isNot('air'), reason: 'still burning');
+    await _run(game, 3.0);
+    expect(game.entities.whereType<LitExplosive>(), isEmpty);
     expect(w.blockNameAt(base + const IVec3(2, -1, 1)), 'air', reason: 'the ground under it went with it');
   });
 
@@ -880,6 +884,15 @@ void main() {
     expect(game.eyeLiquid?.id, 'water');
     expect(game.liquid('water').tint, 0.25);
     expect(game.liquid('lava').tint, 0.55, reason: 'a kind not declared takes its default');
+    expect(game.haze, same(LiquidSpec.water), reason: 'the view closes in under water');
+    expect(game.liquid('lava').haze, same(LiquidSpec.lava));
+    game.world.setBlockNamed(IVec3.floor(game.camera().position), 'air');
+    expect(game.haze, isNull, reason: 'out of it, the distance fog');
     game.dispose();
+    final clear = await _start(_flat().copyWith(liquids: const {'water': LiquidSpec(haze: null)}));
+    await _run(clear, 0.1);
+    clear.world.setBlockNamed(IVec3.floor(clear.camera().position), 'water');
+    expect(clear.haze, isNull, reason: 'a liquid declared with none');
+    clear.dispose();
   });
 }

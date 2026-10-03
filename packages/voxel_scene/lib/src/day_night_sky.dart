@@ -3,14 +3,17 @@ import 'dart:math' as math;
 import 'package:flutter_scene/scene.dart';
 import 'package:vector_math/vector_math.dart';
 
+import 'haze.dart';
 import 'mirrored_camera.dart';
 import 'sky_look.dart';
+import 'still_sky.dart';
 
 /// A day and night over a voxel world: a gradient sky with a sun (a moon at
 /// night) casting cascaded shadows, a constant ambient that follows the day,
 /// ACES tone mapping, and a linear distance fog in the horizon colour that
 /// dissolves the edge of the loaded chunks into the sky; cloud greys and
-/// dims all of it and lightning flashes it white.
+/// dims all of it and lightning flashes it white. A dimension's [StillSky]
+/// and a [Haze] (a dimension's, a liquid's) take their place when given.
 ///
 /// Call [update] once a frame with the time of day and the weather; it
 /// returns how much of the baked sky light shows, for
@@ -80,6 +83,7 @@ class DayNightSky {
   double _sinceAmbient = 1.0;
   double _lastTime = -1.0;
   double _ambientWeather = 0.0;
+  StillSky? _ambientStill;
 
   /// How wide the fog band before [edge] metres is: a tenth of it, from 4 to
   /// 64 metres, as Minecraft's is.
@@ -94,15 +98,28 @@ class DayNightSky {
   /// [fogDistance], so it hides only where the world stops and everything
   /// nearer stays clear, whatever the render distance. Cloud pulls the end in
   /// ([SkyLook.fogReach]).
-  double update(double timeOfDay, {double fogDistance = 128.0, double overcast = 0.0, double flash = 0.0}) {
+  ///
+  /// A [still] sky (a dimension's own) replaces the day's: no sun, its own
+  /// colours and ambient whatever the hour and the weather. A [haze] replaces
+  /// the distance fog (a dimension's, or a liquid's around the eye).
+  double update(
+    double timeOfDay, {
+    double fogDistance = 128.0,
+    double overcast = 0.0,
+    double flash = 0.0,
+    StillSky? still,
+    Haze? haze,
+  }) {
     final dt = _lastTime < 0 ? 1.0 : (timeOfDay - _lastTime).abs();
     _lastTime = timeOfDay;
     _sinceAmbient += dt;
-    final look = SkyLook.at(timeOfDay, sunStep: _sunStep, overcast: overcast, flash: flash);
+    final look = still == null
+        ? SkyLook.at(timeOfDay, sunStep: _sunStep, overcast: overcast, flash: flash)
+        : SkyLook.still(still);
     sky
       ..zenithColor = look.zenith
       ..horizonColor = look.horizon
-      ..groundColor = look.horizon * 0.9
+      ..groundColor = look.ground
       ..sunDirection = look.sunDirection
       ..sunColor = look.sunDiscColor;
     sun
@@ -113,18 +130,26 @@ class DayNightSky {
     // by the day no more than once in a thousandth of one. The weather moves
     // it on a clock of its own (a bolt is over in a sixth of a second), so a
     // change of the weather's share rebuilds it whatever the day did.
+    // A sky of its own coming or going is a change of the same kind.
     final weather = overcast + flash;
-    if ((radiance - _ambient).length > 0.02 && (_sinceAmbient > 0.001 || weather != _ambientWeather)) {
+    if ((radiance - _ambient).length > 0.02 &&
+        (_sinceAmbient > 0.001 || weather != _ambientWeather || !identical(still, _ambientStill))) {
       _ambient = radiance;
       _sinceAmbient = 0.0;
       _ambientWeather = weather;
+      _ambientStill = still;
       scene.environment = EnvironmentMap.constantDiffuse(radiance);
     }
-    final edge = fogDistance * look.fogReach;
-    scene.fog
-      ..color = look.horizon
-      ..start = edge - fogBand(edge)
-      ..end = edge;
+    if (haze != null) {
+      haze.applyTo(scene.fog, look.skyLight);
+    } else {
+      final edge = fogDistance * look.fogReach;
+      scene.fog
+        ..mode = FogMode.linear
+        ..color = look.horizon
+        ..start = edge - fogBand(edge)
+        ..end = edge;
+    }
     return look.skyLight;
   }
 }

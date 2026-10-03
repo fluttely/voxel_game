@@ -258,6 +258,11 @@ const game = VoxelGameSpec(
     ),
     BlockType('lamp', color: 0x6A4A2A, hardness: 0.3),
     BlockType('lamp_lit', color: 0xFFD080, hardness: 0.3, light: 15, drop: 'lamp', holdable: false),
+    // A plate powers while a body stands on it; TNT powered is lit, and bursts three seconds on.
+    BlockType('plate', color: 0x9A9A9A, shape: BlockShape.slab, opaque: false, hardness: 0.5, tool: 'pickaxe'),
+    BlockType('tnt', color: 0xD03020, hardness: 0),
+    // What a desert temple is built of.
+    BlockType('sandstone', color: 0xD8C88A, hardness: 0.8, tool: 'pickaxe'),
     // A piston pushes away from whoever places it; out, it is the grey block.
     BlockType(
       'piston',
@@ -480,6 +485,8 @@ const game = VoxelGameSpec(
     Recipe('wire', 8, {'coal': 2}),
     Recipe('lever', 1, {'cobblestone': 1, 'planks': 1}),
     Recipe('lamp', 1, {'torch': 1, 'planks': 4}),
+    Recipe('tnt', 1, {'sand': 4, 'coal': 1}),
+    Recipe('plate', 1, {'cobblestone': 2}),
     Recipe('piston', 1, {'planks': 3, 'cobblestone': 4, 'wire': 1}),
     Recipe('powered_rail', 6, {'planks': 2, 'cobblestone': 4, 'wire': 1}),
     Recipe('boat', 1, {'planks': 5}),
@@ -546,6 +553,8 @@ const game = VoxelGameSpec(
         pools: Pools(bed: 'mud'),
         trees: [TreeSpec(TreeShape.willow, log: 'log', leaves: 'leaves', minHeight: 9, maxHeight: 11)],
         treeChance: 27,
+        // The low ground a swamp grows on is pressed flat, two blocks over the sea.
+        flats: Flats(),
         plants: [Plant('reeds', perMille: 550, byWater: true), Plant('tall_grass', perMille: 280)],
       ),
       Biome(
@@ -582,6 +591,17 @@ const game = VoxelGameSpec(
     ],
     ocean: Biome('ocean', top: 'sand', covers: [Cover('gravel', perMille: 200)]),
     beach: Biome('beach', top: 'sand'),
+    // Where it is colder still, the shore is snow and the shallows freeze.
+    shores: [
+      Biome(
+        'frozen_shore',
+        top: 'snow',
+        under: 'sand',
+        climate: Climate(maxTemperature: -0.4),
+        ice: 'ice',
+        precipitation: Precipitation.snow,
+      ),
+    ],
     strata: [Stratum('dark_stone', belowY: 22)],
     ores: [Ore('coal_ore', share: 0.11)],
     structures: [
@@ -592,6 +612,7 @@ const game = VoxelGameSpec(
       StructureSpec('camp', _camp, chance: 0.2, regionChunks: 4),
       StructureSpec('ruins', _ruins, chance: 0.3, regionChunks: 3, biomes: ['plains', 'forest', 'jungle']),
       StructureSpec('well', _well, chance: 0.2, regionChunks: 3, biomes: ['plains', 'desert']),
+      StructureSpec('temple', _temple, chance: 0.5, regionChunks: 4, biomes: ['desert']),
     ],
   ),
   // Another dimension, a world of its own from the same seed: one great cave between a bedrock floor and roof,
@@ -615,11 +636,13 @@ const game = VoxelGameSpec(
   // in it and the player crosses, a frame built on the far side for the way back.
   portals: [PortalSpec(frame: 'obsidian', portal: 'portal', lighter: 'flint_and_steel', to: 'underworld')],
   // Circuits: a lever powers a wire, and what the wire touches answers — a lamp lights, a piston pushes the block
-  // in front of it, a run of powered rails lights up.
+  // in front of it, a run of powered rails lights up, TNT is lit (and lights the TNT its blast reaches).
   signals: SignalSpec(
     wire: ('wire', 'wire_lit'),
     levers: {'lever': 'lever_on'},
+    plates: {'plate'},
     lamps: {'lamp': 'lamp_lit'},
+    explosives: {'tnt': Explosive()},
     pistons: {
       'piston': 'piston_out',
       'piston_e': 'piston_e_out',
@@ -628,8 +651,34 @@ const game = VoxelGameSpec(
     },
     poweredRails: {'powered_rail': 'powered_rail_on', 'powered_rail_ns': 'powered_rail_ns_on'},
   ),
-  // The weather: rain and storms rolled every few minutes (snow where a biome's precipitation is snow).
-  sky: SkySpec(weather: WeatherSpec()),
+  // The weather: rain and storms rolled every few minutes (snow where a biome's precipitation is snow). The
+  // underworld has a sky of its own: no sun, a dark red, and a haze closing in.
+  sky: SkySpec(
+    weather: WeatherSpec(),
+    dimensions: {
+      'underworld': DimensionSky(
+        StillSky(zenith: 0x0F0303, horizon: 0x470D08, ground: 0x1F0505, ambient: 0xFF8C6B),
+        haze: Haze(0x4C0F0A, 0.014),
+      ),
+    },
+  ),
+  // What a structure's chests hold, in place of an empty chest's nothing; a dungeon's may hold a weapon with a
+  // bonus to its damage.
+  structureLoot: {
+    'temple': StructureLoot(
+      LootTable([
+        LootEntry('bread', 1, 3, 0.8),
+        LootEntry('arrow', 4, 12, 0.7),
+        LootEntry('tnt', 1, 2, 0.5),
+        LootEntry('coal', 2, 6, 0.6),
+      ]),
+      bonus: LootBonus(['bow', 'wooden_pickaxe']),
+    ),
+    'dungeon': StructureLoot(
+      LootTable([LootEntry('arrow', 6, 14, 0.8), LootEntry('bread', 1, 2, 0.6), LootEntry('glider', 1, 1, 0.15)]),
+      bonus: LootBonus(['bow']),
+    ),
+  },
   // Music written as notes, synthesised at first play (no files): the meadow's by day and by night, wherever no
   // other plays (the jungle and the plains share it); its own in the desert, the snow and the swamp; the deep's
   // underground and the underworld's all through it. A recording put in the assets as `asset:` plays instead.
@@ -1010,6 +1059,8 @@ const _ruins = Ruins(
   chest: 'chest',
 );
 const _well = Well(rim: 'cobblestone', water: 'water', posts: 'fence', roof: 'planks');
+// A desert temple: two chests in a chamber under a step pyramid, and a plate in its floor over TNT.
+const _temple = Temple(stone: 'sandstone', chest: 'chest', light: 'glowstone', plate: 'plate', trap: 'tnt');
 
 Widget _controls(BuildContext context, VoxelGame game) => ColoredBox(
   color: Colors.black54,

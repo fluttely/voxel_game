@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:vector_math/vector_math.dart';
 
+import 'still_sky.dart';
+
 /// How the sky looks at one time of day under one weather: the colours, the
 /// sun (or the moon), the ambient and how far the fog reaches. Pure numbers,
 /// so it is computed and checked with no GPU; `DayNightSky.update` puts it on
@@ -10,6 +12,7 @@ class SkyLook {
   SkyLook._({
     required this.zenith,
     required this.horizon,
+    required this.ground,
     required this.sunDirection,
     required this.sunColor,
     required this.sunIntensity,
@@ -63,6 +66,7 @@ class SkyLook {
     return SkyLook._(
       zenith: top,
       horizon: hor,
+      ground: hor * 0.9,
       sunDirection: sunDir,
       sunColor: sunColor,
       sunIntensity: sunIntensity,
@@ -73,6 +77,24 @@ class SkyLook {
     );
   }
 
+  /// How [sky] looks, at every hour and under any weather: its colours, no
+  /// sun (its light off, its disc black, its direction straight up), its
+  /// ambient, its sky light, and the fog at its full reach.
+  factory SkyLook.still(StillSky sky) => SkyLook._(
+    zenith: _rgb(sky.zenith),
+    horizon: _rgb(sky.horizon),
+    ground: _rgb(sky.ground),
+    sunDirection: Vector3(0.0, 1.0, 0.0),
+    sunColor: Vector3.zero(),
+    sunIntensity: 0.0,
+    sunDiscColor: Vector3.zero(),
+    ambient: _rgb(sky.ambient) * (sky.ambientEnergy * 1.25),
+    skyLight: sky.skyLight,
+    fogReach: 1.0,
+  );
+
+  static Vector3 _rgb(int c) => Vector3(((c >> 16) & 0xFF) / 255.0, ((c >> 8) & 0xFF) / 255.0, (c & 0xFF) / 255.0);
+
   /// The grey a full overcast turns the sky at noon.
   static final Vector3 _overcast = Vector3(0.45, 0.48, 0.55);
 
@@ -81,8 +103,11 @@ class SkyLook {
   /// The colour straight up.
   final Vector3 zenith;
 
-  /// The colour at the horizon: the ground's below it, the fog's.
+  /// The colour at the horizon: the distance fog's.
   final Vector3 horizon;
+
+  /// The colour below the horizon.
+  final Vector3 ground;
 
   /// Toward the light: the sun by day, the moon (opposite it) by night.
   final Vector3 sunDirection;

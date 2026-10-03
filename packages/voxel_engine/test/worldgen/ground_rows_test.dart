@@ -6,7 +6,7 @@ import 'package:voxel_engine/worldgen.dart';
 
 const List<String> _names = [
   'stone', 'deep', 'dirt', 'grass', 'snow', 'sand', 'water', 'mud', 'log', 'leaves', //
-  'spruce', 'needles', 'cactus', 'melon', 'reeds', 'flower', 'bedrock', 'coal_ore',
+  'spruce', 'needles', 'cactus', 'melon', 'reeds', 'flower', 'bedrock', 'coal_ore', 'ice',
 ];
 final Map<String, int> _ids = {for (var i = 0; i < _names.length; i++) _names[i]: i + 1};
 int _id(String name) => _ids[name]!;
@@ -302,5 +302,84 @@ void main() {
     expect(sandHigh, 0);
     expect(deep, greaterThan(0));
     expect(stoneDeep, 0);
+  });
+
+  group('flats and shores', () {
+    const desert = Biome('desert', top: 'sand', climate: Climate(minTemperature: 0.3, maxHumidity: 0.05));
+    const plains = Biome('plains', top: 'grass', under: 'dirt');
+    const beach = Biome('beach', top: 'sand');
+    const ocean = Biome('ocean', top: 'dirt');
+    const wet = Climate(minHumidity: 0.2);
+    WorldGenSpec world(List<Biome> biomes, {List<Biome> shores = const []}) =>
+        WorldGenSpec(caves: CaveSpec.none, biomes: biomes, ocean: ocean, beach: beach, shores: shores);
+    // Every seventh column of a square 840 blocks a side.
+    final columns = [
+      for (var z = -420; z <= 420; z += 7)
+        for (var x = -420; x <= 420; x += 7) (x, z),
+    ];
+
+    test('a biome with flats presses the low ground it would grow on, and nothing else', () {
+      const swamp = Biome('swamp', top: 'mud', climate: wet, flats: Flats());
+      final flat = world([desert, swamp, plains]).compile(_ids, 3);
+      final raw = world([desert, const Biome('swamp', top: 'mud', climate: wet), plains]).compile(_ids, 3);
+      var pressed = 0, deserts = 0;
+      for (final (x, z) in columns) {
+        final h = raw.surfaceHeight(x, z), f = flat.surfaceHeight(x, z);
+        final biome = flat.biomeAt(x, z).name;
+        if (biome == 'desert') deserts++;
+        if (f != h) {
+          pressed++;
+          expect(biome, 'swamp', reason: 'only a swamp is pressed: ($x, $z)');
+          expect(h, inInclusiveRange(47, 54), reason: 'from one over the sea to under nine');
+          expect(f, inInclusiveRange(47, 50), reason: 'toward two over the sea, keeping 0.3 of the rest');
+        } else if (biome == 'swamp' && h >= 49) {
+          expect(h, greaterThan(54), reason: 'low swamp ground is pressed: ($x, $z) at $h');
+        }
+      }
+      expect(pressed, greaterThan(50));
+      expect(deserts, greaterThan(0));
+    });
+
+    test('a shore of its own takes the beach where its climate holds, and freezes its sea', () {
+      const frozen = Biome(
+        'frozen_shore',
+        top: 'snow',
+        under: 'sand',
+        climate: Climate(maxTemperature: -0.2),
+        ice: 'ice',
+      );
+      final g = world([plains], shores: [frozen]).compile(_ids, 5);
+      final names = <String>{};
+      var iced = 0;
+      for (final (x, z) in columns) {
+        final h = g.surfaceHeight(x, z);
+        final biome = g.biomeAt(x, z).name;
+        if (h > 47 || h < 44) {
+          expect(biome, isNot('frozen_shore'), reason: 'a shore only on the shore: ($x, $z) at $h');
+          continue;
+        }
+        names.add(biome);
+        if (biome == 'frozen_shore' && h <= 46 && iced < 20) {
+          iced++;
+          expect(_world(g, x, 46, z), _id('ice'), reason: 'the sea\'s surface');
+          expect(_world(g, x, 45, z), h <= 45 ? _id('water') : _id('snow'));
+        }
+      }
+      expect(names, {'frozen_shore', 'beach'});
+      expect(iced, greaterThan(0));
+    });
+
+    test('only a land biome presses its ground; a cavern presses none', () {
+      const pressed = Biome('low', top: 'mud', flats: Flats());
+      expect(() => world([plains], shores: [pressed]).compile(_ids, 1), throwsArgumentError);
+      expect(
+        () => WorldGenSpec(biomes: const [plains], ocean: pressed).compile(_ids, 1),
+        throwsA(isA<ArgumentError>().having((e) => e.name, 'name', 'flats')),
+      );
+      expect(
+        () => const WorldGenSpec(biomes: [pressed], caves: CaveSpec.none, cavern: CavernSpec()).compile(_ids, 1),
+        throwsArgumentError,
+      );
+    });
   });
 }

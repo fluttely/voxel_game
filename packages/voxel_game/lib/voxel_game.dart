@@ -31,8 +31,10 @@ export 'package:voxel_engine/worldgen.dart'
         Cover,
         CustomStructure,
         Dungeon,
+        Flats,
         Mine,
         Ore,
+        PlacedStructure,
         Plant,
         Pools,
         Precipitation,
@@ -41,6 +43,7 @@ export 'package:voxel_engine/worldgen.dart'
         Structure,
         StructureSite,
         StructureSpec,
+        Temple,
         TerrainRecipe,
         Tower,
         TreeShape,
@@ -49,6 +52,7 @@ export 'package:voxel_engine/worldgen.dart'
         VillageFarm,
         Well,
         WorldGenSpec;
+export 'package:voxel_scene/voxel_scene.dart' show Haze, StillSky;
 
 export 'src/camera/shoulder_orbit.dart';
 export 'src/camera/view_bob.dart';
@@ -58,6 +62,7 @@ export 'src/core/game_system.dart';
 export 'src/core/voxel_game.dart';
 export 'src/entities/game_entity.dart';
 export 'src/entities/item_pickup.dart';
+export 'src/entities/lit_explosive.dart';
 export 'src/entities/projectile.dart';
 export 'src/entities/target.dart';
 export 'src/input/game_actions.dart';
@@ -89,10 +94,13 @@ export 'src/player/xp_spec.dart';
 export 'src/settings/game_settings.dart';
 export 'src/settings/settings_store.dart';
 export 'src/spec/action_spec.dart';
+export 'src/spec/dimension_sky.dart';
+export 'src/spec/explosive.dart';
 export 'src/spec/graphics_spec.dart';
 export 'src/spec/portal_spec.dart';
 export 'src/spec/screen_spec.dart';
 export 'src/spec/sky_spec.dart';
+export 'src/spec/structure_loot.dart';
 export 'src/spec/title_spec.dart';
 export 'src/spec/weather_odds.dart';
 export 'src/spec/weather_spec.dart';

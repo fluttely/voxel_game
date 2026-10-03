@@ -1179,7 +1179,9 @@ class PlayerEntity extends NodeBody implements Target, Angler {
       _attackCooldown = 0.45;
       _swingArm();
       final item = _heldType;
-      final base = item == null || item.tool == null ? spec.handDamage : item.damage.toDouble();
+      final base =
+          (item == null || item.tool == null ? spec.handDamage : item.damage.toDouble()) +
+          inventory.bonusAt(selectedSlot);
       final (:amount, :crit) = critical(base * damageMultiplier);
       mob.takeDamage(Damage(dealtTo(mob, amount), from: position, knockback: 6.0, attacker: this, crit: crit));
       if (item != null && item.durability > 0) inventory.wear(selectedSlot);
@@ -1226,7 +1228,8 @@ class PlayerEntity extends NodeBody implements Target, Angler {
 
   /// Looses one of [launcher]'s shot (`VoxelGameSpec.shots`) where the
   /// player looks, from just below the eye: it flies straight on and falls,
-  /// its damage times [damageMultiplier], rolled for a critical one and
+  /// its damage and the launcher's bonus (`ItemStack.bonus`) times
+  /// [damageMultiplier], rolled for a critical one and
   /// filtered by [damageOut] where it lands ([critical], [dealtTo]). One of
   /// its ammo is spent from the bag and the launcher wears (neither in
   /// creative); with none in the bag the player is told so, once a hold
@@ -1246,12 +1249,16 @@ class PlayerEntity extends NodeBody implements Target, Angler {
     _swingArm();
     final dir = forward;
     final from = eyePosition + dir * 0.8 - Vector3(0, 0.15, 0);
+    final shot = _game.spec.shots[launcher.shot]!;
+    // The launcher's bonus adds to its shot's damage, as a blade's to a blow.
+    final bonus = inventory.bonusAt(selectedSlot);
+    if (bonus > 0 && shot.damage <= 0.0) throw StateError('a bonus on ${launcher.shot}, a shot that deals nothing');
     _game.shoot(
-      _game.spec.shots[launcher.shot]!,
+      shot,
       from: from,
       at: from + dir,
       owner: this,
-      power: damageMultiplier,
+      power: bonus == 0 ? damageMultiplier : damageMultiplier * (shot.damage + bonus) / shot.damage,
       overDrop: false,
     );
     final item = _heldType!;

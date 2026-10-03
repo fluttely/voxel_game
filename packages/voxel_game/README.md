@@ -63,7 +63,15 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
   what falls is the biome's (`Biome(precipitation: Precipitation.snow)`, or `none` for a
   desert). `VoxelGame.weather` tells what it is and `set`s a spell from code; the player's
   `GameSettings.weather` turns it off. Only a lone game or a host rolls it; a client follows
-  the host's sky (`Weather.follow`) and strikes on its own clock.
+  the host's sky (`Weather.follow`) and strikes on its own clock. A dimension may have a
+  sky of its own (`SkySpec(dimensions: {'underworld': DimensionSky(StillSky(...), haze:
+  Haze(0x4C0F0A, 0.014))})`): no sun, its colours at every hour, a haze closing in; and the
+  view closes in under a liquid (`LiquidSpec.haze`, water's and lava's by default).
+- Minecraft's world: TNT (`SignalSpec(explosives: {'tnt': Explosive()})`) is lit by power,
+  flashes on its fuse and bursts, lighting the TNT its blast reaches; a structure's chests
+  hold its own loot with a bonus roll (`VoxelGameSpec.structureLoot`, a weapon's `bonus`
+  adding to its blows); a swamp's ground pressed flat (`Biome(flats: Flats())`), a frozen
+  shore (`WorldGenSpec.shores`), and a desert `Temple` with its trap in the stock structures.
 - A world dressed by rows: `WorldGenSpec(strata: [Stratum('dark_stone', belowY: 22)])`,
   a biome's `covers` (`Cover('snow', minHeight: 101)`), `pools` (`Pools(bed: 'mud')`), trees
   by `weight`, plants that stand `maxHeight` tall, `spread` into patches or grow `byWater`;
