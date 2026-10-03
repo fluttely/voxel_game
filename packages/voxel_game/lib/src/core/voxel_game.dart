@@ -86,6 +86,7 @@ class VoxelGame {
     spec.checkDimensions(blocks, items);
     spec.checkMobs(items);
     spec.checkVehicles(items);
+    spec.checkShots(items);
     spec.checkFishing(blocks, items);
     spec.checkMusic();
     spec.checkSteps();
@@ -896,6 +897,29 @@ class VoxelGame {
   /// of the window makes it false again until the world catches up.
   bool get filled => ready && world.isIdle;
 
+  /// Whether the sun is down: before sunrise (0.25) or after sunset (0.75).
+  /// A bed sleeps only then.
+  bool get isNight => timeOfDay < 0.25 || timeOfDay > 0.75;
+
+  /// The clock a night slept through ends at ([timeOfDay]): just after
+  /// sunrise.
+  static const double morning = 0.26;
+
+  /// Seconds every player must have slept for the night to pass.
+  static const double sleepSeconds = 2.0;
+
+  double _asleepFor = 0.0;
+
+  /// The night passes once every player (the remote ones too) has slept
+  /// [sleepSeconds] in a bed; the host's clock is every side's.
+  void _passNight(double dt) {
+    final all = isNight && player.sleeping && remotePlayers.every((r) => r.sleeping);
+    _asleepFor = all ? _asleepFor + dt : 0.0;
+    if (_asleepFor < sleepSeconds) return;
+    _asleepFor = 0.0;
+    timeOfDay = morning;
+  }
+
   /// 0 at night, 1 at noon: how much the sky's light counts.
   double get daylight {
     final elevation = math.sin((timeOfDay - 0.25) * math.pi * 2);
@@ -1040,6 +1064,7 @@ class VoxelGame {
     searchesLeft = Mob.searchesPerStep;
     time += dt;
     if (spec.sky.cycle) timeOfDay = (timeOfDay + dt / spec.sky.dayLength) % 1.0;
+    if (authority) _passNight(dt);
     weather.tick(this, dt);
     if (player.placed) {
       player.tick(this, dt, gameplay: gameplay);
@@ -1211,7 +1236,9 @@ class VoxelGame {
   }
 
   /// Shoots [projectile] from [from] toward [at], by [owner], its damage
-  /// multiplied by [power]. In a networked game every side sees it: the
+  /// multiplied by [power]: aimed over [at] by what it falls on the way
+  /// there, unless [overDrop] is false (a player's shot, which flies where
+  /// they look and falls). In a networked game every side sees it: the
   /// host's go to its clients; a client shoots for its own player only, and
   /// where the host is, the host lands the shot, this side's being a
   /// `Projectile.replica` (`GameSession.fired`).
@@ -1221,13 +1248,14 @@ class VoxelGame {
     required Vector3 at,
     Target? owner,
     double power = 1.0,
+    bool overDrop = true,
   }) {
     playSound('shoot', at: from, volumeDb: -4.0);
     final to = at - from;
     final d = to.length;
     final dir = d > 0 ? to / d : Vector3(0, 0, -1);
     // Aim over the target by the drop over the flight.
-    if (projectile.gravity > 0.0) {
+    if (overDrop && projectile.gravity > 0.0) {
       final t = d / projectile.speed;
       dir.y += 0.5 * projectile.gravity * t * t / math.max(d, 0.001);
       dir.normalize();
@@ -1238,7 +1266,8 @@ class VoxelGame {
   }
 
   /// Breaks the block at [cell]: air in its place, and its drop on the ground
-  /// when [dropFor] (the tool held, or null for the hand) earns one: its
+  /// when [dropFor] (the tool held, or null for the hand) earns one: the
+  /// block itself when the tool cuts it (`MiningRules.cuts`), else its
   /// `loot` rolled, or else its `drop`. Broken [byPlayer], it bursts into
   /// a dozen [chip]s (a blast's blocks do not: a crater would be thousands).
   void breakBlock(IVec3 cell, {ItemType? dropFor, bool drop = true, bool byPlayer = false}) {
@@ -1251,13 +1280,15 @@ class VoxelGame {
     if (byPlayer) chip(cell, id);
     if (drop && spec.mining.drops(type, dropFor)) {
       final loot = type.loot;
-      if (loot != null) {
+      if (spec.mining.cut(type, dropFor)) {
+        dropItem(type.id, 1, centre);
+      } else if (loot != null) {
         for (final s in loot.roll(random)) {
           dropItem(s.id, s.count, centre);
         }
       } else {
         final item = blocks.dropOf(id);
-        if (item.isNotEmpty && items.has(item)) dropItem(item, 1, centre);
+        if (item.isNotEmpty) dropItem(item, 1, centre);
       }
     }
     if (byPlayer) raise(BlockBroken(type.id, cell));

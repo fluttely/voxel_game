@@ -86,7 +86,9 @@ typedef _StoreEdit = ({int n, int opening, int slot, ItemStack? before, ItemStac
 /// player is peer 1); a client tames one with `tame` (the creature, the item
 /// offered and the stack it spent), which the host rolls and answers with
 /// `tamed`, or hands the stack back when the creature is gone or someone
-/// else's. A client riding its own pet drives it: its `pose` carries the
+/// else's; it shears one with `shear` (the creature), which the host does
+/// unless it is shorn already, its row in `state` then saying so (`sh`).
+/// A client riding its own pet drives it: its `pose` carries the
 /// mount's (`m`), which the host's copy follows until a pose without it.
 /// The host keeps the vehicles where it is: each has a number, and
 /// `vehicles` makes it on a client (a replica) or moves it (its save row
@@ -97,7 +99,8 @@ typedef _StoreEdit = ({int n, int opening, int slot, ItemStack? before, ItemStac
 /// it may, and where the vehicle stands) and off (`vehicle_leave`, with
 /// where it left it); while it rides, it drives, its `pose` carrying the
 /// vehicle's row (`v`), which the host's copy follows. A player's pose (a
-/// client's `pose`, a row of the host's `state`) carries the way its seat
+/// client's `pose`, a row of the host's `state`) carries whether it sleeps
+/// (`z`; the host passes the night once every player does), the way its seat
 /// points while it rides (`s`), drawn seated, and its float while a line is
 /// out (`f`), drawn with its line. The host's shots go out as `shot` (its
 /// dimension, its `ProjectileSpec`, where from, how fast, and its shooter: a
@@ -120,6 +123,10 @@ abstract class GameSession extends GameSystem {
   /// rolls `MobSpec.tameChance`. The host tames its own creatures itself.
   void tameMob(Mob mob, String item, {ItemStack? paid}) =>
       throw StateError('the host tames its own creatures, not through its session');
+
+  /// The local player shears the host's creature [mob] (`Mob.shear`): a
+  /// client asks the host, which drops the fleece. The host shears its own.
+  void shearMob(Mob mob) => throw StateError('the host shears its own creatures, not through its session');
 
   /// The host's player's peer number in a `state`.
   static const int hostPeer = 1;
@@ -451,6 +458,7 @@ class HostSession extends GameSession {
           (m['yaw']! as num).toDouble(),
           held: m['held']! as String,
           dead: m['dead'] == true,
+          sleeping: m['z'] == true,
           dimension: _dimension(m['d']! as int),
           seat: GameSession._seat(m['s']),
           float: _float(m['f']),
@@ -510,6 +518,13 @@ class HostSession extends GameSession {
         });
       case 'tame':
         _tame(peer, puppet!, m);
+      case 'shear':
+        // One gone or shorn meanwhile is not shorn again.
+        final mob = _liveMob(m['n']! as int);
+        if (mob != null && !mob.shorn) {
+          if (mob.spec.fleece == null) throw FormatException('a ${mob.spec.id} has no fleece to shear');
+          mob.shear();
+        }
       case 'shoot':
         _shoot(peer, puppet!, m);
       case 'vehicle_put':
@@ -808,6 +823,7 @@ class HostSession extends GameSession {
           'held': p.heldItem,
           'dead': p.isDead,
           'd': game.world.dimension,
+          if (p.sleeping) 'z': true,
           ...GameSession._seatAndFloat(p),
         },
         for (final r in players.values)
@@ -818,6 +834,7 @@ class HostSession extends GameSession {
             'held': r.heldItem,
             'dead': r.isDead,
             'd': r.dimension,
+            if (r.sleeping) 'z': true,
             's': ?r.seat,
             if (r.float case final f?) 'f': _v(f),
           },
@@ -832,6 +849,7 @@ class HostSession extends GameSession {
             'yaw': m.facing,
             'hp': m.hp,
             'dead': m.isDead,
+            if (m.shorn) 'sh': true,
             if (m.owner case final o?) 'o': _peerOf(o),
             if (m.rider case final r?) 'r': _peerOf(r),
           },
@@ -1382,6 +1400,7 @@ class ClientSession extends GameSession {
         (r['yaw']! as num).toDouble(),
         held: r['held']! as String,
         dead: r['dead'] == true,
+        sleeping: r['z'] == true,
         dimension: r['d']! as int,
         seat: GameSession._seat(r['s']),
         float: _float(r['f']),
@@ -1416,6 +1435,7 @@ class ClientSession extends GameSession {
         (r['yaw']! as num).toDouble(),
         (r['hp']! as num).toDouble(),
         owner: owner == null ? null : _player(owner),
+        shorn: r['sh'] == true,
         dead: r['dead'] == true,
       );
     }
@@ -1434,6 +1454,9 @@ class ClientSession extends GameSession {
   @override
   void tameMob(Mob mob, String item, {ItemStack? paid}) =>
       connection.send({'t': 'tame', 'n': mob.netId, 'i': item, if (paid != null) 's': paid.toJson()});
+
+  @override
+  void shearMob(Mob mob) => connection.send({'t': 'shear', 'n': mob.netId});
 
   @override
   void hitMob(Mob mob, Damage damage) => connection.send({
@@ -1477,6 +1500,7 @@ class ClientSession extends GameSession {
       'held': p.heldItem,
       'dead': p.isDead,
       'd': game.world.dimension,
+      if (p.sleeping) 'z': true,
       ...GameSession._seatAndFloat(p),
       if (p.riding case final Mob mount) 'm': {'n': mount.netId, 'p': _v(mount.position), 'yaw': mount.facing},
       if (p.riding case final Vehicle v when v.replica) 'v': {'n': v.netId, 'v': v.row},

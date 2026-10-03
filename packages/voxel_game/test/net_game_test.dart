@@ -94,6 +94,28 @@ const _petSpec = VoxelGameSpec(
   ],
 );
 
+/// [_spec] at midnight, the clock stopped, with beds, shears for every
+/// player and a sheep to shear.
+const _farmSpec = VoxelGameSpec(
+  blocks: [
+    ..._blocks,
+    BlockType('bed', color: 0xC03030, shape: BlockShape.slab, hardness: 0.5, bed: true),
+  ],
+  world: WorldGenSpec(
+    terrain: TerrainRecipe.flat(20),
+    seaLevel: 5,
+    caves: CaveSpec.none,
+    biomes: [Biome('plains', top: 'grass', under: 'dirt')],
+  ),
+  sky: SkySpec(startTime: 0.0, cycle: false),
+  items: [
+    ItemType('shears', color: 0xC0C0C8, tool: 'shears', stack: 1, durability: 40),
+    ItemType('wool', color: 0xEEEEEE),
+  ],
+  player: PlayerSpec(startingItems: {'shears': 1}),
+  mobs: [MobSpec('sheep', hp: 8, halfWidth: 0.45, height: 1.2, brain: [], fleece: Fleece('wool'))],
+);
+
 BlockType _rail(String id, BlockShape shape) =>
     BlockType(id, color: 0x8A8478, shape: shape, solid: false, opaque: false, hardness: 0.7, drop: 'rail');
 
@@ -901,6 +923,53 @@ void main() {
       await _close(session, clients);
     },
   );
+
+  test("a client shears the host's creature: the host shears it, and every side sees it shorn", () async {
+    final (host, session, clients) = await _session(1, spec: _farmSpec);
+    final [a] = clients;
+    final sheep = host.spawnMob('sheep', a.player.position + Vector3(0, 0, -2.5));
+    await _run([host, ...clients], 0.5);
+    final mine = _replicaOf(a, sheep);
+    _face(a, mine);
+    await _run([host, ...clients], 0.1);
+    expect(a.player.usableOn(mine), isTrue, reason: 'a replica is shorn by asking the host');
+    a.input.tap(VoxelAction.use);
+    await _run([host, ...clients], 0.5);
+    expect(sheep.shorn, isTrue);
+    expect(mine.shorn, isTrue, reason: "the host's row says so");
+    expect(mine.shear, throwsStateError, reason: 'a replica is the host\'s to shear');
+    expect(a.player.inventory.slots[a.player.selectedSlot]!.dur, 39, reason: 'the shears wear where they are held');
+    expect(a.player.usableOn(mine), isFalse);
+    await _close(session, clients);
+  });
+
+  test('the night passes once the host and every client sleep, on every side', () async {
+    final (host, session, clients) = await _session(1, spec: _farmSpec);
+    final [a] = clients;
+    Future<void> lieDown(VoxelGame game, IVec3 offset) async {
+      final bed = IVec3.floor(game.player.position) + offset;
+      host.world.setBlockNamed(bed, 'bed');
+      await _run([host, ...clients], 0.3);
+      _lookAt(game, Vector3(bed.x + 0.5, bed.y + 0.4, bed.z + 0.5));
+      await _run([host, ...clients], 0.1);
+      game.input.tap(VoxelAction.use);
+      await _run([host, ...clients], 0.1);
+      expect(game.player.sleeping, isTrue);
+    }
+
+    await lieDown(host, const IVec3(0, 0, -2));
+    await _run([host, ...clients], VoxelGame.sleepSeconds + 0.5);
+    expect(host.timeOfDay, 0.0, reason: 'the client is awake');
+    expect(session.players[_client(a).peer]!.sleeping, isFalse);
+    await lieDown(a, const IVec3(2, 0, 0));
+    expect(session.players[_client(a).peer]!.sleeping, isTrue, reason: 'its pose says so');
+    await _run([host, ...clients], VoxelGame.sleepSeconds + 0.5);
+    expect(host.timeOfDay, VoxelGame.morning);
+    expect(a.timeOfDay, VoxelGame.morning, reason: "the host's clock is every side's");
+    expect(host.player.sleeping, isFalse);
+    expect(a.player.sleeping, isFalse, reason: 'up with the morning the host sent');
+    await _close(session, clients);
+  });
 
   test("a client rides its own pet: its copy drives, the host's follows, and getting off hands it back", () async {
     final (host, session, clients) = await _session(2, spec: _petSpec);

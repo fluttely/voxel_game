@@ -10,9 +10,11 @@ import '../entities/target.dart';
 import '../fishing/angler.dart';
 import '../fishing/bobber.dart';
 import '../mobs/rig.dart';
+import '../player/held_light.dart';
 
 /// Another player in a networked game: a body standing where its peer says,
-/// drawn with the player's rig, seated when its peer rides, and its float on
+/// drawn with the player's rig, seated when its peer rides, lying down when
+/// it sleeps, lit by the light of what it holds, and its float on
 /// the water with a line from its hand when its peer fishes. On the host it
 /// is a [Target] the mobs hunt; the damage it takes goes to its peer through
 /// [onHurt], and the drops it reaches through [onGive], as far as its peer's
@@ -110,6 +112,12 @@ class RemotePlayer extends GameEntity implements Target, Angler {
   /// seated, it faces that way.
   double? get seat => _seat;
 
+  /// Whether its peer sleeps in a bed (`PlayerEntity.sleeping`).
+  bool get sleeping => _sleeping;
+  bool _sleeping = false;
+
+  HeldLight? _light;
+
   /// Where its peer's float is, null when no line is out.
   Vector3? get float => _float;
 
@@ -118,13 +126,14 @@ class RemotePlayer extends GameEntity implements Target, Angler {
   Bobber? get bobber => _bobber;
 
   /// Where the peer says its player is, in which dimension, looking where,
-  /// holding what (`''` for nothing), alive or not, on a seat pointing
-  /// [seat] (null for none), its float at [float] (null for none).
+  /// holding what (`''` for nothing), alive or not, asleep or not, on a seat
+  /// pointing [seat] (null for none), its float at [float] (null for none).
   void setPose(
     Vector3 at,
     double yaw, {
     required String held,
     bool dead = false,
+    bool sleeping = false,
     int dimension = 0,
     double? seat,
     Vector3? float,
@@ -135,6 +144,7 @@ class RemotePlayer extends GameEntity implements Target, Angler {
     _yaw = yaw;
     _held = held;
     _dead = dead;
+    _sleeping = sleeping;
     _seat = seat;
     _float = float?.clone();
   }
@@ -156,6 +166,7 @@ class RemotePlayer extends GameEntity implements Target, Angler {
     final r = game.spec.player.rig.build(0.3, 1.75);
     rig = r;
     node.add(r.root);
+    _light = HeldLight(node);
   }
 
   @override
@@ -171,7 +182,8 @@ class RemotePlayer extends GameEntity implements Target, Angler {
       r.root.visible = !_dead && dimension == game.world.dimension;
       if (r.canHold) r.hold(_held.isEmpty ? null : game.itemModel(_held));
       r.animate(dt, speed: seat == null ? _speed : 0.0, targetYaw: seat ?? _yaw, seated: seat != null);
-      r.place(Vector3(0, seat == null ? 0.0 : -r.seatDrop, 0));
+      r.place(Vector3(0, seat == null ? 0.0 : -r.seatDrop, 0), topple: _sleeping ? math.pi / 2 : 0.0);
+      _light!.show(_dead || dimension != game.world.dimension || _held.isEmpty ? null : game.items[_held]);
     }
     syncNode(yaw: r?.yaw);
     _tendFloat(game);

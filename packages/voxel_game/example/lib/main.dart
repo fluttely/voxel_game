@@ -27,7 +27,9 @@ Widget hud(BuildContext context, VoxelGame game) => DefaultHud(
 
 const game = VoxelGameSpec(
   seed: 2024,
-  // 1. Blocks. Air is added for you; the order is the save format.
+  // 1. Blocks. Air is added for you; the order is the save format. A block only the world makes (a wall torch, a
+  //    stair turned, an open door, a lit lamp, a rail's curve) is no item a bag shows: `holdable: false`, and it
+  //    drops the item that makes it.
   blocks: [
     BlockType('stone', color: 0x7F7F84, hardness: 1.5, tool: 'pickaxe', tier: 1, drop: 'cobblestone'),
     BlockType('cobblestone', color: 0x6E6E70, hardness: 2.0, tool: 'pickaxe'),
@@ -35,10 +37,11 @@ const game = VoxelGameSpec(
     BlockType('grass', color: 0x5C9E3A, hardness: 0.6, tool: 'shovel', drop: 'dirt', turnsWith: {'hoe': 'farmland'}),
     BlockType('sand', color: 0xDCCB8A, hardness: 0.5, tool: 'shovel', falls: true, tags: {'step:sand'}),
     BlockType('log', color: 0x6B4F2A, hardness: 2.0, tool: 'axe'),
-    BlockType('leaves', color: 0x3F8A2E, hardness: 0.2, opaque: false),
+    // Shears cut leaves at once and get the leaves (the `mining` below).
+    BlockType('leaves', color: 0x3F8A2E, hardness: 0.2, opaque: false, tags: {'leaves'}),
     BlockType('planks', color: 0xB08850, hardness: 2.0, tool: 'axe'),
     BlockType('coal_ore', color: 0x3A3A3E, hardness: 3.0, tool: 'pickaxe', tier: 1, drop: 'coal'),
-    // A torch stands on a floor; put against a wall it is a wall torch, which leans on it.
+    // A torch stands on a floor; put against a wall it is a wall torch, which leans on it. In hand it lights the way.
     BlockType(
       'torch',
       color: 0xFFD070,
@@ -60,6 +63,7 @@ const game = VoxelGameSpec(
       light: 14,
       drop: 'torch',
       support: Support.side(),
+      holdable: false,
     ),
     // A door: two high, across the way you look, opened and closed with use.
     BlockType(
@@ -74,6 +78,7 @@ const game = VoxelGameSpec(
       support: Support.below(),
       facing: Facing.axis(x: 'door_x', z: 'door_z'),
       usedInto: 'door_z_open',
+      holdable: false,
     ),
     BlockType(
       'door_x',
@@ -86,6 +91,7 @@ const game = VoxelGameSpec(
       tall: true,
       support: Support.below(),
       usedInto: 'door_x_open',
+      holdable: false,
     ),
     BlockType(
       'door_z_open',
@@ -98,6 +104,7 @@ const game = VoxelGameSpec(
       tall: true,
       support: Support.below(),
       usedInto: 'door_z',
+      holdable: false,
     ),
     BlockType(
       'door_x_open',
@@ -110,6 +117,7 @@ const game = VoxelGameSpec(
       tall: true,
       support: Support.below(),
       usedInto: 'door_x',
+      holdable: false,
     ),
     // Stairs climb away from whoever places them.
     BlockType(
@@ -120,9 +128,33 @@ const game = VoxelGameSpec(
       tool: 'axe',
       facing: Facing.compass(north: 'stairs', east: 'stairs_e', south: 'stairs_s', west: 'stairs_w'),
     ),
-    BlockType('stairs_e', color: 0xB08850, shape: BlockShape.stairsE, hardness: 2.0, tool: 'axe', drop: 'stairs'),
-    BlockType('stairs_s', color: 0xB08850, shape: BlockShape.stairsS, hardness: 2.0, tool: 'axe', drop: 'stairs'),
-    BlockType('stairs_w', color: 0xB08850, shape: BlockShape.stairsW, hardness: 2.0, tool: 'axe', drop: 'stairs'),
+    BlockType(
+      'stairs_e',
+      color: 0xB08850,
+      shape: BlockShape.stairsE,
+      hardness: 2.0,
+      tool: 'axe',
+      drop: 'stairs',
+      holdable: false,
+    ),
+    BlockType(
+      'stairs_s',
+      color: 0xB08850,
+      shape: BlockShape.stairsS,
+      hardness: 2.0,
+      tool: 'axe',
+      drop: 'stairs',
+      holdable: false,
+    ),
+    BlockType(
+      'stairs_w',
+      color: 0xB08850,
+      shape: BlockShape.stairsW,
+      hardness: 2.0,
+      tool: 'axe',
+      drop: 'stairs',
+      holdable: false,
+    ),
     // Farming: tall grass sometimes drops seeds, a hoe tills the ground, wheat grows on it in the light.
     BlockType(
       'tall_grass',
@@ -143,6 +175,7 @@ const game = VoxelGameSpec(
       drop: 'seeds',
       support: Support.below(on: {'farmland'}),
       grows: Growth('wheat_1', seconds: 40),
+      holdable: false,
     ),
     BlockType(
       'wheat_1',
@@ -153,6 +186,7 @@ const game = VoxelGameSpec(
       drop: 'seeds',
       support: Support.below(on: {'farmland'}),
       grows: Growth('wheat_2', seconds: 40),
+      holdable: false,
     ),
     BlockType(
       'wheat_2',
@@ -162,12 +196,15 @@ const game = VoxelGameSpec(
       hardness: 0,
       support: Support.below(on: {'farmland'}),
       loot: LootTable([LootEntry('wheat', 1, 3, 1.0), LootEntry('seeds', 1, 2, 1.0)]),
+      holdable: false,
     ),
     // A chest: use opens it beside the bag; what it holds is saved, and spills when it breaks.
     BlockType('chest', color: 0x8A5A2A, hardness: 2.0, tool: 'axe', storage: Storage()),
+    // A bed: use sets the spawn there and, at night, sleeps until morning once every player does.
+    BlockType('bed', color: 0xB83A3A, shape: BlockShape.slab, opaque: false, hardness: 0.5, tool: 'axe', bed: true),
     // A portal: an obsidian frame, lit with flint and steel, fills with this; stand in it to cross.
     BlockType('obsidian', color: 0x1E1430, hardness: 10.0, tool: 'pickaxe', tier: 1),
-    BlockType('portal', color: 0x8A3CF0, solid: false, alpha: 0.6, light: 11, hardness: -1, drop: ''),
+    BlockType('portal', color: 0x8A3CF0, solid: false, alpha: 0.6, light: 11, hardness: -1, drop: '', holdable: false),
     // The underworld's own: rock, sand, light from the ceilings, a floor and roof nothing breaks, a lava sea.
     BlockType('hellstone', color: 0x6E2A2A, hardness: 0.4, tool: 'pickaxe'),
     BlockType('soul_sand', color: 0x54402F, hardness: 0.5, tool: 'shovel', speed: 0.6, tags: {'step:sand'}),
@@ -181,7 +218,7 @@ const game = VoxelGameSpec(
     BlockType('mud', color: 0x4A3A2C, hardness: 0.5, tool: 'shovel', speed: 0.7),
     BlockType('ice', color: 0xA8CCF0, alpha: 0.8, hardness: 0.5, speed: 1.3),
     BlockType('spruce_log', color: 0x4A3420, hardness: 2.0, tool: 'axe', drop: 'log'),
-    BlockType('spruce_leaves', color: 0x2E5A38, hardness: 0.2, opaque: false),
+    BlockType('spruce_leaves', color: 0x2E5A38, hardness: 0.2, opaque: false, tags: {'leaves'}),
     // What grows: cacti two or three tall, melons in patches, reeds beside water.
     BlockType('cactus', color: 0x4E8A32, hardness: 0.4, support: Support.below(on: {'sand', 'cactus'})),
     BlockType('melon', color: 0x6AA030, hardness: 1.0, tool: 'axe'),
@@ -205,6 +242,7 @@ const game = VoxelGameSpec(
       light: 3,
       drop: 'wire',
       support: Support.below(),
+      holdable: false,
     ),
     BlockType('lever', color: 0x806040, shape: BlockShape.torch, solid: false, hardness: 0, support: Support.below()),
     BlockType(
@@ -216,9 +254,10 @@ const game = VoxelGameSpec(
       light: 4,
       drop: 'lever',
       support: Support.below(),
+      holdable: false,
     ),
     BlockType('lamp', color: 0x6A4A2A, hardness: 0.3),
-    BlockType('lamp_lit', color: 0xFFD080, hardness: 0.3, light: 15, drop: 'lamp'),
+    BlockType('lamp_lit', color: 0xFFD080, hardness: 0.3, light: 15, drop: 'lamp', holdable: false),
     // A piston pushes away from whoever places it; out, it is the grey block.
     BlockType(
       'piston',
@@ -227,13 +266,13 @@ const game = VoxelGameSpec(
       tool: 'pickaxe',
       facing: Facing.compass(north: 'piston', east: 'piston_e', south: 'piston_s', west: 'piston_w'),
     ),
-    BlockType('piston_e', color: 0x9E8056, hardness: 1.5, tool: 'pickaxe', drop: 'piston'),
-    BlockType('piston_s', color: 0x9E8056, hardness: 1.5, tool: 'pickaxe', drop: 'piston'),
-    BlockType('piston_w', color: 0x9E8056, hardness: 1.5, tool: 'pickaxe', drop: 'piston'),
-    BlockType('piston_out', color: 0x808087, hardness: 1.5, tool: 'pickaxe', drop: 'piston'),
-    BlockType('piston_e_out', color: 0x808087, hardness: 1.5, tool: 'pickaxe', drop: 'piston'),
-    BlockType('piston_s_out', color: 0x808087, hardness: 1.5, tool: 'pickaxe', drop: 'piston'),
-    BlockType('piston_w_out', color: 0x808087, hardness: 1.5, tool: 'pickaxe', drop: 'piston'),
+    BlockType('piston_e', color: 0x9E8056, hardness: 1.5, tool: 'pickaxe', drop: 'piston', holdable: false),
+    BlockType('piston_s', color: 0x9E8056, hardness: 1.5, tool: 'pickaxe', drop: 'piston', holdable: false),
+    BlockType('piston_w', color: 0x9E8056, hardness: 1.5, tool: 'pickaxe', drop: 'piston', holdable: false),
+    BlockType('piston_out', color: 0x808087, hardness: 1.5, tool: 'pickaxe', drop: 'piston', holdable: false),
+    BlockType('piston_e_out', color: 0x808087, hardness: 1.5, tool: 'pickaxe', drop: 'piston', holdable: false),
+    BlockType('piston_s_out', color: 0x808087, hardness: 1.5, tool: 'pickaxe', drop: 'piston', holdable: false),
+    BlockType('piston_w_out', color: 0x808087, hardness: 1.5, tool: 'pickaxe', drop: 'piston', holdable: false),
     // A powered rail runs the way you look; a run of them lights eight rails on from the power.
     BlockType(
       'powered_rail',
@@ -254,6 +293,7 @@ const game = VoxelGameSpec(
       hardness: 0.5,
       drop: 'powered_rail',
       support: Support.below(),
+      holdable: false,
     ),
     BlockType(
       'powered_rail_on',
@@ -265,6 +305,7 @@ const game = VoxelGameSpec(
       light: 4,
       drop: 'powered_rail',
       support: Support.below(),
+      holdable: false,
     ),
     BlockType(
       'powered_rail_ns_on',
@@ -276,6 +317,7 @@ const game = VoxelGameSpec(
       light: 4,
       drop: 'powered_rail',
       support: Support.below(),
+      holdable: false,
     ),
     // The rail's other shapes: a rail laid turns to meet the rails beside it — a straight, a curve, a slope up
     // onto a block — and each drops a rail.
@@ -287,6 +329,7 @@ const game = VoxelGameSpec(
       opaque: false,
       hardness: 0.7,
       drop: 'rail',
+      holdable: false,
     ),
     BlockType(
       'rail_ne',
@@ -296,6 +339,7 @@ const game = VoxelGameSpec(
       opaque: false,
       hardness: 0.7,
       drop: 'rail',
+      holdable: false,
     ),
     BlockType(
       'rail_nw',
@@ -305,6 +349,7 @@ const game = VoxelGameSpec(
       opaque: false,
       hardness: 0.7,
       drop: 'rail',
+      holdable: false,
     ),
     BlockType(
       'rail_se',
@@ -314,6 +359,7 @@ const game = VoxelGameSpec(
       opaque: false,
       hardness: 0.7,
       drop: 'rail',
+      holdable: false,
     ),
     BlockType(
       'rail_sw',
@@ -323,6 +369,7 @@ const game = VoxelGameSpec(
       opaque: false,
       hardness: 0.7,
       drop: 'rail',
+      holdable: false,
     ),
     BlockType(
       'rail_slope_n',
@@ -332,6 +379,7 @@ const game = VoxelGameSpec(
       opaque: false,
       hardness: 0.7,
       drop: 'rail',
+      holdable: false,
     ),
     BlockType(
       'rail_slope_e',
@@ -341,6 +389,7 @@ const game = VoxelGameSpec(
       opaque: false,
       hardness: 0.7,
       drop: 'rail',
+      holdable: false,
     ),
     BlockType(
       'rail_slope_s',
@@ -350,6 +399,7 @@ const game = VoxelGameSpec(
       opaque: false,
       hardness: 0.7,
       drop: 'rail',
+      holdable: false,
     ),
     BlockType(
       'rail_slope_w',
@@ -359,6 +409,7 @@ const game = VoxelGameSpec(
       opaque: false,
       hardness: 0.7,
       drop: 'rail',
+      holdable: false,
     ),
   ],
   // 2. Items that are not blocks — tools, food (eaten with use), armour (worn with use), a door
@@ -396,6 +447,19 @@ const game = VoxelGameSpec(
     ItemType('raw_fish', color: 0x99B3BF, food: Food(hunger: 2)),
     // Carried in the bag, it glides: hold G (or the button on a phone) in the air.
     ItemType('glider', color: 0xD04A30, stack: 1, glider: Glider()),
+    // A bow shoots an arrow (the `shots` below) with attack, one of them spent from the bag.
+    ItemType(
+      'bow',
+      color: 0x8A6034,
+      stack: 1,
+      durability: 200,
+      launcher: Launcher(shot: 'arrow', ammo: 'arrow'),
+    ),
+    ItemType('arrow', color: 0xC8B090),
+    // Shears: a use on a sheep shears it of its wool, which grows back; they cut leaves at once.
+    ItemType('shears', color: 0xC8C8D0, tool: 'shears', stack: 1, durability: 120),
+    // A bucket used on a cow is milk, which cures poison and burning and leaves the bucket.
+    ItemType('milk_bucket', color: 0xF4F4F0, stack: 1, food: Food(heal: 2, cures: true, leaves: 'bucket')),
   ],
   recipes: [
     Recipe('planks', 4, {'log': 1}),
@@ -423,7 +487,18 @@ const game = VoxelGameSpec(
     Recipe('minecart', 1, {'cobblestone': 5}),
     Recipe('fishing_rod', 1, {'planks': 3, 'wool': 2}),
     Recipe('glider', 1, {'wool': 6, 'planks': 2}),
+    Recipe('bow', 1, {'planks': 3, 'wool': 3}),
+    Recipe('arrow', 4, {'planks': 1, 'cobblestone': 1}),
+    Recipe('shears', 1, {'cobblestone': 2}),
+    Recipe('bed', 1, {'wool': 3, 'planks': 3}),
   ],
+  // What the bow looses: fast, falling, six points of damage.
+  shots: {'arrow': ProjectileSpec(speed: 36, gravity: 14, damage: 6, life: 5)},
+  mining: MiningRules(
+    cuts: {
+      'shears': {'leaves'},
+    },
+  ),
   // Status effects: what a food starts, what the player carries.
   effects: [
     EffectType('regeneration', 'Regeneration', 0.9, 0.35, 0.55, period: 2.0, heal: 1.0),
@@ -577,7 +652,18 @@ const game = VoxelGameSpec(
   // 4. The player: what they start with, hunger that food fills, experience (a kill's, below), and one blow in
   //    ten a critical one.
   player: PlayerSpec(
-    startingItems: {'wooden_pickaxe': 1, 'planks': 16, 'torch': 8, 'apple': 4, 'wool_cap': 1, 'glider': 1},
+    startingItems: {
+      'wooden_pickaxe': 1,
+      'planks': 16,
+      'torch': 8,
+      'bow': 1,
+      'arrow': 32,
+      'shears': 1,
+      'bed': 1,
+      'apple': 4,
+      'wool_cap': 1,
+      'glider': 1,
+    },
     hunger: HungerSpec(),
     xp: XpSpec(),
     critChance: 0.1,
@@ -594,7 +680,22 @@ const game = VoxelGameSpec(
       brain: [FleeWhenHurt(), LookAtPlayer(), Wander()],
       loot: LootTable([LootEntry('wool', 1, 2, 1.0), LootEntry('mutton', 1, 2, 1.0)]),
       xp: 5,
+      // Shears take one to three wool off it; it grows back in two minutes.
+      fleece: Fleece('wool'),
       spawn: SpawnRule.daylight(),
+    ),
+    // A cow fills a bucket with milk.
+    MobSpec(
+      'cow',
+      hp: 10,
+      speed: 2.0,
+      halfWidth: 0.45,
+      height: 1.4,
+      rig: Rig.quadruped(body: 0x5A3A26, head: 0xE8E0D8),
+      brain: [FleeWhenHurt(), LookAtPlayer(), Wander()],
+      xp: 5,
+      yields: {'bucket': 'milk_bucket'},
+      spawn: SpawnRule.daylight(weight: 6, biomes: ['plains', 'forest']),
     ),
     // A wolf keeps to itself until hurt; mutton tames it (half the time) into a companion that heels and fights.
     MobSpec(

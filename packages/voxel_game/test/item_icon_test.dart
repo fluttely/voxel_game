@@ -34,10 +34,10 @@ void main() {
 
   test('a spec whose item the kit cannot draw does not build', () {
     VoxelGameSpec with_(ItemType item) => _spec.copyWith(items: [item]);
-    final shears = with_(const ItemType('shears', color: 0xC0C0C0, tool: 'shears'));
-    expect(() => shears.buildItems(shears.buildBlocks()), throwsArgumentError);
-    final declared = with_(const ItemType('shears', color: 0xC0C0C0, tool: 'shears', shape: ItemShape.sword));
-    expect(declared.buildItems(declared.buildBlocks()).has('shears'), isTrue);
+    final trowel = with_(const ItemType('trowel', color: 0xC0C0C0, tool: 'trowel'));
+    expect(() => trowel.buildItems(trowel.buildBlocks()), throwsArgumentError);
+    final declared = with_(const ItemType('trowel', color: 0xC0C0C0, tool: 'trowel', shape: ItemShape.sword));
+    expect(declared.buildItems(declared.buildBlocks()).has('trowel'), isTrue);
     final rock = with_(const ItemType('rock', color: 0x808080, shape: ItemShape.block));
     expect(() => rock.buildItems(rock.buildBlocks()), throwsArgumentError, reason: 'it places no block');
   });

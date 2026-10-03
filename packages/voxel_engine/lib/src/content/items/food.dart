@@ -3,10 +3,17 @@
 /// bottle).
 class Food {
   /// A food. An [effect] needs its [seconds].
-  const Food({this.hunger = 0, this.heal = 0.0, this.effect, this.seconds = 0.0, this.power = 1.0, this.leaves})
-    : assert(hunger >= 0 && heal >= 0.0, 'a food takes nothing away'),
-      assert((effect == null) == (seconds == 0.0), 'an effect lasts some seconds, and only an effect does'),
-      assert(power > 0.0);
+  const Food({
+    this.hunger = 0,
+    this.heal = 0.0,
+    this.effect,
+    this.seconds = 0.0,
+    this.power = 1.0,
+    this.leaves,
+    this.cures = false,
+  }) : assert(hunger >= 0 && heal >= 0.0, 'a food takes nothing away'),
+       assert((effect == null) == (seconds == 0.0), 'an effect lasts some seconds, and only an effect does'),
+       assert(power > 0.0);
 
   /// Hunger points it fills.
   final int hunger;
@@ -25,4 +32,8 @@ class Food {
 
   /// The item left behind once it is eaten, or null.
   final String? leaves;
+
+  /// Whether eating it ends every bad effect (`EffectType.bad`): milk, an
+  /// antidote. What a game's code gives (a boost) stays.
+  final bool cures;
 }

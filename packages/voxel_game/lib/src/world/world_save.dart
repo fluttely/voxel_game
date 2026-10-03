@@ -256,6 +256,8 @@ class WorldSaves {
                 'hp': m.hp,
                 'level': m.level,
                 'tamed': m.tamed,
+                // Only a shorn one says how long its fleece has to grow.
+                if (m.shorn) 'shorn': m.shornLeft,
               },
         ],
       },
@@ -390,6 +392,7 @@ class WorldSaves {
         if (level != 1) mob.growTo(level);
         mob.hp = (m['hp']! as num).toDouble();
         if (m['tamed']! as bool) mob.tame(game.player);
+        if (m['shorn'] case final num left) mob.shornLeft = left.toDouble();
       }
     }
   }

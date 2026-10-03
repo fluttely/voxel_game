@@ -176,3 +176,13 @@ final class ScreenOpened extends GameEvent {
   /// The screen.
   final GameScreen screen;
 }
+
+/// The player slept the night through in the bed at [bed]: they lay down at
+/// night and woke with the morning (every player asleep skips to it).
+final class Slept extends GameEvent {
+  /// Slept in the bed at [bed].
+  const Slept(this.bed);
+
+  /// Where the bed is.
+  final IVec3 bed;
+}

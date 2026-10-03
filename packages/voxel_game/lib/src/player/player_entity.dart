@@ -27,13 +27,17 @@ import '../vehicles/vehicle_spec.dart';
 import 'boost.dart';
 import 'character_motor.dart';
 import 'damage_filters.dart';
+import 'held_light.dart';
 import 'player_spec.dart';
 
 /// The player: a body driven by [VoxelAction]s that looks, walks, swims,
-/// climbs ladders, mines and places blocks, hits creatures, tames and rides
-/// them (a use with what tames one in hand; sneak to get off), puts vehicles
-/// down, rides them and breaks them (`VoxelGameSpec.vehicles`), picks items
-/// up, takes falls, burns in lava, drowns, dies and stands up again at the
+/// climbs ladders, mines and places blocks, hits creatures, shoots what an
+/// item in hand looses (`ItemType.launcher`), tames and rides creatures (a
+/// use with what tames one in hand; sneak to get off), milks and shears them
+/// (`MobSpec.yields`, `MobSpec.fleece`), puts vehicles down, rides them and
+/// breaks them (`VoxelGameSpec.vehicles`), picks items up, lights the way
+/// with what it holds (`ItemType.light`), sleeps in a bed ([sleeping]),
+/// takes falls, burns in lava, drowns, dies and stands up again at the
 /// spawn.
 ///
 /// It survives by what its [spec] declares: it gets hungry and eats
@@ -296,6 +300,29 @@ class PlayerEntity extends NodeBody implements Target, Angler {
   Bobber? get bobber => _bobber;
   Bobber? _bobber;
 
+  /// The bed the player sleeps in, or null while awake ([sleeping]).
+  IVec3? get bed => _bed;
+  IVec3? _bed;
+
+  /// Whether the player sleeps: lain down in a bed at night (a use on it),
+  /// up again with the morning, a press of jump or sneak, a blow, or the
+  /// bed gone. While every player sleeps the night passes
+  /// (`VoxelGame.sleepSeconds`), and they wake to a `Slept`.
+  bool get sleeping => _bed != null;
+
+  /// Gets out of bed before the morning: the night does not pass for them.
+  /// Throws while awake.
+  void wake() {
+    if (_bed == null) throw StateError('the player is awake');
+    _bed = null;
+  }
+
+  /// The light the item in hand gives (`ItemType.light`), 0..15; 0 for an
+  /// empty hand.
+  int get heldLight => _heldType?.light ?? 0;
+
+  HeldLight? _heldLight;
+
   /// 0..1 how far the aimed block is mined.
   double mineProgress = 0.0;
 
@@ -334,6 +361,7 @@ class PlayerEntity extends NodeBody implements Target, Angler {
   bool _wasInLiquid = false;
   IVec3? _miningCell;
   double _attackCooldown = 0.0;
+  bool _dry = false;
   double _useCooldown = 0.0;
   double _lavaTimer = 0.0;
   double _drownTimer = 0.0;
@@ -351,6 +379,10 @@ class PlayerEntity extends NodeBody implements Target, Angler {
   /// The item in hand, or `''`.
   String get heldItem => inventory.idAt(selectedSlot);
 
+  /// The eye's height over the feet: [PlayerSpec.eyeHeight], low on the
+  /// pillow asleep.
+  double get _eyeHeight => _bed == null ? spec.eyeHeight : 0.3;
+
   /// Where the eye looks, a unit vector.
   Vector3 get forward => Vector3(-math.sin(yaw) * math.cos(pitch), math.sin(pitch), -math.cos(yaw) * math.cos(pitch));
 
@@ -361,11 +393,11 @@ class PlayerEntity extends NodeBody implements Target, Angler {
   Vector3 get right => Vector3(math.cos(yaw), 0, -math.sin(yaw));
 
   /// The eye (first person), above the feet.
-  Vector3 get eyePosition => position + Vector3(0, spec.eyeHeight, 0);
+  Vector3 get eyePosition => position + Vector3(0, _eyeHeight, 0);
 
   /// The eye as this frame draws it: above the feet where the node stands,
   /// between the last two steps.
-  Vector3 get drawnEye => drawnPosition + Vector3(0, spec.eyeHeight, 0);
+  Vector3 get drawnEye => drawnPosition + Vector3(0, _eyeHeight, 0);
 
   /// Whether the player has been put on the ground of a loaded chunk yet.
   bool get placed => _placed;
@@ -381,6 +413,7 @@ class PlayerEntity extends NodeBody implements Target, Angler {
     final r = spec.rig.build(spec.halfWidth, spec.height);
     rig = r;
     node.add(r.root);
+    _heldLight = HeldLight(node);
     final o = SelectionOutline();
     outline = o;
     game.scene!.add(o.node);
@@ -493,6 +526,7 @@ class PlayerEntity extends NodeBody implements Target, Angler {
       _flash = Mob.hitFlash;
     }
     hurtFlash = 1.0;
+    _bed = null;
     _game.playSound('hurt', volumeDb: -3.0);
     final from = damage.from;
     if (from != null && damage.knockback > 0.0) {
@@ -515,6 +549,7 @@ class PlayerEntity extends NodeBody implements Target, Angler {
     hp = 0.0;
     _dead = true;
     _flying = false;
+    _bed = null;
     _deadFor = 0.0;
     _game.playerDied(by);
   }
@@ -560,9 +595,18 @@ class PlayerEntity extends NodeBody implements Target, Angler {
         cameraMode = cameraMode == CameraMode.firstPerson ? CameraMode.thirdPerson : CameraMode.firstPerson;
       }
       if (input.justPressed(VoxelAction.drop)) _dropHeld();
-      if (input.justPressed(VoxelAction.fly) && spec.creative && riding == null) flying = !_flying;
+      if (input.justPressed(VoxelAction.fly) && spec.creative && riding == null && _bed == null) {
+        flying = !_flying;
+      }
       // The bag is not opened from here: `VoxelGame.step` is the one reader of
       // that button, so a press cannot open it and close it in one step.
+    }
+    if (_bed != null) {
+      _rest(gameplay);
+      _heldLight?.show(_heldType);
+      _animate(dt);
+      syncNode(yaw: rig?.yaw);
+      return;
     }
     if (riding?.gone ?? false) dismount();
     if (riding != null) {
@@ -585,8 +629,58 @@ class PlayerEntity extends NodeBody implements Target, Angler {
       _useCooldown = usePressed ? 0.25 : 0.2;
     }
     _tendLine();
+    _heldLight?.show(_heldType);
     _animate(dt);
     syncNode(yaw: rig?.yaw);
+  }
+
+  /// One step asleep: lying still, up with the morning (a [Slept]), a press
+  /// of jump or sneak, or the bed broken.
+  void _rest(bool gameplay) {
+    final bed = _bed!;
+    velocity = Vector3.zero();
+    motor.resetFall();
+    mineProgress = 0.0;
+    _miningCell = null;
+    if (!_game.isNight) {
+      _bed = null;
+      _game.notify('Good morning');
+      _game.raise(Slept(bed));
+    } else if (!_game.blocks[_game.world.getBlock(bed)].bed) {
+      _bed = null;
+    } else if (gameplay && (_game.input.justPressed(VoxelAction.jump) || _game.input.justPressed(VoxelAction.sneak))) {
+      _bed = null;
+    }
+  }
+
+  /// A use on the bed at [cell]: where the player stands up after dying from
+  /// now on, and asleep there when it is night and nothing hunts them. A bed
+  /// is a home only in the main world, where a respawn goes.
+  void _lieDown(IVec3 cell) {
+    if (_game.world.dimension != 0) {
+      _game.notify('A bed sleeps only in the main world');
+      return;
+    }
+    final on = Vector3(cell.x + 0.5, cell.y + 1.0, cell.z + 0.5);
+    spawnPoint = on.clone();
+    if (!_game.isNight) {
+      _game.notify('Spawn point set: a bed sleeps only at night');
+      return;
+    }
+    final hunted = _game.mobs.any(
+      (m) => !m.isDead && identical(m.target, this) && m.position.distanceTo(position) < 16.0,
+    );
+    if (hunted) {
+      _game.notify('Spawn point set: you may not rest now, something hunts you');
+      return;
+    }
+    if (riding != null) dismount();
+    _flying = false;
+    _bed = cell;
+    position = on;
+    velocity = Vector3.zero();
+    syncNode(snap: true);
+    _game.notify('Spawn point set: the night passes once every player sleeps');
   }
 
   /// The move's two axes, right and back positive; nothing out of gameplay.
@@ -724,26 +818,53 @@ class PlayerEntity extends NodeBody implements Target, Angler {
   }
 
   /// Whether a use on [mob] does something: the game has a use for it
-  /// (`VoxelGameSpec.mobUses`), the item in hand tames it, or it is the
+  /// (`VoxelGameSpec.mobUses`), it yields for the item in hand
+  /// (`MobSpec.yields`), the tool in hand shears its fleece, the item in
+  /// hand tames it, or it is the
   /// player's own mount, no one rides it and the player rides nothing
   /// ([Mob.takes]). On a client the host's creatures are tamed by asking the
   /// host, and its own pet's replica is ridden at once.
   bool usableOn(Mob mob) {
     if (mob.isDead) return false;
     if (_game.spec.mobUses.containsKey(mob.spec.id)) return true;
+    if (mob.spec.yields.containsKey(heldItem) || _shears(mob)) return true;
     if (!mob.tamed) return mob.spec.tameWith.contains(heldItem);
     return riding == null && mob.takes(this);
   }
 
-  /// Uses [mob] ([usableOn]): the game's use of it, else the item in hand,
-  /// one of what tames it, which may take (`MobSpec.tameChance`), or a ride.
-  /// A replica's taming is the host's roll (`GameSession.tameMob`), the item
+  /// Whether the tool in hand shears [mob]'s fleece, which it wears.
+  bool _shears(Mob mob) {
+    final fleece = mob.spec.fleece;
+    return fleece != null && !mob.shorn && _heldType?.tool == fleece.tool;
+  }
+
+  /// Uses [mob] ([usableOn]): the game's use of it, else the item in hand
+  /// turned into what it yields (a bucket into milk), shorn of its fleece
+  /// (`Mob.shear`; a replica's is the host's, `GameSession.shearMob`), one
+  /// of what tames it, which may take (`MobSpec.tameChance`), or a ride. A
+  /// replica's taming is the host's roll (`GameSession.tameMob`), the item
   /// spent here.
   void _useOn(Mob mob) {
     _swingArm();
     final use = _game.spec.mobUses[mob.spec.id];
     if (use != null) {
       use(_game, mob);
+      return;
+    }
+    final yielded = mob.spec.yields[heldItem];
+    if (yielded != null) {
+      _swapHeld(yielded);
+      _game.playSound('splash', at: mob.centre(), volumeDb: -12.0, pitch: 1.3);
+      return;
+    }
+    if (_shears(mob)) {
+      if (mob.replica) {
+        _game.session!.shearMob(mob);
+      } else {
+        mob.shear();
+      }
+      _game.playSound('dig', at: mob.centre(), volumeDb: -6.0);
+      if (!spec.creative && _heldType!.durability > 0) inventory.wear(selectedSlot);
       return;
     }
     if (mob.tamed) {
@@ -821,11 +942,12 @@ class PlayerEntity extends NodeBody implements Target, Angler {
   }
 
   /// Whether eating [item] now would do something: fill hunger that is not
-  /// full, heal health that is not full, or start its effect.
+  /// full, heal health that is not full, start its effect, or cure a bad
+  /// one (`Food.cures`).
   bool canEat(ItemType item) {
     final food = item.food;
     if (food == null) return false;
-    if (food.effect != null) return true;
+    if (food.effect != null || food.cures && effects.hasBad) return true;
     if (food.heal > 0.0 && hp < maxHp) return true;
     final h = spec.hunger;
     return food.hunger > 0 && h != null && !spec.creative && hunger < h.max;
@@ -841,6 +963,7 @@ class PlayerEntity extends NodeBody implements Target, Angler {
     final h = spec.hunger;
     if (h != null) hunger = math.min(hunger + food.hunger, h.max);
     hp = math.min(hp + food.heal, maxHp);
+    if (food.cures) effects.clearBad();
     final effect = food.effect;
     if (effect != null) effects.apply(effect, food.seconds, food.power);
     final leaves = food.leaves;
@@ -978,8 +1101,10 @@ class PlayerEntity extends NodeBody implements Target, Angler {
     aimedMob = !block && mobD <= vehicleD ? mob : null;
     aimedVehicle = !block && mobD > vehicleD ? vehicle : null;
     // A finger's tap swings at a creature in reach and uses anything else (a
-    // vehicle is boarded), as a mouse's two buttons would.
-    _game.input.touchTapPrimary = aimedMob != null && !usableOn(aimedMob!);
+    // vehicle is boarded), as a mouse's two buttons would; with a launcher in
+    // hand, a tap anywhere but on a creature it uses shoots.
+    final mobAimed = aimedMob;
+    _game.input.touchTapPrimary = mobAimed != null ? !usableOn(mobAimed) : _heldType?.launcher != null;
     final o = outline;
     if (o == null) return;
     if (block) {
@@ -1012,7 +1137,25 @@ class PlayerEntity extends NodeBody implements Target, Angler {
     return (amount: (damage * spec.critMultiplier).roundToDouble(), crit: true);
   }
 
+  /// What a blow of [amount] the player deals [mob] comes to after the
+  /// game's [damageOut] filters, in order: a swing's and a shot's of theirs.
+  double dealtTo(Mob mob, double amount) {
+    var dealt = amount;
+    for (final e in damageOut.entries) {
+      dealt = e.value(mob, dealt);
+      if (!(dealt >= 0.0)) throw StateError('the damage filter ${e.key} made a blow of $dealt');
+    }
+    return dealt;
+  }
+
   void _attack(double dt, bool pressed) {
+    final launcher = _heldType?.launcher;
+    if (launcher != null) {
+      mineProgress = 0.0;
+      _miningCell = null;
+      if (_attackCooldown <= 0.0) _shoot(launcher, pressed: pressed);
+      return;
+    }
     final vehicle = aimedVehicle;
     if (vehicle != null) {
       mineProgress = 0.0;
@@ -1038,12 +1181,7 @@ class PlayerEntity extends NodeBody implements Target, Angler {
       final item = _heldType;
       final base = item == null || item.tool == null ? spec.handDamage : item.damage.toDouble();
       final (:amount, :crit) = critical(base * damageMultiplier);
-      var dealt = amount;
-      for (final e in damageOut.entries) {
-        dealt = e.value(mob, dealt);
-        if (!(dealt >= 0.0)) throw StateError('the damage filter ${e.key} made a blow of $dealt');
-      }
-      mob.takeDamage(Damage(dealt, from: position, knockback: 6.0, attacker: this, crit: crit));
+      mob.takeDamage(Damage(dealtTo(mob, amount), from: position, knockback: 6.0, attacker: this, crit: crit));
       if (item != null && item.durability > 0) inventory.wear(selectedSlot);
       return;
     }
@@ -1086,12 +1224,46 @@ class PlayerEntity extends NodeBody implements Target, Angler {
     if (spec.creative) _attackCooldown = 0.2;
   }
 
+  /// Looses one of [launcher]'s shot (`VoxelGameSpec.shots`) where the
+  /// player looks, from just below the eye: it flies straight on and falls,
+  /// its damage times [damageMultiplier], rolled for a critical one and
+  /// filtered by [damageOut] where it lands ([critical], [dealtTo]). One of
+  /// its ammo is spent from the bag and the launcher wears (neither in
+  /// creative); with none in the bag the player is told so, once a hold
+  /// and at each [pressed].
+  void _shoot(Launcher launcher, {required bool pressed}) {
+    _attackCooldown = launcher.cooldown;
+    final ammo = launcher.ammo;
+    if (ammo != null && !spec.creative) {
+      if (inventory.countOf(ammo) <= 0) {
+        if (pressed || !_dry) _game.notify('No ${_game.items[ammo].name.toLowerCase()} to shoot');
+        _dry = true;
+        return;
+      }
+      inventory.remove(ammo, 1);
+    }
+    _dry = false;
+    _swingArm();
+    final dir = forward;
+    final from = eyePosition + dir * 0.8 - Vector3(0, 0.15, 0);
+    _game.shoot(
+      _game.spec.shots[launcher.shot]!,
+      from: from,
+      at: from + dir,
+      owner: this,
+      power: damageMultiplier,
+      overDrop: false,
+    );
+    final item = _heldType!;
+    if (!spec.creative && item.durability > 0) inventory.wear(selectedSlot);
+  }
+
   /// Uses the creature under the crosshair when the game has a use for it,
   /// the item in hand tames it or it is the player's mount to ride
   /// ([usableOn]), or rides the vehicle under it when it takes the player
   /// ([Vehicle.takes]; a replica once the host says so,
   /// `GameSession.boardVehicle`); else a block of the game's own use
-  /// (`VoxelGameSpec.blockUses`), a lever, a store,
+  /// (`VoxelGameSpec.blockUses`), a bed (sleeps in it), a lever, a store,
   /// a station or a block that turns (a door) under the crosshair, else lights a portal's frame with its lighter in hand
   /// (`PortalSpec.lighter`), scoops or pours with the bucket in hand, works the aimed
   /// block with the tool in hand (`BlockType.turnsWith`), eats or puts on the
@@ -1129,6 +1301,14 @@ class PlayerEntity extends NodeBody implements Target, Angler {
         }
         return;
       }
+    }
+    // A bed is slept in, not built against.
+    if (hit != null && !_game.input.down(VoxelAction.sneak) && _game.blocks[_game.world.getBlock(hit.block)].bed) {
+      if (pressed) {
+        _swingArm();
+        _lieDown(hit.block);
+      }
+      return;
     }
     // A lever or a button is used, not built against.
     if (hit != null && !_game.input.down(VoxelAction.sneak) && _game.useSignal(hit.block)) {
@@ -1404,6 +1584,7 @@ class PlayerEntity extends NodeBody implements Target, Angler {
     // Seated a humanoid sits, drawn lower, and faces the way the seat points.
     final seat = riding;
     final seated = seat != null;
+    final asleep = _bed != null;
     final speed = math.sqrt(velocity.x * velocity.x + velocity.z * velocity.z);
     final flat = Vector3(velocity.x, 0, velocity.z);
     final face = seat != null
@@ -1417,12 +1598,13 @@ class PlayerEntity extends NodeBody implements Target, Angler {
         dt,
         speed: seated ? 0.0 : speed,
         targetYaw: face,
-        onFloor: seated || onFloor || _flying,
+        onFloor: seated || asleep || onFloor || _flying,
         seated: seated,
         gliding: gliding,
       );
     }
     r.paint(flashing ? VoxelModelMesh.flash() : VoxelModelMesh.material());
-    r.place(Vector3(0, seated ? -r.seatDrop : 0.0, 0));
+    // Asleep it lies on its back, as a creature's death topples it.
+    r.place(Vector3(0, seated ? -r.seatDrop : 0.0, 0), topple: asleep ? math.pi / 2 : 0.0);
   }
 }

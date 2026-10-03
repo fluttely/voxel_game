@@ -51,6 +51,7 @@ class VoxelGameSpec {
     this.player = const PlayerSpec(),
     this.mobs = const [],
     this.vehicles = const [],
+    this.shots = const {},
     this.fishing,
     this.sky = const SkySpec(),
     this.sounds = const SoundSpec(),
@@ -116,6 +117,14 @@ class VoxelGameSpec {
   /// use, left with sneak and broken back into its item by a swing (see
   /// [checkVehicles]).
   final List<VehicleSpec> vehicles;
+
+  /// The shots the items that shoot loose (`ItemType.launcher`), by the
+  /// name a `Launcher.shot` gives (see [checkShots]).
+  ///
+  /// ```dart
+  /// shots: {'arrow': ProjectileSpec(speed: 36, gravity: 14, damage: 6)},
+  /// ```
+  final Map<String, ProjectileSpec> shots;
 
   /// How the player fishes: the rod, what bites, where; null for a game with
   /// no fishing (see [checkFishing]).
@@ -183,7 +192,7 @@ class VoxelGameSpec {
   /// game's handler instead of building against it (see [checkUses]).
   ///
   /// ```dart
-  /// blockUses: {'bed': _sleep, 'waypoint': _openWaypoints},
+  /// blockUses: {'waypoint': _openWaypoints, 'enchanting_table': _enchant},
   /// ```
   final Map<String, BlockUse> blockUses;
 
@@ -208,6 +217,7 @@ class VoxelGameSpec {
     PlayerSpec? player,
     List<MobSpec>? mobs,
     List<VehicleSpec>? vehicles,
+    Map<String, ProjectileSpec>? shots,
     ValueGetter<FishingSpec?>? fishing,
     SkySpec? sky,
     SoundSpec? sounds,
@@ -235,6 +245,7 @@ class VoxelGameSpec {
     player: player ?? this.player,
     mobs: mobs ?? this.mobs,
     vehicles: vehicles ?? this.vehicles,
+    shots: shots ?? this.shots,
     fishing: fishing == null ? this.fishing : fishing(),
     sky: sky ?? this.sky,
     sounds: sounds ?? this.sounds,
@@ -260,23 +271,34 @@ class VoxelGameSpec {
     ...blocks,
   ]);
 
-  /// The item registry: an item per holdable block, then [items] (replacing a
-  /// block's item of the same id). Throws [ArgumentError] for a food whose
-  /// effect is not in [effects] or which leaves an unknown item, for armour
-  /// worn in a slot the player does not have, for a block whose loot (or its
-  /// store's) names an unknown item, for a bucket that scoops or pours a liquid there is
-  /// not or becomes an unknown item, and for an item the kit cannot draw: a tool with no
-  /// stock shape and none declared, a block's shape on an item that places none.
+  /// The item registry: an item per holdable block (`BlockType.holdable`: a
+  /// block only the world makes has none), then [items] (replacing a block's
+  /// item of the same id). Throws [ArgumentError] for a food whose effect is
+  /// not in [effects] or which leaves an unknown item, for armour worn in a
+  /// slot the player does not have, for a block whose drop, loot (or its
+  /// store's) names an unknown item, for a block a tool cuts
+  /// (`MiningRules.cuts`) that is no item, for a bucket that scoops or pours
+  /// a liquid there is not or becomes an unknown item, and for an item the
+  /// kit cannot draw: a tool with no stock shape and none declared, a block's
+  /// shape on an item that places none.
   ItemRegistry<ItemType> buildItems(BlockRegistry<BlockType> registry) {
     final byId = <String, ItemType>{for (final i in ItemRegistry.forBlocks(registry)) i.id: i};
     for (final i in items) {
       byId[i.id] = i;
     }
-    for (final b in registry.types) {
+    final cutTags = {for (final tags in mining.cuts.values) ...tags};
+    for (final b in registry.types.skip(1)) {
       for (final e in [...?b.loot?.entries, ...?b.storage?.loot?.entries]) {
         if (!byId.containsKey(e.item)) {
           throw ArgumentError.value(e.item, b.id, 'the block holds an item that does not exist');
         }
+      }
+      final drop = b.drop ?? b.id;
+      if (b.loot == null && !b.isLiquid && drop.isNotEmpty && !byId.containsKey(drop)) {
+        throw ArgumentError.value(drop, b.id, 'the block drops an item that does not exist');
+      }
+      if (b.tags.any(cutTags.contains) && !byId.containsKey(b.id)) {
+        throw ArgumentError.value(b.id, 'mining', 'a tool cuts the block, which is no item');
       }
     }
     final effectIds = {for (final e in effects) e.id};
@@ -322,7 +344,9 @@ class VoxelGameSpec {
   /// effect not in [effects], that is worth experience
   /// when the player gains none (`PlayerSpec.xp`), that is tamed with an
   /// unknown item, at a chance outside (0, 1], or with no `tamedBrain`,
-  /// and for a ghost that does not fly.
+  /// that yields (`MobSpec.yields`) from or into an unknown item or for an
+  /// item that tames it, whose fleece is no item or is shorn by a tool no
+  /// item is, and for a ghost that does not fly.
   void checkMobs(ItemRegistry<ItemType> items) {
     final ids = <String>{};
     for (final m in mobs) {
@@ -355,12 +379,44 @@ class VoxelGameSpec {
       if (m.tameChance <= 0.0 || m.tameChance > 1.0) {
         throw ArgumentError.value(m.tameChance, m.id, 'the chance to tame is above 0 and at most 1');
       }
+      for (final e in m.yields.entries) {
+        for (final item in [e.key, e.value]) {
+          if (!items.has(item)) throw ArgumentError.value(item, m.id, 'the mob yields for an item that does not exist');
+        }
+        if (m.tameWith.contains(e.key)) {
+          throw ArgumentError.value(e.key, m.id, 'the item tames the mob: it cannot yield for it too');
+        }
+      }
+      if (m.fleece case final f?) {
+        if (!items.has(f.item)) throw ArgumentError.value(f.item, m.id, 'the mob\'s fleece is no item');
+        if (!items.all.any((i) => i.tool == f.tool)) {
+          throw ArgumentError.value(f.tool, m.id, 'no item is the tool that shears the mob');
+        }
+        if (f.count.$1 < 1 || f.count.$2 < f.count.$1) {
+          throw ArgumentError.value(f.count, m.id, 'a shearing gives at least one, the fewest first');
+        }
+      }
       if (m.ghost && m.gait != Gait.fly) {
         throw ArgumentError.value(m.gait, m.id, 'a ghost flies: nothing under it holds it up');
       }
       if (m.xp > 0 && player.xp == null) {
         throw ArgumentError.value(m.xp, m.id, 'the mob is worth experience and the player gains none');
       }
+    }
+  }
+
+  /// Throws [ArgumentError] for an item that shoots (`ItemType.launcher`) a
+  /// shot not in [shots], spends ammo that is no item, or places a block (a
+  /// press of attack with it in hand would mine instead of shooting).
+  void checkShots(ItemRegistry<ItemType> items) {
+    for (final i in items.all) {
+      final launcher = i.launcher;
+      if (launcher == null) continue;
+      if (!shots.containsKey(launcher.shot)) throw ArgumentError.value(launcher.shot, i.id, 'no such shot in shots');
+      if (launcher.ammo case final a? when !items.has(a)) {
+        throw ArgumentError.value(a, i.id, 'the launcher spends an item that does not exist');
+      }
+      if (i.block != null) throw ArgumentError.value(i.id, 'items', 'a launcher that places a block');
     }
   }
 
@@ -403,10 +459,11 @@ class VoxelGameSpec {
   }
 
   /// Throws [ArgumentError] for a use of [blockUses] on a block not in
-  /// [registry] or one the kit uses already (a store, a block that turns
-  /// like a door, a lever or a button of [signals], a station some recipe
-  /// names, one a tool works), and for a use of [mobUses] on a mob not
-  /// declared or one that is tamed (the use tames it and rides it).
+  /// [registry] or one the kit uses already (a store, a bed, a block that
+  /// turns like a door, a lever or a button of [signals], a station some
+  /// recipe names, one a tool works), and for a use of [mobUses] on a mob not
+  /// declared or one the kit uses already: tamed (the use tames it and rides
+  /// it), yielding an item (`MobSpec.yields`) or shorn (`MobSpec.fleece`).
   void checkUses(BlockRegistry<BlockType> registry) {
     final stations = {
       for (final r in recipes)
@@ -423,6 +480,7 @@ class VoxelGameSpec {
       if (!registry.has(name)) throw ArgumentError.value(name, 'blockUses', 'no such block');
       final b = registry[registry.indexOf(name)];
       if (b.storage != null ||
+          b.bed ||
           b.usedInto != null ||
           b.turnsWith.isNotEmpty ||
           switches.contains(name) ||
@@ -433,7 +491,9 @@ class VoxelGameSpec {
     for (final id in mobUses.keys) {
       final m = mobs.where((m) => m.id == id).firstOrNull;
       if (m == null) throw ArgumentError.value(id, 'mobUses', 'no such mob');
-      if (m.tameWith.isNotEmpty) throw ArgumentError.value(id, 'mobUses', 'a use tames the mob already');
+      if (m.tameWith.isNotEmpty || m.yields.isNotEmpty || m.fleece != null) {
+        throw ArgumentError.value(id, 'mobUses', 'the kit uses the mob already');
+      }
     }
   }
 

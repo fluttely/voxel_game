@@ -6,7 +6,11 @@ import 'item_type.dart';
 class MiningRules {
   /// Tools of tier `i` mine at [tierSpeed]`[i]` times the hand's speed; the
   /// hand is tier 0.
-  const MiningRules({this.tierSpeed = const [1.0, 2.0, 4.0, 6.0, 9.0], this.wrongToolPenalty = 3.0});
+  const MiningRules({
+    this.tierSpeed = const [1.0, 2.0, 4.0, 6.0, 9.0],
+    this.wrongToolPenalty = 3.0,
+    this.cuts = const {},
+  });
 
   /// Speed per tool tier, the hand first.
   final List<double> tierSpeed;
@@ -14,13 +18,24 @@ class MiningRules {
   /// How many times longer a block takes without its tool.
   final double wrongToolPenalty;
 
+  /// The blocks a tool cuts, by the tool kind, as the tags they carry
+  /// (`{'shears': {'leaves'}}`): it takes one at once, and the block itself
+  /// drops, not its `drop` or its loot.
+  final Map<String, Set<String>> cuts;
+
+  /// Whether [item] cuts [block] ([cuts]).
+  bool cut(BlockType block, ItemType? item) {
+    final tags = cuts[item?.tool];
+    return tags != null && block.hardness >= 0.0 && block.tags.any(tags.contains);
+  }
+
   /// Seconds to break [block] holding [item] (null for the bare hand), or -1
   /// when it cannot be broken at all: unbreakable, or its tool is needed at a
   /// tier the item lacks.
   double mineTime(BlockType block, ItemType? item) {
     final hardness = block.hardness;
     if (hardness < 0.0) return -1.0;
-    if (hardness == 0.0) return 0.05;
+    if (hardness == 0.0 || cut(block, item)) return 0.05;
     final neededTool = block.tool;
     final neededTier = block.tier;
     final tool = item?.tool;
@@ -33,8 +48,8 @@ class MiningRules {
     return hardness / speed;
   }
 
-  /// Whether breaking [block] with [item] yields its drop: its tool at its
-  /// tier, when it asks for a tier.
+  /// Whether breaking [block] with [item] yields a drop: its tool at its
+  /// tier, when it asks for a tier, or a tool that [cut]s it.
   bool drops(BlockType block, ItemType? item) =>
-      block.tier == 0 || (item != null && item.tool == block.tool && item.tier >= block.tier);
+      block.tier == 0 || (item != null && item.tool == block.tool && item.tier >= block.tier) || cut(block, item);
 }

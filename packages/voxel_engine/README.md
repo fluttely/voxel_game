@@ -103,10 +103,13 @@ sockets, through `dart:isolate` and `dart:io`, which a browser does not have.
    ]);
    ```
 
-2. **Declare items.** Every block you can hold is an item already. One that is eaten says
-   what it does in `food`, one that is worn where in `armor`, one that carries a liquid in
-   `bucket` (`Bucket.empty`, `Bucket.full`). What it looks like is its `shape`, or one
-   read off the rest of its row; `ItemModel.of(item, blocks, items)` builds its voxels.
+2. **Declare items.** Every block you can hold is an item already (a block only the world
+   makes says `holdable: false`). One that is eaten says what it does in `food` (a
+   `Food` that `cures` ends the bad effects), one that is worn where in `armor`, one that
+   carries a liquid in `bucket` (`Bucket.empty`, `Bucket.full`), one that shoots in
+   `launcher` (`Launcher(shot:, ammo:)`), one that lights the way in hand in `light`. What
+   it looks like is its `shape`, or one read off the rest of its row;
+   `ItemModel.of(item, blocks, items)` builds its voxels.
 
    ```dart
    final items = ItemRegistry([

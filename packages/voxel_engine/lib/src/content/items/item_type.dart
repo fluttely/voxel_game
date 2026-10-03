@@ -3,10 +3,13 @@ import 'bucket.dart';
 import 'food.dart';
 import 'glider.dart';
 import 'item_shape.dart';
+import 'launcher.dart';
 
 /// One item of a game. A block's item names that block in [block]; one that
 /// is eaten says what it does in [food], one that is worn in [armor], one
-/// that carries a liquid in [bucket], one that glides in [glider]. What it looks like is its [shape].
+/// that carries a liquid in [bucket], one that glides in [glider], one that
+/// shoots in [launcher], one that lights the way in hand in [light]. What it
+/// looks like is its [shape].
 ///
 /// A game with more to say about its items subclasses this and keeps an
 /// `ItemRegistry<ItsType>`.
@@ -26,9 +29,12 @@ class ItemType {
     this.armor,
     this.bucket,
     this.glider,
+    this.launcher,
+    this.light = 0,
     this.shape,
     this.tags = const {},
-  }) : r = ((color >> 16) & 0xFF) / 255.0,
+  }) : assert(light >= 0 && light <= 15, 'light is 0..15'),
+       r = ((color >> 16) & 0xFF) / 255.0,
        g = ((color >> 8) & 0xFF) / 255.0,
        b = (color & 0xFF) / 255.0;
 
@@ -49,9 +55,11 @@ class ItemType {
     this.armor,
     this.bucket,
     this.glider,
+    this.launcher,
+    this.light = 0,
     this.shape,
     this.tags = const {},
-  });
+  }) : assert(light >= 0 && light <= 15, 'light is 0..15');
 
   /// The id: what inventories, recipes and loot name it by.
   final String id;
@@ -94,6 +102,13 @@ class ItemType {
 
   /// How it glides, carried in the bag, or null for an item that does not.
   final Glider? glider;
+
+  /// What it shoots, with an attack, or null for an item that does not.
+  final Launcher? launcher;
+
+  /// The light it gives held in hand, 0..15 as a block's: a torch's item
+  /// lights the way around the player. A block's item has its block's.
+  final int light;
 
   /// What it looks like in the hand, on the ground and in a slot; null takes
   /// one from the rest of the row (`ItemModel.shapeOf`).

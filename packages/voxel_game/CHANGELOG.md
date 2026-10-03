@@ -2,6 +2,45 @@
 
 ## Unreleased
 
+- **Minecraft's items (VA-Zd).**
+  - A bow: an item with a `Launcher` (voxel_engine) shoots on attack — pressed, or held at
+    its cooldown — the `ProjectileSpec` its `shot` names in `VoxelGameSpec.shots` (new),
+    from just below the eye, straight where the player looks, falling. One of its `ammo` is
+    spent from the bag and the launcher wears (neither in creative); with none the player
+    is told. The shot is times `damageMultiplier`, rolled for a critical one, and filtered by
+    `PlayerEntity.damageOut` where it lands (`PlayerEntity.dealtTo`, new, what a swing uses
+    too); a client's shot that the host lands is not filtered there. A finger's tap with a
+    launcher in hand shoots. `VoxelGame.shoot` takes `overDrop` (new; false shoots straight
+    on). `VoxelGameSpec.checkShots` (new, run when the game is made) throws for a shot not
+    declared, ammo that is no item, a launcher that places a block.
+  - A held light: `PlayerEntity.heldLight` (new) is the item in hand's `ItemType.light`; a
+    point light in its colour lights the way around the player (`HeldLight`, new), and
+    around another player holding one.
+  - `Food.cures`: eating it ends the bad effects (boosts stay), and makes a food that would
+    do nothing else edible while one is on.
+  - Shears: `MiningRules.cuts` cut a block at once and drop the block itself
+    (`VoxelGame.breakBlock`). `MobSpec.fleece` (new, `Fleece`: the item, the tool kind, a
+    count, a regrow time) is shorn by a use with its tool: `Mob.shear` (new) drops the
+    fleece and `Mob.shorn` / `shornLeft` (new) count it back, the body drawn smaller
+    meanwhile; a save keeps it. A client asks the host (`GameSession.shearMob`, new, a
+    `shear` message; the host's `state` says `sh`).
+  - `MobSpec.yields` (new): a use on the creature turns one of the item in hand into
+    another (a bucket on a cow is milk).
+  - A bed (`BlockType.bed`): a use sets the spawn there, and at night, nothing hunting the
+    player, lies down in it (`PlayerEntity.sleeping` / `bed` / `wake`, new; the eye low, the
+    model lying). Once every player has slept `VoxelGame.sleepSeconds` (2) the host's clock
+    jumps to `VoxelGame.morning`; each sleeper wakes with the day to a `Slept` (new event).
+    Jump, sneak, a blow or the bed gone gets them up. A bed sleeps only in the main world.
+    `VoxelGame.isNight` (new). A player's pose says it sleeps (`z`), and another player who
+    sleeps is drawn lying.
+  - `buildItems` leaves out a block that is not `holdable`, and throws for a block whose
+    `drop` (itself by default) is no item, and for a block a tool cuts that is no item.
+    `breakBlock` no longer skips a drop that is no item. `checkUses` throws for a use on a
+    bed, and on a mob that yields or is shorn; `checkMobs` for a yield or fleece of an
+    unknown item, a yield for an item that tames, a fleece no tool shears.
+  - The example: a bow and 32 arrows, shears that shear the sheep and cut leaves, a bed, a
+    cow that is milked, milk that cures; the blocks only the world makes are not holdable.
+
 - **The player's and a creature's numbers from code (VA-Zc).**
   - Use rules: `VoxelGameSpec.blockUses` (block name → `BlockUse`) and `mobUses` (mob id →
     `MobUse`), both new, call a game's handler on a press of use, before the kit's own

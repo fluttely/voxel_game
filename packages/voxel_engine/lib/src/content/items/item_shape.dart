@@ -7,8 +7,8 @@ import 'item_grip.dart';
 /// item's colours, or a [CustomItemShape] of the game's own voxels.
 ///
 /// An item that declares none takes one from its row (`ItemModel.shapeOf`):
-/// a block's item its block, a tool its tool's, food a lump, armour a tunic,
-/// a bucket a pail, anything else a gem.
+/// a block's item its block, a tool its tool's, a launcher a bow, food a
+/// lump, armour a tunic, a bucket a pail, anything else a gem.
 sealed class ItemShape {
   /// The metres of one voxel of every stock shape: a block's item is eight of
   /// them a side, a pickaxe twelve tall.
@@ -35,6 +35,9 @@ sealed class ItemShape {
 
   /// A bow, strung.
   static const ItemShape bow = StockItemShape.bow;
+
+  /// Shears: two blades crossed over two rings.
+  static const ItemShape shears = StockItemShape.shears;
 
   /// A round lump: food.
   static const ItemShape lump = StockItemShape.lump;
@@ -75,6 +78,9 @@ enum StockItemShape implements ItemShape {
 
   /// See [ItemShape.bow].
   bow,
+
+  /// See [ItemShape.shears].
+  shears,
 
   /// See [ItemShape.lump].
   lump,

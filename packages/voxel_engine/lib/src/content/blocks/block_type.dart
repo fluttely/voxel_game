@@ -39,6 +39,8 @@ class BlockType {
     this.grows,
     this.turnsWith = const {},
     this.storage,
+    this.bed = false,
+    this.holdable = true,
   }) : r = ((color >> 16) & 0xFF) / 255.0,
        g = ((color >> 8) & 0xFF) / 255.0,
        b = (color & 0xFF) / 255.0,
@@ -77,6 +79,8 @@ class BlockType {
     this.grows,
     this.turnsWith = const {},
     this.storage,
+    this.bed = false,
+    this.holdable = true,
   }) : opaque = opaque ?? (solid && alpha >= 1.0 && shape == BlockShape.cube);
 
   /// A liquid of [kind] (default: its own id). A source ([source] true) feeds
@@ -113,7 +117,9 @@ class BlockType {
        usedInto = null,
        grows = null,
        turnsWith = const {},
-       storage = null;
+       storage = null,
+       bed = false,
+       holdable = false;
 
   /// The id: what saves, recipes and world specs name it by.
   final String id;
@@ -210,4 +216,14 @@ class BlockType {
 
   /// What it stores (a chest), or null for a block that stores nothing.
   final Storage? storage;
+
+  /// A bed: a player's use sleeps in it at night, and sets where they stand
+  /// up after dying.
+  final bool bed;
+
+  /// Whether it is an item a player can hold: false for a block only the
+  /// world makes, which no bag shows (a portal, an open door, a rail's
+  /// curve, a lit lamp), and for a liquid. A block that is not drops
+  /// another item, or nothing.
+  final bool holdable;
 }

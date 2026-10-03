@@ -204,6 +204,13 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
   makes some of the player's blows critical (`critMultiplier`, the number yellow with a `!`).
   A creature set alight (`Mob.ignite`) burns orange and sheds embers. Blocks chip as they are
   mined and burst as they break (`VoxelGame.debris`, one particle system).
+- Minecraft's items, each a row: a bow (`ItemType.launcher: Launcher(shot: 'arrow', ammo:
+  'arrow')`) shoots on attack the `ProjectileSpec` its shot names in `VoxelGameSpec.shots`,
+  spending its ammo; an item's `light` lights the way in hand (a torch's item has its
+  block's); a `Food` that `cures` ends the bad effects; shears cut what `MiningRules.cuts`
+  says at once and shear a creature's `MobSpec.fleece`, which grows back; `MobSpec.yields`
+  turns the item in hand into another (a bucket on a cow is milk); a `BlockType.bed` sets the
+  spawn and, at night, sleeps until morning once every player does (a `Slept` event).
 - `ProjectileSpec` for `RangedAttack` and `VoxelGame.shoot`: an `arrow`, a `bolt` and a
   `fireball`, or your own; a shot can carry a `light`, leave a `trail`, set the creature it
   hits burning (`burns`) and leave an effect on the player (`onHit`).
@@ -216,11 +223,11 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
   crafted or eaten, a level, a death, a trip, a mount or a vehicle got on, a taming, a
   catch, a screen opened — in `onEvent`. A `SavedSystem` keeps its state in the world's
   save under its `saveKey`.
-- A game's own uses: `VoxelGameSpec.blockUses: {'bed': sleep}` and `mobUses: {'villager':
+- A game's own uses: `VoxelGameSpec.blockUses: {'waypoint': travel}` and `mobUses: {'villager':
   trade}` call the game's handler on a press of use (a block's unless the player sneaks; a
-  finger's tap on such a creature uses it). A block the kit uses already (a store, a door,
-  a lever, a station, one a tool works) or a creature that is tamed throws when the game
-  is made.
+  finger's tap on such a creature uses it). A block the kit uses already (a store, a bed, a
+  door, a lever, a station, one a tool works) or a creature it uses (tamed, milked, shorn)
+  throws when the game is made.
 - The player's numbers from code, each kept by its source: `PlayerEntity.boosts['warrior']
   = Boost(maxHp: 6, damage: 1.2)` (speed, damage, mining, armour, most health; a respawn
   keeps them), `damageIn` / `damageOut` filters on a hurt taken and a blow dealt (0 is a
@@ -357,7 +364,7 @@ flutter run -d macos
 
 [`example/lib/main.dart`](example/lib/main.dart) is a small game in one file:
 twelve blocks, two biomes with trees and coal, a few recipes, a player with a
-pickaxe and a glider, sheep by day and zombies by night, two actions of its own
+pickaxe, a glider, a bow, shears and a bed, sheep and cows by day and zombies by night, two actions of its own
 (F1 the controls, T the time) and a title whose Creative worlds fly.
 
 ## Working on the kit

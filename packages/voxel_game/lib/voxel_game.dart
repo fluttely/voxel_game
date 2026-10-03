@@ -67,6 +67,7 @@ export 'src/input/voxel_action.dart';
 export 'src/loop/fixed_step_loop.dart';
 export 'src/loop/frame_stats.dart';
 export 'src/mobs/behaviors.dart';
+export 'src/mobs/fleece.dart';
 export 'src/mobs/goal.dart';
 export 'src/mobs/hit_effect.dart';
 export 'src/mobs/mob.dart';

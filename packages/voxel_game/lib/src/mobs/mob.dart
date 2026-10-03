@@ -205,6 +205,32 @@ class Mob extends GameEntity implements Target, Rideable {
     _flash = math.max(_flash - dt, 0.0);
     _stun = math.max(_stun - dt, 0.0);
     _slowLeft = math.max(_slowLeft - dt, 0.0);
+    if (!replica) shornLeft = math.max(shornLeft - dt, 0.0);
+  }
+
+  /// Seconds until its fleece (`MobSpec.fleece`) grows back; 0 while it has
+  /// it. Set by [shear], and by a save read back; a replica's is the host's
+  /// word, 1 while shorn.
+  double shornLeft = 0.0;
+
+  /// Whether it is shorn ([shear]) and its fleece not grown back: its body
+  /// is drawn smaller.
+  bool get shorn => shornLeft > 0.0;
+
+  /// Shears it: `MobSpec.fleece`'s count of its item dropped beside it, and
+  /// the fleece grows back in its `regrow` seconds; returns how many dropped.
+  /// Throws for a creature with no fleece, one shorn or dead, and a replica
+  /// (the host shears it, `GameSession.shearMob`).
+  int shear() {
+    _ownedHere('shorn');
+    final fleece = spec.fleece;
+    if (fleece == null) throw StateError('${spec.id} has no fleece');
+    if (shorn || _dead) throw StateError('${spec.id} $netId is shorn or dead');
+    final (fewest, most) = fleece.count;
+    final n = fewest + _game.random.nextInt(most - fewest + 1);
+    shornLeft = fleece.regrow;
+    _game.dropItem(fleece.item, n, centre());
+    return n;
   }
 
   /// Whether it is stunned ([stun]): it neither thinks nor walks, and falls.
@@ -365,11 +391,12 @@ class Mob extends GameEntity implements Target, Rideable {
   Vector3? _netTo;
 
   /// A replica's state from the host: where it is, facing where, its health,
-  /// who tamed it ([owner], null for a wild one), and whether it died. Health
+  /// who tamed it ([owner], null for a wild one), whether it is [shorn],
+  /// and whether it died. Health
   /// lost since the last state is a hit, here as on the host: its number
   /// shows over it, and [sinceHurt] starts again. While the local player
   /// rides it, where it is and where it faces are this side's.
-  void applyNetState(Vector3 at, double yaw, double health, {Target? owner, bool dead = false}) {
+  void applyNetState(Vector3 at, double yaw, double health, {Target? owner, bool shorn = false, bool dead = false}) {
     if (!replica) throw StateError('${spec.id} $netId is the host\'s own, not a replica');
     // The first state is where the replica starts, not a hit.
     if (_netTo != null && health < hp) {
@@ -383,6 +410,7 @@ class Mob extends GameEntity implements Target, Rideable {
     }
     hp = health;
     _owner = owner;
+    shornLeft = shorn ? 1.0 : 0.0;
     if (dead && !_dead) kill(dropLoot: false);
   }
 
@@ -645,6 +673,14 @@ class Mob extends GameEntity implements Target, Rideable {
   void _animate(double dt) {
     final r = rig;
     if (r == null) return;
+    if (spec.fleece != null) {
+      // Shorn, the body is drawn without its wool: narrower, and lower.
+      final s = shorn;
+      r.parts['body']!
+        ..sx = s ? 0.85 : 1.0
+        ..sy = s ? 0.7 : 1.0
+        ..sz = s ? 0.85 : 1.0;
+    }
     // The hit-stop: the pose holds, the body still moves.
     if (!frozen) {
       final look = _look;

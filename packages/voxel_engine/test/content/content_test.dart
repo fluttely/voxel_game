@@ -160,6 +160,40 @@ void main() {
       expect(items.has('air'), isFalse);
     });
 
+    test('a block only the world makes is no item, and a block\'s item gives its light in hand', () {
+      final world = BlockRegistry(const [
+        BlockType('air', color: 0, solid: false, hardness: -1, drop: ''),
+        BlockType('torch', color: 0xFFD070, shape: BlockShape.torch, solid: false, hardness: 0, light: 14),
+        BlockType('portal', color: 0x8A3CF0, solid: false, hardness: -1, drop: '', holdable: false),
+        BlockType('bed', color: 0xC03030, hardness: 0.5, bed: true),
+      ]);
+      final held = ItemRegistry(ItemRegistry.forBlocks(world));
+      expect(held.has('portal'), isFalse);
+      expect(held['torch'].light, 14);
+      expect(held['bed'].light, 0);
+      expect(world[world.indexOf('bed')].bed, isTrue);
+      expect(world[world.indexOf('torch')].bed, isFalse);
+      expect(blocks[blocks.indexOf('water')].holdable, isFalse, reason: 'a liquid is held only in a bucket');
+      // ignore: prefer_const_constructors
+      expect(() => ItemType('sun', color: 0xFFFFFF, light: 16), throwsA(isA<AssertionError>()));
+    });
+
+    test('a tool cuts the blocks of its tags at once, and gets the block itself', () {
+      const rules = MiningRules(
+        cuts: {
+          'shovel': {'plant'},
+        },
+      );
+      expect(rules.cut(b('flower'), items['stone_shovel']), isTrue);
+      expect(rules.cut(b('flower'), items['wooden_pickaxe']), isFalse, reason: 'another tool');
+      expect(rules.cut(b('flower'), null), isFalse, reason: 'the hand cuts nothing');
+      expect(rules.cut(b('dirt'), items['stone_shovel']), isFalse, reason: 'not of the tag');
+      final leaves = BlockType('leaves', color: 0x3F8A2E, hardness: 0.2, tool: 'axe', tier: 1, tags: {'plant'});
+      expect(rules.mineTime(leaves, items['stone_shovel']), 0.05);
+      expect(rules.drops(leaves, items['stone_shovel']), isTrue, reason: 'cut, whatever tier it asks');
+      expect(rules.drops(leaves, null), isFalse);
+    });
+
     test('the right tool at its tier is fast, the hand is slow, a missing tier cannot', () {
       expect(rules.mineTime(b('dirt'), null), closeTo(0.8 * 3, 1e-9), reason: 'no shovel: three times the hardness');
       expect(rules.mineTime(b('dirt'), items['stone_shovel']), closeTo(0.8 / 4, 1e-9));
@@ -192,6 +226,22 @@ void main() {
       expect(() => Food(hunger: 2, seconds: 5.0), throwsA(isA<AssertionError>()));
       // ignore: prefer_const_constructors
       expect(() => Armor('chest', 0), throwsA(isA<AssertionError>()));
+    });
+
+    test('an item says what it shoots, and a cure on a food', () {
+      const bow = ItemType(
+        'bow',
+        color: 0x9A7040,
+        stack: 1,
+        launcher: Launcher(shot: 'arrow', ammo: 'arrow'),
+      );
+      expect(bow.launcher!.cooldown, 0.5, reason: 'a shot every half second unless told');
+      expect(items['stone'].launcher, isNull);
+      // ignore: prefer_const_constructors
+      expect(() => Launcher(shot: 'arrow', cooldown: 0.0), throwsA(isA<AssertionError>()));
+      const milk = ItemType('milk', color: 0xF4F4F0, food: Food(heal: 2.0, cures: true));
+      expect(milk.food!.cures, isTrue);
+      expect(items['stone'].food?.cures, isNull);
     });
 
     test('an item says how it glides; a glider that does not fly forward, sink or turn is refused', () {
@@ -361,7 +411,9 @@ void main() {
       expect(e.multiplier('speed'), closeTo(1.3 / 1.8, 1e-12));
       expect(e.bonus('armor'), 6.0);
       expect(e.multiplier('damage'), 1.0);
+      expect(e.hasBad, isTrue);
       expect(e.clearBad(), 1);
+      expect(e.hasBad, isFalse);
       expect(e.multiplier('speed'), closeTo(1.3, 1e-12));
       final back = StatusEffects(types)..fromJson(e.toJson());
       expect(back.timeLeft('speed'), 10);

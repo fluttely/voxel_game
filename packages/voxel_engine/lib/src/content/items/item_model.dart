@@ -53,9 +53,11 @@ class ItemModel {
         'shovel' => ItemShape.shovel,
         'hoe' => ItemShape.hoe,
         'sword' => ItemShape.sword,
+        'shears' => ItemShape.shears,
         _ => throw ArgumentError.value(tool, item.id, 'the kit has no shape for this tool: declare the item\'s shape'),
       };
     }
+    if (item.launcher != null) return ItemShape.bow;
     if (item.food != null) return ItemShape.lump;
     if (item.armor != null) return ItemShape.tunic;
     if (item.bucket != null) return ItemShape.pail;
@@ -162,6 +164,17 @@ class ItemModel {
         VoxelModel.box(v, const IVec3(1, -5, 0), const IVec3(1, -3, 0), c);
         VoxelModel.box(v, const IVec3(1, 3, 0), const IVec3(1, 5, 0), c);
         VoxelModel.box(v, const IVec3(-1, -5, 0), const IVec3(-1, 5, 0), Vector3(0.9, 0.9, 0.85), 0.0);
+        return ItemModel._(v, grip, ItemGrip.flat);
+      case StockItemShape.shears:
+        // Two rings at the grip, two blades crossing over the pivot.
+        final ring = c * 0.55;
+        VoxelModel.box(v, const IVec3(-2, 0, 0), const IVec3(-1, 1, 0), ring, 0.02);
+        VoxelModel.box(v, const IVec3(1, 0, 0), const IVec3(2, 1, 0), ring, 0.02);
+        for (final (x, y) in const [(-1, 2), (-1, 3), (1, 5), (1, 6), (2, 7)]) {
+          v[IVec3(x, y, 0)] = c;
+          v[IVec3(-x, y, 0)] = c * 0.9;
+        }
+        v[const IVec3(0, 4, 0)] = ring;
         return ItemModel._(v, grip, ItemGrip.flat);
       case StockItemShape.lump:
         // A 5-wide cube with its edges filed off.

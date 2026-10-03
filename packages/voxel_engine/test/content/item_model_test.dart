@@ -34,8 +34,10 @@ void main() {
     expect(shape('helm'), ItemShape.cap, reason: 'declared');
     expect(shape('bucket'), ItemShape.pail);
     expect(shape('coal'), ItemShape.gem);
+    expect(ItemModel.shapeOf(const ItemType('shears', color: 0xC0C0C0, tool: 'shears')), ItemShape.shears);
+    expect(ItemModel.shapeOf(const ItemType('bow', color: 0x9A7040, launcher: Launcher(shot: 'arrow'))), ItemShape.bow);
     expect(
-      () => ItemModel.shapeOf(const ItemType('shears', color: 0xC0C0C0, tool: 'shears')),
+      () => ItemModel.shapeOf(const ItemType('trowel', color: 0xC0C0C0, tool: 'trowel')),
       throwsArgumentError,
       reason: 'a tool the kit cannot draw declares its shape',
     );

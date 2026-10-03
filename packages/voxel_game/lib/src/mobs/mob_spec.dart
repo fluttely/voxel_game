@@ -1,6 +1,7 @@
 import 'package:voxel_engine/content.dart';
 
 import 'behaviors.dart';
+import 'fleece.dart';
 import 'hit_effect.dart';
 import 'mob_levels.dart';
 import 'mob_split.dart';
@@ -104,7 +105,8 @@ class SpawnRule {
 /// ([xp]), how it grows with the player ([levels]), what it does to what it
 /// strikes ([onHit]) and becomes when it dies ([splitsInto]), how it is
 /// tamed ([tameWith]) and then thinks ([tamedBrain]) and carries a rider
-/// ([mount]), whether it stays ([persistent]) or walks through walls
+/// ([mount]), what a use with an item gives ([yields]) or a tool shears off
+/// it ([fleece]), whether it stays ([persistent]) or walks through walls
 /// ([ghost]), and where it spawns.
 ///
 /// ```dart
@@ -135,6 +137,8 @@ class MobSpec {
     this.tameChance = 1.0,
     this.tamedBrain = const [],
     this.mount,
+    this.yields = const {},
+    this.fleece,
     this.persistent = false,
     this.ghost = false,
     this.spawn,
@@ -207,6 +211,13 @@ class MobSpec {
   /// How it carries a rider once tamed (its owner rides it by using it), or
   /// null for a creature that is never ridden.
   final MountSpec? mount;
+
+  /// What a use on it turns an item in hand into, by the item: one of it
+  /// becomes one of the other (`{'bucket': 'milk_bucket'}`: a cow is milked).
+  final Map<String, String> yields;
+
+  /// What a tool shears off it, or null for a creature that is not shorn.
+  final Fleece? fleece;
 
   /// Whether it stays where it is however far the player goes: the spawner
   /// never takes it away, and the save keeps it (a tamed creature is kept

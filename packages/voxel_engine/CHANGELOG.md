@@ -2,6 +2,21 @@
 
 ## 0.3.0-dev
 
+- Minecraft's items, declared as rows (VA-Zd); the engine only declares them, the kit's
+  player does what they say.
+  - `ItemType.launcher` (new) of `Launcher` (new: the `shot` by name, the `ammo` item a shot
+    spends or none, a `cooldown`, 0.5 s): an item that shoots. `ItemModel.shapeOf` draws one
+    as a bow.
+  - `ItemType.light` (new, 0..15): the light an item gives in hand; `ItemRegistry.forBlocks`
+    gives a block's item its block's.
+  - `Food.cures` (new): eating it ends every bad effect. `StatusEffects.hasBad` (new).
+  - `MiningRules.cuts` (new, tool kind → block tags) and `MiningRules.cut` (new): a tool
+    that cuts a block takes it at once (`mineTime` 0.05), and `drops` is true for it.
+  - `BlockType.bed` (new): a bed. `BlockType.holdable` (new, true; false for a liquid): a
+    block only the world makes (a portal, an open door, a rail's curve) is no item, and
+    `ItemRegistry.forBlocks` leaves it out.
+  - `ItemShape.shears` (new, a stock shape), and a tool of kind `shears` takes it.
+
 - `ItemType.glider` (new) of `Glider` (new: `speed`, `fall`, `steer`, a hang glider's by
   default): an item that glides, carried in the bag. The engine only declares it; the kit's
   player glides with it (`VoxelAction.glide`).

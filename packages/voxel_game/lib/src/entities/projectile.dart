@@ -235,7 +235,9 @@ class ProjectileModel {
 /// A shot in flight: swept each step against bodies (any [Target] but its
 /// owner) and blocks, so a fast one cannot pass through a thin thing. A shot
 /// of a player's, the local one or another's, may be critical
-/// (`PlayerEntity.critical`); one that hits a creature sets it burning
+/// (`PlayerEntity.critical`), and the local player's own is filtered by
+/// their `PlayerEntity.damageOut` (a peer's, landed by the host, is not:
+/// its filters are its own side's); one that hits a creature sets it burning
 /// ([ProjectileSpec.burns]); one that hurts the player leaves its
 /// [ProjectileSpec.onHit]. A [replica] is only seen: another side's shot,
 /// it flies and stops where it hits, and hurts nobody.
@@ -325,8 +327,10 @@ class Projectile extends GameEntity {
       final (:amount, :crit) = identical(owner, player) || game.remotePlayers.contains(owner)
           ? player.critical(spec.damage * power)
           : (amount: spec.damage * power, crit: false);
+      // The local player's own shot is filtered as their swing is.
+      final dealt = identical(owner, player) && hit is Mob ? player.dealtTo(hit, amount) : amount;
       final taken = hit.takeDamage(
-        Damage(amount, source: spec.kind, from: position, knockback: spec.knockback, attacker: owner, crit: crit),
+        Damage(dealt, source: spec.kind, from: position, knockback: spec.knockback, attacker: owner, crit: crit),
       );
       if (spec.burns > 0.0 && hit is Mob) hit.ignite(spec.burns);
       final effect = spec.onHit;
