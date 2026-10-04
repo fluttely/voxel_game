@@ -43,6 +43,7 @@ Flutter 3.47.1, **but not the web** (worker isolates, TCP sockets and save files
 | The kit, what a game imports | `packages/voxel_game/lib/voxel_game.dart` · `packages/voxel_game/lib/src/{camera,core,entities,input,loop,mobs,net,player,spec,ui,world}/` |
 | The three packages under it | `packages/{voxel_engine,voxel_scene,sound_recipes}/` |
 | The smallest game built on it | `packages/voxel_game/example/lib/main.dart` |
+| The largest: a Minecraft clone on the kit, outside the workspace, with its own `CLAUDE.md` | `examples/voxel_game_minecraft/` |
 | The workspace (not a package) | `pubspec.yaml` · `pubspec.lock` |
 | Pre-publish checklist, release order, the version graph | `PUBLISHING.md` |
 | Publishing (or dry-running) one of the four | `tool/publish_package.sh <package> [--dry-run]` |

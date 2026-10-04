@@ -1,16 +1,14 @@
 # Architecture Ledger — voxel_game_minecraft
 
-> Where rule 21 writes. One entry per structural observation found mid-task that was
-> **not** the task. Four mandatory fields: `Lens`, `Evidence` (`file:line`), `Cost of
-> leaving it`, `Found while`. An entry is recorded here and **not fixed in the commit
-> that found it**.
+> Where the repository's rule 17 writes for this app (`CLAUDE.md`). One entry per structural
+> observation found mid-task that was **not** the task. Four mandatory fields: `Lens`,
+> `Evidence` (`file:line`), `Cost of leaving it`, `Found while`. An entry is recorded here
+> and **not fixed in the commit that found it**.
 >
-> **IDs are `CL-nnn`, sequential, never reused.** The prefix is deliberate: the 2D track's
-> ledger (`../docs/refactoring/LEDGER.md`) owns `L-nnn`, and its own `L-013` records what
-> happens when two ID spaces sit one hyphen apart — "D-4" and "D4" naming unrelated
-> things. This project is a different product under a different rule set (`CLAUDE.md`),
-> so it gets a different space rather than a shared counter that neither repo can hand
-> out. A citation of `CL-001` is unambiguous from either side.
+> **IDs are `CL-nnn`, sequential, never reused.** The repository's own ledger
+> (`../../docs/LEDGER.md`) is the kit's and hands out `KL-nnn`; `CL-005`, `CL-008` and
+> `CL-009` moved there on 2026-09-22 with their IDs, so a citation of either prefix is
+> unambiguous.
 >
 > An entry that gets fixed **moves to `## Closed`, it is never deleted** — same four
 > fields, kept as they were written, plus a fifth `Closed by` naming the commit and what
@@ -20,23 +18,19 @@
 
 ## Open
 
-### CL-004 · `Worlds` and `WorldSaves` are homonyms, not a duplicate pair
-
-- **Lens:** naming / false duplicate
-- **Evidence:** `packages/voxel_game/lib/src/world/world_save.dart:29` `WorldSaves` writes and reads one `VoxelGame` (its `edits.bin` and `game.json`). `lib/src/game/worlds.dart:44` `Worlds` is the slot *catalogue* — `WorldEntry`, display name, seed text, mode, class, playground flag, play time, `slugOf`, `validateFilename`, `rename`, `delete`, `lastPlayedLabel`. Different subjects that read the same folder; the part they genuinely share (the byte layout) is already single-sourced in the engine's `EditDeltaCodec`.
-- **Cost of leaving it:** nothing is wrong today, and that is exactly why this is written down — the pair looks like `CL-001` and `CL-002` from a file listing, and the obvious "consolidation" merges a save codec with a save-slot browser, dragging the app's display metadata into a published package that has no business knowing what a playground is. The cost of leaving it is the refactor somebody eventually proposes; one entry here is cheaper than reverting it.
-- **Found while:** 2026-09-21 — answering why `lib/` imports `voxel_game` in only two files.
-
 ### CL-005 · The kit's whole top half is exercised only by an example nothing runs
 
-- **Moved** 2026-09-22 (`VR3`) to the kit's ledger, `packages/voxel_game/docs/LEDGER.md`, with its ID: it is about the kit's own surface, and the kit takes its ledger with it when it leaves.
+- **Moved** 2026-09-22 (`VR3`) to the kit's ledger, then `packages/voxel_game/docs/LEDGER.md` and now the repository's `docs/LEDGER.md`, with its ID: it is about the kit's own surface, and the kit takes its ledger with it when it leaves.
 
-### CL-006 · `ScreenKind` exists twice, and the project's own rule 12 names it as one
+### CL-008 · The decision register still answers questions about packages that no longer exist
 
-- **Lens:** rules / two concepts under one name
-- **Evidence:** `CLAUDE.md` rule 12 reads "`ScreenKind` + `Game.gameplay` gate *input*", stated as a single mechanism. There are two: `lib/src/game/game.dart:50` declares `enum ScreenKind { none, inventory, pause, death, journal, trade }` and `:303` `bool get gameplay => screen == ScreenKind.none && !player.isDead && started`, read across `lib/src/ui/game_view.dart:127-191`; `voxel_game` has its own screen state behind `VoxelGame.openScreen`, which `voxel_game_widget.dart:260` reads. A rule cites one name and two implementations answer to it.
-- **Cost of leaving it:** this is the one on the list that cannot be closed by delegation — the app's gate is entangled with its 6,379-line `Game`, and `VKD5` decided on purpose that the POC moves onto the kit only after the kit exists, not during. So the cost is not the duplication but the rule text: a session that reads rule 12 and goes looking for *the* `ScreenKind` finds whichever it greps first, and can satisfy the rule in the kit while breaking it in the app or the reverse. Until the two converge, the rule should say which one it is talking about.
-- **Found while:** 2026-09-21 — answering why `lib/` imports `voxel_game` in only two files.
+- **Moved** 2026-09-22 (`VR3`) to the kit's ledger, then `packages/voxel_game/docs/LEDGER.md` and now the repository's `docs/LEDGER.md`, with its ID: it is about the kit's own surface, and the kit takes its ledger with it when it leaves.
+
+### CL-009 · The kit reads a finger and draws no thumb
+
+- **Moved** 2026-09-22 (`VR3`) to the kit's ledger, then `packages/voxel_game/docs/LEDGER.md` and now the repository's `docs/LEDGER.md`, with its ID: it is about the kit's own surface, and the kit takes its ledger with it when it leaves.
+
+## Closed
 
 ### CL-007 · Nothing in the suite compares the app's copy with the kit's, and the divergence is already in HEAD
 
@@ -44,16 +38,23 @@
 - **Evidence:** the suite is 179 + 168 + 10 + 4 + 20 = 381 tests (`CLAUDE.md` §Execution Workflow, green at `b0b94ebd`). None of them puts `lib/src/game/game.dart:701-706` next to `FixedStepLoop.advance`, `lib/src/game/input.dart` next to `InputMap`, or `lib/src/game/net.dart` next to `NetHost`. `CL-003` is the proof this matters: stage 44 added a whole input mode to one of a twinned pair and the suite stayed green, at the commit that is HEAD. *(Amended 2026-09-21, `CL-001` closed: the net pair no longer exists to drift — `net.dart` is `NetHost`'s only caller in the app. The loop and input pairs stand, and so does the entry: no test compares them.)* *(Amended again 2026-09-21, `CL-003` and `CL-002` closed: all three pairs this entry named are gone — the app delegates the transport, the input map and the frame bank, so there is nothing left of them to compare. What the entry was really about survives one level up: the surfaces that still differ on purpose, `CL-005`'s HUD and bag and `CL-006`'s two `ScreenKind`s, have no test either, and the drift that started this — a whole input mode landing in one half while 381 tests stayed green — could happen there next. Whoever closes this should decide whether that is the same entry or a new one.)*
 - **Cost of leaving it:** the repository's answer to "are the app and the kit still the same thing underneath?" is currently a human reading two files side by side, which is how `CL-001`, `CL-002` and `CL-003` were found in the first place — by hand, three days after the last one landed. Every extraction step (`VK`, `VC`) was gated on probes precisely because a test could not see it; the pairs that were *not* extracted have neither a probe nor a test. A `flutter test` that fails when the app's loop constants stop matching the kit's is cheap and would have caught the input drift the day it happened.
 - **Found while:** 2026-09-21 — answering why `lib/` imports `voxel_game` in only two files.
+- **Closed by:** 2026-10-04 — `examples/voxel_game_minecraft: the copies go (VA-Zm2)`. There is no copy left to drift from: the app runs the kit's loop, input, player, HUD, bag and screens, and adds a layer and screens on top (`GameHud` over `DefaultHud`, tested by `test/game_hud_test.dart`). The two surfaces the amendment named, `CL-005`'s HUD and bag and this ledger's `CL-006`, are the kit's own now. A drift between the app and the kit can no longer stay green: the app's 99 tests run the kit's code, and the kit's tests are the only ones of its mechanics.
 
-### CL-008 · The decision register still answers questions about packages that no longer exist
+### CL-006 · `ScreenKind` exists twice, and the project's own rule 12 names it as one
 
-- **Moved** 2026-09-22 (`VR3`) to the kit's ledger, `packages/voxel_game/docs/LEDGER.md`, with its ID: it is about the kit's own surface, and the kit takes its ledger with it when it leaves.
+- **Lens:** rules / two concepts under one name
+- **Evidence:** `CLAUDE.md` rule 12 reads "`ScreenKind` + `Game.gameplay` gate *input*", stated as a single mechanism. There are two: `lib/src/game/game.dart:50` declares `enum ScreenKind { none, inventory, pause, death, journal, trade }` and `:303` `bool get gameplay => screen == ScreenKind.none && !player.isDead && started`, read across `lib/src/ui/game_view.dart:127-191`; `voxel_game` has its own screen state behind `VoxelGame.openScreen`, which `voxel_game_widget.dart:260` reads. A rule cites one name and two implementations answer to it.
+- **Cost of leaving it:** this is the one on the list that cannot be closed by delegation — the app's gate is entangled with its 6,379-line `Game`, and `VKD5` decided on purpose that the POC moves onto the kit only after the kit exists, not during. So the cost is not the duplication but the rule text: a session that reads rule 12 and goes looking for *the* `ScreenKind` finds whichever it greps first, and can satisfy the rule in the kit while breaking it in the app or the reverse. Until the two converge, the rule should say which one it is talking about.
+- **Found while:** 2026-09-21 — answering why `lib/` imports `voxel_game` in only two files.
+- **Closed by:** 2026-10-04 — `examples/voxel_game_minecraft: the copies go (VA-Zm2)` and `docs: the minecraft app's instructions describe it on the kit (VA-Zm3)`. The app's `ScreenKind` and `Game.gameplay` are deleted; its screens (journal, map, stats, controls, trade, playground) are `ScreenSpec`s opened through the kit's `VoxelGame.openScreen`, so one gate answers to the name. The app's `CLAUDE.md` no longer numbers its own rule 12: it defers to the repository's, which names `VoxelGame.openScreen` and `VoxelGame.gameplay`.
 
-### CL-009 · The kit reads a finger and draws no thumb
+### CL-004 · `Worlds` and `WorldSaves` are homonyms, not a duplicate pair
 
-- **Moved** 2026-09-22 (`VR3`) to the kit's ledger, `packages/voxel_game/docs/LEDGER.md`, with its ID: it is about the kit's own surface, and the kit takes its ledger with it when it leaves.
-
-## Closed
+- **Lens:** naming / false duplicate
+- **Evidence:** `packages/voxel_game/lib/src/world/world_save.dart:29` `WorldSaves` writes and reads one `VoxelGame` (its `edits.bin` and `game.json`). `lib/src/game/worlds.dart:44` `Worlds` is the slot *catalogue* — `WorldEntry`, display name, seed text, mode, class, playground flag, play time, `slugOf`, `validateFilename`, `rename`, `delete`, `lastPlayedLabel`. Different subjects that read the same folder; the part they genuinely share (the byte layout) is already single-sourced in the engine's `EditDeltaCodec`.
+- **Cost of leaving it:** nothing is wrong today, and that is exactly why this is written down — the pair looks like `CL-001` and `CL-002` from a file listing, and the obvious "consolidation" merges a save codec with a save-slot browser, dragging the app's display metadata into a published package that has no business knowing what a playground is. The cost of leaving it is the refactor somebody eventually proposes; one entry here is cheaper than reverting it.
+- **Found while:** 2026-09-21 — answering why `lib/` imports `voxel_game` in only two files.
+- **Closed by:** 2026-10-04 — `examples/voxel_game_minecraft: the copies go (VA-Zm2)`. `Worlds` is deleted with the rest of the old app; the slot catalogue is the kit's `WorldSaves` and `WorldInfo`. The merge this entry warned against did not happen: what the app kept per slot (class, playground) is now its own `WorldOption`s, declared on its title (`classOption`, `playgroundOption`, `tutorialOption` in `lib/src/spec/game_title.dart`) and stored by the kit as opaque `WorldInfo.options` (VAD19), so the kit knows the choices exist and nothing of what they mean. Seen on the Mac: a world made with Class and Kind, played.
 
 ### CL-002 · The fixed-step loop is six lines, written twice, to the same constants
 

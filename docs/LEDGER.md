@@ -22,13 +22,6 @@
 - **Cost of leaving it:** the kit says it targets every platform Flutter supports, but a first-person game on two of the three desktops plays like a touch screen with a mouse. Nothing tells a game author about it: `pointerLockSupported` is public, but the README never mentions it.
 - **Found while:** 2026-09-24 — adding Windows and Linux runners to the examples, for the launch post.
 
-### KL-012 · The minecraft example's instructions describe it as a folder of Dawnforge
-
-- **Lens:** docs / AI context
-- **Evidence:** `examples/voxel_game_minecraft/CLAUDE.md:3-13` says it governs `poc_cubeworld/` "except `packages/voxel_game/`", that the kit lives "in `packages/voxel_game/`" with "its own workspace", and that `../CLAUDE.md` is the 2D track's; its map (`:45-58`) points at `packages/voxel_game/PUBLISHING.md` and the kit's plans under `packages/voxel_game/docs/`. `AGENTS.md` beside it has drifted from it (`0.1.0-dev` against `0.1.0`, three lines). `README.md:3-5` places it on a branch of the Dawnforge repository and links the kit at `packages/voxel_game/`, which from this folder does not exist.
-- **Cost of leaving it:** a session opened in the example reads that the kit is a sibling folder it is not, that `../CLAUDE.md` (this repository's) is the 2D track's and must be ignored, and follows a map whose kit paths all miss; it is `KL-001` again, one folder down.
-- **Found while:** 2026-09-30 — closing `KL-006`, whose evidence named the stale `CLAUDE.md`.
-
 ### KL-013 · The kit's screens are for a pointer: a pad reaches one button of each
 
 - **Lens:** input parity (rule 13)
@@ -94,6 +87,14 @@
 
 ## Closed
 
+### KL-012 · The minecraft example's instructions describe it as a folder of Dawnforge
+
+- **Lens:** docs / AI context
+- **Evidence:** `examples/voxel_game_minecraft/CLAUDE.md:3-13` says it governs `poc_cubeworld/` "except `packages/voxel_game/`", that the kit lives "in `packages/voxel_game/`" with "its own workspace", and that `../CLAUDE.md` is the 2D track's; its map (`:45-58`) points at `packages/voxel_game/PUBLISHING.md` and the kit's plans under `packages/voxel_game/docs/`. `AGENTS.md` beside it has drifted from it (`0.1.0-dev` against `0.1.0`, three lines). `README.md:3-5` places it on a branch of the Dawnforge repository and links the kit at `packages/voxel_game/`, which from this folder does not exist.
+- **Cost of leaving it:** a session opened in the example reads that the kit is a sibling folder it is not, that `../CLAUDE.md` (this repository's) is the 2D track's and must be ignored, and follows a map whose kit paths all miss; it is `KL-001` again, one folder down.
+- **Found while:** 2026-09-30 — closing `KL-006`, whose evidence named the stale `CLAUDE.md`.
+- **Closed by:** 2026-10-04 — `docs: the minecraft app's instructions describe it on the kit (VA-Zm3)`. The example's `CLAUDE.md` and `AGENTS.md` are rewritten as one text: they govern `examples/voxel_game_minecraft/`, defer to this repository's `CLAUDE.md` for rules 1–17 and the workflow, and add only the app's own (the block table's order, no migration, a headless test per mechanic, how to see it running, plain player text); their map points at the app's `lib/src/` folders and this repository's plan. `README.md` describes the app on the kit (running it, the title and its world options, the keys, the saves under the kit's root, its lineage) and names no Dawnforge branch, no `packages/voxel_game/` sibling and no probe flag. `ROADMAP.md`'s design decisions no longer promise Godot-interchangeable saves.
+
 ### KL-021 · A trip to another dimension loses every tamed and persistent creature for good
 
 - **Lens:** persistence / dimensions
@@ -118,7 +119,6 @@
 - **Found while:** 2026-09-25 — finding why the phone runner lost runs during PF14's A/B.
 - **Seen again:** 2026-09-28, PF3's phone A/B: the same `SIGSEGV` at `0x3f8` in `vkCmdBeginRenderPass` under `InternalFlutterGpu_RenderPass_Begin`, the second run of a call (`orbit:6` after `mobs:6`, `9c36cc2`, no PF3 code), 18 lines and 19 launches that day.
 - **Closed by:** 2026-09-30 — `voxel_scene: ResizeSafeScene drops the sun's shadow cache on a resize` and `voxel_game, examples: every game renders through a ResizeSafeScene`. The cause is in the code, not a guess: flutter_scene 0.23's shadow pass draws static casters into persistent tiles (`render/shadow_pass.dart:246`, `entry.tile`) with a depth texture from the view's transient pool (`:255`), and `_ViewSurface.nextSwapchainColor` clears that pool whenever the render's pixel size changes (`surface.dart:83-86`); Impeller's Vulkan backend caches a framebuffer on the colour texture keyed by it alone, so the tile's next refresh begins a render pass on the freed depth's image view — flutter/flutter#192538, the same `vkCmdBeginRenderPass` crash in a vendor driver, still open with its fix (#192539) unmerged under Flutter 3.47.5. It fits every observation: the benchmark turns to landscape as it starts, the chunks streaming in change the static signature and refresh a tile every frame (`render/shadow_cache.dart`, `maxAmortizedRefreshes`), and the finalizer that frees the depth runs when it runs, hence now and then; each sun step rebuilds the tiles, which ends the window. `ResizeSafeScene` turns the sun's `cacheStaticShadows` off for the one frame rendered at a new size (`RenderSizeWatch`), so flutter_scene discards the tiles and builds new ones on the new depth. `MeasuredScene`, the minecraft example's `PacedScene` and voxel_scene's example extend or use it. **Not witnessed on the phone**: the crash hit about 4 of 123 launches, so showing it gone takes a hundred-odd launches of the benchmark on the S24, which is the owner's call (`CLAUDE.md`, §Benchmarks). Covered by `packages/voxel_scene/test/render_size_watch_test.dart` and seen on the Mac (the minecraft example's `--screenshot`, the same picture as before). Remove the scene once the Flutter the kit requires carries #192539.
-
 
 ### KL-006 · The minecraft example measures the published kit, not this tree
 
