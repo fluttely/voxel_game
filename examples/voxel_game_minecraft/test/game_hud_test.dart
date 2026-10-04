@@ -142,7 +142,7 @@ void main() {
 
   testWidgets('the stats and the controls are screens of the game menu; F1 opens the controls', (tester) async {
     final game = await start(tester);
-    expect(gameSpec.screens.values.map((s) => s.menu), ['Journal', 'Stats', 'Controls']);
+    expect(gameSpec.screens.values.map((s) => s.menu).nonNulls, ['Journal', 'Stats', 'Controls']);
     game.raise(const BlockBroken('stone', IVec3(0, 0, 0)));
     game.step(1 / 60);
     await tester.pumpWidget(MaterialApp(home: Scaffold(body: StatsScreen(game))));

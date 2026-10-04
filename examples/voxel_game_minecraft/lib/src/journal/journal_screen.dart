@@ -4,6 +4,7 @@ import 'package:voxel_game/voxel_game.dart';
 
 import '../classes/class_system.dart';
 import '../classes/talent.dart';
+import '../waypoints/waypoints.dart';
 import 'achievement_table.dart';
 import 'achievements.dart';
 import 'bestiary.dart';
@@ -12,21 +13,30 @@ import 'quest_log.dart';
 
 /// The journal (J, and Journal in the game menu), a tab each: the class's
 /// talents, a point from each level to spend on one ([ClassSystem.learn]);
-/// the creatures met and killed (`Bestiary`); the achievements; and the
-/// quest chain, the one at hand with how far it is. The world keeps going
-/// behind it, so every tab follows what the game counts while it is open.
+/// the creatures met and killed (`Bestiary`); the achievements; the
+/// waypoints, a tap on one a trip there (`Waypoints`); and the quest chain,
+/// the one at hand with how far it is. The world keeps going behind it, so
+/// every tab follows what the game counts while it is open.
 class JournalScreen extends StatelessWidget {
-  /// The journal of [game]'s player.
-  const JournalScreen(this.game, {super.key});
+  /// The journal of [game]'s player, open on the tab [initialTab].
+  const JournalScreen(this.game, {super.key, this.initialTab = 0});
 
   /// A `ScreenBuilder` of this screen.
   static Widget builder(BuildContext context, VoxelGame game) => JournalScreen(game);
 
+  /// A `ScreenBuilder` of this screen open on its Waypoints tab: what a
+  /// waypoint's use opens.
+  static Widget waypointsBuilder(BuildContext context, VoxelGame game) =>
+      JournalScreen(game, initialTab: tabs.indexOf('Waypoints'));
+
   /// The tabs, in order.
-  static const List<String> tabs = ['Talents', 'Creatures', 'Achievements', 'Quests'];
+  static const List<String> tabs = ['Talents', 'Creatures', 'Achievements', 'Waypoints', 'Quests'];
 
   /// The game whose journal it is.
   final VoxelGame game;
+
+  /// The tab it opens on, an index of [tabs].
+  final int initialTab;
 
   static const Color _gold = Color(0xFFFFE680);
 
@@ -40,6 +50,7 @@ class JournalScreen extends StatelessWidget {
             constraints: const BoxConstraints(maxWidth: 760, maxHeight: 600),
             child: DefaultTabController(
               length: tabs.length,
+              initialIndex: initialTab,
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
@@ -51,7 +62,9 @@ class JournalScreen extends StatelessWidget {
                       tabs: [for (final t in tabs) Tab(text: t)],
                     ),
                     const SizedBox(height: 8),
-                    Expanded(child: TabBarView(children: [_talents(), _bestiary(), _achievements(), _quests()])),
+                    Expanded(
+                      child: TabBarView(children: [_talents(), _bestiary(), _achievements(), _waypoints(), _quests()]),
+                    ),
                     const SizedBox(height: 8),
                     FilledButton(onPressed: game.closeScreen, child: const Text('Back to the game')),
                   ],
@@ -171,6 +184,62 @@ class JournalScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Widget _waypoints() {
+    final w = Waypoints.of(game);
+    return HudSelector(
+      frames: game.frames,
+      select: () => [for (final p in w.all) waypointLine(game, p)],
+      equals: listEquals,
+      builder: (context, lines) {
+        final all = w.all;
+        return Column(
+          children: [
+            Text(
+              'Tap a waypoint to go there. It is free next to a waypoint, and costs '
+              '${Waypoints.cost.round()} mana from anywhere else.',
+              style: TextStyle(color: _gold),
+            ),
+            Expanded(
+              child: all.isEmpty
+                  ? const Center(
+                      child: Text(
+                        'No waypoints yet. Make one at a crafting table from 4 stone bricks and 2 magic dust, '
+                        'then place it.',
+                        textAlign: TextAlign.center,
+                      ),
+                    )
+                  : ListView(
+                      children: [
+                        for (var i = 0; i < all.length; i++)
+                          ListTile(
+                            dense: true,
+                            leading: const Icon(Icons.place, color: Color(0xFF4DF2FF)),
+                            title: Text(lines[i]),
+                            enabled: all[i].dimension == game.dimension,
+                            onTap: () {
+                              if (w.travel(game, all[i])) game.closeScreen();
+                            },
+                          ),
+                      ],
+                    ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// How the journal lists the waypoint [w]: its label, its cell, and how
+  /// far it is (`Waypoint 2   (10, 64, -3)   25 m away`), or the world it is
+  /// in when that is not the player's.
+  static String waypointLine(VoxelGame game, Waypoint w) {
+    final c = w.cell;
+    final where = w.dimension == game.dimension
+        ? '${Waypoints.landingOf(w).distanceTo(game.player.position).round()} m away'
+        : 'in the ${w.dimension}';
+    return '${w.label}   (${c.x}, ${c.y}, ${c.z})   $where';
   }
 
   Widget _quests() {

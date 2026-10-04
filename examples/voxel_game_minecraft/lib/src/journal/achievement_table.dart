@@ -5,8 +5,9 @@ import '../spec/mob_table.dart';
 import 'achievement.dart';
 import 'game_stats.dart';
 
-/// The game's achievements, in the journal's order. `traveler` and
-/// `underworld` are unlocked by the waypoints and the fortress (VA-Zl).
+/// The game's achievements, in the journal's order. `traveler` is unlocked
+/// by a trip to a waypoint (`Waypoints.travel`), `underworld` by the
+/// fortress (VA-Zl3).
 const List<Achievement> achievementTable = [
   Achievement('first_block', 'Getting Wood', 'Break your first block', on: _broke),
   Achievement('builder', 'Builder', 'Place 100 blocks', when: _built),

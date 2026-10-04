@@ -5,6 +5,7 @@ import 'package:voxel_game/voxel_game.dart';
 
 import '../classes/class_system.dart';
 import '../classes/class_table.dart';
+import '../enchanting/enchanting.dart';
 import '../journal/achievements.dart';
 import '../journal/bestiary.dart';
 import '../journal/game_stats.dart';
@@ -14,6 +15,7 @@ import '../journal/stats_screen.dart';
 import '../journal/tutorial.dart';
 import '../player/heartbeat.dart';
 import '../ui/controls_screen.dart';
+import '../waypoints/waypoints.dart';
 import 'block_table.dart';
 import 'effect_table.dart';
 import 'game_sounds.dart';
@@ -35,9 +37,13 @@ import 'world_table.dart';
 /// (`GameStats`) and the controls (F1); a new world made with the tutorial
 /// walks the player through their first steps (`Tutorial`, F6 skips it).
 ///
+/// A waypoint placed is listed in the journal, and using one travels to
+/// another (`Waypoints`); an enchanting table adds to the bonus of the weapon
+/// or tool in hand (`Enchanting`).
+///
 /// What else only this game has (the bosses and their structures, villagers'
-/// trades, waypoints, the map) comes in as its own systems and screens on top
-/// (VA-Zl).
+/// trades, the map, the playground) comes in as its own systems and screens
+/// on top (VA-Zl2–VA-Zl5).
 final VoxelGameSpec gameSpec = VoxelGameSpec(
   seed: 1337,
   blocks: blockTable,
@@ -117,8 +123,11 @@ final VoxelGameSpec gameSpec = VoxelGameSpec(
     ActionSpec('controls', keys: [PhysicalKeyboardKey.f1], gamepad: [GamepadButton.back]),
     ActionSpec(Tutorial.skipAction, keys: [PhysicalKeyboardKey.f6], gamepad: [GamepadButton.dpadLeft]),
   ],
+  // A waypoint lists the others, to travel to one; an enchanting table enchants what is in hand.
+  blockUses: const {Waypoints.block: Waypoints.open, Enchanting.table: _enchant},
   screens: const {
     'journal': ScreenSpec(JournalScreen.builder, menu: 'Journal', action: 'journal'),
+    Waypoints.screen: ScreenSpec(JournalScreen.waypointsBuilder),
     'stats': ScreenSpec(StatsScreen.builder, menu: 'Stats'),
     'controls': ScreenSpec(ControlsScreen.builder, menu: 'Controls', action: 'controls'),
   },
@@ -160,6 +169,9 @@ List<GameSystem> _systems() => [
   QuestLog(),
   Achievements(),
   Tutorial(),
+  Waypoints(),
 ];
+
+void _enchant(VoxelGame game, IVec3 cell) => Enchanting.use(game, cell);
 
 bool get _phone => defaultTargetPlatform == TargetPlatform.iOS || defaultTargetPlatform == TargetPlatform.android;
