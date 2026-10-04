@@ -11,12 +11,7 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_scene: ^0.23.0
-  flutter_soloud: ^4.1.7
-  gamepads: ^0.1.12
   hooks: ^2.2.0
-  path_provider: ^2.1.6
-  pointer_lock: ^0.4.1
-  sound_recipes: ^0.3.0-dev
   vector_math: ^2.4.2
   voxel_engine: ^0.3.0-dev
   voxel_game: ^0.3.0-dev
