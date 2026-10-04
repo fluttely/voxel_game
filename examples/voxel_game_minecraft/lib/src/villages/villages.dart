@@ -10,9 +10,6 @@ import 'trade_table.dart';
 /// [give].
 typedef TradeOffer = ({String take, int takeCount, String give, int giveCount});
 
-/// A villager's [offers] and the centre of the village it keeps to ([home]).
-typedef Villager = ({Vector3 home, List<TradeOffer> offers});
-
 /// The trade the trade screen shows: whose ([name]) and its [offers].
 typedef OpenTrade = ({String name, List<TradeOffer> offers});
 
@@ -28,9 +25,10 @@ typedef OpenTrade = ({String name, List<TradeOffer> offers});
 /// offers ([askMessage]) and the trade opens on the answer ([offersMessage]);
 /// the bag traded with is the client's own. Only the host peoples a village.
 ///
-/// Saved with the world (under `villages`): the villages peopled, and each
-/// villager's offers and home, told apart by where it stands, which the
-/// kit's save of the creature keeps too.
+/// Saved with the world (under `villages`): the villages peopled. A
+/// villager keeps its offers on itself (`Mob.data`, under [offersKey]),
+/// and the kit keeps them with it, home and all, in the save and across a
+/// trip to another dimension.
 class Villages extends SavedSystem {
   /// The key of the villages in the save.
   static const String key = 'villages';
@@ -40,6 +38,9 @@ class Villages extends SavedSystem {
 
   /// The creature that is a villager.
   static const String villager = 'villager';
+
+  /// The key of a villager's offers in its `Mob.data`.
+  static const String offersKey = 'offers';
 
   /// The screen a villager's use opens.
   static const String screen = 'trade';
@@ -67,7 +68,6 @@ class Villages extends SavedSystem {
   static Villages of(VoxelGame game) => game.system<Villages>();
 
   final Set<IVec3> _peopled = {};
-  final Map<Mob, Villager> _villagers = Map.identity();
   OpenTrade? _open;
   int? _asked;
   double _lookIn = 0.0;
@@ -75,13 +75,17 @@ class Villages extends SavedSystem {
   /// The centres of the villages peopled.
   Set<IVec3> get peopled => Set.unmodifiable(_peopled);
 
-  /// The villagers alive, by creature.
-  Map<Mob, Villager> get villagers => Map.unmodifiable(_villagers);
+  /// The villagers alive in [game]'s world, the host's replicas on a
+  /// client among them.
+  static Iterable<Mob> villagersIn(VoxelGame game) => game.mobs.where((m) => m.spec.id == villager && !m.gone);
 
-  /// [mob]'s offers and home; throws for a creature that is none of these
-  /// villages' villagers.
-  Villager villagerOf(Mob mob) =>
-      _villagers[mob] ?? (throw ArgumentError.value(mob.spec.id, 'mob', 'no villager of these villages'));
+  /// [mob]'s offers, kept on it; throws for a creature that has none (a
+  /// replica's are the host's), and for an offer of an item [game] lacks.
+  static List<TradeOffer> offersOf(VoxelGame game, Mob mob) {
+    final rows = mob.data[offersKey];
+    if (rows == null) throw ArgumentError.value(mob.spec.id, 'mob', 'a creature with no offers');
+    return [for (final row in rows as List<Object?>) _offerOf(game, row)];
+  }
 
   /// The trade the trade screen shows; throws when none was opened.
   OpenTrade get open => _open ?? (throw StateError('no trade was opened'));
@@ -101,7 +105,7 @@ class Villages extends SavedSystem {
       game.session!.sendToHost(askMessage, {'n': mob.netId});
       return;
     }
-    villages._show(game, mob.name, villages.villagerOf(mob).offers);
+    villages._show(game, mob.name, offersOf(game, mob));
   }
 
   /// The host hears a client ask for villager `n`'s offers, and answers it.
@@ -113,7 +117,7 @@ class Villages extends SavedSystem {
     game.session!.sendTo(from, offersMessage, {
       'n': n,
       'name': mob.name,
-      'o': [for (final o in of(game).villagerOf(mob).offers) _offerRow(o)],
+      'o': [for (final o in offersOf(game, mob)) _offerRow(o)],
     });
   }
 
@@ -154,7 +158,6 @@ class Villages extends SavedSystem {
 
   @override
   void tick(VoxelGame game, double dt) {
-    _villagers.removeWhere((m, _) => m.gone);
     if (!game.authority) return;
     _lookIn -= dt;
     if (_lookIn > 0.0) return;
@@ -179,7 +182,7 @@ class Villages extends SavedSystem {
       final at = ring[i];
       at.y = game.world.groundHeight(at.x.floor(), at.z.floor()).toDouble();
       final mob = game.spawnMob(villager, at)..home = home.clone();
-      _villagers[mob] = (home: home, offers: roll(game.random));
+      mob.data[offersKey] = [for (final o in roll(game.random)) _offerRow(o)];
     }
     game.notify('A village! Use a villager to trade');
   }
@@ -208,37 +211,18 @@ class Villages extends SavedSystem {
     return o;
   }
 
-  static List<double> _xyz(Vector3 v) => [v.x, v.y, v.z];
-
-  static Vector3 _vector(Object? o) {
-    final l = [for (final e in o! as List<Object?>) (e! as num).toDouble()];
-    return Vector3(l[0], l[1], l[2]);
-  }
-
   @override
   String get saveKey => key;
 
-  // The villagers in the order the kit saves the creatures, by the kit's own test of which it keeps.
   @override
   Object? save(VoxelGame game) => {
     'villages': [
       for (final c in _peopled) [c.x, c.y, c.z],
     ],
-    'villagers': [
-      for (final m in game.mobs)
-        if (m.spec.id == villager && !m.isDead && !m.removed && !m.replica)
-          {
-            'at': _xyz(m.position),
-            'home': _xyz(villagerOf(m).home),
-            'offers': [for (final o in villagerOf(m).offers) _offerRow(o)],
-          },
-    ],
   };
 
-  /// Puts the villages back, and each villager's offers and home on the
-  /// creature the kit put back where it stood (the kit restores creatures
-  /// before the game's systems). Throws for a saved villager no creature
-  /// stands for, and for a villager no row is saved for.
+  /// Puts back the villages peopled. Throws for a villager the kit put
+  /// back with no offers (a world saved before they were kept on it).
   @override
   void restore(VoxelGame game, Object? saved) {
     final s = saved! as Map<String, Object?>;
@@ -248,20 +232,8 @@ class Villages extends SavedSystem {
         for (final c in (s['villages']! as List<Object?>).cast<List<Object?>>())
           IVec3(c[0]! as int, c[1]! as int, c[2]! as int),
       ]);
-    _villagers.clear();
-    final unclaimed = [
-      for (final m in game.mobs)
-        if (m.spec.id == villager) m,
-    ];
-    for (final row in (s['villagers']! as List<Object?>).cast<Map<String, Object?>>()) {
-      final at = _vector(row['at']);
-      final i = unclaimed.indexWhere((m) => m.position.distanceTo(at) < 1e-6);
-      if (i < 0) throw FormatException('a villager saved at $at, where the save keeps none');
-      final mob = unclaimed.removeAt(i);
-      final home = _vector(row['home']);
-      mob.home = home.clone();
-      _villagers[mob] = (home: home, offers: [for (final o in row['offers']! as List<Object?>) _offerOf(game, o)]);
+    for (final m in villagersIn(game)) {
+      if (!m.data.containsKey(offersKey)) throw FormatException('a villager saved with no offers at ${m.position}');
     }
-    if (unclaimed.isNotEmpty) throw FormatException('${unclaimed.length} villagers saved with no offers');
   }
 }

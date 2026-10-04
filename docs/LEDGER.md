@@ -78,14 +78,15 @@
 - **Cost of leaving it:** the minecraft example's tutorial was shown once per machine (the old `Settings.tutorialDone`); on the kit it became a world option (`tutorialOption`, on until the player turns it off in the new-world form), so a player who knows the game says no to it on every new world. Any other per-player preference of a game's (a key layout, a hint already seen) will hit the same wall.
 - **Found while:** 2026-10-04 — `VA-Zk`, porting the example's tutorial.
 
+## Closed
+
 ### KL-021 · A trip to another dimension loses every tamed and persistent creature for good
 
 - **Lens:** persistence / dimensions
 - **Evidence:** `packages/voxel_game/lib/src/core/voxel_game.dart:393-395`: `travel` marks every creature `removed`, the tamed and the `persistent` ones too, while the vehicles beside them are parked and put back (`_parked`). `MobSpec.persistent` (`mob_spec.dart:223`) promises a creature that "stays where it is however far the player goes". The minecraft example's old `Game` parked them by dimension and freed only the wild ones (`examples/voxel_game_minecraft/lib/src/game/game.dart:5965`).
 - **Cost of leaving it:** on the kit, a player who goes through a portal and back finds their pets and mounts gone, and every village peopled so far empty for good: `Villages` (VA-Zl2) remembers a village as peopled and its villagers do not come back. VA-Zl3's bosses, lords and ruin ghosts will be lost the same way. The fix is the vehicles' one: park the tamed and persistent creatures' save rows per dimension and spawn them back on the return; a game's state on them (the villagers' offers) then needs them back where they stood.
 - **Found while:** 2026-10-04 — `VA-Zl2`, deciding where a villager's offers live across a save.
-
-## Closed
+- **Closed by:** 2026-10-04 — `voxel_game: a trip parks the creatures the save keeps (KL-021)` and `examples/voxel_game_minecraft: a villager keeps its offers on itself (KL-021)`. `travel` parks the kept creatures (`Mob.kept`: the tamed and the `persistent`) as save rows (`Mob.row`) per dimension and puts them back on the return (`VoxelGame.mobFrom`), the vehicles' way; `parkedMobs`, `mobRows`, `restoreMobs` mirror theirs, and `game.json` v9 keeps every dimension's. A game's state on a creature rides in its row as `Mob.data` (JSON the kit never reads), and its `home` too, so the app's `Villages` keeps a villager's offers on the villager and its save is the villages peopled alone. Witnessed by 2 tests in `dimensions_test.dart` and 1 in `creatures_test.dart` (the kit 419), and `villages_test.dart`'s save test, which now also goes to the underworld and back.
 
 ### KL-015 · A ghost cannot be drawn see-through: every rig shares one opaque material
 
