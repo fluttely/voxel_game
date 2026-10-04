@@ -36,6 +36,7 @@ export 'package:voxel_engine/worldgen.dart'
         Mine,
         Ore,
         PlacedStructure,
+        Plaza,
         Plant,
         Pools,
         Precipitation,

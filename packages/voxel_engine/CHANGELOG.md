@@ -2,6 +2,13 @@
 
 ## 0.3.0-dev
 
+- `WorldGenSpec.plaza` (new) of `Plaza` (new): a square of open-sky ground pressed flat, a
+  showroom's floor (the app's playground, VA-Zl5). Its columns stand at its `height` in the
+  land biome it names and carve no caves; the ground outside eases back over `blend` (16)
+  blocks; no tree, plant or cave comes within `clearing` (8) of it and no structure's site
+  within `structureClearing` (48). Refused in a cavern or naming a biome the land has not.
+  `WorldGenSpec.withPlaza` (new) presses one into a world; a world without one generates
+  what it did.
 - `ChunkMesher.liquidTop` (new, 0.875): how high a liquid's top is drawn in a cell with no
   liquid of its own above, what a game reads to tell an eye over a pool's surface from one
   under it (VA-Zf).

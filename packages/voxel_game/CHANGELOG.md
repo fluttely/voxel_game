@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **A world's options shape its world (VA-Zl5).** `VoxelGameSpec.worldFor` (new), beside
+  `playerFor`: the main dimension as a world's options make it, a playground's flat `Plaza`
+  (new from the engine, re-exported) pressed into it, say; `worldWith` (new) asks it, and
+  `WorldInfo.applyTo` plays it. A host's `hello` carries its game's options and a client
+  joining generates the world they make (`joinHost`'s `options`, new), so the two grounds
+  agree.
 - **A trip keeps the creatures the save keeps (KL-021).** `VoxelGame.travel` parks the
   tamed and `persistent` creatures of the dimension left (`Mob.kept`, new) and puts them
   back when the player comes back, as it did the vehicles; only the wild ones are left

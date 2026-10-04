@@ -309,6 +309,75 @@ void main() {
     });
   });
 
+  group('a plaza', () {
+    const plaza = Plaza(minX: -32, minZ: -32, maxX: 32, maxZ: 32, height: 60, biome: 'plains');
+    final flat = _world.withPlaza(plaza).compile(_ids, 7);
+    final wild = _world.compile(_ids, 7);
+
+    test('stands level in its biome, solid under the grass, nothing growing on it', () {
+      for (var x = -32; x < 32; x += 5) {
+        for (var z = -32; z < 32; z += 5) {
+          expect(flat.surfaceHeight(x, z), 60);
+          expect(flat.biomeAt(x, z).name, 'plains');
+        }
+      }
+      for (final (cx, cz) in const [(-2, -2), (0, 0), (1, -1)]) {
+        final c = flat.generateIn(cx, cz, 0);
+        for (var x = 0; x < ChunkSize.sizeX; x++) {
+          for (var z = 0; z < ChunkSize.sizeZ; z++) {
+            expect(c[ChunkSize.index(x, 59, z)], _ids['grass']);
+            for (var y = 60; y < ChunkSize.sizeY; y++) {
+              expect(c[ChunkSize.index(x, y, z)], 0, reason: 'open sky over ($x, $z)');
+            }
+            for (var y = 1; y < 59; y++) {
+              expect(c[ChunkSize.index(x, y, z)], isNot(0), reason: 'no cave under ($x, $y, $z)');
+            }
+          }
+        }
+      }
+    });
+
+    test('eases back to the ground\'s own height over its blend, the world unchanged past it', () {
+      var eased = 0;
+      for (var d = 1; d < plaza.blend; d++) {
+        final h = flat.surfaceHeight(31 + d, 0), own = wild.surfaceHeight(31 + d, 0);
+        expect(h, inInclusiveRange(own < 60 ? own : 60, own < 60 ? 60 : own));
+        if (h != 60 && h != own) eased++;
+      }
+      expect(eased, greaterThan(0));
+      expect(flat.surfaceHeight(32 + plaza.blend, 0), wild.surfaceHeight(32 + plaza.blend, 0));
+      expect(flat.generateIn(30, -30, 0), wild.generateIn(30, -30, 0));
+    });
+
+    test('keeps every structure\'s site out of its clearing', () {
+      var huts = 0;
+      for (var cx = -12; cx <= 12; cx++) {
+        for (var cz = -12; cz <= 12; cz++) {
+          for (final s in flat.structuresNear(cx, cz)) {
+            huts++;
+            expect(plaza.contains(s.x, s.z, plaza.structureClearing), isFalse, reason: 'a hut at (${s.x}, ${s.z})');
+          }
+        }
+      }
+      expect(huts, greaterThan(0));
+      final near = {
+        for (var cx = -6; cx <= 6; cx++)
+          for (var cz = -6; cz <= 6; cz++) ...wild.structuresNear(cx, cz),
+      };
+      expect(near.where((s) => plaza.contains(s.x, s.z, plaza.structureClearing)), isNotEmpty);
+    });
+
+    test('is refused in a cavern or in a biome the land has not', () {
+      expect(() => _cavern.withPlaza(plaza).compile(_ids, 1), throwsArgumentError);
+      expect(
+        () => _world
+            .withPlaza(const Plaza(minX: 0, minZ: 0, maxX: 8, maxZ: 8, height: 60, biome: 'beach'))
+            .compile(_ids, 1),
+        throwsA(isA<ArgumentError>().having((e) => e.invalidValue, 'biome', 'beach')),
+      );
+    });
+  });
+
   test('a world of dimensions hands each chunk to its dimension\'s generator', () {
     final g = DimensionGenerator(const [_world, _cavern], _ids, 7);
     expect(g.seed, 7);

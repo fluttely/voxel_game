@@ -318,7 +318,7 @@ abstract class GameSession extends GameSystem {
   /// The extras of a pose a peer sent as [o] (null for none).
   static Map<String, Object?> _extras(Object? o) => o == null ? const {} : o as Map<String, Object?>;
 
-  /// The options of a pose a peer sent as [o] (null for none).
+  /// The options of a pose or a hello a peer sent as [o] (null for none).
   static Map<String, String> _options(Object? o) =>
       o == null ? const {} : (o as Map<String, Object?>).map((k, v) => MapEntry(k, v! as String));
 
@@ -551,6 +551,7 @@ class HostSession extends GameSession {
       'peer': peer.id,
       'seed': game.world.generators.seed,
       'dimensions': game.spec.dimensionIds,
+      if (game.options.isNotEmpty) 'options': game.options,
       'edits': base64Encode(
         WorldSaves.codecFor(game.spec.dimensionIds.length).encode(game.world.generators.seed, game.world.edits),
       ),
@@ -1744,12 +1745,15 @@ class ClientSession extends GameSession {
 /// items on the ground where the host is, a `drops` message for
 /// [ClientSession], its [vehicles] the host's vehicles there, a `vehicles`
 /// message, and its [weather] the host's sky as it stands, a `weather`
-/// message (null where the spec declares none).
+/// message (null where the spec declares none). Its [options] are the host's
+/// game's (`VoxelGame.options`), which shape the world it generates
+/// (`VoxelGameSpec.worldFor`).
 Future<
   ({
     NetConnection connection,
     int peer,
     SavedWorld world,
+    Map<String, String> options,
     Vector3 spawn,
     NetMessage drops,
     NetMessage vehicles,
@@ -1767,6 +1771,7 @@ joinHost(String address, {int port = 7777}) async {
     connection: c,
     peer: (m['peer']! as num).toInt(),
     world: SavedWorld(seed, edits, {'time': m['time'], 'timeOfDay': m['tod']}, dimensions: dimensions),
+    options: GameSession._options(m['options']),
     spawn: _vec(m['spawn']),
     drops: m['drops']! as NetMessage,
     vehicles: m['vehicles']! as NetMessage,

@@ -73,6 +73,7 @@ class VoxelGameSpec {
     this.structureLoot = const {},
     this.messages = const {},
     this.playerFor,
+    this.worldFor,
   });
 
   /// The blocks, air first or added; their order is the save contract.
@@ -235,6 +236,20 @@ class VoxelGameSpec {
   /// The player a game with [options] plays: [playerFor]'s, else [player].
   PlayerSpec playerWith(Map<String, String> options) => playerFor?.call(player, options) ?? player;
 
+  /// The main dimension's generation as a world's options make it
+  /// (`VoxelGame.options`, `WorldOption`): a showroom's plaza pressed into
+  /// it, say, given [world] and the options. Null generates [world] in
+  /// every world. A client generates the world its host's options make.
+  ///
+  /// ```dart
+  /// worldFor: (world, options) => options['kind'] == 'showroom' ? world.withPlaza(plaza) : world,
+  /// ```
+  final WorldGenSpec Function(WorldGenSpec world, Map<String, String> options)? worldFor;
+
+  /// The main dimension a game with [options] generates: [worldFor]'s, else
+  /// [world].
+  WorldGenSpec worldWith(Map<String, String> options) => worldFor?.call(world, options) ?? world;
+
   /// This game with the given fields replaced: the same world at another
   /// render distance, say, or with a system of a test's.
   ///
@@ -272,6 +287,7 @@ class VoxelGameSpec {
     Map<String, StructureLoot>? structureLoot,
     Map<String, MessageHandler>? messages,
     ValueGetter<PlayerSpec Function(PlayerSpec player, Map<String, String> options)?>? playerFor,
+    ValueGetter<WorldGenSpec Function(WorldGenSpec world, Map<String, String> options)?>? worldFor,
   }) => VoxelGameSpec(
     blocks: blocks ?? this.blocks,
     world: world ?? this.world,
@@ -303,6 +319,7 @@ class VoxelGameSpec {
     structureLoot: structureLoot ?? this.structureLoot,
     messages: messages ?? this.messages,
     playerFor: playerFor == null ? this.playerFor : playerFor(),
+    worldFor: worldFor == null ? this.worldFor : worldFor(),
   );
 
   /// The block registry: [blocks] with air first.

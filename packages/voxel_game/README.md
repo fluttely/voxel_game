@@ -147,7 +147,9 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
   save from before it still loads. A game's own per-world choices (a class, a playground)
   are `TitleSpec.worldOptions`, picked in the new-world form (and in the join form, for
   one marked `join`) and read by a system as `game.options['class']`; the player they make
-  is `VoxelGameSpec.playerFor`'s, which every other side draws too.
+  is `VoxelGameSpec.playerFor`'s, which every other side draws too, and the world they
+  generate `VoxelGameSpec.worldFor`'s (a showroom's flat `Plaza`, say), which a client
+  joining generates too.
 - The bag (`InventoryScreen`): a click or a tap picks a stack up or puts it down, a
   right-click or a long press takes half or leaves one; the held stack follows the pointer
   (above a finger), a tooltip reads the item's row (tool and tier, damage, uses left, food,

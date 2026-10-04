@@ -1532,6 +1532,28 @@ void main() {
     await _close(session, [a, b]);
   });
 
+  test("a client generates the world its host's options make", () async {
+    const plaza = Plaza(minX: -8, minZ: -8, maxX: 8, maxZ: 8, height: 26, biome: 'plains');
+    final spec = _spec.copyWith(
+      worldFor: () =>
+          (world, options) => options['kind'] == 'showroom' ? world.withPlaza(plaza) : world,
+    );
+    final host = await VoxelGame.startHeadless(
+      spec.copyWith(world: spec.worldWith(const {'kind': 'showroom'})),
+      options: const {'kind': 'showroom'},
+    );
+    host.spawner.enabled = false;
+    await _run([host], 1.0);
+    final session = await host.host(port: 0);
+    final client = await VoxelGame.joinGame(spec, '127.0.0.1', port: session.net.port, headless: true);
+    await _run([host, client], 1.0);
+    expect(host.world.generator.surfaceHeight(0, 0), 26);
+    expect(client.world.generator.surfaceHeight(0, 0), 26, reason: "the host's plaza, not the declared flat");
+    expect(client.world.generator.surfaceHeight(40, 0), 20);
+    expect(client.options, isEmpty, reason: "the host's options shape the world, not the client's game");
+    await _close(session, [client]);
+  });
+
   test("a hurt the host deals a client's player leaves its effect there, and says what hurt it", () async {
     final spec = _spec.copyWith(
       effects: const [EffectType('poison', 'Poison', 0.3, 0.6, 0.2, period: 1.0, damage: 1.0, bad: true)],

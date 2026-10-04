@@ -21,6 +21,8 @@ import 'structure.dart';
 /// ```
 ///
 /// A world with a [cavern] has a roof: the underworld a portal leads to.
+/// A world with a [plaza] has a square of it pressed flat: a showroom's
+/// floor.
 ///
 /// A spec is plain data plus pure callbacks, so it crosses to the worker
 /// isolates: build the generator factory as `() => spec.compile(ids, seed)`
@@ -48,6 +50,7 @@ class WorldGenSpec {
     this.caves = const CaveSpec(),
     this.structures = const [],
     this.cavern,
+    this.plaza,
   });
 
   /// Land biomes, tried in order; at least one.
@@ -105,6 +108,29 @@ class WorldGenSpec {
   /// The roof and floor of a world that is one great cave, or null for open
   /// sky over [terrain].
   final CavernSpec? cavern;
+
+  /// A square of open-sky ground pressed flat, or null for none.
+  final Plaza? plaza;
+
+  /// This world with [plaza] pressed into it (none when null): the same
+  /// world as a showroom.
+  WorldGenSpec withPlaza(Plaza? plaza) => WorldGenSpec(
+    biomes: biomes,
+    seaLevel: seaLevel,
+    terrain: terrain,
+    stone: stone,
+    water: water,
+    bedrock: bedrock,
+    ocean: ocean,
+    beach: beach,
+    shores: shores,
+    strata: strata,
+    ores: ores,
+    caves: caves,
+    structures: structures,
+    cavern: cavern,
+    plaza: plaza,
+  );
 
   /// Every block name the spec uses, so a game can check its table has them.
   Set<String> get blockNames => {
@@ -215,6 +241,69 @@ class CavernSpec {
   /// What hangs from the ceilings above the sea, one roll per ceiling, tried
   /// in order: a [Plant]'s height is how far it hangs down.
   final List<Plant> hangs;
+}
+
+/// A square of open-sky ground pressed flat: columns x in [minX, maxX) and z
+/// in [minZ, maxZ) stand at [height] (the first air cell, as
+/// `SpecGenerator.surfaceHeight` answers), wear the land biome named [biome]
+/// and carve no caves; the ground outside eases back to its own height over
+/// [blend] blocks. No tree, plant or cave comes within [clearing] blocks of
+/// it, and no structure's site within [structureClearing] (a structure
+/// reaches out from its site). The spec throws for one in a cavern or one
+/// naming a biome that is not among its land biomes.
+///
+/// ```dart
+/// plaza: Plaza(minX: -64, minZ: -64, maxX: 80, maxZ: 80, height: 64, biome: 'plains'),
+/// ```
+class Plaza {
+  /// The square from ([minX], [minZ]) to ([maxX], [maxZ]), the far edges
+  /// left out, at [height] in [biome].
+  const Plaza({
+    required this.minX,
+    required this.minZ,
+    required this.maxX,
+    required this.maxZ,
+    required this.height,
+    required this.biome,
+    this.blend = 16,
+    this.clearing = 8,
+    this.structureClearing = 48,
+  }) : assert(maxX > minX && maxZ > minZ, 'a plaza has room'),
+       assert(blend > 0 && clearing >= 0 && structureClearing >= 0, 'a plaza\'s margins are not negative');
+
+  /// The west and north edges, in.
+  final int minX, minZ;
+
+  /// The east and south edges, out.
+  final int maxX, maxZ;
+
+  /// The first air cell over its ground.
+  final int height;
+
+  /// The land biome it wears.
+  final String biome;
+
+  /// Blocks over which the ground outside eases back to its own height.
+  final int blend;
+
+  /// Blocks around it no tree, plant or cave comes within.
+  final int clearing;
+
+  /// Blocks around it no structure's site comes within.
+  final int structureClearing;
+
+  /// Blocks from column ([x], [z]) to the square: 0 inside, else the
+  /// farther of the two axes' gaps.
+  int distanceTo(int x, int z) {
+    final dx = x < minX ? minX - x : (x >= maxX ? x - maxX + 1 : 0);
+    final dz = z < minZ ? minZ - z : (z >= maxZ ? z - maxZ + 1 : 0);
+    return dx > dz ? dx : dz;
+  }
+
+  /// Whether column ([x], [z]) is within [margin] blocks of the square (in
+  /// it for 0).
+  bool contains(int x, int z, [int margin = 0]) =>
+      x >= minX - margin && x < maxX + margin && z >= minZ - margin && z < maxZ + margin;
 }
 
 /// A window of climate a biome claims. Temperature and humidity are noise in

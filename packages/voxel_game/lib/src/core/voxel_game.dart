@@ -547,7 +547,8 @@ class VoxelGame {
     return s;
   }
 
-  /// Joins the game hosted at [address]:[port]: its world, its players, its
+  /// Joins the game hosted at [address]:[port]: its world (generated as the
+  /// host's options make it, `VoxelGameSpec.worldWith`), its players, its
   /// mobs, seen with this player's [settings], played with the [options]
   /// picked in the join form (its player `VoxelGameSpec.playerWith` them).
   /// [headless] for a test or a bot.
@@ -560,7 +561,7 @@ class VoxelGame {
     bool headless = false,
   }) async {
     final hello = await joinHost(address, port: port);
-    final played = spec.copyWith(player: spec.playerWith(options));
+    final played = spec.copyWith(player: spec.playerWith(options), world: spec.worldWith(hello.options));
     final game = headless
         ? await startHeadless(played, save: hello.world, authority: false, options: options)
         : await start(played, save: hello.world, settings: settings, authority: false, options: options);

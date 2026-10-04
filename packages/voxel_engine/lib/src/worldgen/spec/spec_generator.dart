@@ -63,6 +63,13 @@ class SpecGenerator implements ChunkGenerator {
       if (b.flats != null) throw ArgumentError.value(b.name, 'flats', 'only a land biome presses its ground flat');
     }
     _land = [for (final b in spec.biomes) _compileBiome(b)];
+    final plaza = spec.plaza;
+    if (plaza != null) {
+      if (cavern != null) throw ArgumentError.value(plaza, 'plaza', 'a cavern has no ground to press flat');
+      final i = spec.biomes.indexWhere((b) => b.name == plaza.biome);
+      if (i < 0) throw ArgumentError.value(plaza.biome, 'plaza', 'not one of the land biomes');
+      _plazaBiome = _land[i];
+    }
     _flats = [
       for (final b in _land)
         if (b.spec.flats != null) b,
@@ -132,6 +139,9 @@ class SpecGenerator implements ChunkGenerator {
 
   /// The land biomes that press their ground flat, in order.
   late final List<_Biome> _flats;
+
+  /// The biome the plaza wears (`WorldGenSpec.plaza`).
+  late final _Biome _plazaBiome;
   late final _Biome? _ocean, _beach;
   late final OreTable _ores;
   late final Set<int> _soft;
@@ -193,6 +203,17 @@ class SpecGenerator implements ChunkGenerator {
   /// just above the sea when the column has none.
   int surfaceHeight(int x, int z) {
     if (spec.cavern != null) return _cavernFloor(_cavernColumn(x, z, List<bool>.filled(ChunkSize.sizeY, false)));
+    final plaza = spec.plaza;
+    if (plaza == null) return _groundHeight(x, z);
+    final d = plaza.distanceTo(x, z);
+    if (d == 0) return plaza.height;
+    if (d >= plaza.blend) return _groundHeight(x, z);
+    final ease = smoothstep(0.0, plaza.blend.toDouble(), d.toDouble());
+    return lerpd(plaza.height.toDouble(), _groundHeight(x, z).toDouble(), ease).round();
+  }
+
+  /// The surface height of open-sky column ([x], [z]) with no plaza.
+  int _groundHeight(int x, int z) {
     final t = spec.terrain;
     final flat = t.flatHeight;
     if (flat != null) return flat;
@@ -230,6 +251,7 @@ class SpecGenerator implements ChunkGenerator {
   }
 
   _Biome _biomeFor(int x, int z, int h) {
+    if (spec.plaza?.contains(x, z) ?? false) return _plazaBiome;
     final sea = spec.seaLevel;
     if (h < sea - 2 && _ocean != null) return _ocean;
     final shore = h <= sea + 1;
@@ -253,7 +275,15 @@ class SpecGenerator implements ChunkGenerator {
   Biome biomeAt(int x, int z) => _biomeFor(x, z, surfaceHeight(x, z)).spec;
 
   /// Whether the rock at ([x], [y], [z]) is carved into a cave.
-  bool isCave(int x, int y, int z) => spec.caves.enabled && _caves.carved(x, y, z, surfaceHeight(x, z));
+  bool isCave(int x, int y, int z) => spec.caves.enabled && _carved(x, y, z, surfaceHeight(x, z));
+
+  /// The cave noise's say on ([x], [y], [z]) under surface [h], none near the
+  /// plaza.
+  bool _carved(int x, int y, int z, int h) {
+    final plaza = spec.plaza;
+    if (plaza != null && plaza.contains(x, z, plaza.clearing)) return false;
+    return _caves.carved(x, y, z, h);
+  }
 
   /// The structure of the spec named [name]; throws [ArgumentError] for none.
   StructureSpec structureNamed(String name) =>
@@ -301,6 +331,8 @@ class SpecGenerator implements ChunkGenerator {
     final margin = s.structure.radius + 1;
     final sx = rx * span + margin + h % (span - 2 * margin);
     final sz = rz * span + margin + (h >> 8) % (span - 2 * margin);
+    final plaza = spec.plaza;
+    if (plaza != null && plaza.contains(sx, sz, plaza.structureClearing)) return null;
     final surface = surfaceHeight(sx, sz);
     if (surface <= spec.seaLevel + 1) return null;
     final allowed = s.biomes;
@@ -469,7 +501,7 @@ class SpecGenerator implements ChunkGenerator {
               id != biome.ice &&
               y > 1 &&
               spec.caves.enabled &&
-              _caves.carved(wx, y, wz, h)) {
+              _carved(wx, y, wz, h)) {
             id = y <= spec.caves.lavaBelowY ? _lava : 0;
           }
           if (id != 0) blocks[ChunkSize.index(x, y, z)] = id;
@@ -502,11 +534,11 @@ class SpecGenerator implements ChunkGenerator {
     if (h <= spec.seaLevel) return false;
     if (pools.noise.getNoise2(wx.toDouble(), wz.toDouble()) <= pools.spec.threshold) return false;
     final caves = spec.caves.enabled;
-    if (caves && _caves.carved(wx, h - 2, wz, h)) return false;
+    if (caves && _carved(wx, h - 2, wz, h)) return false;
     for (final (dx, dz) in _sides) {
       final nh = columns.height(wx + dx, wz + dz);
       if (nh < h) return false;
-      if (caves && _caves.carved(wx + dx, h - 1, wz + dz, nh)) return false;
+      if (caves && _carved(wx + dx, h - 1, wz + dz, nh)) return false;
     }
     return true;
   }
@@ -528,18 +560,20 @@ class SpecGenerator implements ChunkGenerator {
   /// away to air: what `_surface` does to it, asked of the position alone.
   bool _groundGone(int wx, int h, int wz) {
     final y = h - 1;
-    if (y <= 1 || !spec.caves.enabled || !_caves.carved(wx, y, wz, h)) return false;
+    if (y <= 1 || !spec.caves.enabled || !_carved(wx, y, wz, h)) return false;
     return y > spec.caves.lavaBelowY || _lava == 0;
   }
 
   void _decorate(ChunkWriter w, _Columns columns, List<PlacedStructure> near) {
     final sea = spec.seaLevel;
+    final plaza = spec.plaza;
     for (var z = -_treeReach; z < ChunkSize.sizeZ + _treeReach; z++) {
       for (var x = -_treeReach; x < ChunkSize.sizeX + _treeReach; x++) {
         final inside = x >= 0 && x < ChunkSize.sizeX && z >= 0 && z < ChunkSize.sizeZ;
         // A plant that spreads may reach in from the ring just outside.
         final plants = inside || (_spreads && x >= -1 && x <= ChunkSize.sizeX && z >= -1 && z <= ChunkSize.sizeZ);
         final wx = w.ox + x, wz = w.oz + z;
+        if (plaza != null && plaza.contains(wx, wz, plaza.clearing)) continue; // nothing grows near the plaza
         final patch = _treeGrid.spotOf(seed, wx, wz);
         final tree = patch.x == wx && patch.z == wz;
         if (!plants && !tree) continue;
@@ -551,7 +585,7 @@ class SpecGenerator implements ChunkGenerator {
             biome.trees.isNotEmpty &&
             patch.hash % 100 < biome.spec.treeChance &&
             !pool &&
-            !(spec.caves.enabled && _caves.carved(wx, h - 1, wz, h)) &&
+            !(spec.caves.enabled && _carved(wx, h - 1, wz, h)) &&
             !_nearStructure(near, wx, wz)) {
           final t = _pickTree(biome, patch.hash >> 20);
           final below = t.spec.belowY;

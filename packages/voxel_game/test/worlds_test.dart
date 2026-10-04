@@ -232,6 +232,19 @@ void main() {
     expect(_spec.playerWith(const {'class': 'mage'}), same(_spec.player), reason: 'no playerFor: the player');
   });
 
+  test('a world\'s options shape its main dimension, and only theirs', () {
+    const plaza = Plaza(minX: -8, minZ: -8, maxX: 8, maxZ: 8, height: 40, biome: 'plains');
+    final spec = _spec.copyWith(
+      worldFor: () =>
+          (world, options) => options['kind'] == 'showroom' ? world.withPlaza(plaza) : world,
+    );
+    const showroom = WorldInfo(slot: 's', name: 'S', seed: 1, saved: false, options: {'kind': 'showroom'});
+    expect(showroom.applyTo(spec).world.plaza, same(plaza));
+    expect(showroom.applyTo(spec).dimensions, same(spec.dimensions));
+    expect(const WorldInfo(slot: 's', name: 'S', seed: 1, saved: false).applyTo(spec).world, same(spec.world));
+    expect(_spec.worldWith(const {'kind': 'showroom'}), same(_spec.world), reason: 'no worldFor: the world');
+  });
+
   test('the world list says how long and when', () {
     expect(WorldList.playTimeLabel(const Duration(seconds: 45)), '45 s');
     expect(WorldList.playTimeLabel(const Duration(minutes: 12, seconds: 5)), '12 min');
