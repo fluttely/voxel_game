@@ -56,7 +56,10 @@ const _spec = VoxelGameSpec(
     ),
   },
   portals: [_portal],
-  mobs: [MobSpec('dummy', hp: 10, brain: [])],
+  mobs: [
+    MobSpec('dummy', hp: 10, brain: []),
+    MobSpec('keeper', hp: 10, brain: [], persistent: true),
+  ],
   seed: 7,
   sky: SkySpec.alwaysDay,
 );
@@ -166,30 +169,69 @@ void main() {
   });
 
   group('travel', () {
-    test('takes the player to another dimension, standing at its column, and leaves the creatures behind', () async {
-      final heard = Heard();
-      final game = await _start(spec: _spec.copyWith(systems: () => [heard]));
+    test(
+      'takes the player to another dimension, standing at its column, and leaves the wild creatures behind',
+      () async {
+        final heard = Heard();
+        final game = await _start(spec: _spec.copyWith(systems: () => [heard]));
+        final at = game.player.position.clone();
+        game.spawnMob('dummy', at + Vector3(0, 0, -5));
+        await _run(game, 0.1);
+        expect(game.mobs, hasLength(1));
+        game.travel('nether');
+        expect(game.travelState, isA<Arriving>());
+        expect(game.ready, isFalse, reason: 'off the ground until the world is loaded');
+        expect(game.mobs, isEmpty);
+        expect(game.dimension, 'nether');
+        expect(game.world.dimension, 1);
+        await _arrive(game);
+        final trip = heard.events.whereType<Travelled>().single;
+        expect((trip.from, trip.to, trip.through), ('world', 'nether', null));
+        expect(game.player.position.x, at.x);
+        expect(game.player.position.z, at.z);
+        expect(game.player.position.y, closeTo(40.0, 0.01), reason: 'on the nether\'s ground');
+        expect(game.world.blockNameAt(IVec3.floor(game.player.position) + IVec3.down), 'netherrack');
+        await _run(game, 1.0);
+        expect(game.player.position.y, closeTo(40.0, 0.01), reason: 'it stands, it does not fall');
+        expect(() => game.travel('nether'), throwsArgumentError);
+        expect(() => game.travel('moon'), throwsArgumentError);
+      },
+    );
+
+    test('parks the tamed and persistent creatures, home and data, and puts them back on the way back', () async {
+      final game = await _start();
       final at = game.player.position.clone();
-      game.spawnMob('dummy', at + Vector3(0, 0, -5));
-      await _run(game, 0.1);
-      expect(game.mobs, hasLength(1));
+      final pet = game.spawnMob('dummy', at + Vector3(2, 0, -4))
+        ..tame(game.player)
+        ..facing = 0.5
+        ..hp = 6;
+      final keeper = game.spawnMob('keeper', at + Vector3(-3, 0, 4))..home = at + Vector3(-1, 0, 1);
+      keeper.data['offers'] = [
+        ['flint', 1],
+      ];
+      game.spawnMob('dummy', at + Vector3(0, 0, 6));
       game.travel('nether');
-      expect(game.travelState, isA<Arriving>());
-      expect(game.ready, isFalse, reason: 'off the ground until the world is loaded');
       expect(game.mobs, isEmpty);
-      expect(game.dimension, 'nether');
-      expect(game.world.dimension, 1);
+      expect(game.parkedMobs['world'], hasLength(2), reason: 'the wild one is gone for good');
       await _arrive(game);
-      final trip = heard.events.whereType<Travelled>().single;
-      expect((trip.from, trip.to, trip.through), ('world', 'nether', null));
-      expect(game.player.position.x, at.x);
-      expect(game.player.position.z, at.z);
-      expect(game.player.position.y, closeTo(40.0, 0.01), reason: 'on the nether\'s ground');
-      expect(game.world.blockNameAt(IVec3.floor(game.player.position) + IVec3.down), 'netherrack');
-      await _run(game, 1.0);
-      expect(game.player.position.y, closeTo(40.0, 0.01), reason: 'it stands, it does not fall');
-      expect(() => game.travel('nether'), throwsArgumentError);
-      expect(() => game.travel('moon'), throwsArgumentError);
+      expect(game.mobRows.keys, ['world', 'nether']);
+      expect(game.mobRows['nether'], isEmpty);
+      game.travel('world');
+      expect(game.parkedMobs, isEmpty);
+      expect(game.mobs.map((m) => m.spec.id), ['dummy', 'keeper']);
+      final [back, kept] = game.mobs;
+      expect(back.tamed, isTrue);
+      expect(back.owner, same(game.player));
+      expect(back.position, pet.position);
+      expect(back.facing, 0.5);
+      expect(back.hp, 6.0);
+      expect(kept.position, keeper.position);
+      expect(kept.home, keeper.home);
+      expect(kept.data, {
+        'offers': [
+          ['flint', 1],
+        ],
+      });
     });
 
     test('keeps each dimension\'s edits for when it comes back', () async {
@@ -377,6 +419,29 @@ void main() {
       loaded.travel('world');
       await _arrive(loaded);
       expect(loaded.world.blockNameAt(cell), 'planks');
+    });
+
+    test('keeps the creatures parked in another dimension, and they come back on a trip', () async {
+      final (saves, dir) = newSaves();
+      final game = await _start();
+      final keeper = game.spawnMob('keeper', game.player.position + Vector3(3, 0, 3));
+      keeper.data['name'] = 'Ada';
+      game.travel('nether');
+      await _arrive(game);
+      game.spawnMob('keeper', game.player.position + Vector3(-3, 0, 2));
+      saves.save(game, 'parked');
+      final json = jsonDecode(File('${dir.path}/parked/game.json').readAsStringSync()) as Map<String, Object?>;
+      final mobs = json['mobs']! as Map<String, Object?>;
+      expect((mobs['world']! as List<Object?>).length, 1);
+      expect((mobs['nether']! as List<Object?>).length, 1);
+
+      final loaded = await _start(save: saves.read('parked'));
+      expect(loaded.mobs.single.spec.id, 'keeper', reason: 'the nether\'s, where the player is');
+      expect(loaded.parkedMobs['world'], hasLength(1));
+      loaded.travel('world');
+      expect(loaded.mobs.single.position, keeper.position);
+      expect(loaded.mobs.single.data, {'name': 'Ada'});
+      expect(loaded.parkedMobs['nether'], hasLength(1));
     });
 
     test('a version 4 save, of the main world alone, still loads', () async {

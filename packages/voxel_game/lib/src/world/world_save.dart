@@ -48,9 +48,10 @@ class SavedWorld {
 /// `world.json` (what the world list shows: `WorldInfo`), `edits.bin` (the
 /// edited cells of every dimension, `EditDeltaCodec`) and `game.json` (the
 /// clock, the dimensions in the order `edits.bin` holds them, the crops
-/// growing and what the stores hold in each, the creatures kept in the
-/// dimension the player is in — the tamed, owned by the player, and the
-/// `MobSpec.persistent` — the vehicles of every dimension, where each was
+/// growing and what the stores hold in each, the creatures kept in every
+/// dimension (`Mob.kept`: the tamed, owned by the player, and the
+/// `MobSpec.persistent`, each with its home and its game's `Mob.data`,
+/// `VoxelGame.mobRows`), the vehicles of every dimension, where each was
 /// left (`VoxelGame.vehicleRows`), and the player: in which dimension, where,
 /// looking where, health, hunger, experience, the effects on them, the bag,
 /// what they wear, the spawn point, and the game's own state: each
@@ -62,7 +63,7 @@ class SavedWorld {
 /// from them (its name is its slot, it plays as the game declares, when it
 /// was made is not known) until its next [save] or [rename] writes one.
 ///
-/// `game.json` is version 8. Older saves still load, each a branch on its
+/// `game.json` is version 9. Older saves still load, each a branch on its
 /// version: a version 1 save, from before the player had hunger, experience,
 /// effects and armour, stands its player up fed, at level 0, wearing nothing;
 /// a save before version 3 has no crops growing, and one before version 4
@@ -71,7 +72,8 @@ class SavedWorld {
 /// its player in it, and its `edits.bin` of version 1, one dimension; a save
 /// before version 6 keeps no creature, one before version 7 no vehicle, and
 /// one before version 8 nothing of the game's own (its systems start as
-/// made).
+/// made); a save before version 9 keeps creatures only where the player
+/// is, each at home where it stands, with no game's data.
 class WorldSaves {
   /// Saves under [directory]; [clock] says when a world is made and played.
   WorldSaves(this.directory, {this.clock = DateTime.now});
@@ -83,7 +85,7 @@ class WorldSaves {
   final DateTime Function() clock;
 
   /// The version of `game.json` [save] writes.
-  static const stateVersion = 8;
+  static const stateVersion = 9;
 
   /// The edit file's layout for a game of [dimensions]: magic `VXK1`,
   /// version 2, every dimension; a version 1 file, of one dimension, still
@@ -243,24 +245,7 @@ class WorldSaves {
             for (final e in rules.storesIn(i).entries) [e.key.x, e.key.y, e.key.z, e.value.toJson()],
           ],
       },
-      // Creatures live only in the dimension the player is in (a trip leaves
-      // them behind), so that is the one that has any.
-      'mobs': {
-        game.dimension: [
-          for (final m in game.mobs)
-            if (!m.isDead && !m.removed && !m.replica && (m.tamed || m.spec.persistent))
-              {
-                'id': m.spec.id,
-                'pos': [m.position.x, m.position.y, m.position.z],
-                'yaw': m.facing,
-                'hp': m.hp,
-                'level': m.level,
-                'tamed': m.tamed,
-                // Only a shorn one says how long its fleece has to grow.
-                if (m.shorn) 'shorn': m.shornLeft,
-              },
-        ],
-      },
+      'mobs': game.mobRows,
       'vehicles': game.vehicleRows,
       'player': {
         'dimension': game.dimension,
@@ -361,7 +346,7 @@ class WorldSaves {
         game.blockRules.restoreStores(stores, dimension: SavedWorld._indexIn(ids, k.key));
       }
     }
-    if (version >= 6) _restoreMobs(game, s['mobs']! as Map<String, Object?>, v);
+    if (version >= 6) _restoreMobs(game, s['mobs']! as Map<String, Object?>, version);
     if (version >= 7) {
       for (final e in (s['vehicles']! as Map<String, Object?>).entries) {
         game.restoreVehicles(e.key, [for (final r in e.value! as List<Object?>) r! as Map<String, Object?>]);
@@ -379,21 +364,14 @@ class WorldSaves {
     }
   }
 
-  static void _restoreMobs(VoxelGame game, Map<String, Object?> byDimension, Vector3 Function(Object?) v) {
+  // Before version 9 a creature kept no home (it wandered about where it was
+  // loaded) and no game's data, and only the player's dimension had any.
+  static void _restoreMobs(VoxelGame game, Map<String, Object?> byDimension, int version) {
     for (final e in byDimension.entries) {
-      final list = e.value! as List<Object?>;
-      if (SavedWorld._indexIn(game.spec.dimensionIds, e.key) != game.world.dimension && list.isNotEmpty) {
-        throw StateError('the save keeps creatures in ${e.key}, where the player is not');
-      }
-      for (final o in list) {
-        final m = o! as Map<String, Object?>;
-        final mob = game.spawnMob(m['id']! as String, v(m['pos']))..facing = (m['yaw']! as num).toDouble();
-        final level = (m['level']! as num).toInt();
-        if (level != 1) mob.growTo(level);
-        mob.hp = (m['hp']! as num).toDouble();
-        if (m['tamed']! as bool) mob.tame(game.player);
-        if (m['shorn'] case final num left) mob.shornLeft = left.toDouble();
-      }
+      game.restoreMobs(e.key, [
+        for (final row in (e.value! as List<Object?>).cast<Map<String, Object?>>())
+          version >= 9 ? row : {...row, 'home': row['pos'], 'data': <String, Object?>{}},
+      ]);
     }
   }
 

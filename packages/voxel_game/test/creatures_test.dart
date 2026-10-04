@@ -461,7 +461,10 @@ void main() {
         ..tame(p)
         ..facing = 1.25;
       dog.hp = 7.5;
-      final stays = game.spawnMob('keeper', p.position + Vector3(-4, 0, 2))..hp = 5;
+      final stays = game.spawnMob('keeper', p.position + Vector3(-4, 0, 2))
+        ..hp = 5
+        ..home = p.position + Vector3(-6, 0, 2);
+      stays.data['mood'] = {'calm': true, 'days': 3};
       game.spawnMob('pig', p.position + Vector3(0, 0, 5));
       game.spawnMob('pet', p.position + Vector3(0, 0, -5));
       saves.save(game, 'pets');
@@ -482,6 +485,33 @@ void main() {
       expect(kept.position, stays.position);
       expect(kept.hp, 5.0);
       expect(kept.tamed, isFalse);
+      expect(kept.home, stays.home);
+      expect(kept.data, {
+        'mood': {'calm': true, 'days': 3},
+      });
+      expect(back.data, isEmpty);
+    });
+
+    test('a version 8 save, which kept no home and no data, still loads', () async {
+      final (saves, dir) = newSaves();
+      final game = await _start(spec);
+      final stays = game.spawnMob('keeper', game.player.position + Vector3(-4, 0, 2))
+        ..home = game.player.position + Vector3(9, 0, 9);
+      saves.save(game, 'old');
+      final file = File('${dir.path}/old/game.json');
+      final s = jsonDecode(file.readAsStringSync()) as Map<String, Object?>;
+      s['version'] = 8;
+      for (final row
+          in ((s['mobs']! as Map<String, Object?>)['world']! as List<Object?>).cast<Map<String, Object?>>()) {
+        row
+          ..remove('home')
+          ..remove('data');
+      }
+      file.writeAsStringSync(jsonEncode(s));
+
+      final loaded = await VoxelGame.startHeadless(spec, save: saves.read('old'));
+      expect(loaded.mobs.single.home, stays.position, reason: 'at home where it stands');
+      expect(loaded.mobs.single.data, isEmpty);
     });
 
     test('a version 5 save, which kept no creature, still loads', () async {

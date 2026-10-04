@@ -197,7 +197,7 @@ void main() {
       game.player.kill();
       saves.save(game, 'kept');
       final json = jsonDecode(File('${dir.path}/kept/game.json').readAsStringSync()) as Map<String, Object?>;
-      expect(json['version'], 8);
+      expect(json['version'], WorldSaves.stateVersion);
       expect(json['game'], {
         'tally': {'broken': 5},
       });

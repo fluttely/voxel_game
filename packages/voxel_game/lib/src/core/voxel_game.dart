@@ -374,11 +374,13 @@ class VoxelGame {
   /// Takes the player to [dimension]: to [at] exactly, or to the arrival of
   /// its present column there (`GameWorld.arrivalAt`), with a return portal
   /// when it went [through] a portal and none is near. The player gets off
-  /// what it rides first. The creatures and the items of the dimension left
-  /// are left behind for good; its vehicles stay where they were left: parked
-  /// ([parkedVehicles]) and put back when the player comes back, a mount
-  /// ridden in being a creature and so left behind. A client's replicas of
-  /// the host's vehicles are not its own to park: the host sends them again. A store's screen shuts.
+  /// what it rides first. The items and the wild creatures of the dimension
+  /// left are left behind for good; its vehicles and the creatures the save
+  /// keeps (`Mob.kept`: the tamed, a mount ridden in among them, and the
+  /// `MobSpec.persistent`) stay where they were left: parked
+  /// ([parkedVehicles], [parkedMobs]) and put back when the player comes
+  /// back, a creature with its `Mob.data`. A client's replicas of the host's
+  /// are not its own to park: the host sends them again. A store's screen shuts.
   /// The player waits off the ground ([ready] false) until the world is
   /// loaded around it. Throws for the dimension the player is in, one the
   /// spec does not declare, and during another arrival.
@@ -389,7 +391,9 @@ class VoxelGame {
     if (_travel is Arriving) throw StateError('the player is arriving already');
     if (player.riding != null) player.dismount();
     final left = [for (final v in _ownVehicles) v.row];
-    if (left.isNotEmpty) _parked[this.dimension] = left;
+    if (left.isNotEmpty) _parkedVehicles[this.dimension] = left;
+    final kept = [for (final m in mobs.where((m) => m.kept)) m.row];
+    if (kept.isNotEmpty) _parkedMobs[this.dimension] = kept;
     for (final m in mobs) {
       m.removed = true;
     }
@@ -402,7 +406,8 @@ class VoxelGame {
     final x = (at?.x ?? from.x).floor(), z = (at?.z ?? from.z).floor();
     raise(Travelled(this.dimension, dimension, through: through));
     world.switchDimension(d);
-    restoreVehicles(dimension, _parked.remove(dimension) ?? const []);
+    restoreVehicles(dimension, _parkedVehicles.remove(dimension) ?? const []);
+    restoreMobs(dimension, _parkedMobs.remove(dimension) ?? const []);
     player.hold(at ?? Vector3(x + 0.5, world.generator.surfaceHeight(x, z).toDouble(), z + 0.5));
     _travel = Arriving(dimension, x, z, exactly: at?.clone(), portal: through);
   }
@@ -410,16 +415,66 @@ class VoxelGame {
   /// The vehicles left in the dimensions the player is not in, by dimension
   /// id: each one's save row (`Vehicle.row`), put back in the world when the
   /// player comes back ([travel]).
-  Map<String, List<Map<String, Object?>>> get parkedVehicles => Map.unmodifiable(_parked);
-  final Map<String, List<Map<String, Object?>>> _parked = {};
+  Map<String, List<Map<String, Object?>>> get parkedVehicles => Map.unmodifiable(_parkedVehicles);
+  final Map<String, List<Map<String, Object?>>> _parkedVehicles = {};
 
   /// Every vehicle's save row by dimension id: the vehicles in the world, in
   /// the player's dimension, and the parked ones of the others; a client's
   /// replicas of the host's are not among them.
   Map<String, List<Map<String, Object?>>> get vehicleRows => {
-    ..._parked,
+    ..._parkedVehicles,
     dimension: [for (final v in _ownVehicles) v.row],
   };
+
+  /// The kept creatures (`Mob.kept`) left in the dimensions the player is
+  /// not in, by dimension id: each one's save row (`Mob.row`), put back in
+  /// the world when the player comes back ([travel]).
+  Map<String, List<Map<String, Object?>>> get parkedMobs => Map.unmodifiable(_parkedMobs);
+  final Map<String, List<Map<String, Object?>>> _parkedMobs = {};
+
+  /// Every kept creature's save row (`Mob.row`) by dimension id: those in
+  /// the world, in the player's dimension, and the parked ones of the
+  /// others.
+  Map<String, List<Map<String, Object?>>> get mobRows => {
+    ..._parkedMobs,
+    dimension: [for (final m in mobs.where((m) => m.kept)) m.row],
+  };
+
+  /// Puts back [dimension]'s kept creatures from their save [rows]
+  /// (`Mob.row`, read back by [mobFrom]): in the world when the player is
+  /// there, else parked for when it comes. Throws for a dimension the spec
+  /// does not declare, and for a mob it does not.
+  void restoreMobs(String dimension, List<Map<String, Object?>> rows) {
+    if (!spec.dimensionIds.contains(dimension)) {
+      throw ArgumentError.value(dimension, 'dimension', 'the spec declares no such dimension');
+    }
+    if (dimension != this.dimension) {
+      if (rows.isNotEmpty) _parkedMobs[dimension] = [..._parkedMobs[dimension] ?? const [], ...rows];
+      return;
+    }
+    rows.forEach(mobFrom);
+  }
+
+  /// A creature made here from its [row] (`Mob.row`): what a load and a trip
+  /// back are made from. A tamed one is the player's. Throws for a mob the
+  /// spec does not declare.
+  Mob mobFrom(Map<String, Object?> row) {
+    Vector3 v(Object? o) {
+      final l = [for (final e in o! as List<Object?>) (e! as num).toDouble()];
+      return Vector3(l[0], l[1], l[2]);
+    }
+
+    final mob = spawnMob(row['id']! as String, v(row['pos']))
+      ..facing = (row['yaw']! as num).toDouble()
+      ..home = v(row['home']);
+    final level = (row['level']! as num).toInt();
+    if (level != 1) mob.growTo(level);
+    mob.hp = (row['hp']! as num).toDouble();
+    if (row['tamed']! as bool) mob.tame(player);
+    if (row['shorn'] case final num left) mob.shornLeft = left.toDouble();
+    mob.data.addAll(row['data']! as Map<String, Object?>);
+    return mob;
+  }
 
   Iterable<Vehicle> get _ownVehicles => vehicles.where((v) => !v.replica);
 
@@ -433,7 +488,7 @@ class VoxelGame {
       throw ArgumentError.value(dimension, 'dimension', 'the spec declares no such dimension');
     }
     if (dimension != this.dimension) {
-      if (rows.isNotEmpty) _parked[dimension] = [..._parked[dimension] ?? const [], ...rows];
+      if (rows.isNotEmpty) _parkedVehicles[dimension] = [..._parkedVehicles[dimension] ?? const [], ...rows];
       return;
     }
     rows.forEach(vehicleFrom);

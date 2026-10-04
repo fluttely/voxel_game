@@ -318,6 +318,33 @@ class Mob extends GameEntity implements Target, Rideable {
   @override
   bool get gone => _dead || removed;
 
+  /// A game's own state on it, which the kit never reads: JSON values
+  /// (maps, lists, strings, numbers, bools, null) under the game's keys,
+  /// kept with it in its [row], and so in the save and across a trip to
+  /// another dimension. A villager's offers, say.
+  final Map<String, Object?> data = {};
+
+  /// Whether the save and a trip keep it: alive, its own (not a replica),
+  /// and tamed or `MobSpec.persistent`.
+  bool get kept => !_dead && !removed && !replica && (tamed || spec.persistent);
+
+  /// What the save and a trip to another dimension keep of it, read back by
+  /// `VoxelGame.mobFrom`: its id, where it stands facing where, its health
+  /// and level, whether it is tamed, its [home], how long its fleece has to
+  /// grow when shorn, and the game's [data].
+  Map<String, Object?> get row => {
+    'id': spec.id,
+    'pos': [position.x, position.y, position.z],
+    'yaw': facing,
+    'hp': hp,
+    'level': level,
+    'tamed': tamed,
+    'home': [home.x, home.y, home.z],
+    // Only a shorn one says how long its fleece has to grow.
+    if (shorn) 'shorn': shornLeft,
+    'data': data,
+  };
+
   bool _snap = false;
 
   /// Tames it for [by]: it forgets its quarrels and thinks with

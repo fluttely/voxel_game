@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- **A trip keeps the creatures the save keeps (KL-021).** `VoxelGame.travel` parks the
+  tamed and `persistent` creatures of the dimension left (`Mob.kept`, new) and puts them
+  back when the player comes back, as it did the vehicles; only the wild ones are left
+  behind for good. `parkedMobs`, `mobRows`, `restoreMobs` and `mobFrom` (new) mirror the
+  vehicles' four; `Mob.row` (new) is what is kept of one.
+  - `Mob.data` (new): a game's own state on a creature, JSON values the kit never reads,
+    kept with it in the save and across a trip.
+  - `game.json` is version 9: the creatures of every dimension, each with its `home` and
+    its `data`. A version 6–8 save still loads, its creatures at home where they stand,
+    with no data.
 - **A creature that takes no harm (VA-Zl2).** `MobSpec.invulnerable` (new, off): a blow is
   felt (it flinches, cries and is shoved, `lastHurtBy` set) but takes no health, and
   neither a fire (`Mob.ignite`) nor the daylight burns it. A villager, say.
