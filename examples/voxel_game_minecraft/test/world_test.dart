@@ -26,7 +26,7 @@ const List<String> _savedOrder = [
   'piston_s_on', 'piston_w_on', 'rail_ns', 'rail_ew', 'rail_ne', 'rail_nw', 'rail_se', 'rail_sw', //
   'rail_slope_n', 'rail_slope_e', 'rail_slope_s', 'rail_slope_w', 'powered_rail_ns', 'powered_rail_ew', //
   'powered_rail_ns_on', 'powered_rail_ew_on', 'obsidian', 'portal', 'hellstone', 'soul_sand', 'glowstone', //
-  'nether_quartz_ore', 'nether_brick', 'fortress_core',
+  'nether_quartz_ore', 'nether_brick', 'fortress_core', 'sealed_core',
 ];
 
 void main() {

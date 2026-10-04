@@ -1,5 +1,7 @@
 import 'package:voxel_game/voxel_game.dart';
 
+import '../structures/fortress.dart';
+
 /// The world: biomes by climate, each with its ground, trees and plants; dark
 /// stone in the deep and ores veining it, from diamond near the bottom to coal
 /// all through; caves with lava at their floor; and the structures, each on a
@@ -137,9 +139,15 @@ const WorldGenSpec overworld = WorldGenSpec(
   structures: [
     StructureSpec('village', _village, chance: 0.18, biomes: ['plains', 'forest']),
     StructureSpec('temple', _temple, chance: 0.55, regionChunks: 4, biomes: ['desert']),
-    StructureSpec('dungeon', _dungeon, chance: 0.45),
+    StructureSpec('dungeon', dungeonStructure, chance: 0.45),
     StructureSpec('tower', _tower, chance: 0.3),
-    StructureSpec('mine', _mine, chance: 0.3, regionChunks: 5, biomes: ['mountain', 'snow', 'forest', 'plains']),
+    StructureSpec(
+      'mine',
+      mineStructure,
+      chance: 0.3,
+      regionChunks: 5,
+      biomes: ['mountain', 'snow', 'forest', 'plains'],
+    ),
     StructureSpec('ruins', _ruins, chance: 0.5, regionChunks: 4, biomes: ['plains', 'forest']),
     StructureSpec('well', _well, chance: 0.3, regionChunks: 4, biomes: ['plains']),
     StructureSpec('camp', _camp, chance: 0.07),
@@ -149,7 +157,8 @@ const WorldGenSpec overworld = WorldGenSpec(
 /// The underworld, a world of its own from the same seed: one great cave
 /// between a bedrock floor at 7 and roof at 100, a lava sea up to 28, soul
 /// sand in patches on its floors, glowstone hanging from its ceilings and
-/// quartz in its walls. Its fortress is the world's people's (VA-Zl).
+/// quartz in its walls; and its fortresses, one in 60 % of the regions of 8
+/// chunks square, wherever a floor stands over the sea.
 const WorldGenSpec underworld = WorldGenSpec(
   cavern: CavernSpec(floor: 7, roof: 100, hangs: [Plant('glowstone', perMille: 43, maxHeight: 2)]),
   stone: 'hellstone',
@@ -166,6 +175,7 @@ const WorldGenSpec underworld = WorldGenSpec(
     ),
   ],
   ores: [Ore('nether_quartz_ore', share: 0.065)],
+  structures: [StructureSpec('fortress', fortress, chance: 0.6, regionChunks: 8)],
 );
 
 /// What a structure's chests hold. A dungeon's, a tower's and a temple's may
@@ -209,6 +219,17 @@ const Map<String, StructureLoot> structureLootTable = {
       LootEntry('raw_salmon', 1, 1, 0.4),
       LootEntry('glass_bottle', 1, 3, 0.8),
       LootEntry('bucket', 1, 1, 0.2),
+    ]),
+  ),
+  'fortress': StructureLoot(
+    LootTable([
+      LootEntry('quartz', 3, 8, 1.0),
+      LootEntry('gold_ingot', 2, 5, 0.8),
+      LootEntry('health_potion', 1, 2, 0.7),
+      LootEntry('resistance_potion', 1, 1, 0.4),
+      LootEntry('blaze_rod', 1, 3, 0.6),
+      LootEntry('glowstone_dust', 2, 6, 0.5),
+      LootEntry('diamond', 1, 1, 0.25),
     ]),
   ),
   'dungeon': StructureLoot(_dungeonLoot, bonus: _weapons),
@@ -281,7 +302,9 @@ const _village = Village(
 );
 // A desert temple: two chests in a chamber under a step pyramid, and a plate in its floor over TNT.
 const _temple = Temple(stone: 'sandstone', chest: 'chest', light: 'lamp', plate: 'pressure_plate', trap: 'tnt');
-const _dungeon = Dungeon(
+
+/// The dungeon, whose spawners and last room `Structures` finds.
+const Dungeon dungeonStructure = Dungeon(
   walls: 'stone_bricks',
   mossy: 'mossy_stone_bricks',
   ladder: 'ladder',
@@ -299,7 +322,9 @@ const _tower = Tower(
   chest: 'chest',
   light: 'lamp',
 );
-const _mine = Mine(
+
+/// The mine, whose spawner `Structures` finds.
+const Mine mineStructure = Mine(
   frame: 'cobblestone',
   posts: 'oak_fence',
   roof: 'oak_planks',

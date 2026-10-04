@@ -381,7 +381,7 @@ const List<MobSpec> speciesTable = [
     xp: 6,
     spawn: SpawnRule.daylight(weight: 8, biomes: ['jungle'], group: (1, 3)),
   ),
-  // The desert temple's boss: its touch slows.
+  // The desert temple's boss: its touch slows. Kept by the save, which wakes it once (`Structures`).
   MobSpec(
     'mummy_king',
     hp: 120,
@@ -398,6 +398,7 @@ const List<MobSpec> speciesTable = [
     xp: 48,
     levels: _levels,
     onHit: HitEffect('slow', seconds: Affix.seconds),
+    persistent: true,
     boss: true,
   ),
   MobSpec(
@@ -524,7 +525,8 @@ const List<MobSpec> speciesTable = [
     onHit: HitEffect('burning', seconds: Affix.seconds),
     spawn: SpawnRule.dark(weight: 14, biomes: ['underworld']),
   ),
-  // The fortress's lord: it flies and throws fire. The heart is not its drop but the fortress core's.
+  // The fortress's lord: it flies and throws fire. The heart is not its drop but the fortress core's, which his
+  // death unseals; kept by the save, or a lord lost to it would leave the core sealed for good.
   MobSpec(
     'underworld_lord',
     hp: 200,
@@ -537,6 +539,7 @@ const List<MobSpec> speciesTable = [
     loot: LootTable([LootEntry('blaze_rod', 8, 8, 1.0), LootEntry('ancient_blade', 1, 1, 1.0), _bossDiamond]),
     xp: 300,
     levels: _levels,
+    persistent: true,
     boss: true,
   ),
 ];

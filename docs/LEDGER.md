@@ -78,6 +78,13 @@
 - **Cost of leaving it:** the minecraft example's tutorial was shown once per machine (the old `Settings.tutorialDone`); on the kit it became a world option (`tutorialOption`, on until the player turns it off in the new-world form), so a player who knows the game says no to it on every new world. Any other per-player preference of a game's (a key layout, a hint already seen) will hit the same wall.
 - **Found while:** 2026-10-04 — `VA-Zk`, porting the example's tutorial.
 
+### KL-022 · A stock structure keeps where its parts are to itself
+
+- **Lens:** kit API / worldgen
+- **Evidence:** `packages/voxel_engine/lib/src/worldgen/structures/dungeon.dart:61-80` rolls the dungeon's floor (`site.roll(1)`) and puts its rooms at x -12, 0 and +12 and its spawners at `(rx, floor + 1, 2)`; `mine.dart:102-148` rolls the corridor's length (`site.roll(41)`) and puts the spawner 3 short of it in one mine of three. None of it is asked of a `Structure`: `structuresNear` answers a name and a site. The minecraft example's `Structures` copies those numbers to find the troll's room and the spawners, and scans cells to recover the floor and the length (`examples/voxel_game_minecraft/lib/src/structures/structures.dart:175-207`); its own fortress answers the same question through `FortressPlan`, which the drawing and the game share.
+- **Cost of leaving it:** a change to a stock structure's layout moves the app's boss and spawners off it with nothing in the kit failing (only the app's `structures_test.dart` notices), and a second game with a dungeon boss copies the same private numbers. Every look also reads up to 14 cells a dungeon and 11 a mine for what the generator knew. The fix is a plan per stock structure from its site and the generator's roll (the rooms, the spawners, the chests), what `FortressPlan` is for the app's.
+- **Found while:** 2026-10-04 — `VA-Zl3`, waking the dungeon's troll and its spawners.
+
 ## Closed
 
 ### KL-021 · A trip to another dimension loses every tamed and persistent creature for good

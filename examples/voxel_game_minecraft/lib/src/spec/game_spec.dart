@@ -14,6 +14,7 @@ import '../journal/quest_log.dart';
 import '../journal/stats_screen.dart';
 import '../journal/tutorial.dart';
 import '../player/heartbeat.dart';
+import '../structures/structures.dart';
 import '../ui/controls_screen.dart';
 import '../villages/trade_screen.dart';
 import '../villages/villages.dart';
@@ -46,9 +47,13 @@ import 'world_table.dart';
 /// A village the player comes near is peopled with villagers, whose use opens
 /// their trades (`Villages`, `TradeScreen`).
 ///
-/// What else only this game has (the bosses and their structures, the map,
-/// the playground) comes in as its own systems and screens on top
-/// (VA-Zl3–VA-Zl5).
+/// The structures met are found and told; the temple, the dungeon and the
+/// underworld's fortress wake their bosses, the fortress core is sealed
+/// until its lord dies, spawner blocks bring creatures and ruins are haunted
+/// at night (`Structures`).
+///
+/// What else only this game has (the map, the playground) comes in as its
+/// own systems and screens on top (VA-Zl4, VA-Zl5).
 final VoxelGameSpec gameSpec = VoxelGameSpec(
   seed: 1337,
   blocks: blockTable,
@@ -180,6 +185,7 @@ List<GameSystem> _systems() => [
   Tutorial(),
   Waypoints(),
   Villages(),
+  Structures(),
 ];
 
 void _enchant(VoxelGame game, IVec3 cell) => Enchanting.use(game, cell);

@@ -1325,4 +1325,18 @@ const List<BlockType> blockTable = [
     light: 8,
     tags: {'step:lava'},
   ),
+  // The core as the fortress is built: nothing breaks it while its lord lives, and his death swaps it for the one
+  // above (`Structures`).
+  BlockType.rgb(
+    'sealed_core',
+    0.30,
+    0.06,
+    0.45,
+    name: 'Sealed Core',
+    hardness: -1,
+    drop: '',
+    light: 8,
+    holdable: false,
+    tags: {'step:lava'},
+  ),
 ];

@@ -191,7 +191,10 @@ void main() {
   });
 
   test('every structure the world builds has its chests\' loot, and no loot names a structure it lacks', () {
-    expect(structureLootTable.keys.toSet(), {for (final s in overworld.structures) s.name});
+    expect(structureLootTable.keys.toSet(), {
+      for (final w in [overworld, underworld])
+        for (final s in w.structures) s.name,
+    });
     for (final name in ['dungeon', 'tower', 'temple']) {
       expect(structureLootTable[name]!.bonus, isNotNull, reason: name);
     }
