@@ -336,14 +336,17 @@ const List<MobSpec> speciesTable = [
     spawn: SpawnRule.dark(weight: 2, biomes: ['desert'], maxAlive: 1),
     boss: true,
   ),
-  // A villager stays put by its village and is never forgotten; its trades are the world's people's (VA-Zl).
+  // A villager strolls within 16 m of its village's centre (its home, `Villages`), is never forgotten and takes no
+  // harm; its use opens its trades.
   MobSpec(
     'villager',
     hp: 20,
     speed: 1.8,
     height: 1.75,
     rig: Rig.humanoid(skin: 0xEBBF9E, shirt: 0x8C66A6, pants: 0x594D40),
+    brain: [Wander(radius: 16.0)],
     persistent: true,
+    invulnerable: true,
   ),
   // The jungle's: a parrot that seeds tame, and a quick ocelot that bites back.
   MobSpec(

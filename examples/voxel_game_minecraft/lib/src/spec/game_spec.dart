@@ -15,6 +15,8 @@ import '../journal/stats_screen.dart';
 import '../journal/tutorial.dart';
 import '../player/heartbeat.dart';
 import '../ui/controls_screen.dart';
+import '../villages/trade_screen.dart';
+import '../villages/villages.dart';
 import '../waypoints/waypoints.dart';
 import 'block_table.dart';
 import 'effect_table.dart';
@@ -41,9 +43,12 @@ import 'world_table.dart';
 /// another (`Waypoints`); an enchanting table adds to the bonus of the weapon
 /// or tool in hand (`Enchanting`).
 ///
-/// What else only this game has (the bosses and their structures, villagers'
-/// trades, the map, the playground) comes in as its own systems and screens
-/// on top (VA-Zl2–VA-Zl5).
+/// A village the player comes near is peopled with villagers, whose use opens
+/// their trades (`Villages`, `TradeScreen`).
+///
+/// What else only this game has (the bosses and their structures, the map,
+/// the playground) comes in as its own systems and screens on top
+/// (VA-Zl3–VA-Zl5).
 final VoxelGameSpec gameSpec = VoxelGameSpec(
   seed: 1337,
   blocks: blockTable,
@@ -125,9 +130,13 @@ final VoxelGameSpec gameSpec = VoxelGameSpec(
   ],
   // A waypoint lists the others, to travel to one; an enchanting table enchants what is in hand.
   blockUses: const {Waypoints.block: Waypoints.open, Enchanting.table: _enchant},
+  // A villager opens its trades; a client asks the host for them.
+  mobUses: const {Villages.villager: Villages.use},
+  messages: const {Villages.askMessage: Villages.heardAsk, Villages.offersMessage: Villages.heardOffers},
   screens: const {
     'journal': ScreenSpec(JournalScreen.builder, menu: 'Journal', action: 'journal'),
     Waypoints.screen: ScreenSpec(JournalScreen.waypointsBuilder),
+    Villages.screen: ScreenSpec(TradeScreen.builder),
     'stats': ScreenSpec(StatsScreen.builder, menu: 'Stats'),
     'controls': ScreenSpec(ControlsScreen.builder, menu: 'Controls', action: 'controls'),
   },
@@ -170,6 +179,7 @@ List<GameSystem> _systems() => [
   Achievements(),
   Tutorial(),
   Waypoints(),
+  Villages(),
 ];
 
 void _enchant(VoxelGame game, IVec3 cell) => Enchanting.use(game, cell);

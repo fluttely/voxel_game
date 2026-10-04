@@ -22,7 +22,7 @@ class Bestiary extends SavedSystem {
       if (!_people.contains(s.id)) s,
   ];
 
-  // The villager trades (VA-Zl); the bestiary is of what one fights or tames.
+  // A villager trades (`Villages`); the bestiary is of what one fights or tames.
   static const Set<String> _people = {'villager'};
 
   /// The bestiary of [game].
