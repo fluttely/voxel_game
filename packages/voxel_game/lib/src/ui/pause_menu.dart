@@ -4,7 +4,7 @@ import '../core/voxel_game.dart';
 import 'game_screen.dart';
 
 /// The game menu (`PauseScreen`): resume, the settings (`SettingsScreen`), a
-/// button for each of the game's own screens that has a `ScreenSpec.menu`, and
+/// button for each of the game's own screens it lists (`ScreenSpec.listedIn`), and
 /// quit when there is somewhere to quit to. The world keeps running behind it; a press of pause resumes too.
 class PauseMenu extends StatelessWidget {
   /// The menu of [game]; [onQuit] is its Quit, shown only when given.
@@ -41,9 +41,12 @@ class PauseMenu extends StatelessWidget {
                     child: const Text('Settings'),
                   ),
                   for (final e in game.spec.screens.entries)
-                    if (e.value.menu case final label?) ...[
+                    if (e.value.listedIn(game)) ...[
                       const SizedBox(height: 8),
-                      OutlinedButton(onPressed: () => game.openScreen(DeclaredScreen(e.key)), child: Text(label)),
+                      OutlinedButton(
+                        onPressed: () => game.openScreen(DeclaredScreen(e.key)),
+                        child: Text(e.value.menu!),
+                      ),
                     ],
                   if (quit != null) ...[
                     const SizedBox(height: 8),

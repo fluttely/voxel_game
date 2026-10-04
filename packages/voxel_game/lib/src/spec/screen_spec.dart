@@ -16,8 +16,10 @@ typedef ScreenBuilder = Widget Function(BuildContext context, VoxelGame game);
 /// ```
 class ScreenSpec {
   /// A screen built by [build], listed in the game menu as [menu] when given
-  /// and opened by [action] when given.
-  const ScreenSpec(this.build, {this.menu, this.action});
+  /// (in the games [listed] says, when given) and opened by [action] when
+  /// given.
+  const ScreenSpec(this.build, {this.menu, this.action, this.listed})
+    : assert(listed == null || menu != null, 'only a screen in the menu is listed');
 
   /// Builds it.
   final ScreenBuilder build;
@@ -26,6 +28,14 @@ class ScreenSpec {
   /// a screen only the game's code opens (a trade, from a creature). On a
   /// phone the menu is the one way to a screen a desktop opens with a key.
   final String? menu;
+
+  /// Whether the game menu lists it in a game: a playground's controls in a
+  /// playground only, say. Null lists it in every game.
+  final bool Function(VoxelGame game)? listed;
+
+  /// Whether the game menu of [game] lists it: it has a [menu] label, and
+  /// [listed] says so when given.
+  bool listedIn(VoxelGame game) => menu != null && (listed?.call(game) ?? true);
 
   /// The id of one of the game's own actions (`VoxelGameSpec.actions`) that
   /// opens it while the player plays and closes it again, as the bag's key

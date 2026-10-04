@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **A game's screen listed only where it applies (VA-Zl5).** `ScreenSpec.listed` (new): whether
+  the game menu lists the screen in a game (a playground's controls in a playground only),
+  every game when null; `ScreenSpec.listedIn` (new) asks it. On a phone the menu is the one
+  way to such a screen, so a world that has no use for it no longer shows its button.
 - **A world's options shape its world (VA-Zl5).** `VoxelGameSpec.worldFor` (new), beside
   `playerFor`: the main dimension as a world's options make it, a playground's flat `Plaza`
   (new from the engine, re-exported) pressed into it, say; `worldWith` (new) asks it, and

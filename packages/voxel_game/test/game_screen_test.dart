@@ -9,8 +9,11 @@ Widget _journal(BuildContext context, VoxelGame game) => const Text('journal pag
 
 Widget _trade(BuildContext context, VoxelGame game) => const Text('trade');
 
+bool _creative(VoxelGame game) => game.player.spec.creative;
+
 /// Level grass at y 20, a bench to craft at, a chest, and two screens of the
-/// game's own: a journal in the menu, a trade only code opens.
+/// game's own: a journal in the menu, a trade only code opens, and an atlas
+/// the menu lists in a creative game only.
 const _spec = VoxelGameSpec(
   blocks: [
     BlockType('stone', color: 0x808080, hardness: 1.5, tool: 'pickaxe'),
@@ -35,6 +38,7 @@ const _spec = VoxelGameSpec(
   screens: {
     'journal': ScreenSpec(_journal, menu: 'Journal'),
     'trade': ScreenSpec(_trade),
+    'atlas': ScreenSpec(_journal, menu: 'Atlas', listed: _creative),
   },
 );
 
@@ -199,7 +203,11 @@ void main() {
       final game = (await tester.runAsync(_start))!;
       await tester.pumpWidget(
         MaterialApp(
-          home: GameSurface(game: game, world: const ColoredBox(color: Colors.black), onQuit: onQuit),
+          home: GameSurface(
+            game: game,
+            world: const ColoredBox(color: Colors.black),
+            onQuit: onQuit,
+          ),
         ),
       );
       return game;
@@ -213,6 +221,13 @@ void main() {
       expect(find.text('Quit'), findsNothing, reason: 'no quit without somewhere to go');
       expect(find.text('Journal'), findsOneWidget);
       expect(find.text('trade'), findsNothing, reason: 'a screen with no menu label is not listed');
+      expect(find.text('Atlas'), findsNothing, reason: 'listed in a creative game only');
+      expect(_spec.screens['trade']!.listedIn(game), isFalse);
+      final creative = (await tester.runAsync(
+        () => VoxelGame.startHeadless(_spec.copyWith(player: const PlayerSpec(creative: true))),
+      ))!;
+      expect(_spec.screens['atlas']!.listedIn(creative), isTrue);
+      creative.dispose();
       await tester.tap(find.text('Journal'));
       await tester.pump();
       expect(game.screen.value, const DeclaredScreen('journal'));
@@ -305,7 +320,9 @@ void main() {
       bag.setSlot(0, ItemStack('stone', 5));
       game.openScreen(const BagScreen());
       await tester.pump();
-      final slots = find.byWidgetPredicate((w) => w is GestureDetector && w.onSecondaryTap != null && w.child is Container);
+      final slots = find.byWidgetPredicate(
+        (w) => w is GestureDetector && w.onSecondaryTap != null && w.child is Container,
+      );
       await tester.tap(slots.at(bag.capacity - bag.hotbarSize));
       await tester.pump();
       expect(bag.countOf('stone'), 0, reason: 'the stack is on the cursor');
