@@ -21,6 +21,22 @@ void main() {
       credits,
       containsAllInOrder(['Engine', 'Music and sound', 'Lineage', 'Stages', ...stages, 'Thanks for playing.']),
     );
+    expect(stages.any((s) => s.contains('**') || s.endsWith('.')), isFalse);
+  });
+
+  test('a stage is its bold lead, else its cell cut at the first sentence; anything else is no stage', () {
+    const text =
+        '| # | Stage | Status |\n|:--|:---|:---|\n'
+        '| 3 | Streaming world + delta save. More words (x) | ✅ | |\n'
+        '| 21a | **Four structures.** Details | ✅ | |\n'
+        '| 7 | Day/night (with hunger) and death | ✅ | |\n'
+        'not a row | 9 | nope |\n';
+    expect(stagesOf(text), [
+      'Stage 3 — Streaming world + delta save',
+      'Stage 21a — Four structures',
+      'Stage 7 — Day/night',
+    ]);
+    expect(creditsAround(['Stage 1 — A']).last, 'Esc closes');
   });
 
   testWidgets('the title offers the game, its credits, and a class and a kind for a new world', (tester) async {

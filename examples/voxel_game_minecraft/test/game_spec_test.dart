@@ -20,6 +20,9 @@ Future<VoxelGame> _start() async {
   return game;
 }
 
+/// A chunk's cells at one height: a chunk counts up by these.
+const int _layer = ChunkSize.sizeX * ChunkSize.sizeZ;
+
 void main() {
   test('the game starts on its spec, the player with the four things to start with', () async {
     final game = await _start();
@@ -198,5 +201,120 @@ void main() {
     for (final name in ['dungeon', 'tower', 'temple']) {
       expect(structureLootTable[name]!.bonus, isNotNull, reason: name);
     }
+  });
+
+  test('a tool wears 60 × tier², a weapon 40 + 50 × tier', () {
+    var tools = 0, weapons = 0;
+    for (final t in itemTable) {
+      if (t.tool == 'sword' || t.launcher != null) {
+        expect(t.durability, 40 + 50 * t.tier, reason: t.id);
+        weapons++;
+      } else if (t.tool != null) {
+        expect(t.durability, 60 * t.tier * t.tier, reason: t.id);
+        tools++;
+      }
+    }
+    expect(tools, greaterThan(10));
+    expect(weapons, greaterThan(8));
+  });
+
+  test('a creature spawns where the app spawned it, the undead burn by day, and one blow in ten is a crit', () {
+    final byId = {for (final m in speciesTable) m.id: m};
+    expect(byId['bat']!.spawn!.place, SpawnPlace.cave, reason: 'bats only in caves');
+    for (final id in ['spider', 'slime']) {
+      expect(byId[id]!.spawn!.biomeWeights, {'swamp': 2.5}, reason: '$id: a swamp night crawls with them');
+    }
+    for (final id in ['parrot', 'ocelot']) {
+      expect(byId[id]!.spawn!.biomes, ['jungle'], reason: id);
+    }
+    expect(
+      {
+        for (final m in speciesTable)
+          if (m.burnsInDaylight) m.id,
+      },
+      {'zombie', 'skeleton', 'dark_skeleton'},
+    );
+    expect(gameSpec.player.critChance, 0.1);
+    expect(gameSpec.player.critMultiplier, 1.5);
+  });
+
+  test('every elite that grows or shrinks keeps its width and height in step', () {
+    final byId = {for (final m in mobTable) m.id: m};
+    for (final m in mobTable) {
+      final kind = byId[plainKinds[m.id]!]!;
+      expect(m.height / kind.height, closeTo(m.halfWidth / kind.halfWidth, 1e-9), reason: m.id);
+    }
+  });
+
+  test("a swamp pools water over mud with reeds by it, a jungle grows logs, vines and ferns, a desert palms", () {
+    final blocks = gameSpec.buildBlocks();
+    final gen = overworld.compile({for (var i = 0; i < blocks.count; i++) blocks[i].id: i}, gameSpec.seed);
+    int id(String name) => blocks.indexOf(name);
+    // Chunks wholly of [biome] (its corners and centre), nearest the spawn first.
+    Map<String, int> census(String biome, {int chunks = 6}) {
+      final found = <(int, int)>[];
+      for (var r = 0; r < 96 && found.length < chunks; r++) {
+        for (var cz = -r; cz <= r && found.length < chunks; cz++) {
+          for (var cx = -r; cx <= r && found.length < chunks; cx++) {
+            if (cx.abs() != r && cz.abs() != r) continue;
+            final x = cx * 16, z = cz * 16;
+            const probes = [(0, 0), (15, 0), (0, 15), (15, 15), (8, 8)];
+            if (probes.every((p) => gen.biomeAt(x + p.$1, z + p.$2).name == biome)) found.add((cx, cz));
+          }
+        }
+      }
+      expect(found, hasLength(chunks), reason: biome);
+      final counts = <String, int>{};
+      void count(String what) => counts[what] = (counts[what] ?? 0) + 1;
+      for (final (cx, cz) in found) {
+        final c = gen.generateIn(cx, cz, 0);
+        for (var i = _layer; i < c.length; i++) {
+          final below = c[i - _layer];
+          if (c[i] == id('water') && below == id('mud')) count('water over mud');
+          if (c[i] == id('jungle_log') && below == id('sand')) count('palm over sand');
+          for (final name in ['reeds', 'jungle_log', 'vines', 'fern']) {
+            if (c[i] == id(name)) count(name);
+          }
+        }
+      }
+      return counts;
+    }
+
+    final swamp = census('swamp');
+    expect(swamp['water over mud'], greaterThan(0));
+    expect(swamp['reeds'], greaterThan(0));
+    final jungle = census('jungle');
+    for (final name in ['jungle_log', 'vines', 'fern']) {
+      expect(jungle[name], greaterThan(0), reason: name);
+    }
+    expect(census('desert', chunks: 24)['palm over sand'], greaterThan(0));
+  });
+
+  test('villages stand on plains and forest only, and redstone lies under 30', () {
+    final blocks = gameSpec.buildBlocks();
+    final gen = overworld.compile({for (var i = 0; i < blocks.count; i++) blocks[i].id: i}, gameSpec.seed);
+    final villages = <PlacedStructure>{};
+    for (var cz = -96; cz <= 96; cz += 4) {
+      for (var cx = -96; cx <= 96; cx += 4) {
+        villages.addAll(gen.structuresNear(cx, cz).where((s) => s.name == 'village'));
+      }
+    }
+    expect(villages, isNotEmpty);
+    for (final v in villages) {
+      expect(['plains', 'forest'], contains(gen.biomeAt(v.x, v.z).name), reason: '$v');
+    }
+    final redstone = blocks.indexOf('redstone_ore');
+    var ores = 0;
+    for (var cz = 0; cz < 4; cz++) {
+      for (var cx = 0; cx < 4; cx++) {
+        final c = gen.generateIn(cx, cz, 0);
+        for (var i = 0; i < c.length; i++) {
+          if (c[i] != redstone) continue;
+          ores++;
+          expect(i ~/ _layer, lessThan(30));
+        }
+      }
+    }
+    expect(ores, greaterThan(0));
   });
 }
