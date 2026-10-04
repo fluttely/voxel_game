@@ -413,6 +413,26 @@ void main() {
     );
   });
 
+  test('an invulnerable creature feels a blow and is shoved, but loses no health and never burns', () async {
+    const villager = MobSpec('villager', hp: 20, brain: [], invulnerable: true);
+    final game = await _start(_flat(mobs: const [villager]));
+    final p = game.player;
+    final m = game.spawnMob('villager', p.position + Vector3(0, 0, -3));
+    await _run(game, 0.5);
+    final before = m.position.clone();
+    expect(m.takeDamage(Damage(100, attacker: p, from: p.position, knockback: 6.0)), 0.0);
+    expect(m.flashing, isTrue, reason: 'the blow is felt');
+    expect(m.lastHurtBy, same(p));
+    await _run(game, 0.3);
+    expect(m.position.distanceTo(before), greaterThan(0.5), reason: 'and shoves it');
+    m.takeDamage(const Damage(100, source: 'explosion'));
+    m.ignite(5.0);
+    expect(m.burning, isFalse, reason: 'no fire catches on it');
+    await _run(game, 1.0);
+    expect(m.hp, 20.0);
+    expect(m.isDead, isFalse);
+  });
+
   group('the save', () {
     const pet = MobSpec(
       'pet',

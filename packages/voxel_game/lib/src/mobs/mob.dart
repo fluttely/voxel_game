@@ -715,8 +715,8 @@ class Mob extends GameEntity implements Target, Rideable {
   }
 
   /// Takes [damage]: a blow from outside is felt ([frozen], [flashing], a
-  /// shake), a burn's only shakes it. A replica only feels it and sends it to
-  /// the host.
+  /// shake), a burn's only shakes it; an invulnerable one (`MobSpec.invulnerable`)
+  /// loses no health. A replica only feels it and sends it to the host.
   @override
   double takeDamage(Damage damage) {
     if (_dead) return 0.0;
@@ -726,8 +726,9 @@ class Mob extends GameEntity implements Target, Rideable {
       _game.session?.hitMob(this, damage);
       return 0.0;
     }
-    final taken = math.min(hp, damage.amount);
-    hp -= damage.amount;
+    final amount = spec.invulnerable ? 0.0 : damage.amount;
+    final taken = math.min(hp, amount);
+    hp -= amount;
     if (taken > 0.0) _game.damageNumbers.add(_numberAt(), taken, crit: damage.crit);
     sinceHurt = 0.0;
     if (damage.internal) {
@@ -757,10 +758,10 @@ class Mob extends GameEntity implements Target, Rideable {
   /// Sets it alight for [seconds] (a fire shot's `ProjectileSpec.burns`), or
   /// as long as it burns already if that is longer: it is [burning] at once
   /// and loses [burnDamage] every [burnEvery] seconds. Liquid puts it out,
-  /// and nothing in liquid or dead catches fire.
+  /// and nothing in liquid, dead or invulnerable catches fire.
   void ignite(double seconds) {
     if (!(seconds > 0.0)) throw ArgumentError.value(seconds, 'seconds', 'a fire lasts some time');
-    if (_dead || inLiquid) return;
+    if (_dead || inLiquid || spec.invulnerable) return;
     _fire = math.max(_fire, seconds);
     burning = true;
   }
@@ -776,7 +777,7 @@ class Mob extends GameEntity implements Target, Rideable {
     _burnClock -= dt;
     if (_burnClock > 0.0) return;
     _burnClock = burnEvery;
-    burning = _fire > 0.0 || spec.burnsInDaylight && !tamed && _sunBurns(game);
+    burning = _fire > 0.0 || spec.burnsInDaylight && !tamed && !spec.invulnerable && _sunBurns(game);
     if (!burning) return;
     takeDamage(const Damage(burnDamage, source: 'burning', internal: true));
     game.debris.burst(position + Vector3(0, height * 0.8, 0), emberColor, count: 1, speed: 0.6);

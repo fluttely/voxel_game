@@ -106,8 +106,8 @@ class SpawnRule {
 /// strikes ([onHit]) and becomes when it dies ([splitsInto]), how it is
 /// tamed ([tameWith]) and then thinks ([tamedBrain]) and carries a rider
 /// ([mount]), what a use with an item gives ([yields]) or a tool shears off
-/// it ([fleece]), whether it stays ([persistent]) or walks through walls
-/// ([ghost]), and where it spawns.
+/// it ([fleece]), whether it stays ([persistent]), walks through walls
+/// ([ghost]) or takes no harm ([invulnerable]), and where it spawns.
 ///
 /// ```dart
 /// MobSpec('zombie', hp: 20, speed: 3.2,
@@ -141,6 +141,7 @@ class MobSpec {
     this.fleece,
     this.persistent = false,
     this.ghost = false,
+    this.invulnerable = false,
     this.spawn,
     this.knockbackResistance = 0.0,
     this.hurtSound,
@@ -227,6 +228,11 @@ class MobSpec {
   /// Whether it passes through blocks: a flier ([gait] must be [Gait.fly])
   /// that no wall stops.
   final bool ghost;
+
+  /// Whether nothing harms it: a blow is felt (it flinches, cries and is
+  /// shoved) but takes no health, and neither a fire nor the daylight burns
+  /// it. A villager, say.
+  final bool invulnerable;
 
   /// Where it appears by itself; null for never (placed by the game).
   final SpawnRule? spawn;

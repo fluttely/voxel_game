@@ -194,7 +194,8 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
 - Taming (`tameWith`, `tameChance`, `tamedBrain`): companions that `PetFight` and `Heel`,
   and mounts (`MountSpec`, `MountWait`) the owner rides with a use and leaves with sneak.
   A tamed creature, and one declared `persistent`, is never despawned and is kept in the
-  save; a `ghost` flies through walls, drawn see-through.
+  save; a `ghost` flies through walls, drawn see-through; an `invulnerable` one feels a
+  blow but takes no harm.
 - Vehicles, declared: `VoxelGameSpec.vehicles: [BoatSpec(item: 'boat'), CartSpec(item:
   'minecart')]`. The boat's item, used, puts it on the water along the aim; a use on it
   gets in, the move keys row and steer it, sneak gets out, and a swing breaks it back into

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **A creature that takes no harm (VA-Zl2).** `MobSpec.invulnerable` (new, off): a blow is
+  felt (it flinches, cries and is shoved, `lastHurtBy` set) but takes no health, and
+  neither a fire (`Mob.ignite`) nor the daylight burns it. A villager, say.
 - **A world's options make its player (VA-Zj).**
   - `VoxelGameSpec.playerFor` (new): the player a game's options make (a class), given the
     declared one; `playerWith(options)` reads it. `WorldInfo.applyTo` plays a world's
