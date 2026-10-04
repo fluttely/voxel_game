@@ -13,6 +13,8 @@ import '../journal/journal_screen.dart';
 import '../journal/quest_log.dart';
 import '../journal/stats_screen.dart';
 import '../journal/tutorial.dart';
+import '../map/map_screen.dart';
+import '../map/world_map.dart';
 import '../player/heartbeat.dart';
 import '../structures/structures.dart';
 import '../ui/controls_screen.dart';
@@ -52,8 +54,12 @@ import 'world_table.dart';
 /// until its lord dies, spawner blocks bring creatures and ruins are haunted
 /// at night (`Structures`).
 ///
-/// What else only this game has (the map, the playground) comes in as its
-/// own systems and screens on top (VA-Zl4, VA-Zl5).
+/// M cycles the map (`WorldMap`): the minimap in the HUD's corner, then the
+/// whole map (`MapScreen`), then neither; it draws the chunks explored, the
+/// structures found, the waypoints and the creatures.
+///
+/// What else only this game has (the playground) comes in as its own
+/// systems and screens on top (VA-Zl5).
 final VoxelGameSpec gameSpec = VoxelGameSpec(
   seed: 1337,
   blocks: blockTable,
@@ -114,7 +120,7 @@ final VoxelGameSpec gameSpec = VoxelGameSpec(
   // The player's heart is heard while its health is low; the class plays its abilities, stamina and mana; the
   // journal counts what the player does, the quests and the achievements on it, and the tutorial watches.
   systems: _systems,
-  // The class's two abilities, the dodge, the journal, the controls, and a skip of the tutorial.
+  // The class's two abilities, the dodge, the journal, the map, the controls, and a skip of the tutorial.
   actions: const [
     ActionSpec('ability', keys: [PhysicalKeyboardKey.keyR], gamepad: [GamepadButton.leftBumper], touch: Icons.flash_on),
     ActionSpec(
@@ -130,7 +136,8 @@ final VoxelGameSpec gameSpec = VoxelGameSpec(
       touch: Icons.double_arrow,
     ),
     ActionSpec('journal', keys: [PhysicalKeyboardKey.keyJ], gamepad: [GamepadButton.touchpad], touch: Icons.menu_book),
-    ActionSpec('controls', keys: [PhysicalKeyboardKey.f1], gamepad: [GamepadButton.back]),
+    ActionSpec(WorldMap.action, keys: [PhysicalKeyboardKey.keyM], gamepad: [GamepadButton.back], touch: Icons.map),
+    ActionSpec('controls', keys: [PhysicalKeyboardKey.f1], gamepad: [GamepadButton.home]),
     ActionSpec(Tutorial.skipAction, keys: [PhysicalKeyboardKey.f6], gamepad: [GamepadButton.dpadLeft]),
   ],
   // A waypoint lists the others, to travel to one; an enchanting table enchants what is in hand.
@@ -142,6 +149,7 @@ final VoxelGameSpec gameSpec = VoxelGameSpec(
     'journal': ScreenSpec(JournalScreen.builder, menu: 'Journal', action: 'journal'),
     Waypoints.screen: ScreenSpec(JournalScreen.waypointsBuilder),
     Villages.screen: ScreenSpec(TradeScreen.builder),
+    WorldMap.screen: ScreenSpec(MapScreen.builder, menu: 'Map'),
     'stats': ScreenSpec(StatsScreen.builder, menu: 'Stats'),
     'controls': ScreenSpec(ControlsScreen.builder, menu: 'Controls', action: 'controls'),
   },
@@ -186,6 +194,7 @@ List<GameSystem> _systems() => [
   Waypoints(),
   Villages(),
   Structures(),
+  WorldMap(),
 ];
 
 void _enchant(VoxelGame game, IVec3 cell) => Enchanting.use(game, cell);

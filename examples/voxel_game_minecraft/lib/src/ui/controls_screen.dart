@@ -21,18 +21,21 @@ class ControlsScreen extends StatelessWidget {
       'E  bag  ·  Q  drop  ·  V  first or third person  ·  Esc  menu',
       'R and F  your class\'s two powers  ·  Alt  dodge  ·  J  journal',
       'G  glide, with a glider in the bag  ·  F5  fly, in a Creative world',
+      'M  the map: small in the corner, then big, then gone',
       'F1  these controls  ·  F6  skip the tutorial',
     ],
     'Gamepad': [
       'Left stick  walk  ·  Right stick  look  ·  A  jump  ·  B  sneak  ·  Y  bag',
       'Right trigger  mine and hit  ·  Left trigger  place and use',
       'Bumpers  your powers  ·  X  dodge  ·  Touchpad  journal',
-      'D-pad: up glide, right fly, down drop, left skip the tutorial  ·  Start  menu  ·  Back  these controls',
+      'D-pad: up glide, right fly, down drop, left skip the tutorial  ·  Start  menu',
+      'Back  the map: small, then big, then gone  ·  Home  these controls',
     ],
     'Phone': [
       'The stick at the left walks; drag anywhere else to look',
       'Tap to hit or use, hold to mine; the buttons at the right do the rest',
-      'The menu button at the top has the journal, the stats and these controls',
+      'The map button shows the map small, then big, then hides it',
+      'The menu button at the top has the journal, the map, the stats and these controls',
     ],
   };
 
