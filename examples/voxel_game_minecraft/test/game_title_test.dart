@@ -71,10 +71,10 @@ void main() {
     await tester.pump();
     expect(picked.single, isA<PlayWorld>().having((c) => c.slot, 'slot', 'arena'));
     final info = saves.info('arena');
-    expect(info.options, {'class': 'mage', 'playground': 'playground'});
+    expect(info.options, {'class': 'mage', 'tutorial': 'on', 'playground': 'playground'});
     expect(
       WorldList.detailsOf(info, gameTitle(credits: const []).worldOptions),
-      'Survival · Mage · Playground · seed ${info.seed} · new',
+      'Survival · Mage · Tutorial · Playground · seed ${info.seed} · new',
     );
   });
 }

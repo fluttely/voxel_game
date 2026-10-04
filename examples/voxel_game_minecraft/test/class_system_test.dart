@@ -10,7 +10,7 @@ import 'package:voxel_game_minecraft/src/spec/game_title.dart';
 
 /// A game of [cls], its player the class's, as the title starts one.
 Future<VoxelGame> _start(String cls, {SavedWorld? save}) async {
-  final options = {'class': cls};
+  final options = {'class': cls, 'tutorial': 'off'};
   final game = await VoxelGame.startHeadless(
     gameSpec.copyWith(player: gameSpec.playerWith(options)),
     options: options,

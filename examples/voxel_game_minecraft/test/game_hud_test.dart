@@ -5,7 +5,9 @@ import 'package:voxel_game/voxel_game.dart';
 import 'package:voxel_game_minecraft/src/spec/game_spec.dart';
 import 'package:voxel_game_minecraft/src/classes/class_system.dart';
 import 'package:voxel_game_minecraft/src/ui/game_hud.dart';
-import 'package:voxel_game_minecraft/src/ui/talent_screen.dart';
+import 'package:voxel_game_minecraft/src/journal/journal_screen.dart';
+import 'package:voxel_game_minecraft/src/journal/stats_screen.dart';
+import 'package:voxel_game_minecraft/src/ui/controls_screen.dart';
 
 class _Heard implements SoundPlayer {
   final List<String> played = [];
@@ -17,9 +19,9 @@ class _Heard implements SoundPlayer {
 /// The game's HUD over a running game, on the `GameSurface` the kit's widget
 /// shows it on.
 void main() {
-  Future<VoxelGame> start(WidgetTester tester) async {
+  Future<VoxelGame> start(WidgetTester tester, {String tutorial = 'off'}) async {
     final game = (await tester.runAsync(() async {
-      final game = await VoxelGame.startHeadless(gameSpec, options: const {'class': 'warrior'});
+      final game = await VoxelGame.startHeadless(gameSpec, options: {'class': 'warrior', 'tutorial': tutorial});
       game.spawner.enabled = false;
       for (var i = 0; i < 600 && !game.ready; i++) {
         game.frame(1 / 60);
@@ -78,17 +80,81 @@ void main() {
   testWidgets('the journal spends a talent point on a rank, and no more than there are', (tester) async {
     final game = await start(tester);
     ClassSystem.of(game).points = 1;
-    await tester.pumpWidget(MaterialApp(home: Scaffold(body: TalentScreen(game))));
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: JournalScreen(game))));
     expect(find.text('Warrior talents'), findsOneWidget);
     expect(find.text('Talent points: 1   (you get one each level)'), findsOneWidget);
     expect(find.text('Rage  0/3', skipOffstage: false), findsOneWidget, reason: 'the class\'s own, after the six');
     await tester.tap(find.widgetWithText(FilledButton, 'Learn').first);
-    await tester.pump();
+    await step(tester, game);
     expect(find.text('Vitality  1/3'), findsOneWidget);
     expect(find.text('Talent points: 0   (you get one each level)'), findsOneWidget);
     for (final b in tester.widgetList<FilledButton>(find.widgetWithText(FilledButton, 'Learn'))) {
       expect(b.onPressed, isNull, reason: 'no point left');
     }
+    game.dispose();
+  });
+
+  testWidgets('the journal\'s other tabs: the creatures met, the achievements, the quests', (tester) async {
+    final game = await start(tester);
+    game.spawnMob('pig', game.player.position + Vector3(3, 0.5, 0));
+    game.step(1 / 60);
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: JournalScreen(game))));
+    expect(find.text('Talents'), findsOneWidget);
+    await tester.tap(find.text('Creatures'));
+    await tester.pumpAndSettle();
+    expect(find.text('Pig'), findsOneWidget);
+    expect(find.textContaining('Health 10'), findsOneWidget);
+    expect(find.text('???'), findsWidgets);
+    await tester.tap(find.text('Achievements'));
+    await tester.pumpAndSettle();
+    expect(find.text('0 / 22 unlocked'), findsOneWidget);
+    await tester.tap(find.text('Quests'));
+    await tester.pumpAndSettle();
+    expect(find.text('0 / 12 quests done'), findsOneWidget);
+    expect(find.text('Punch or chop 8 logs   0/8   20 XP'), findsOneWidget);
+    game.player.pickUp('oak_log', 3);
+    await step(tester, game);
+    expect(find.text('Punch or chop 8 logs   3/8   20 XP'), findsOneWidget, reason: 'the world goes on behind it');
+    game.dispose();
+  });
+
+  testWidgets('the quest at hand is at the top right, with how far it is', (tester) async {
+    final game = await start(tester);
+    expect(find.text('Quest: Gather wood'), findsOneWidget);
+    expect(find.text('Punch or chop 8 logs  (0/8)'), findsOneWidget);
+    game.player.pickUp('spruce_log', 2);
+    await step(tester, game);
+    expect(find.text('Punch or chop 8 logs  (2/8)'), findsOneWidget);
+    game.dispose();
+  });
+
+  testWidgets('the tutorial\'s card shows the step at hand, and its button skips it all', (tester) async {
+    final game = await start(tester, tutorial: 'on');
+    await step(tester, game);
+    expect(find.text('Step 1/10   '), findsOneWidget);
+    expect(find.text('Walk'), findsOneWidget);
+    expect(find.text('Press W A S D to walk around.'), findsOneWidget);
+    await tester.tap(find.text('Skip tutorial (F6)'));
+    await step(tester, game);
+    expect(find.text('Walk'), findsNothing);
+    game.dispose();
+  });
+
+  testWidgets('the stats and the controls are screens of the game menu; F1 opens the controls', (tester) async {
+    final game = await start(tester);
+    expect(gameSpec.screens.values.map((s) => s.menu), ['Journal', 'Stats', 'Controls']);
+    game.raise(const BlockBroken('stone', IVec3(0, 0, 0)));
+    game.step(1 / 60);
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: StatsScreen(game))));
+    expect(find.textContaining('Blocks broken  1'), findsOneWidget);
+    expect(StatsScreen.linesOf(game).first, 'Level 0');
+    game.actions.tap('controls');
+    game.step(1 / 60);
+    expect(game.screen.value, const DeclaredScreen('controls'));
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: ControlsScreen(game))));
+    expect(find.text('Keyboard and mouse'), findsOneWidget);
+    await tester.tap(find.text('Back to the game'));
+    expect(game.screen.value, isNull);
     game.dispose();
   });
 

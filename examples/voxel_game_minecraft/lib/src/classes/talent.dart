@@ -1,5 +1,5 @@
 /// A talent: what each of its ranks (up to [maxRank]) adds to a class's
-/// numbers, bought with a talent point in the journal (`TalentScreen`). Six
+/// numbers, bought with a talent point in the journal (`JournalScreen`). Six
 /// every class shares and one of each class's own (`PlayerClass.signature`).
 /// Each field is a rank's worth; the rest stay 0.
 class Talent {

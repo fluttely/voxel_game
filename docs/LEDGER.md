@@ -71,6 +71,13 @@
 - **Cost of leaving it:** every game with music under its title copies the mapping and the device's lifetime (open it, close it before the game's widget opens its own, or the two fight over SoLoud), and its title ignores the music slider the title itself shows. A `TitleSpec.music` naming one of the spec's tracks, played by `TitleScreen` through the kit's mapping and its live settings, would carry it.
 - **Found while:** 2026-10-03 — VA-Zi, porting the app's title vista and its meadow track onto `TitleSpec.background`.
 
+### KL-020 · A game keeps nothing of its own in the player's settings
+
+- **Lens:** extension / persistence
+- **Evidence:** `packages/voxel_game/lib/src/settings/game_settings.dart:13-128`: `GameSettings` is a fixed set of fields, and `toJson` / `fromJson` write and read only them; `SettingsStore` (`settings_store.dart:7-29`) keeps that one object. A game's state has a home in the world's save (`SavedSystem`, VAD19) and a world's choices in `WorldInfo.options`, but a choice that is the player's across worlds has none.
+- **Cost of leaving it:** the minecraft example's tutorial was shown once per machine (the old `Settings.tutorialDone`); on the kit it became a world option (`tutorialOption`, on until the player turns it off in the new-world form), so a player who knows the game says no to it on every new world. Any other per-player preference of a game's (a key layout, a hint already seen) will hit the same wall.
+- **Found while:** 2026-10-04 — `VA-Zk`, porting the example's tutorial.
+
 ## Closed
 
 ### KL-015 · A ghost cannot be drawn see-through: every rig shares one opaque material

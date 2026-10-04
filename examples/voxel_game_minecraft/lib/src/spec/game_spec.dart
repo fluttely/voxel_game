@@ -5,8 +5,15 @@ import 'package:voxel_game/voxel_game.dart';
 
 import '../classes/class_system.dart';
 import '../classes/class_table.dart';
+import '../journal/achievements.dart';
+import '../journal/bestiary.dart';
+import '../journal/game_stats.dart';
+import '../journal/journal_screen.dart';
+import '../journal/quest_log.dart';
+import '../journal/stats_screen.dart';
+import '../journal/tutorial.dart';
 import '../player/heartbeat.dart';
-import '../ui/talent_screen.dart';
+import '../ui/controls_screen.dart';
 import 'block_table.dart';
 import 'effect_table.dart';
 import 'game_sounds.dart';
@@ -21,11 +28,16 @@ import 'world_table.dart';
 ///
 /// The player is the class the world was made with (`classPlayer`, the
 /// title's `classOption`): its abilities on R and F, a dodge on Alt and its
-/// talents in the journal on J (`ClassSystem`, `TalentScreen`).
+/// talents in the journal on J (`ClassSystem`, `JournalScreen`).
 ///
-/// What else only this game has (quests, the bosses and their structures,
-/// villagers' trades, the map) comes in as its own systems and screens on top
-/// (VA-Zk and VA-Zl).
+/// The journal keeps the quests, the achievements and the creatures met
+/// (`QuestLog`, `Achievements`, `Bestiary`); the game menu has the stats
+/// (`GameStats`) and the controls (F1); a new world made with the tutorial
+/// walks the player through their first steps (`Tutorial`, F6 skips it).
+///
+/// What else only this game has (the bosses and their structures, villagers'
+/// trades, waypoints, the map) comes in as its own systems and screens on top
+/// (VA-Zl).
 final VoxelGameSpec gameSpec = VoxelGameSpec(
   seed: 1337,
   blocks: blockTable,
@@ -83,9 +95,10 @@ final VoxelGameSpec gameSpec = VoxelGameSpec(
   ),
   playerFor: classPlayer,
   mobs: mobTable,
-  // The player's heart is heard while its health is low; the class plays its abilities, stamina and mana.
+  // The player's heart is heard while its health is low; the class plays its abilities, stamina and mana; the
+  // journal counts what the player does, the quests and the achievements on it, and the tutorial watches.
   systems: _systems,
-  // The class's two abilities, the dodge, and the journal of its talents.
+  // The class's two abilities, the dodge, the journal, the controls, and a skip of the tutorial.
   actions: const [
     ActionSpec('ability', keys: [PhysicalKeyboardKey.keyR], gamepad: [GamepadButton.leftBumper], touch: Icons.flash_on),
     ActionSpec(
@@ -101,8 +114,14 @@ final VoxelGameSpec gameSpec = VoxelGameSpec(
       touch: Icons.double_arrow,
     ),
     ActionSpec('journal', keys: [PhysicalKeyboardKey.keyJ], gamepad: [GamepadButton.touchpad], touch: Icons.menu_book),
+    ActionSpec('controls', keys: [PhysicalKeyboardKey.f1], gamepad: [GamepadButton.back]),
+    ActionSpec(Tutorial.skipAction, keys: [PhysicalKeyboardKey.f6], gamepad: [GamepadButton.dpadLeft]),
   ],
-  screens: const {'journal': ScreenSpec(TalentScreen.builder, menu: 'Talents', action: 'journal')},
+  screens: const {
+    'journal': ScreenSpec(JournalScreen.builder, menu: 'Journal', action: 'journal'),
+    'stats': ScreenSpec(StatsScreen.builder, menu: 'Stats'),
+    'controls': ScreenSpec(ControlsScreen.builder, menu: 'Controls', action: 'controls'),
+  },
   vehicles: const [
     BoatSpec(item: 'boat'),
     CartSpec(item: 'minecart'),
@@ -132,6 +151,15 @@ final VoxelGameSpec gameSpec = VoxelGameSpec(
   graphics: (_phone ? GraphicsSpec.phone : GraphicsSpec.desktop).copyWith(paced: true),
 );
 
-List<GameSystem> _systems() => [Heartbeat(), ClassSystem()];
+// The stats before what reads them: the achievements count what they counted in the same step.
+List<GameSystem> _systems() => [
+  Heartbeat(),
+  ClassSystem(),
+  GameStats(),
+  Bestiary(),
+  QuestLog(),
+  Achievements(),
+  Tutorial(),
+];
 
 bool get _phone => defaultTargetPlatform == TargetPlatform.iOS || defaultTargetPlatform == TargetPlatform.android;

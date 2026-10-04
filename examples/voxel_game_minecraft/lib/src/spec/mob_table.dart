@@ -12,6 +12,22 @@ final List<MobSpec> mobTable = [
       for (final a in Affix.all) _elite(s, a),
 ];
 
+/// Every creature's kind, by its id: an elite's is the creature it twists
+/// (`swift_zombie` is a `zombie`), any other's its own. What a quest and the
+/// bestiary count a kill as.
+final Map<String, String> plainKinds = {
+  for (final s in speciesTable) s.id: s.id,
+  for (final s in speciesTable)
+    if (_elitable(s))
+      for (final a in Affix.all) a.idOf(s.id): s.id,
+};
+
+/// Whether the creature [id] is an elite (`Affix`).
+bool isElite(String id) => plainKinds[id]! != id;
+
+/// Whether [s] hunts the player unprovoked: a monster.
+bool isMonster(MobSpec s) => s.brain.any((b) => b is Hunt && !b.whenProvoked);
+
 /// The 29 creatures, each at the weight it spawns by among the others. A
 /// species no spawn rule names is placed by the world's people (VA-Zl): the
 /// villager, the temple's and the underworld's lords, a ruin's ghost.
