@@ -181,10 +181,17 @@ class Villages extends SavedSystem {
     for (var i = 0; i < count; i++) {
       final at = ring[i];
       at.y = game.world.groundHeight(at.x.floor(), at.z.floor()).toDouble();
-      final mob = game.spawnMob(villager, at)..home = home.clone();
-      mob.data[offersKey] = [for (final o in roll(game.random)) _offerRow(o)];
+      settle(game, at, home);
     }
     game.notify('A village! Use a villager to trade');
+  }
+
+  /// A villager of [game] at [at], wandering about [home], with offers of
+  /// its own ([roll]): a village's, or a playground's market stall's.
+  static Mob settle(VoxelGame game, Vector3 at, Vector3 home) {
+    final mob = game.spawnMob(villager, at)..home = home.clone();
+    mob.data[offersKey] = [for (final o in roll(game.random)) _offerRow(o)];
+    return mob;
   }
 
   static Vector3 _homeOf(IVec3 centre) => Vector3(centre.x + 0.5, centre.y.toDouble(), centre.z + 0.5);

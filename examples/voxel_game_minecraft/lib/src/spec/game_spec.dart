@@ -16,6 +16,8 @@ import '../journal/tutorial.dart';
 import '../map/map_screen.dart';
 import '../map/world_map.dart';
 import '../player/heartbeat.dart';
+import '../playground/playground.dart';
+import '../playground/playground_screen.dart';
 import '../structures/structures.dart';
 import '../ui/controls_screen.dart';
 import '../villages/trade_screen.dart';
@@ -58,8 +60,11 @@ import 'world_table.dart';
 /// whole map (`MapScreen`), then neither; it draws the chunks explored, the
 /// structures found, the waypoints and the creatures.
 ///
-/// What else only this game has (the playground) comes in as its own
-/// systems and screens on top (VA-Zl5).
+/// A playground (the title's `playgroundOption`) presses a flat plaza
+/// into the world (`Playground.worldFor`) and lays nine exhibits on it
+/// (`Playground`), each with its card (`ZoneCard`); F7, F8 and F9 change its
+/// weather, its time of day and rebuild an exhibit, and so do the buttons of
+/// Playground in its game menu (`PlaygroundScreen`).
 final VoxelGameSpec gameSpec = VoxelGameSpec(
   seed: 1337,
   blocks: blockTable,
@@ -74,6 +79,7 @@ final VoxelGameSpec gameSpec = VoxelGameSpec(
     },
   ),
   world: overworld,
+  worldFor: Playground.worldFor,
   dimensions: const {'underworld': underworld},
   // An obsidian frame around a hollow two wide and three tall, lit with flint and steel; two seconds in it and
   // the player crosses, a frame built on the far side for the way back.
@@ -120,7 +126,8 @@ final VoxelGameSpec gameSpec = VoxelGameSpec(
   // The player's heart is heard while its health is low; the class plays its abilities, stamina and mana; the
   // journal counts what the player does, the quests and the achievements on it, and the tutorial watches.
   systems: _systems,
-  // The class's two abilities, the dodge, the journal, the map, the controls, and a skip of the tutorial.
+  // The class's two abilities, the dodge, the journal, the map, the controls, a skip of the tutorial, and a
+  // playground's three.
   actions: const [
     ActionSpec('ability', keys: [PhysicalKeyboardKey.keyR], gamepad: [GamepadButton.leftBumper], touch: Icons.flash_on),
     ActionSpec(
@@ -139,6 +146,10 @@ final VoxelGameSpec gameSpec = VoxelGameSpec(
     ActionSpec(WorldMap.action, keys: [PhysicalKeyboardKey.keyM], gamepad: [GamepadButton.back], touch: Icons.map),
     ActionSpec('controls', keys: [PhysicalKeyboardKey.f1], gamepad: [GamepadButton.home]),
     ActionSpec(Tutorial.skipAction, keys: [PhysicalKeyboardKey.f6], gamepad: [GamepadButton.dpadLeft]),
+    // A pad and a phone reach these through the game menu (`PlaygroundScreen`).
+    ActionSpec(Playground.weatherAction, keys: [PhysicalKeyboardKey.f7]),
+    ActionSpec(Playground.timeAction, keys: [PhysicalKeyboardKey.f8]),
+    ActionSpec(Playground.rebuildAction, keys: [PhysicalKeyboardKey.f9]),
   ],
   // A waypoint lists the others, to travel to one; an enchanting table enchants what is in hand.
   blockUses: const {Waypoints.block: Waypoints.open, Enchanting.table: _enchant},
@@ -152,6 +163,7 @@ final VoxelGameSpec gameSpec = VoxelGameSpec(
     WorldMap.screen: ScreenSpec(MapScreen.builder, menu: 'Map'),
     'stats': ScreenSpec(StatsScreen.builder, menu: 'Stats'),
     'controls': ScreenSpec(ControlsScreen.builder, menu: 'Controls', action: 'controls'),
+    Playground.screen: ScreenSpec(PlaygroundScreen.builder, menu: 'Playground', listed: PlaygroundScreen.listed),
   },
   vehicles: const [
     BoatSpec(item: 'boat'),
@@ -195,6 +207,7 @@ List<GameSystem> _systems() => [
   Villages(),
   Structures(),
   WorldMap(),
+  Playground(),
 ];
 
 void _enchant(VoxelGame game, IVec3 cell) => Enchanting.use(game, cell);

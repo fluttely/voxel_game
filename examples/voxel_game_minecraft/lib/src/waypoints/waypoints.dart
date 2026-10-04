@@ -14,6 +14,10 @@ typedef Waypoint = ({IVec3 cell, String dimension, String label});
 /// they are in ([travel]): free beside another waypoint ([nearby] metres),
 /// [cost] mana from afar.
 ///
+/// The game's own code sets waypoints too: one on a block it built, named
+/// ([add]), and a bare one with no block at all, a stop to travel to that is
+/// never found gone ([mark]: the playground's world tour).
+///
 /// Saved with the world (under `waypoints`).
 class Waypoints extends SavedSystem {
   /// The key of the waypoints in the save.
@@ -41,11 +45,34 @@ class Waypoints extends SavedSystem {
   static void open(VoxelGame game, IVec3 cell) => game.openScreen(const DeclaredScreen(screen));
 
   final List<Waypoint> _all = [];
+  final Set<(String, IVec3)> _bare = {};
   ({Vector3 at, IVec3 cell})? _arriving;
   double _lookIn = 0.0;
 
   /// Every waypoint, by label.
   List<Waypoint> get all => [..._all]..sort((a, b) => a.label.compareTo(b.label));
+
+  /// Sets the waypoint block at [cell] of [game]'s dimension as a waypoint
+  /// called [label]: one the game built, not the player.
+  void add(VoxelGame game, IVec3 cell, String label) {
+    assert(game.world.blockNameAt(cell) == block, 'a waypoint stands on its block');
+    _set(game.dimension, cell, label);
+  }
+
+  /// Sets a bare waypoint called [label] at [cell] of [game]'s dimension: no
+  /// block of its own, landed on as on one.
+  void mark(VoxelGame game, IVec3 cell, String label) {
+    _set(game.dimension, cell, label);
+    _bare.add((game.dimension, cell));
+  }
+
+  void _set(String dimension, IVec3 cell, String label) {
+    _forget(dimension, cell);
+    _all.add((cell: cell, dimension: dimension, label: label));
+  }
+
+  /// Whether [w] is bare: set with no block ([mark]).
+  bool isBare(Waypoint w) => _bare.contains((w.dimension, w.cell));
 
   /// Where a trip to [w] stands the player: on top of it.
   static Vector3 landingOf(Waypoint w) => Vector3(w.cell.x + 0.5, w.cell.y + 1.05, w.cell.z + 0.5);
@@ -60,8 +87,8 @@ class Waypoints extends SavedSystem {
     }
     final p = game.player;
     final free = _all.any((o) => o.dimension == game.dimension && _centre(o.cell).distanceTo(p.position) <= nearby);
-    if (!free) {
-      final classes = ClassSystem.of(game);
+    final classes = ClassSystem.of(game);
+    if (!free && !classes.endless) {
       if (classes.mana < cost) {
         game.notify('Need ${cost.round()} mana to travel from afar');
         return false;
@@ -107,6 +134,7 @@ class Waypoints extends SavedSystem {
     // A waypoint blown up raises no break: it is forgotten once its cell is seen without it.
     for (final w in [..._all]) {
       if (w.dimension == game.dimension &&
+          !isBare(w) &&
           game.world.isLoaded(w.cell) &&
           game.world.blockNameAt(w.cell) != Waypoints.block) {
         _forget(w.dimension, w.cell);
@@ -124,7 +152,10 @@ class Waypoints extends SavedSystem {
     return 'Waypoint $n';
   }
 
-  void _forget(String dimension, IVec3 cell) => _all.removeWhere((w) => w.dimension == dimension && w.cell == cell);
+  void _forget(String dimension, IVec3 cell) {
+    _all.removeWhere((w) => w.dimension == dimension && w.cell == cell);
+    _bare.remove((dimension, cell));
+  }
 
   static Vector3 _centre(IVec3 c) => Vector3(c.x + 0.5, c.y + 0.5, c.z + 0.5);
 
@@ -138,17 +169,21 @@ class Waypoints extends SavedSystem {
         'cell': [w.cell.x, w.cell.y, w.cell.z],
         'dimension': w.dimension,
         'label': w.label,
+        if (isBare(w)) 'bare': true,
       },
   ];
 
   @override
   void restore(VoxelGame game, Object? saved) {
     _all.clear();
+    _bare.clear();
     for (final row in (saved! as List<Object?>).cast<Map<String, Object?>>()) {
       final c = (row['cell']! as List<Object?>).cast<int>();
       final dimension = row['dimension']! as String;
       if (!game.spec.dimensionIds.contains(dimension)) throw FormatException('a waypoint in no dimension $dimension');
-      _all.add((cell: IVec3(c[0], c[1], c[2]), dimension: dimension, label: row['label']! as String));
+      final cell = IVec3(c[0], c[1], c[2]);
+      _all.add((cell: cell, dimension: dimension, label: row['label']! as String));
+      if (row['bare'] == true) _bare.add((dimension, cell));
     }
   }
 }

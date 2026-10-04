@@ -10,14 +10,17 @@ import '../journal/tutorial_card.dart';
 import '../map/minimap.dart';
 import '../map/world_map.dart';
 import '../player/heartbeat.dart';
+import '../playground/playground.dart';
+import '../playground/zone_card.dart';
 
 /// The kit's HUD ([DefaultHud]) with the game's own pieces on it: the clock
 /// line at the top ([clockOf]), the name and health of the creature in the
-/// crosshair over it ([aimedOf]), the class's stamina and mana as bars under
+/// crosshair over it ([aimedOf]; in a playground, the block's name when
+/// there is no creature, [aimedBlockOf]), the class's stamina and mana as bars under
 /// the hearts and its abilities at the bottom left ([abilitiesOf]), the
 /// quest at hand at the top right ([questOf]) and the minimap under it while
 /// it is shown (`WorldMap.minimap`), the tutorial's card under the clock
-/// (`TutorialCard`), and while the player's health is low
+/// (`TutorialCard`) and a playground exhibit's under it (`ZoneCard`), and while the player's health is low
 /// (`Heartbeat.isLow`) a red edge pulsing under it all, as the heart beats.
 ///
 /// Every piece of the game's but the tutorial's card (its skip button) is
@@ -70,6 +73,15 @@ class GameHud extends StatelessWidget {
     return '${m.name}  ${m.hp.ceil()}/${m.maxHp.ceil()}';
   }
 
+  /// The name of the block the crosshair is on, in a playground and on no
+  /// creature (`Stone Bricks`); null elsewhere.
+  static String? aimedBlockOf(VoxelGame game) {
+    if (!Playground.isOn(game) || aimedOf(game) != null) return null;
+    final hit = game.player.aimedBlock;
+    if (hit == null) return null;
+    return game.blocks[game.world.getBlock(hit.block)].name;
+  }
+
   /// The class's abilities as the HUD lists them, a line each: the key
   /// and the name, and the seconds left while one comes back
   /// (`[F] Shield Bash  4s`).
@@ -111,6 +123,15 @@ class GameHud extends StatelessWidget {
   // An id as a name: `frozen_shore` is Frozen Shore.
   static String _named(String id) =>
       id.split('_').map((w) => w.isEmpty ? w : w[0].toUpperCase() + w.substring(1)).join(' ');
+
+  // A line just over the crosshair.
+  static Widget _overCrosshair(String text, Color color, double size) => Transform.translate(
+    offset: const Offset(0, -40),
+    child: Text(
+      text,
+      style: TextStyle(fontSize: size, color: color, shadows: _shadow),
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -196,16 +217,12 @@ class GameHud extends StatelessWidget {
               Center(
                 child: HudSelector(
                   frames: frames,
-                  select: () => aimedOf(game),
-                  builder: (context, aimed) => aimed == null
-                      ? const SizedBox.shrink()
-                      : Transform.translate(
-                          offset: const Offset(0, -40),
-                          child: Text(
-                            aimed,
-                            style: const TextStyle(fontSize: 16, color: Color(0xFFFFCCCC), shadows: _shadow),
-                          ),
-                        ),
+                  select: () => (mob: aimedOf(game), block: aimedBlockOf(game)),
+                  builder: (context, aimed) => switch (aimed) {
+                    (mob: final mob?, block: _) => _overCrosshair(mob, const Color(0xFFFFCCCC), 16),
+                    (mob: null, block: final block?) => _overCrosshair(block, const Color(0xFFCCE6FF), 15),
+                    _ => const SizedBox.shrink(),
+                  },
                 ),
               ),
             ],
@@ -218,7 +235,7 @@ class GameHud extends StatelessWidget {
             select: () => game.boss != null,
             builder: (context, boss) => Padding(
               padding: EdgeInsets.only(top: cardTop + (boss ? underBossBar : 0), left: 16, right: 16),
-              child: TutorialCard(game),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [TutorialCard(game), ZoneCard(game)]),
             ),
           ),
         ),

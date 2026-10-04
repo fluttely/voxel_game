@@ -23,6 +23,7 @@ class ControlsScreen extends StatelessWidget {
       'G  glide, with a glider in the bag  ·  F5  fly, in a Creative world',
       'M  the map: small in the corner, then big, then gone',
       'F1  these controls  ·  F6  skip the tutorial',
+      'In a playground: F7  the weather  ·  F8  the time of day  ·  F9  rebuild the exhibit you stand in',
     ],
     'Gamepad': [
       'Left stick  walk  ·  Right stick  look  ·  A  jump  ·  B  sneak  ·  Y  bag',
@@ -30,12 +31,14 @@ class ControlsScreen extends StatelessWidget {
       'Bumpers  your powers  ·  X  dodge  ·  Touchpad  journal',
       'D-pad: up glide, right fly, down drop, left skip the tutorial  ·  Start  menu',
       'Back  the map: small, then big, then gone  ·  Home  these controls',
+      'In a playground, Playground in the menu changes the weather and the time and rebuilds an exhibit',
     ],
     'Phone': [
       'The stick at the left walks; drag anywhere else to look',
       'Tap to hit or use, hold to mine; the buttons at the right do the rest',
       'The map button shows the map small, then big, then hides it',
       'The menu button at the top has the journal, the map, the stats and these controls',
+      'In a playground it has Playground too: the weather, the time, and a rebuild of the exhibit you stand in',
     ],
   };
 

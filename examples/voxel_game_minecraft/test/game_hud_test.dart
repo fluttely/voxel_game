@@ -142,7 +142,12 @@ void main() {
 
   testWidgets('the stats and the controls are screens of the game menu; F1 opens the controls', (tester) async {
     final game = await start(tester);
-    expect(gameSpec.screens.values.map((s) => s.menu).nonNulls, ['Journal', 'Map', 'Stats', 'Controls']);
+    expect(gameSpec.screens.values.where((s) => s.listedIn(game)).map((s) => s.menu), [
+      'Journal',
+      'Map',
+      'Stats',
+      'Controls',
+    ], reason: "an open world's menu: Playground is a playground's");
     game.raise(const BlockBroken('stone', IVec3(0, 0, 0)));
     game.step(1 / 60);
     await tester.pumpWidget(MaterialApp(home: Scaffold(body: StatsScreen(game))));

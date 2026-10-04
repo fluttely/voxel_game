@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:vector_math/vector_math.dart';
 import 'package:voxel_game/voxel_game.dart';
 
+import '../playground/playground.dart';
 import 'ability.dart';
 import 'class_table.dart';
 import 'player_class.dart';
@@ -24,6 +25,9 @@ import 'talent.dart';
 /// - A level is worth a talent point ([points]), spent in the journal
 ///   ([learn]); every blow is the class's `PlayerClass.damage` times
 ///   [levelDamage] more a level, through a `Boost` with the talents'.
+///
+/// In a playground nothing runs out ([endless]): every cost is covered and
+/// none is paid.
 ///
 /// Its numbers are saved with the world (under `class`); the class itself is
 /// the world's option, and the cooldowns start over.
@@ -116,6 +120,21 @@ class ClassSystem extends SavedSystem {
   /// The rank of the talent [id], 0 when not learned.
   int rank(String id) => ranks[id] ?? 0;
 
+  /// Whether nothing runs out: in a playground (`Playground.isOn`).
+  bool get endless => _endless;
+  bool _endless = false;
+
+  /// Starts the player of [game] at [level] with [points] to spend, full:
+  /// a fresh playground's showcase.
+  void startAt(VoxelGame game, {required int level, required int points}) {
+    _begin(game);
+    game.player.level = level;
+    this.points = points;
+    _boost();
+    stamina = maxStamina;
+    mana = maxMana;
+  }
+
   /// What [base] mana comes to with the talents.
   double manaCost(double base) => base * math.max(1.0 - _sum((t) => t.manaCost), 0.0);
 
@@ -147,9 +166,8 @@ class ClassSystem extends SavedSystem {
   }
 
   /// The creatures alive within [radius] metres of the player.
-  Iterable<Mob> mobsNear(VoxelGame game, double radius) => game.mobs.where(
-    (m) => !m.removed && !m.isDead && m.position.distanceTo(game.player.position) < radius,
-  );
+  Iterable<Mob> mobsNear(VoxelGame game, double radius) =>
+      game.mobs.where((m) => !m.removed && !m.isDead && m.position.distanceTo(game.player.position) < radius);
 
   /// Hits [mob] with a blow of the player's of [amount], through their
   /// damage filters, pushing it [knockback] away.
@@ -176,7 +194,7 @@ class ClassSystem extends SavedSystem {
       stamina = maxStamina;
       mana = maxMana;
     }
-    if (p.sprinting) stamina = math.max(stamina - sprintCost * dt, 0.0);
+    if (p.sprinting && !_endless) stamina = math.max(stamina - sprintCost * dt, 0.0);
     if (!(game.gameplay && game.input.down(VoxelAction.sprint))) {
       stamina = math.min(stamina + staminaBack * (1.0 + _sum((t) => t.staminaRegen)) * dt, maxStamina);
     }
@@ -198,7 +216,7 @@ class ClassSystem extends SavedSystem {
         game.notify('Level $level! Talent point earned (J)');
       case ShotFired(:final launcher):
         final cost = shotCosts[launcher.id];
-        if (cost == null) return;
+        if (cost == null || _endless) return;
         stamina = math.max(stamina - cost.stamina, 0.0);
         mana = math.max(mana - manaCost(cost.mana), 0.0);
       default:
@@ -233,6 +251,7 @@ class ClassSystem extends SavedSystem {
     if (_game != null) return;
     _game = game;
     _class = classOf(game.options);
+    _endless = Playground.isOn(game);
     stamina = maxStamina;
     mana = maxMana;
     final p = game.player;
@@ -246,7 +265,7 @@ class ClassSystem extends SavedSystem {
   // shot paid for.
   String? _refuseShot(ItemType launcher) {
     final cost = shotCosts[launcher.id];
-    if (cost == null) return null;
+    if (cost == null || _endless) return null;
     if (stamina < cost.stamina) return 'Too tired to draw';
     if (mana < manaCost(cost.mana)) return 'Not enough mana';
     return null;
@@ -286,11 +305,13 @@ class ClassSystem extends SavedSystem {
     if (left > 0.0) return game.notify('${ability.name} ready in ${left.ceil()}s');
     final arrows = p.spec.creative ? 0 : ability.arrows;
     if (p.inventory.countOf('arrow') < arrows) return game.notify('Need $arrows arrows');
-    if (stamina < ability.stamina) return game.notify('Too tired');
     final cost = manaCost(ability.mana);
-    if (mana < cost) return game.notify('Not enough mana');
-    stamina -= ability.stamina;
-    mana -= cost;
+    if (!_endless) {
+      if (stamina < ability.stamina) return game.notify('Too tired');
+      if (mana < cost) return game.notify('Not enough mana');
+      stamina -= ability.stamina;
+      mana -= cost;
+    }
     if (arrows > 0) p.inventory.remove('arrow', arrows);
     ability.cast(game, this);
     final shorter = _sum((t) => t.cooldownOf == action ? t.cooldown : 0.0);
@@ -300,8 +321,9 @@ class ClassSystem extends SavedSystem {
   void _dodge(VoxelGame game) {
     final p = game.player;
     final cost = math.max(dodgeCost - _sum((t) => t.dodgeCost), 0.0);
-    if (dodging || _dodgeAgain > 0.0 || stamina < cost || p.riding != null || p.sleeping || p.inLiquid) return;
-    stamina -= cost;
+    if (dodging || _dodgeAgain > 0.0 || (!_endless && stamina < cost)) return;
+    if (p.riding != null || p.sleeping || p.inLiquid) return;
+    if (!_endless) stamina -= cost;
     _dodgeLeft = dodgeSeconds;
     _dodgeAgain = dodgeEvery;
     p.grantGrace(dodgeSeconds);

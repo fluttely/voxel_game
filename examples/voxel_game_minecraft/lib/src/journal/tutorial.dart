@@ -1,6 +1,7 @@
 import 'package:vector_math/vector_math.dart';
 import 'package:voxel_game/voxel_game.dart';
 
+import '../playground/playground.dart';
 import 'game_stats.dart';
 import 'tutorial_step.dart';
 import 'tutorial_steps.dart';
@@ -8,7 +9,7 @@ import 'tutorial_steps.dart';
 /// The guided first steps of a new world ([tutorialSteps]), a card each at
 /// the top of the screen (`TutorialCard`): only what finishes the step at
 /// hand moves it on, with a chime, and the last one ends it. A world made
-/// with the tutorial off (`tutorialOption`) starts it ended; the card's
+/// with the tutorial off (`tutorialOption`), or a playground, starts it ended; the card's
 /// button and the `skip_tutorial` action (F6) end it at once.
 ///
 /// For the steps that are a state, it measures what the player did since
@@ -98,11 +99,14 @@ class Tutorial extends SavedSystem {
     _yaw = p.yaw;
     _pitch = p.pitch;
     _timeOfDay = game.timeOfDay;
-    step = switch (game.options['tutorial']) {
-      'on' => 0,
-      'off' => tutorialSteps.length,
-      final other => throw ArgumentError.value(other, 'options', 'the tutorial is on or off'),
-    };
+    // A playground has no tutorial.
+    step = Playground.isOn(game)
+        ? tutorialSteps.length
+        : switch (game.options['tutorial']) {
+            'on' => 0,
+            'off' => tutorialSteps.length,
+            final other => throw ArgumentError.value(other, 'options', 'the tutorial is on or off'),
+          };
   }
 
   @override
