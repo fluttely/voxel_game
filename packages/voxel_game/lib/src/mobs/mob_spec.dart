@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:voxel_engine/content.dart';
 
 import 'behaviors.dart';
@@ -98,6 +99,29 @@ class SpawnRule {
 
   /// Its weight in [biome].
   double weightIn(String biome) => weight * (biomeWeights[biome] ?? 1.0);
+
+  /// This rule with the given fields replaced; [biomes], which may be null,
+  /// is given as a getter of its new value, so `biomes: () => null` lets it
+  /// appear in any biome and leaving it out keeps the biomes it had.
+  SpawnRule copyWith({
+    int? weight,
+    ValueGetter<List<String>?>? biomes,
+    Map<String, double>? biomeWeights,
+    int? minLight,
+    int? maxLight,
+    (int, int)? group,
+    SpawnPlace? place,
+    int? maxAlive,
+  }) => SpawnRule(
+    weight: weight ?? this.weight,
+    biomes: biomes == null ? this.biomes : biomes(),
+    biomeWeights: biomeWeights ?? this.biomeWeights,
+    minLight: minLight ?? this.minLight,
+    maxLight: maxLight ?? this.maxLight,
+    group: group ?? this.group,
+    place: place ?? this.place,
+    maxAlive: maxAlive ?? this.maxAlive,
+  );
 }
 
 /// A creature, declared: how it looks ([rig]), how big it is, how it moves
@@ -247,4 +271,73 @@ class MobSpec {
   /// Whether it is a boss: while one lives in the loaded world, the default
   /// HUD shows the nearest one's health in a bar at the top of the screen.
   final bool boss;
+
+  /// This creature with the given fields replaced: a tougher variant of it,
+  /// say, that keeps everything it does not name. A field that may be null
+  /// is given as a getter of its new value, so null can be asked for:
+  /// `copyWith(spawn: () => null)` leaves the variant to the game to place,
+  /// and leaving `spawn` out keeps where the creature spawns.
+  ///
+  /// ```dart
+  /// zombie.copyWith(id: 'big_zombie', hp: zombie.hp * 2, name: () => 'Big Zombie');
+  /// ```
+  MobSpec copyWith({
+    String? id,
+    ValueGetter<String?>? name,
+    double? hp,
+    double? speed,
+    double? halfWidth,
+    double? height,
+    Rig? rig,
+    Gait? gait,
+    List<Behavior>? brain,
+    LootTable? loot,
+    int? xp,
+    ValueGetter<MobLevels?>? levels,
+    bool? burnsInDaylight,
+    ValueGetter<MobSplit?>? splitsInto,
+    ValueGetter<HitEffect?>? onHit,
+    List<String>? tameWith,
+    double? tameChance,
+    List<Behavior>? tamedBrain,
+    ValueGetter<MountSpec?>? mount,
+    Map<String, String>? yields,
+    ValueGetter<Fleece?>? fleece,
+    bool? persistent,
+    bool? ghost,
+    bool? invulnerable,
+    ValueGetter<SpawnRule?>? spawn,
+    double? knockbackResistance,
+    ValueGetter<String?>? hurtSound,
+    bool? boss,
+  }) => MobSpec(
+    id ?? this.id,
+    name: name == null ? _name : name(),
+    hp: hp ?? this.hp,
+    speed: speed ?? this.speed,
+    halfWidth: halfWidth ?? this.halfWidth,
+    height: height ?? this.height,
+    rig: rig ?? this.rig,
+    gait: gait ?? this.gait,
+    brain: brain ?? this.brain,
+    loot: loot ?? this.loot,
+    xp: xp ?? this.xp,
+    levels: levels == null ? this.levels : levels(),
+    burnsInDaylight: burnsInDaylight ?? this.burnsInDaylight,
+    splitsInto: splitsInto == null ? this.splitsInto : splitsInto(),
+    onHit: onHit == null ? this.onHit : onHit(),
+    tameWith: tameWith ?? this.tameWith,
+    tameChance: tameChance ?? this.tameChance,
+    tamedBrain: tamedBrain ?? this.tamedBrain,
+    mount: mount == null ? this.mount : mount(),
+    yields: yields ?? this.yields,
+    fleece: fleece == null ? this.fleece : fleece(),
+    persistent: persistent ?? this.persistent,
+    ghost: ghost ?? this.ghost,
+    invulnerable: invulnerable ?? this.invulnerable,
+    spawn: spawn == null ? this.spawn : spawn(),
+    knockbackResistance: knockbackResistance ?? this.knockbackResistance,
+    hurtSound: hurtSound == null ? this.hurtSound : hurtSound(),
+    boss: boss ?? this.boss,
+  );
 }

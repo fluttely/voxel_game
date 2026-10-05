@@ -189,6 +189,10 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
   holds a glider.
 - `MobSpec` with a `Rig` (humanoid, quadruped, bird, blob), a `Gait` and a brain of goals:
   `Wander`, `Hunt`, `MeleeAttack`, `RangedAttack`, `FleeWhenHurt`, `Explode`, `LookAtPlayer`, or `Behavior.custom`.
+- A creature derived from another keeps what it does not change: `MobSpec`, `SpawnRule`,
+  `ProjectileSpec` and every behaviour with fields have a `copyWith`
+  (`zombie.copyWith(id: 'big_zombie', hp: 40)`), a nullable field given as a getter
+  (`spawn: () => null`).
 - `Goal` / `GoalSelector`: the same goal system for your own creature classes.
 - A creature drops a `LootTable` and is worth `xp`; it can grow with the player
   (`MobLevels`), burn by day (`burnsInDaylight`), split when it dies (`MobSplit`) and leave

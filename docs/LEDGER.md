@@ -50,13 +50,6 @@
 - **Cost of leaving it:** a paced game's FPS readout says the world moves at up to twice the rate it is drawn at (the app saw its readout go from 57 to 85 when it paced, `examples/voxel_game_minecraft/ROADMAP.md:173`), and the benchmark cannot weigh pacing at all: an A/B of `paced` on and off would compare tick rates that barely move. Before that A/B is run, `FrameReport` needs the scene frames rendered per second beside the Flutter ones.
 - **Found while:** 2026-10-03 — VA-Zg, writing `GraphicsSpec.paced`'s cost into its doc.
 
-### KL-018 · A game that derives a creature from another copies every field by hand
-
-- **Lens:** API / content
-- **Evidence:** `MobSpec` (`packages/voxel_game/lib/src/mobs/mob_spec.dart:120`), `SpawnRule` (`:31`) and `ProjectileSpec` (`packages/voxel_game/lib/src/entities/projectile.dart:19`) have no `copyWith`, nor do the behaviours. The minecraft example's elites (VAD22: each affix a creature of its own) rebuild all 27 fields of a `MobSpec` (`examples/voxel_game_minecraft/lib/src/spec/mob_table.dart:587`), all 8 of a `SpawnRule` (`:575`), all 15 of a `ProjectileSpec` (`:732`) and a `MeleeAttack` and a `RangedAttack` field by field (`:556`), to change four numbers.
-- **Cost of leaving it:** a field added to any of them later is silently dropped from every derived creature (a field like `hurtSound`, added later, would leave the app's 132 elites without it) and nothing fails; every game that scales a creature (a variant, a difficulty, a test) writes the same copy. `VoxelGameSpec` and `GraphicsSpec` have one already (`KL-010` is the nullable-field question it raised).
-- **Found while:** 2026-10-03 — VA-Zh, generating the app's elites as `MobSpec` variants.
-
 ### KL-019 · A title has no music of its own: a game that wants some opens a second audio device
 
 - **Lens:** kit API / audio
@@ -86,6 +79,14 @@
 - **Found while:** 2026-10-04 — `VA-Zl5`, starting a playground's player at the hub.
 
 ## Closed
+
+### KL-018 · A game that derives a creature from another copies every field by hand
+
+- **Lens:** API / content
+- **Evidence:** `MobSpec` (`packages/voxel_game/lib/src/mobs/mob_spec.dart:120`), `SpawnRule` (`:31`) and `ProjectileSpec` (`packages/voxel_game/lib/src/entities/projectile.dart:19`) have no `copyWith`, nor do the behaviours. The minecraft example's elites (VAD22: each affix a creature of its own) rebuild all 27 fields of a `MobSpec` (`examples/voxel_game_minecraft/lib/src/spec/mob_table.dart:587`), all 8 of a `SpawnRule` (`:575`), all 15 of a `ProjectileSpec` (`:732`) and a `MeleeAttack` and a `RangedAttack` field by field (`:556`), to change four numbers.
+- **Cost of leaving it:** a field added to any of them later is silently dropped from every derived creature (a field like `hurtSound`, added later, would leave the app's 132 elites without it) and nothing fails; every game that scales a creature (a variant, a difficulty, a test) writes the same copy. `VoxelGameSpec` and `GraphicsSpec` have one already (`KL-010` is the nullable-field question it raised).
+- **Found while:** 2026-10-03 — VA-Zh, generating the app's elites as `MobSpec` variants.
+- **Closed by:** 2026-10-05 — `voxel_game, examples/voxel_game_minecraft: a creature's specs have copyWith (KL-018)`. `MobSpec`, `SpawnRule`, `ProjectileSpec` and the ten behaviours with fields gain `copyWith`; the nullable fields (a creature's name, levels, split, effect on hit, mount, fleece, spawn and hurt sound, a rule's biomes, a shot's effect on hit) take a `ValueGetter`, `KL-010`'s pattern. `test/creature_copy_test.dart` shows, per spec, a field left out kept, one given changed and a nullable one asked for null (the kit 434). The app's elites, the plain creatures' weighed spawns and `_harder` are `copyWith` calls, and its `_copy`, `_weighed` and `_Volley.shot` are gone; its 99 tests pass unchanged.
 
 ### KL-012 · The minecraft example's instructions describe it as a folder of Dawnforge
 

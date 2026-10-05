@@ -68,6 +68,10 @@ class Wander extends Behavior {
   /// Its pace, as a share of the mob's speed.
   final double speed;
 
+  /// This behaviour with the given fields replaced.
+  Wander copyWith({int? priority, double? radius, double? speed}) =>
+      Wander(priority: priority ?? this.priority, radius: radius ?? this.radius, speed: speed ?? this.speed);
+
   @override
   bool canStart(Mob mob, VoxelGame game) => true;
 
@@ -119,6 +123,15 @@ class Hunt extends Behavior {
 
   /// Mob ids it hunts besides the player (a wolf hunts sheep).
   final List<String> prey;
+
+  /// This behaviour with the given fields replaced.
+  Hunt copyWith({int? priority, double? range, double? giveUpRange, bool? whenProvoked, List<String>? prey}) => Hunt(
+    priority: priority ?? this.priority,
+    range: range ?? this.range,
+    giveUpRange: giveUpRange ?? this.giveUpRange,
+    whenProvoked: whenProvoked ?? this.whenProvoked,
+    prey: prey ?? this.prey,
+  );
 
   @override
   bool canStart(Mob mob, VoxelGame game) {
@@ -190,6 +203,16 @@ class MeleeAttack extends Behavior {
   /// The shove a strike gives.
   final double knockback;
 
+  /// This behaviour with the given fields replaced.
+  MeleeAttack copyWith({int? priority, double? damage, double? reach, double? cooldown, double? knockback}) =>
+      MeleeAttack(
+        priority: priority ?? this.priority,
+        damage: damage ?? this.damage,
+        reach: reach ?? this.reach,
+        cooldown: cooldown ?? this.cooldown,
+        knockback: knockback ?? this.knockback,
+      );
+
   @override
   Set<BehaviorSlot> get slots => const {BehaviorSlot.attack, BehaviorSlot.look};
 
@@ -241,6 +264,23 @@ class RangedAttack extends Behavior {
   /// Seconds between shots.
   final double cooldown;
 
+  /// This behaviour with the given fields replaced.
+  RangedAttack copyWith({
+    int? priority,
+    ProjectileSpec? projectile,
+    double? range,
+    double? keepAway,
+    double? holdRange,
+    double? cooldown,
+  }) => RangedAttack(
+    priority: priority ?? this.priority,
+    projectile: projectile ?? this.projectile,
+    range: range ?? this.range,
+    keepAway: keepAway ?? this.keepAway,
+    holdRange: holdRange ?? this.holdRange,
+    cooldown: cooldown ?? this.cooldown,
+  );
+
   @override
   Set<BehaviorSlot> get slots => const {BehaviorSlot.move, BehaviorSlot.attack, BehaviorSlot.look};
 
@@ -287,6 +327,10 @@ class FleeWhenHurt extends Behavior {
 
   /// Its pace, as a share of the mob's speed.
   final double speed;
+
+  /// This behaviour with the given fields replaced.
+  FleeWhenHurt copyWith({int? priority, double? seconds, double? speed}) =>
+      FleeWhenHurt(priority: priority ?? this.priority, seconds: seconds ?? this.seconds, speed: speed ?? this.speed);
 
   @override
   bool canStart(Mob mob, VoxelGame game) => mob.sinceHurt < 0.2 && mob.lastHurtFrom != null;
@@ -349,6 +393,23 @@ class Explode extends Behavior {
   /// Whether the blast breaks blocks.
   final bool breaksBlocks;
 
+  /// This behaviour with the given fields replaced.
+  Explode copyWith({
+    int? priority,
+    double? trigger,
+    double? fuse,
+    double? radius,
+    double? damage,
+    bool? breaksBlocks,
+  }) => Explode(
+    priority: priority ?? this.priority,
+    trigger: trigger ?? this.trigger,
+    fuse: fuse ?? this.fuse,
+    radius: radius ?? this.radius,
+    damage: damage ?? this.damage,
+    breaksBlocks: breaksBlocks ?? this.breaksBlocks,
+  );
+
   @override
   Set<BehaviorSlot> get slots => const {BehaviorSlot.move, BehaviorSlot.attack};
 
@@ -397,6 +458,10 @@ class LookAtPlayer extends Behavior {
   /// How near the player must be.
   final double range;
 
+  /// This behaviour with the given fields replaced.
+  LookAtPlayer copyWith({int? priority, double? range}) =>
+      LookAtPlayer(priority: priority ?? this.priority, range: range ?? this.range);
+
   @override
   Set<BehaviorSlot> get slots => const {BehaviorSlot.look};
 
@@ -422,6 +487,13 @@ class PetFight extends Behavior {
 
   /// How far it chases before giving up.
   final double giveUpRange;
+
+  /// This behaviour with the given fields replaced.
+  PetFight copyWith({int? priority, double? range, double? giveUpRange}) => PetFight(
+    priority: priority ?? this.priority,
+    range: range ?? this.range,
+    giveUpRange: giveUpRange ?? this.giveUpRange,
+  );
 
   @override
   bool canStart(Mob mob, VoxelGame game) {
@@ -481,6 +553,15 @@ class Heel extends Behavior {
   /// Its pace, as a share of the mob's speed.
   final double speed;
 
+  /// This behaviour with the given fields replaced.
+  Heel copyWith({int? priority, double? follow, double? stay, double? teleport, double? speed}) => Heel(
+    priority: priority ?? this.priority,
+    follow: follow ?? this.follow,
+    stay: stay ?? this.stay,
+    teleport: teleport ?? this.teleport,
+    speed: speed ?? this.speed,
+  );
+
   @override
   bool canStart(Mob mob, VoxelGame game) {
     final owner = mob.owner;
@@ -532,6 +613,14 @@ class MountWait extends Behavior {
 
   /// How far the owner goes before it stays where it is.
   final double leash;
+
+  /// This behaviour with the given fields replaced.
+  MountWait copyWith({int? priority, double? follow, double? stay, double? leash}) => MountWait(
+    priority: priority ?? this.priority,
+    follow: follow ?? this.follow,
+    stay: stay ?? this.stay,
+    leash: leash ?? this.leash,
+  );
 
   @override
   bool canStart(Mob mob, VoxelGame game) => mob.owner != null;

@@ -6,7 +6,8 @@ import 'affix.dart';
 /// [Affix] for every one the world spawns but a boss, at [Affix.share] of the
 /// spawns among them.
 final List<MobSpec> mobTable = [
-  for (final s in speciesTable) _elitable(s) ? _copy(s, spawn: _weighed(s.spawn!, _plainWeight)) : s,
+  for (final s in speciesTable)
+    _elitable(s) ? s.copyWith(spawn: () => s.spawn!.copyWith(weight: s.spawn!.weight * _plainWeight)) : s,
   for (final s in speciesTable)
     if (_elitable(s))
       for (final a in Affix.all) _elite(s, a),
@@ -551,10 +552,9 @@ const int _plainWeight = 69;
 /// Whether the world spawns elites of [s]: a creature it spawns that is no boss.
 bool _elitable(MobSpec s) => s.spawn != null && !s.boss;
 
-MobSpec _elite(MobSpec s, Affix a) => _copy(
-  s,
+MobSpec _elite(MobSpec s, Affix a) => s.copyWith(
   id: a.idOf(s.id),
-  name: '${a.name} ${s.name}',
+  name: () => '${a.name} ${s.name}',
   hp: s.hp * a.hp,
   speed: s.speed * a.speed,
   halfWidth: s.halfWidth * a.scale,
@@ -562,92 +562,17 @@ MobSpec _elite(MobSpec s, Affix a) => _copy(
   brain: [for (final b in s.brain) _harder(b, a.damage)],
   loot: LootTable([...s.loot.entries, ...Affix.loot]),
   xp: (s.xp * Affix.xp).round(),
-  onHit: a.effect == null ? s.onHit : HitEffect(a.effect!, seconds: Affix.seconds),
-  spawn: SpawnRule(
-    weight: s.spawn!.weight,
-    biomes: s.spawn!.biomes,
-    biomeWeights: s.spawn!.biomeWeights,
-    minLight: s.spawn!.minLight,
-    maxLight: s.spawn!.maxLight,
-    place: s.spawn!.place,
-    maxAlive: s.spawn!.maxAlive,
-  ),
+  onHit: a.effect == null ? null : () => HitEffect(a.effect!, seconds: Affix.seconds),
+  // An elite comes alone.
+  spawn: () => s.spawn!.copyWith(group: (1, 1)),
 );
 
 /// [b] striking [times] as hard.
 Behavior _harder(Behavior b, double times) => switch (b) {
-  MeleeAttack() => MeleeAttack(
-    priority: b.priority,
-    damage: b.damage * times,
-    reach: b.reach,
-    cooldown: b.cooldown,
-    knockback: b.knockback,
-  ),
-  RangedAttack() => RangedAttack(
-    priority: b.priority,
-    projectile: _Volley.shot(b.projectile, damage: b.projectile.damage * times),
-    range: b.range,
-    keepAway: b.keepAway,
-    holdRange: b.holdRange,
-    cooldown: b.cooldown,
-  ),
+  MeleeAttack() => b.copyWith(damage: b.damage * times),
+  RangedAttack() => b.copyWith(projectile: b.projectile.copyWith(damage: b.projectile.damage * times)),
   _ => b,
 };
-
-SpawnRule _weighed(SpawnRule r, int times) => SpawnRule(
-  weight: r.weight * times,
-  biomes: r.biomes,
-  biomeWeights: r.biomeWeights,
-  minLight: r.minLight,
-  maxLight: r.maxLight,
-  group: r.group,
-  place: r.place,
-  maxAlive: r.maxAlive,
-);
-
-/// [s] with the given fields replaced.
-MobSpec _copy(
-  MobSpec s, {
-  String? id,
-  String? name,
-  double? hp,
-  double? speed,
-  double? halfWidth,
-  double? height,
-  List<Behavior>? brain,
-  LootTable? loot,
-  int? xp,
-  HitEffect? onHit,
-  SpawnRule? spawn,
-}) => MobSpec(
-  id ?? s.id,
-  name: name ?? s.name,
-  hp: hp ?? s.hp,
-  speed: speed ?? s.speed,
-  halfWidth: halfWidth ?? s.halfWidth,
-  height: height ?? s.height,
-  rig: s.rig,
-  gait: s.gait,
-  brain: brain ?? s.brain,
-  loot: loot ?? s.loot,
-  xp: xp ?? s.xp,
-  levels: s.levels,
-  burnsInDaylight: s.burnsInDaylight,
-  splitsInto: s.splitsInto,
-  onHit: onHit ?? s.onHit,
-  tameWith: s.tameWith,
-  tameChance: s.tameChance,
-  tamedBrain: s.tamedBrain,
-  mount: s.mount,
-  yields: s.yields,
-  fleece: s.fleece,
-  persistent: s.persistent,
-  ghost: s.ghost,
-  spawn: spawn ?? s.spawn,
-  knockbackResistance: s.knockbackResistance,
-  hurtSound: s.hurtSound,
-  boss: s.boss,
-);
 
 /// A farm animal's mind: it runs when hurt, else wanders.
 const List<Behavior> _grazer = [FleeWhenHurt(), Wander()];
@@ -748,24 +673,5 @@ abstract final class _Volley {
     trail: 1.6,
     burns: 4.0,
     onHit: HitEffect('burning', seconds: 4.0),
-  );
-
-  /// [p] dealing [damage].
-  static ProjectileSpec shot(ProjectileSpec p, {required double damage}) => ProjectileSpec(
-    kind: p.kind,
-    speed: p.speed,
-    gravity: p.gravity,
-    damage: damage,
-    knockback: p.knockback,
-    radius: p.radius,
-    thickness: p.thickness,
-    length: p.length,
-    color: p.color,
-    glow: p.glow,
-    life: p.life,
-    light: p.light,
-    trail: p.trail,
-    burns: p.burns,
-    onHit: p.onHit,
   );
 }

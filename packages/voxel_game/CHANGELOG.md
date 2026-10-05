@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **A creature derived from another keeps what it does not name (KL-018).** `copyWith`
+  (new) on `MobSpec`, `SpawnRule`, `ProjectileSpec` and every behaviour with fields
+  (`Wander`, `Hunt`, `MeleeAttack`, `RangedAttack`, `FleeWhenHurt`, `Explode`,
+  `LookAtPlayer`, `PetFight`, `Heel`, `MountWait`, each with its `priority`). A field
+  that may be null is given as a getter of its new value, as in `VoxelGameSpec.copyWith`:
+  `spawn: () => null` asks for none, `name: () => null` goes back to the id's. A variant,
+  a difficulty or a test no longer rebuilds a creature field by field, and a field added
+  later reaches every creature derived by it.
 - **A game's screen listed only where it applies (VA-Zl5).** `ScreenSpec.listed` (new): whether
   the game menu lists the screen in a game (a playground's controls in a playground only),
   every game when null; `ScreenSpec.listedIn` (new) asks it. On a phone the menu is the one

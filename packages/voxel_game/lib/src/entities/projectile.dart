@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_scene/scene.dart';
 import 'package:vector_math/vector_math.dart';
 import 'package:voxel_engine/core.dart';
@@ -86,6 +87,44 @@ class ProjectileSpec {
     'burns': burns,
     if (onHit case final h?) 'onHit': {'effect': h.effect, 'seconds': h.seconds, 'power': h.power},
   };
+
+  /// This shot with the given fields replaced: the same arrow striking
+  /// harder, say. [onHit], which may be null, is given as a getter of its new
+  /// value, so `onHit: () => null` takes the effect away and leaving it out
+  /// keeps it.
+  ProjectileSpec copyWith({
+    String? kind,
+    double? speed,
+    double? gravity,
+    double? damage,
+    double? knockback,
+    double? radius,
+    double? thickness,
+    double? length,
+    int? color,
+    bool? glow,
+    double? life,
+    double? light,
+    double? trail,
+    double? burns,
+    ValueGetter<HitEffect?>? onHit,
+  }) => ProjectileSpec(
+    kind: kind ?? this.kind,
+    speed: speed ?? this.speed,
+    gravity: gravity ?? this.gravity,
+    damage: damage ?? this.damage,
+    knockback: knockback ?? this.knockback,
+    radius: radius ?? this.radius,
+    thickness: thickness ?? this.thickness,
+    length: length ?? this.length,
+    color: color ?? this.color,
+    glow: glow ?? this.glow,
+    life: life ?? this.life,
+    light: light ?? this.light,
+    trail: trail ?? this.trail,
+    burns: burns ?? this.burns,
+    onHit: onHit == null ? this.onHit : onHit(),
+  );
 
   /// An arrow: fast, falling, wooden.
   static const ProjectileSpec arrow = ProjectileSpec();
