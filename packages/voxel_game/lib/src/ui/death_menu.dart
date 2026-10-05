@@ -23,7 +23,11 @@ class DeathMenu extends StatelessWidget {
         children: [
           const Text(
             'You died',
-            style: TextStyle(fontSize: 36, color: Colors.white, shadows: [Shadow(offset: Offset(1, 1), blurRadius: 2)]),
+            style: TextStyle(
+              fontSize: 36,
+              color: Colors.white,
+              shadows: [Shadow(offset: Offset(1, 1), blurRadius: 2)],
+            ),
           ),
           const SizedBox(height: 24),
           HudSelector(

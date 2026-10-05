@@ -129,10 +129,7 @@ const _blocks = [
     'chest',
     color: 0x8A5A2A,
     hardness: 1.0,
-    storage: Storage(
-      slots: 9,
-      loot: LootTable([LootEntry('melon_slice', 3, 3, 1.0), LootEntry('seeds', 1, 4, 1.0)]),
-    ),
+    storage: Storage(slots: 9, loot: LootTable([LootEntry('melon_slice', 3, 3, 1.0), LootEntry('seeds', 1, 4, 1.0)])),
   ),
 ];
 
@@ -567,7 +564,9 @@ void main() {
         home: InventoryScreen(game: game, station: 'chest', storage: store, onClose: () {}),
       ),
     );
-    final slots = find.byWidgetPredicate((w) => w is GestureDetector && w.onSecondaryTap != null && w.child is Container);
+    final slots = find.byWidgetPredicate(
+      (w) => w is GestureDetector && w.onSecondaryTap != null && w.child is Container,
+    );
     expect(slots, findsNWidgets(bag.capacity + 9), reason: 'the chest beside the bag, no recipes');
     // The bag's rows, then its hotbar, then the chest's: slot 0 of the bag is 27.
     await tester.tap(slots.at(bag.capacity - bag.hotbarSize));
