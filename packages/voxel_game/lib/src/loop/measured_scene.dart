@@ -28,7 +28,8 @@ import 'frame_stats.dart';
 ///
 /// It is a [GpuPacedScene], paced when [GraphicsSpec.paced] says so: a frame is
 /// encoded, and measured, only on the ticks that render one, and the lag counts
-/// ticks all the same. And so a [ResizeSafeScene]: a resize never leaves the
+/// ticks all the same. Each paint hands [stats] the scene's [rendered] and
+/// [shown] totals, so the frame rate it reports is the world's frames drawn. And so a [ResizeSafeScene]: a resize never leaves the
 /// sun's cached shadow tiles on a freed depth texture (a Vulkan driver crash,
 /// `KL-008`).
 final class MeasuredScene extends GpuPacedScene {
@@ -51,6 +52,7 @@ final class MeasuredScene extends GpuPacedScene {
       stats.addGpuLag(_frame - _inFlight.removeFirst().$2);
     }
     super.renderViews(views, canvas, region: region, pixelRatio: pixelRatio);
+    stats.addScene(rendered: rendered, shown: shown);
   }
 
   @override

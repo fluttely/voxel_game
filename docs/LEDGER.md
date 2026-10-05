@@ -22,13 +22,6 @@
 - **Cost of leaving it:** the kit says it targets every platform Flutter supports, but a first-person game on two of the three desktops plays like a touch screen with a mouse. Nothing tells a game author about it: `pointerLockSupported` is public, but the README never mentions it.
 - **Found while:** 2026-09-24 — adding Windows and Linux runners to the examples, for the launch post.
 
-### KL-017 · The frame rate the kit reports is the ticks', not the world's frames drawn
-
-- **Lens:** measurement
-- **Evidence:** `packages/voxel_game/lib/src/loop/frame_stats.dart:27-31`: `FrameStats.fps` counts `addFrame` calls, one per `VoxelGame.frame` (`packages/voxel_game/lib/src/core/voxel_game.dart:976`), and a `FrameReport`'s frame rate and intervals come from Flutter's `FrameTiming`s (`frame_stats.dart:48-59`, `:240`). Neither sees a scene frame. With `GraphicsSpec.paced` (VA-Zg) the world is rendered only on the vsyncs that find the last frame finished, about every other one at 120 Hz, while the ticks and the Flutter frames run on every vsync: the count is `GpuPacedScene.rendered`, which nothing reads. A throwaway run of the example, paced, on 2026-10-03: `rendered=1006 shown=1047`.
-- **Cost of leaving it:** a paced game's FPS readout says the world moves at up to twice the rate it is drawn at (the app saw its readout go from 57 to 85 when it paced, `examples/voxel_game_minecraft/ROADMAP.md:173`), and the benchmark cannot weigh pacing at all: an A/B of `paced` on and off would compare tick rates that barely move. Before that A/B is run, `FrameReport` needs the scene frames rendered per second beside the Flutter ones.
-- **Found while:** 2026-10-03 — VA-Zg, writing `GraphicsSpec.paced`'s cost into its doc.
-
 ### KL-024 · Two owners of the audio device do not wait for each other
 
 - **Lens:** concurrency / audio
@@ -44,6 +37,14 @@
 - **Found while:** 2026-10-05 — VL6, reading the dungeon's drawing to write its plan (`KL-022`).
 
 ## Closed
+
+### KL-017 · The frame rate the kit reports is the ticks', not the world's frames drawn
+
+- **Lens:** measurement
+- **Evidence:** `packages/voxel_game/lib/src/loop/frame_stats.dart:27-31`: `FrameStats.fps` counts `addFrame` calls, one per `VoxelGame.frame` (`packages/voxel_game/lib/src/core/voxel_game.dart:976`), and a `FrameReport`'s frame rate and intervals come from Flutter's `FrameTiming`s (`frame_stats.dart:48-59`, `:240`). Neither sees a scene frame. With `GraphicsSpec.paced` (VA-Zg) the world is rendered only on the vsyncs that find the last frame finished, about every other one at 120 Hz, while the ticks and the Flutter frames run on every vsync: the count is `GpuPacedScene.rendered`, which nothing reads. A throwaway run of the example, paced, on 2026-10-03: `rendered=1006 shown=1047`.
+- **Cost of leaving it:** a paced game's FPS readout says the world moves at up to twice the rate it is drawn at (the app saw its readout go from 57 to 85 when it paced, `examples/voxel_game_minecraft/ROADMAP.md:173`), and the benchmark cannot weigh pacing at all: an A/B of `paced` on and off would compare tick rates that barely move. Before that A/B is run, `FrameReport` needs the scene frames rendered per second beside the Flutter ones.
+- **Found while:** 2026-10-03 — VA-Zg, writing `GraphicsSpec.paced`'s cost into its doc.
+- **Closed by:** 2026-10-05 — VL11, `voxel_game: the frame rate is the world's frames drawn (VL11)`. `MeasuredScene` hands `FrameStats.addScene` the scene's `rendered` and `shown` totals on every paint (`packages/voxel_game/lib/src/loop/measured_scene.dart`); `FrameStats.fps`, the HUD's readout, is the scene frames rendered a second, the ticks' rate is `ticksPerSecond`, and `FrameReport` carries `rendered`, `shown` and `sceneFps` (JSON too). Witnessed by 2 tests in `packages/voxel_game/test/frame_stats_test.dart` (the kit 477).
 
 ### KL-014 · A hidden window stops the game: the steps run only on frames
 

@@ -277,8 +277,9 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
   shows the world only once the GPU has finished each frame, which keeps the text over it
   readable on a busy GPU under Metal, at the cost of a frame late and fewer drawn:
   `GraphicsSpec.desktop.copyWith(paced: true)`.
-- `VoxelGame.stats`: an FPS readout, and per-frame samples (UI, raster, simulation, scene
-  encoding, GPU latency) for a benchmark.
+- `VoxelGame.stats`: an FPS readout of the world's frames drawn (paced, fewer than the
+  ticks, which `ticksPerSecond` gives), and per-frame samples (UI, raster, simulation,
+  scene encoding, GPU latency, scene frames rendered and shown) for a benchmark.
 
 ## Install
 

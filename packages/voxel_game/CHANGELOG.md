@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- **The frame rate is the world's frames drawn (KL-017).** `FrameStats.fps`, the HUD's
+  FPS readout, counted ticks, one per `VoxelGame.frame`; paced (`GraphicsSpec.paced`) the
+  world is drawn only on the vsyncs that find the last frame finished, about every other
+  one at 120 Hz, and a hidden window ticks with nothing drawn, so the readout showed up to
+  twice the rate the world was drawn at. `MeasuredScene` now hands the stats the scene's
+  `rendered` and `shown` totals on every paint (`FrameStats.addScene`, new), and `fps` is
+  the scene frames rendered a second; the ticks' rate is `FrameStats.ticksPerSecond`
+  (new). A `FrameReport` carries `rendered` and `shown` (new) and `sceneFps`, and its JSON
+  `sceneFps`, `rendered` and `shown`, beside the Flutter frames' `fps`, so a benchmark can
+  weigh pacing.
 - **A hidden window keeps stepping (KL-014).** Flutter turns frames off while the
   lifecycle says `hidden` (a desktop window covered by another or minimised), and the
   game's steps ran only on frames, so a covered host stopped its world for every client.

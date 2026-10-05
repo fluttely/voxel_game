@@ -34,7 +34,8 @@ typedef _EffectChip = ({String id, int power, int seconds});
 /// (`RemotePlayer.name`). While the camera is in a
 /// liquid the screen is washed in its colour (`LiquidSpec.tint`); while a
 /// boss lives (`MobSpec.boss`) the nearest one's health is a bar at the top;
-/// with `GameSettings.showFps` the frame rate is at the top left.
+/// with `GameSettings.showFps` the rate the world is drawn at (`FrameStats.fps`)
+/// is at the top left.
 ///
 /// **What the spec declares, it shows, and nothing else**: the hunger beside
 /// the hearts only with `PlayerSpec.hunger`, the experience bar and level only

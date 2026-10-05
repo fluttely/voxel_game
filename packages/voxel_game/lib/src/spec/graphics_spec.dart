@@ -53,8 +53,8 @@ class GraphicsSpec {
   /// process is using. Paced, it stays readable; the world shows one frame
   /// late and is drawn only on the vsyncs that find the last frame finished,
   /// about every other one at 120 Hz, while it ticks on behind. Off in both
-  /// presets: what it costs a frame is not measured yet, and the FPS readout
-  /// counts ticks, not the frames drawn.
+  /// presets: what it costs a frame is not measured yet. The FPS readout and
+  /// a `FrameReport`'s `sceneFps` count the frames drawn, so they show it.
   final bool paced;
 
   /// This look with the fields given changed; [maxPixelRatio] returns the new
