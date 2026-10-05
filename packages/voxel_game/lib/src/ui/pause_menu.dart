@@ -5,7 +5,8 @@ import 'game_screen.dart';
 
 /// The game menu (`PauseScreen`): resume, the settings (`SettingsScreen`), a
 /// button for each of the game's own screens it lists (`ScreenSpec.listedIn`), and
-/// quit when there is somewhere to quit to. The world keeps running behind it; a press of pause resumes too.
+/// quit when there is somewhere to quit to. It opens on Resume. The world keeps running behind it; a press of pause
+/// resumes too.
 class PauseMenu extends StatelessWidget {
   /// The menu of [game]; [onQuit] is its Quit, shown only when given.
   const PauseMenu(this.game, {super.key, this.onQuit});
@@ -34,7 +35,7 @@ class PauseMenu extends StatelessWidget {
                 children: [
                   const Text('Game menu', textAlign: TextAlign.center, style: TextStyle(fontSize: 20)),
                   const SizedBox(height: 16),
-                  FilledButton(onPressed: game.closeScreen, child: const Text('Resume')),
+                  FilledButton(autofocus: true, onPressed: game.closeScreen, child: const Text('Resume')),
                   const SizedBox(height: 8),
                   OutlinedButton(
                     onPressed: () => game.openScreen(const SettingsScreen()),

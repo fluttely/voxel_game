@@ -5,8 +5,10 @@ import '../input/input_device.dart';
 import 'hud_selector.dart';
 
 /// The death screen (`DeathScreen`): the player is dead until Respawn, which
-/// wakes once `PlayerSpec.respawnDelay` has passed. A keyboard or a pad
-/// stands up with jump. The world keeps running behind it.
+/// wakes once `PlayerSpec.respawnDelay` has passed. It opens on Respawn,
+/// which holds the focus asleep, so A or Enter presses it once it wakes; a
+/// keyboard or a pad also stands up with jump. The world keeps running behind
+/// it.
 class DeathMenu extends StatelessWidget {
   /// The death screen of [game].
   const DeathMenu(this.game, {super.key});
@@ -35,7 +37,7 @@ class DeathMenu extends StatelessWidget {
             select: () => (ready: game.canRespawn, fingers: game.input.lastDevice == InputDevice.touch),
             builder: (context, s) => Column(
               children: [
-                FilledButton(onPressed: s.ready ? game.respawn : null, child: const Text('Respawn')),
+                FilledButton(autofocus: true, onPressed: s.ready ? game.respawn : null, child: const Text('Respawn')),
                 if (!s.fingers) ...[const SizedBox(height: 8), const Text('or jump')],
               ],
             ),

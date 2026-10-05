@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 /// [lines] rolling up at [speed] pixels a second, from below the box to past
 /// its top; a drag or the wheel moves them by hand. The first line is the
-/// heading. Back leaves.
+/// heading. Back leaves, and holds the focus.
 class CreditsRoll extends StatefulWidget {
   /// The credits [lines]; [onBack] leaves.
   const CreditsRoll({super.key, required this.lines, required this.onBack, this.speed = 40.0}) : assert(speed > 0);
@@ -77,7 +77,7 @@ class _CreditsRollState extends State<CreditsRoll> {
       ),
       const SizedBox(height: 12),
       Center(
-        child: OutlinedButton(onPressed: widget.onBack, child: const Text('Back')),
+        child: OutlinedButton(autofocus: true, onPressed: widget.onBack, child: const Text('Back')),
       ),
     ],
   );

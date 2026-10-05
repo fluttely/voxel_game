@@ -130,7 +130,11 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
   ScreenSpec(buildJournal, menu: 'Journal', action: 'journal')}`, opened and closed by the
   game's own `journal` action as well). `openScreen`, `closeScreen` and `respawn`
   change it and refuse what cannot be. A screen gates the controls, never the world: the
-  game keeps stepping behind every one.
+  game keeps stepping behind every one. A pad and the keys work a screen through Flutter's
+  focus (`FocusBridge`): the arrows, the dpad and the left stick move it, Enter, Space and A
+  press, Esc and B back out as pause does. Each screen opens with a focus and outlines it
+  (`ScreenFocus`), so one of yours built of Material buttons is worked by a pad with no
+  focus code; a slider takes left and right as its step in the settings.
 - The player's settings (`GameSettings`): render distance, look speed (mouse, finger and
   stick alike), field of view, volume, music volume, view bobbing and the frame rate, and
   the game's own across worlds (`GameSettings.game`, JSON the kit never reads). The

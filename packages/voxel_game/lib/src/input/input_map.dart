@@ -425,16 +425,24 @@ class InputMap<A extends Object> {
     if (e is PointerScrollEvent) _wheel += e.scrollDelta.dy.sign.toInt();
   }
 
+  /// Sees each pad event before this map records it, once [lastDevice] has
+  /// heard it: an event it answers true for is the caller's, and goes no
+  /// further. `GameSurface` hands an open screen the presses that work it
+  /// (`FocusBridge`), so a press that moved the focus or pressed a button is
+  /// not also a jump once the screen has closed.
+  bool Function(NormalizedGamepadEvent event)? interceptPad;
+
   /// A gamepad event; [attachDevices] feeds every pad's here. A press, or a
   /// stick or trigger pushed past the [deadzone], makes the pad
   /// [lastDevice]: a pad resting on the table, drifting or letting go, does
-  /// not take it from the finger or the keys.
+  /// not take it from the finger or the keys. [interceptPad] sees it next.
   void onPad(NormalizedGamepadEvent event) {
     final button = event.button;
+    if (button != null ? event.value != 0 : event.value.abs() > deadzone) lastDevice = InputDevice.gamepad;
+    if (interceptPad case final take? when take(event)) return;
     final was = button != null && _pad.isPressed(button);
     _pad.update(event);
     if (button != null && !was && _pad.isPressed(button)) _padPressed.add(button);
-    if (button != null ? event.value != 0 : event.value.abs() > deadzone) lastDevice = InputDevice.gamepad;
     for (final (t, b, a) in [
       (TriggerBinding.left, GamepadButton.leftTrigger, GamepadAxis.leftTrigger),
       (TriggerBinding.right, GamepadButton.rightTrigger, GamepadAxis.rightTrigger),

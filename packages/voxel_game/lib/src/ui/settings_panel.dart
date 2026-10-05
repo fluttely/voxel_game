@@ -11,9 +11,20 @@ import '../spec/voxel_game_spec.dart';
 /// What [spec] declares, it offers: the volume only with `SoundSpec.enabled`,
 /// the music's only when the game has music, the weather only when its sky
 /// has some.
+///
+/// A pad and the keys work it through the focus (`FocusBridge`): up and down
+/// go from row to row, left and right move a slider a step, and pressing a
+/// switch flips it.
 class SettingsPanel extends StatelessWidget {
-  /// The settings [value] of a game of [spec], each change to [onChanged].
-  const SettingsPanel({super.key, required this.spec, required this.value, required this.onChanged});
+  /// The settings [value] of a game of [spec], each change to [onChanged];
+  /// with [autofocus], the first row takes the focus.
+  const SettingsPanel({
+    super.key,
+    required this.spec,
+    required this.value,
+    required this.onChanged,
+    this.autofocus = false,
+  });
 
   /// The game they are for.
   final VoxelGameSpec spec;
@@ -23,6 +34,9 @@ class SettingsPanel extends StatelessWidget {
 
   /// Takes a change, with every other value as it was.
   final ValueChanged<GameSettings> onChanged;
+
+  /// Whether the first row takes the focus when the panel is built.
+  final bool autofocus;
 
   @override
   Widget build(BuildContext context) {
@@ -40,6 +54,7 @@ class SettingsPanel extends StatelessWidget {
           GameSettings.maxRenderDistance.toDouble(),
           GameSettings.maxRenderDistance - GameSettings.minRenderDistance,
           (v) => value.copyWith(renderDistance: v.round()),
+          autofocus: autofocus,
         ),
         _slider(
           'Look speed',
@@ -95,31 +110,51 @@ class SettingsPanel extends StatelessWidget {
     double min,
     double max,
     int divisions,
-    GameSettings Function(double v) change,
-  ) => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        child: Row(
-          children: [
-            Expanded(child: Text(label)),
-            Text(shown, style: const TextStyle(fontFeatures: [FontFeature.tabularFigures()])),
-          ],
+    GameSettings Function(double v) change, {
+    bool autofocus = false,
+  }) {
+    void slide(double v) {
+      final next = change(v);
+      if (next != value) onChanged(next);
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Row(
+            children: [
+              Expanded(child: Text(label)),
+              Text(shown, style: const TextStyle(fontFeatures: [FontFeature.tabularFigures()])),
+            ],
+          ),
         ),
-      ),
-      Slider(
-        value: at,
-        min: min,
-        max: max,
-        divisions: divisions,
-        onChanged: (v) {
-          final next = change(v);
-          if (next != value) onChanged(next);
-        },
-      ),
-    ],
-  );
+        // The arrows reach a slider as keys it binds itself; a pad's left and
+        // right reach it as the focus intent the bridge invokes, so it takes
+        // that as its step, and up and down move on as anywhere else.
+        Actions(
+          actions: {
+            DirectionalFocusIntent: CallbackAction<DirectionalFocusIntent>(
+              onInvoke: (intent) {
+                final step = (max - min) / divisions;
+                switch (intent.direction) {
+                  case TraversalDirection.left:
+                    slide((at - step).clamp(min, max));
+                  case TraversalDirection.right:
+                    slide((at + step).clamp(min, max));
+                  case TraversalDirection.up || TraversalDirection.down:
+                    primaryFocus!.focusInDirection(intent.direction);
+                }
+                return null;
+              },
+            ),
+          },
+          child: Slider(value: at, min: min, max: max, divisions: divisions, autofocus: autofocus, onChanged: slide),
+        ),
+      ],
+    );
+  }
 
   Widget _switch(String label, bool on, GameSettings Function(bool on) change) => SwitchListTile(
     dense: true,

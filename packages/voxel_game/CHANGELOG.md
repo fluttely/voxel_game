@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+- **A pad and the arrows work the game menu, the settings and the death screen (KL-013,
+  first part).** While a screen is open, `GameSurface` hands the keys and pad presses that
+  work it to the screen through Flutter's focus (`FocusBridge`, new): the arrows, the dpad
+  and the left stick move the focus (a held one repeats), Enter, Space and A press what it
+  is on, Esc and B back out, which is a press of `VoxelAction.pause` for the step's arbiter
+  to read. Each screen sits in a `ScreenFocus` (new): its own focus scope, directional
+  navigation, and a white ring around the focused Material button. The game menu opens on
+  Resume, the settings on their first row (`SettingsPanel.autofocus`, new), the death
+  screen on Respawn, which holds the focus asleep until it wakes, and the credits on Back.
+  A game's own screen of Material buttons is worked by a pad with no code of its own: the
+  first direction lands on it. `InputMap.interceptPad` (new) sees each pad event before
+  the map records it, which is how a press taken by a screen never also jumps once it has
+  closed. **Breaking** for a game whose screen counted on `GameSurface` swallowing them:
+  while a screen is open, the arrows, Enter, Space and Esc, and the pad's dpad, A and B,
+  no longer reach `VoxelGame.input` (a game action bound to one of them is not pressed
+  there), and Esc backs out as a `DismissIntent` a screen may handle itself. A press on a
+  screen no longer takes the focus back from it. The bag, the title and the app's screens
+  follow.
+
 - **A pad steps the hotbar (KL-016).** `VoxelAction.hotbarNext` / `hotbarPrevious` (new),
   on the right and left bumpers, step the slot in hand around the bar both ways, read
   beside the wheel; no key binds them (the wheel and the digits do that). A game that wants

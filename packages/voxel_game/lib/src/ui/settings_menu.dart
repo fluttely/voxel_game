@@ -7,7 +7,7 @@ import 'settings_panel.dart';
 
 /// The settings screen (`SettingsScreen`): the [SettingsPanel] of [game]'s
 /// settings, each change put in force at once (`VoxelGame.applySettings`),
-/// and Done back to the game menu. The world keeps running behind it, so a
+/// and Done back to the game menu. It opens on the first row. The world keeps running behind it, so a
 /// change shows as it is made.
 class SettingsMenu extends StatelessWidget {
   /// The settings of [game].
@@ -40,8 +40,12 @@ class SettingsMenu extends StatelessWidget {
                       child: SingleChildScrollView(
                         child: ValueListenableBuilder<GameSettings>(
                           valueListenable: game.settings,
-                          builder: (context, value, _) =>
-                              SettingsPanel(spec: game.spec, value: value, onChanged: game.applySettings),
+                          builder: (context, value, _) => SettingsPanel(
+                            spec: game.spec,
+                            value: value,
+                            onChanged: game.applySettings,
+                            autofocus: true,
+                          ),
                         ),
                       ),
                     ),
