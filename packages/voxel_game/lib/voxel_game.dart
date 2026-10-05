@@ -76,6 +76,7 @@ export 'src/input/input_device.dart';
 export 'src/input/input_map.dart';
 export 'src/input/voxel_action.dart';
 export 'src/loop/fixed_step_loop.dart';
+export 'src/loop/frame_driver.dart';
 export 'src/loop/frame_stats.dart';
 export 'src/mobs/behaviors.dart';
 export 'src/mobs/fleece.dart';

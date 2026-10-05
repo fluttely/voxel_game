@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- **A hidden window keeps stepping (KL-014).** Flutter turns frames off while the
+  lifecycle says `hidden` (a desktop window covered by another or minimised), and the
+  game's steps ran only on frames, so a covered host stopped its world for every client.
+  `FrameDriver` (new, exported) is now the one source of `VoxelGameWidget`'s frames: the
+  tickers while the window shows, a periodic `Timer` at the fixed step's rate while it is
+  hidden, drawing nothing (a lone game too). It reads the lifecycle when it starts, since
+  an app launched behind another window starts hidden; `paused` and `detached` stop the
+  timer, as a phone in the background is suspended anyway. One source at a time: a
+  ticker's frame while the timer runs (a metrics change forces one) runs nothing, and the
+  ticker's first frame after a hidden spell runs with no time, where its delta would have
+  carried the whole spell. A timer the system held back (App Nap) runs the periods it
+  missed, up to a second's.
 - **A row with nothing to press shows the focus (KL-013, last part).** `FocusFill` (new)
   fills its child with `ScreenFocus.fill` while the focus is on it or under it. On a
   screen every `InkWell` takes the focus, a disabled one too, so a pad stops on a row it

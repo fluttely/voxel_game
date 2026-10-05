@@ -13,6 +13,7 @@ import 'package:voxel_scene/voxel_scene.dart';
 
 import '../audio/game_music.dart';
 import '../core/voxel_game.dart';
+import '../loop/frame_driver.dart';
 import '../settings/game_settings.dart';
 import '../settings/settings_store.dart';
 import '../spec/title_spec.dart';
@@ -224,6 +225,10 @@ class _VoxelGameWidgetState extends State<VoxelGameWidget> with SingleTickerProv
   Duration _lastLoadingTick = Duration.zero;
   bool _disposed = false;
 
+  // The game's frames, from the tickers while the window shows and from a
+  // timer while it is hidden, so a covered window keeps its world stepping.
+  FrameDriver? _driver;
+
   WorldSaves? _saves;
   Timer? _autosave;
   SoundBank? _bank;
@@ -263,6 +268,7 @@ class _VoxelGameWidgetState extends State<VoxelGameWidget> with SingleTickerProv
       _game = game;
       _stage = LoadingStage.filling;
     });
+    _driver = FrameDriver((dt) => _tick(game, dt));
     _loadingTicker.start();
     unawaited(_startAudio(game));
     if (widget.saveSlot != null && widget.join == null) _autosave = Timer.periodic(widget.autosave, (_) => _save());
@@ -351,7 +357,7 @@ class _VoxelGameWidgetState extends State<VoxelGameWidget> with SingleTickerProv
     final game = _game!;
     final dt = (elapsed - _lastLoadingTick).inMicroseconds / 1e6;
     _lastLoadingTick = elapsed;
-    _tick(game, dt);
+    _driver!.tickerFrame(dt);
     if (_stage == LoadingStage.filling && game.filled) unawaited(_warmUp(game));
   }
 
@@ -373,6 +379,7 @@ class _VoxelGameWidgetState extends State<VoxelGameWidget> with SingleTickerProv
   @override
   void dispose() {
     _loadingTicker.dispose();
+    _driver?.dispose();
     _autosave?.cancel();
     final unwritten = _settingsWrite?.isActive ?? false;
     _settingsWrite?.cancel();
@@ -415,7 +422,7 @@ class _VoxelGameWidgetState extends State<VoxelGameWidget> with SingleTickerProv
       world: SceneView(
         game.scene!,
         cameraBuilder: (elapsed) => game.camera(),
-        onTick: (elapsed, dt) => _tick(game, dt),
+        onTick: (elapsed, dt) => _driver!.tickerFrame(dt),
       ),
       hud: widget.hud,
       touchControls: game.spec.touchControls,

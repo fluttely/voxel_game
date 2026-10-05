@@ -22,13 +22,6 @@
 - **Cost of leaving it:** the kit says it targets every platform Flutter supports, but a first-person game on two of the three desktops plays like a touch screen with a mouse. Nothing tells a game author about it: `pointerLockSupported` is public, but the README never mentions it.
 - **Found while:** 2026-09-24 — adding Windows and Linux runners to the examples, for the launch post.
 
-### KL-014 · A hidden window stops the game: the steps run only on frames
-
-- **Lens:** game loop / authority (rule 12)
-- **Evidence:** `packages/voxel_game/lib/src/ui/voxel_game_widget.dart:355` and `:417`: `VoxelGame.frame` (and so every `step`) is called from two tickers only, the loading one (`:232`) and `SceneView.onTick`. Flutter turns frames off for `AppLifecycleState.hidden` (`flutter/lib/src/scheduler/binding.dart:423-426`), which is what macOS reports for a window covered by another one or minimised. On 2026-10-02 a capture entry of the example, launched behind VS Code, sat 30 s at `onReady` without filling, and its timers captured one frame three times; forcing frames (`scheduleForcedFrame`) made it fill in 2 s.
-- **Cost of leaving it:** a desktop host whose window is covered or minimised stops its world for everyone: no steps, so no client's edit applied and nothing broadcast, the opposite of what rule 12 wants of an authority. A lone game pausing while hidden is harmless, which is why it went unseen. A phone in the background is suspended by its system anyway, so the cost is the desktop host's, and later a dedicated one's.
-- **Found while:** 2026-10-02 — seeing VA9's weather on the Mac with the window behind the owner's editor.
-
 ### KL-017 · The frame rate the kit reports is the ticks', not the world's frames drawn
 
 - **Lens:** measurement
@@ -51,6 +44,14 @@
 - **Found while:** 2026-10-05 — VL6, reading the dungeon's drawing to write its plan (`KL-022`).
 
 ## Closed
+
+### KL-014 · A hidden window stops the game: the steps run only on frames
+
+- **Lens:** game loop / authority (rule 12)
+- **Evidence:** `packages/voxel_game/lib/src/ui/voxel_game_widget.dart:355` and `:417`: `VoxelGame.frame` (and so every `step`) is called from two tickers only, the loading one (`:232`) and `SceneView.onTick`. Flutter turns frames off for `AppLifecycleState.hidden` (`flutter/lib/src/scheduler/binding.dart:423-426`), which is what macOS reports for a window covered by another one or minimised. On 2026-10-02 a capture entry of the example, launched behind VS Code, sat 30 s at `onReady` without filling, and its timers captured one frame three times; forcing frames (`scheduleForcedFrame`) made it fill in 2 s.
+- **Cost of leaving it:** a desktop host whose window is covered or minimised stops its world for everyone: no steps, so no client's edit applied and nothing broadcast, the opposite of what rule 12 wants of an authority. A lone game pausing while hidden is harmless, which is why it went unseen. A phone in the background is suspended by its system anyway, so the cost is the desktop host's, and later a dedicated one's.
+- **Found while:** 2026-10-02 — seeing VA9's weather on the Mac with the window behind the owner's editor.
+- **Closed by:** 2026-10-05 — VL10, `voxel_game: a hidden window keeps stepping (VL10)`. `FrameDriver` (`packages/voxel_game/lib/src/loop/frame_driver.dart`) is the one source of `VoxelGameWidget`'s frames: the loading ticker and `SceneView.onTick` go through `tickerFrame`, and while the lifecycle says `hidden` a periodic `Timer` (16 ms) calls `VoxelGame.frame` in their place, a lone game's too (VLD7). It reads the lifecycle at start; a ticker's frame while the timer runs runs nothing; the ticker's first frame after a hidden spell runs with no time; a late timer event runs the periods it missed (`Timer.tick`), a second's at most. Witnessed by `packages/voxel_game/test/frame_driver_test.dart` (5 tests over a headless game; the kit 475).
 
 ### KL-013 · The kit's screens are for a pointer: a pad reaches one button of each
 
