@@ -100,6 +100,17 @@ void main() {
   Finder inkOf(String text) => find.ancestor(of: find.text(text), matching: find.byType(InkWell)).first;
   Finder tile(String title) => find.ancestor(of: find.text(title), matching: find.byType(ListTile));
   Finder section(String way) => find.ancestor(of: find.text(way), matching: find.byType(Focus)).first;
+  // The fill of the row [inside] is in (`FocusFill`).
+  Color? fillOf(WidgetTester tester, Finder inside) => tester
+      .widget<Material>(
+        find
+            .descendant(
+              of: find.ancestor(of: inside, matching: find.byType(FocusFill)).first,
+              matching: find.byType(Material),
+            )
+            .first,
+      )
+      .color;
   ScrollPosition list(WidgetTester tester) => tester
       .state<ScrollableState>(
         find.descendant(
@@ -129,6 +140,8 @@ void main() {
     await step(tester, game);
     expect(find.text('Vitality  1/3'), findsOneWidget, reason: 'A on a row learns it');
     expect(ClassSystem.of(game).points, 0);
+    expect(focused(tester, tile('Vitality  1/3')), isTrue);
+    expect(fillOf(tester, find.text('Vitality  1/3')), ScreenFocus.fill, reason: 'a row it cannot learn shows it');
     expect(game.input.padPressed(GamepadButton.a), isFalse, reason: 'the press was the screen\'s, not a jump');
 
     await pad(tester, game, GamepadButton.dpadUp);
@@ -149,6 +162,13 @@ void main() {
       await pad(tester, game, GamepadButton.dpadDown);
     }
     expect(focused(tester, button('Back to the game')), isTrue, reason: 'every creature is a stop, then Back');
+    await pad(tester, game, GamepadButton.dpadUp);
+    final last = find.ancestor(
+      of: find.byWidget(FocusManager.instance.primaryFocus!.context!.widget),
+      matching: find.byType(ListTile),
+    );
+    expect(fillOf(tester, last), ScreenFocus.fill, reason: 'a row with nothing to press shows it');
+    await pad(tester, game, GamepadButton.dpadDown);
     expect(list(tester).pixels, list(tester).maxScrollExtent, reason: 'the list scrolled under the focus');
     expect(list(tester).maxScrollExtent, greaterThan(0.0));
 
@@ -217,14 +237,12 @@ void main() {
 
   testWidgets('the controls: each way to play is a stop, filled, and the text scrolls under it', (tester) async {
     final game = await start(tester);
-    Color fillOf(String way) =>
-        tester.widget<ColoredBox>(find.descendant(of: section(way), matching: find.byType(ColoredBox)).first).color;
     await open(tester, game, 'controls');
     expect(focused(tester, section('Keyboard and mouse')), isTrue, reason: 'it opens on the first');
-    expect(fillOf('Keyboard and mouse'), ScreenFocus.fill);
+    expect(fillOf(tester, find.text('Keyboard and mouse')), ScreenFocus.fill);
     await pad(tester, game, GamepadButton.dpadDown);
     expect(focused(tester, section('Gamepad')), isTrue);
-    expect(fillOf('Keyboard and mouse'), Colors.transparent);
+    expect(fillOf(tester, find.text('Keyboard and mouse')), Colors.transparent);
     await key(tester, LogicalKeyboardKey.arrowDown);
     expect(focused(tester, section('Phone')), isTrue);
     await pad(tester, game, GamepadButton.dpadDown);

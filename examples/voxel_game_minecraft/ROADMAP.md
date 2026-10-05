@@ -85,7 +85,10 @@ they name are the old app's, deleted at stage 34 and kept in git history before 
   own, filled while focused, so their text scrolls under a pad. The kit fills a focused
   tab (`ScreenFocus`), which Material's own overlay drew too faintly. Up from a list row
   lands on the middle tab, as Flutter measures a full-width row; left and right then reach
-  the rest. A pointer's click on a talent's row now learns it too.
+  the rest. A pointer's click on a talent's row now learns it too. Read back from a frame
+  on the Mac, a row with nothing to press (a creature, an achievement, a talent with no
+  point) held the focus and showed nothing: Flutter paints a disabled `InkWell`'s focus
+  transparent. Every journal row is now in the kit's `FocusFill`, as the controls' ways are.
 
 - **2026-10-04 VA-Zm** — the old app is gone. Since VA-Zl5 every behaviour ran on the kit,
   and `main.dart` no longer reached the old `Game`, `Player`, `Mob`, `VoxelWorld`, the

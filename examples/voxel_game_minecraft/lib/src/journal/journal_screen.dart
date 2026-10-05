@@ -102,13 +102,16 @@ class JournalScreen extends StatelessWidget {
     final maxed = rank >= Talent.maxRank;
     final learn = maxed || c.points <= 0 ? null : () => c.learn(t.id);
     // The row learns too: it is where a pad's focus stops, once a row (the
-    // button inside it is never the way up or down).
-    return ListTile(
-      leading: CircleAvatar(backgroundColor: Color(0xFF000000 | t.color), radius: 14),
-      title: Text('${t.name}  $rank/${Talent.maxRank}'),
-      subtitle: Text(t.description),
-      onTap: learn,
-      trailing: FilledButton(onPressed: learn, child: Text(maxed ? 'Maxed' : 'Learn')),
+    // button inside it is never the way up or down). Each row of the journal
+    // is in a FocusFill: one with nothing to press still shows the focus.
+    return FocusFill(
+      child: ListTile(
+        leading: CircleAvatar(backgroundColor: Color(0xFF000000 | t.color), radius: 14),
+        title: Text('${t.name}  $rank/${Talent.maxRank}'),
+        subtitle: Text(t.description),
+        onTap: learn,
+        trailing: FilledButton(onPressed: learn, child: Text(maxed ? 'Maxed' : 'Learn')),
+      ),
     );
   }
 
@@ -122,18 +125,22 @@ class JournalScreen extends StatelessWidget {
         children: [
           for (final s in Bestiary.kinds)
             if (b.met(s.id))
-              ListTile(
-                dense: true,
-                leading: CircleAvatar(backgroundColor: Color(0xFF000000 | s.rig.skinColor), radius: 12),
-                title: Text(s.boss ? '${s.name}  (boss)' : s.name),
-                subtitle: Text(creatureLine(s, b.killsOf(s.id))),
+              FocusFill(
+                child: ListTile(
+                  dense: true,
+                  leading: CircleAvatar(backgroundColor: Color(0xFF000000 | s.rig.skinColor), radius: 12),
+                  title: Text(s.boss ? '${s.name}  (boss)' : s.name),
+                  subtitle: Text(creatureLine(s, b.killsOf(s.id))),
+                ),
               )
             else
-              const ListTile(
-                dense: true,
-                leading: CircleAvatar(backgroundColor: Color(0xFF4D4D4D), radius: 12),
-                title: Text('???'),
-                subtitle: Text('Not met yet'),
+              FocusFill(
+                child: const ListTile(
+                  dense: true,
+                  leading: CircleAvatar(backgroundColor: Color(0xFF4D4D4D), radius: 12),
+                  title: Text('???'),
+                  subtitle: Text('Not met yet'),
+                ),
               ),
         ],
       ),
@@ -178,11 +185,16 @@ class JournalScreen extends StatelessWidget {
             child: ListView(
               children: [
                 for (final row in achievementTable)
-                  ListTile(
-                    dense: true,
-                    leading: Icon(a.has(row.id) ? Icons.star : Icons.star_border, color: a.has(row.id) ? _gold : null),
-                    title: Text(row.name),
-                    subtitle: Text(row.description),
+                  FocusFill(
+                    child: ListTile(
+                      dense: true,
+                      leading: Icon(
+                        a.has(row.id) ? Icons.star : Icons.star_border,
+                        color: a.has(row.id) ? _gold : null,
+                      ),
+                      title: Text(row.name),
+                      subtitle: Text(row.description),
+                    ),
                   ),
               ],
             ),
@@ -219,14 +231,16 @@ class JournalScreen extends StatelessWidget {
                   : ListView(
                       children: [
                         for (var i = 0; i < all.length; i++)
-                          ListTile(
-                            dense: true,
-                            leading: const Icon(Icons.place, color: Color(0xFF4DF2FF)),
-                            title: Text(lines[i]),
-                            enabled: all[i].dimension == game.dimension,
-                            onTap: () {
-                              if (w.travel(game, all[i])) game.closeScreen();
-                            },
+                          FocusFill(
+                            child: ListTile(
+                              dense: true,
+                              leading: const Icon(Icons.place, color: Color(0xFF4DF2FF)),
+                              title: Text(lines[i]),
+                              enabled: all[i].dimension == game.dimension,
+                              onTap: () {
+                                if (w.travel(game, all[i])) game.closeScreen();
+                              },
+                            ),
                           ),
                       ],
                     ),
@@ -278,20 +292,22 @@ class JournalScreen extends StatelessWidget {
     final finished = i < done;
     final active = i == done;
     final count = finished ? q.count : (active ? progress : 0);
-    return ListTile(
-      dense: true,
-      enabled: finished || active,
-      selected: active,
-      leading: Icon(
-        finished
-            ? Icons.check
-            : active
-            ? Icons.play_arrow
-            : Icons.lock_outline,
+    return FocusFill(
+      child: ListTile(
+        dense: true,
+        enabled: finished || active,
+        selected: active,
+        leading: Icon(
+          finished
+              ? Icons.check
+              : active
+              ? Icons.play_arrow
+              : Icons.lock_outline,
+        ),
+        title: Text(q.title),
+        subtitle: Text('${q.text}   $count/${q.count}   ${q.xp} XP'),
+        trailing: active ? SizedBox(width: 120, child: LinearProgressIndicator(value: progress / q.count)) : null,
       ),
-      title: Text(q.title),
-      subtitle: Text('${q.text}   $count/${q.count}   ${q.xp} XP'),
-      trailing: active ? SizedBox(width: 120, child: LinearProgressIndicator(value: progress / q.count)) : null,
     );
   }
 }

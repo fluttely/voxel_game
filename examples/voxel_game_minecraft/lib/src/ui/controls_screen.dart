@@ -97,18 +97,15 @@ class _Section extends StatelessWidget {
   final bool autofocus;
 
   @override
-  Widget build(BuildContext context) => Focus(
-    autofocus: autofocus,
-    child: Builder(
-      builder: (context) => ColoredBox(
-        color: Focus.of(context).hasFocus ? ScreenFocus.fill : Colors.transparent,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(way, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            for (final line in lines) Text(line),
-          ],
-        ),
+  Widget build(BuildContext context) => FocusFill(
+    child: Focus(
+      autofocus: autofocus,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(way, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          for (final line in lines) Text(line),
+        ],
       ),
     ),
   );
