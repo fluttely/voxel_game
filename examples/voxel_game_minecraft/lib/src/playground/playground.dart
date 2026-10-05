@@ -20,8 +20,8 @@ import 'playground_zone.dart';
 /// [wildWithin], and when the player walks back into an exhibit the kit's
 /// spawner emptied while they were away.
 ///
-/// A fresh playground starts the player at [spawn] facing the tower with the
-/// showcase kit ([kitFor]), at level 10 with ten talent points, in the
+/// A fresh playground starts the player at [start] facing the tower
+/// ([spawnFor]) with the showcase kit ([kitFor]), at level 10 with ten talent points, in the
 /// morning. Walking into an exhibit shows its card for [cardSeconds]
 /// (`ZoneCard`). The weather ([cycleWeather], F7), the time of day
 /// ([cycleTime], F8) and a rebuild of the exhibit the player stands in
@@ -74,8 +74,8 @@ class Playground extends SavedSystem {
   /// away at once a zoo placed farther off.
   static const double wildWithin = 64.0;
 
-  /// Where a fresh playground's player starts: south of the tower.
-  static Vector3 get spawn => Vector3(PlaygroundZone.originX + 0.5, floor + 0.1, PlaygroundZone.originZ + 12.5);
+  /// Where a fresh playground's player starts: south of the tower, facing it.
+  static const SpawnPoint start = SpawnPoint(x: PlaygroundZone.originX, z: PlaygroundZone.originZ + 12);
 
   /// The nine exhibits, the hub in the middle.
   static const List<PlaygroundZone> zones = [
@@ -165,6 +165,11 @@ class Playground extends SavedSystem {
   /// [plaza] in a playground (`VoxelGameSpec.worldFor`).
   static WorldGenSpec worldFor(WorldGenSpec world, Map<String, String> options) =>
       options[playgroundOption.id] == 'playground' ? world.withPlaza(plaza) : world;
+
+  /// Where a new world with [options] starts its player: at [start] in a
+  /// playground, where the kit finds one otherwise (`VoxelGameSpec.spawn`).
+  static SpawnPoint? spawnFor(Map<String, String> options) =>
+      options[playgroundOption.id] == 'playground' ? start : null;
 
   /// Whether [game] is a playground: its world has the [plaza], the only one
   /// this game presses ([worldFor]), on a client as on its host.
@@ -262,19 +267,12 @@ class Playground extends SavedSystem {
     if (game.actions.justPressed(rebuildAction)) rebuildHere(game);
   }
 
-  // A fresh playground's start, once the spawn is loaded; a saved one's is
-  // its own.
+  // A fresh playground's start: the kit, the level and the morning (the kit
+  // stood the player at [start]); a saved one's is its own.
   void _begin(VoxelGame game) {
-    final at = spawn;
-    if (!game.ready || !game.world.isLoaded(IVec3.floor(at))) return;
     _begun = true;
     if (_restored) return;
-    final p = game.player
-      ..placeAt(at)
-      ..spawnPoint = at.clone()
-      ..yaw = 0.0
-      ..pitch = -0.1;
-    final bag = p.inventory;
+    final bag = game.player.inventory;
     for (var i = 0; i < bag.capacity; i++) {
       bag.setSlot(i, null);
     }

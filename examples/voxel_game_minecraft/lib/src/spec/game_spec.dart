@@ -61,7 +61,8 @@ import 'world_table.dart';
 /// structures found, the waypoints and the creatures.
 ///
 /// A playground (the title's `playgroundOption`) presses a flat plaza
-/// into the world (`Playground.worldFor`) and lays nine exhibits on it
+/// into the world (`Playground.worldFor`), starts the player at its hub
+/// (`Playground.spawnFor`) and lays nine exhibits on it
 /// (`Playground`), each with its card (`ZoneCard`); F7, F8 and F9 change its
 /// weather, its time of day and rebuild an exhibit, and so do the buttons of
 /// Playground in its game menu (`PlaygroundScreen`).
@@ -80,6 +81,7 @@ final VoxelGameSpec gameSpec = VoxelGameSpec(
   ),
   world: overworld,
   worldFor: Playground.worldFor,
+  spawn: Playground.spawnFor,
   dimensions: const {'underworld': underworld},
   // An obsidian frame around a hollow two wide and three tall, lit with flint and steel; two seconds in it and
   // the player crosses, a frame built on the far side for the way back.

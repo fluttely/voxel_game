@@ -20,6 +20,9 @@ final VoxelGameSpec _spec = gameSpec.copyWith(
   world: gameSpec.worldWith(_options),
 );
 
+/// Where a fresh playground's player stands: on the plaza at its start.
+final Vector3 _hub = Vector3(Playground.start.x + 0.5, Playground.floor.toDouble(), Playground.start.z + 0.5);
+
 /// A warrior's playground, as the title starts one, with no spawns of the
 /// world's own; from [save] when given. Its hub is built.
 Future<VoxelGame> _start({SavedWorld? save}) async {
@@ -84,12 +87,23 @@ void main() {
     expect(gameSpec.screens[Playground.screen]!.menu, 'Playground');
   });
 
+  test('a fresh playground\'s player stands at the hub from its first step in the world', () async {
+    final game = await VoxelGame.startHeadless(_spec, options: _options, loadRadius: 3);
+    game.spawner.enabled = false;
+    expect(game.player.position.x, _hub.x, reason: 'before the world is loaded');
+    expect(game.player.position.z, _hub.z);
+    await _until(game, () => game.ready);
+    expect(game.player.position.distanceTo(_hub), lessThan(0.05), reason: 'placed there, not moved there later');
+    expect(game.player.yaw, Playground.start.yaw);
+  });
+
   test('a fresh playground starts at the hub with the showcase kit, the hub built and the tour set', () async {
     final game = await _start();
     final p = game.player;
     expect(Playground.isOn(game), isTrue);
-    expect(p.position.distanceTo(Playground.spawn), lessThan(1.0));
-    expect(p.spawnPoint, Playground.spawn);
+    expect(p.position.distanceTo(_hub), lessThan(1.0));
+    expect(p.spawnPoint.distanceTo(_hub), lessThan(0.05));
+    expect(p.yaw, Playground.start.yaw);
     expect(p.inventory.slots.first!.id, classOf(_options).weapon, reason: "the class's weapon first");
     expect(p.inventory.countOf('glider'), 1);
     expect(p.level, 10);

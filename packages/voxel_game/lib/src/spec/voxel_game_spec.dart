@@ -22,6 +22,7 @@ import 'screen_spec.dart';
 import 'signal_spec.dart';
 import 'sky_spec.dart';
 import 'sound_spec.dart';
+import 'spawn_point.dart';
 import 'structure_loot.dart';
 import 'touch_controls_spec.dart';
 import 'use_handlers.dart';
@@ -74,6 +75,7 @@ class VoxelGameSpec {
     this.messages = const {},
     this.playerFor,
     this.worldFor,
+    this.spawn,
   });
 
   /// The blocks, air first or added; their order is the save contract.
@@ -250,6 +252,17 @@ class VoxelGameSpec {
   /// [world].
   WorldGenSpec worldWith(Map<String, String> options) => worldFor?.call(world, options) ?? world;
 
+  /// Where a new world's player first stands, as its options make it
+  /// (`VoxelGame.options`, `WorldOption`): a showroom's lobby, say. Null,
+  /// or null answered, stands the player on the nearest dry column to the
+  /// origin. Read only for a world started fresh: a loaded one keeps the
+  /// place it was saved at, a client takes its host's.
+  ///
+  /// ```dart
+  /// spawn: (options) => options['kind'] == 'showroom' ? const SpawnPoint(x: 0, z: 12) : null,
+  /// ```
+  final SpawnPoint? Function(Map<String, String> options)? spawn;
+
   /// This game with the given fields replaced: the same world at another
   /// render distance, say, or with a system of a test's.
   ///
@@ -288,6 +301,7 @@ class VoxelGameSpec {
     Map<String, MessageHandler>? messages,
     ValueGetter<PlayerSpec Function(PlayerSpec player, Map<String, String> options)?>? playerFor,
     ValueGetter<WorldGenSpec Function(WorldGenSpec world, Map<String, String> options)?>? worldFor,
+    ValueGetter<SpawnPoint? Function(Map<String, String> options)?>? spawn,
   }) => VoxelGameSpec(
     blocks: blocks ?? this.blocks,
     world: world ?? this.world,
@@ -320,6 +334,7 @@ class VoxelGameSpec {
     messages: messages ?? this.messages,
     playerFor: playerFor == null ? this.playerFor : playerFor(),
     worldFor: worldFor == null ? this.worldFor : worldFor(),
+    spawn: spawn == null ? this.spawn : spawn(),
   );
 
   /// The block registry: [blocks] with air first.

@@ -23,8 +23,16 @@ void main() {
         expect(Playground.zones.where((zone) => zone.contains(x + 0.5, z + 0.5)), hasLength(1), reason: '($x, $z)');
       }
     }
-    expect(Playground.zone('hub').contains(Playground.spawn.x, Playground.spawn.z), isTrue);
+    expect(Playground.zone('hub').contains(Playground.start.x + 0.5, Playground.start.z + 0.5), isTrue);
     expect(Playground.zones.any((zone) => zone.contains(plaza.maxX + 0.5, 8)), isFalse);
+  });
+
+  test('a playground starts its player at the hub, any other world where the kit finds one', () {
+    expect(gameSpec.spawn!(const {'playground': 'playground'}), same(Playground.start));
+    expect(gameSpec.spawn!(const {'playground': 'open'}), isNull);
+    expect(gameSpec.spawn!(const {}), isNull);
+    expect(Playground.start.yaw, 0.0, reason: 'facing the tower, north of it');
+    expect(Playground.zone('hub').cz, lessThan(Playground.start.z));
   });
 
   test("the arena's spawner, gold button and boss plates sit inside the arena", () {

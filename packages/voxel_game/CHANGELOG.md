@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **A game says where a new world's player starts (KL-023).** `VoxelGameSpec.spawn` (new),
+  beside `playerFor` and `worldFor`: given a world's options, a `SpawnPoint` (new: a column
+  and a yaw) or null for the dry column the kit finds by the origin. The player stands
+  there, facing it, from before the first frame, and it is their respawn point; a world
+  loaded from a save keeps the place it was saved at, and a client its host's. A showroom,
+  a lobby or a story's first scene no longer moves the player in a system a step late.
 - **A creature derived from another keeps what it does not name (KL-018).** `copyWith`
   (new) on `MobSpec`, `SpawnRule`, `ProjectileSpec` and every behaviour with fields
   (`Wander`, `Hunt`, `MeleeAttack`, `RangedAttack`, `FleeWhenHurt`, `Explode`,

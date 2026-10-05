@@ -71,14 +71,15 @@
 - **Cost of leaving it:** a change to a stock structure's layout moves the app's boss and spawners off it with nothing in the kit failing (only the app's `structures_test.dart` notices), and a second game with a dungeon boss copies the same private numbers. Every look also reads up to 14 cells a dungeon and 11 a mine for what the generator knew. The fix is a plan per stock structure from its site and the generator's roll (the rooms, the spawners, the chests), what `FortressPlan` is for the app's.
 - **Found while:** 2026-10-04 — `VA-Zl3`, waking the dungeon's troll and its spawners.
 
+## Closed
+
 ### KL-023 · A game cannot say where a new world's player starts
 
 - **Lens:** kit API / declarative content
 - **Evidence:** `packages/voxel_game/lib/src/core/voxel_game.dart:345-357`: `_begin` walks a spiral from the origin to the first column over the sea and keeps it private (`_spawnColumn`), and `player.tryPlace` (`:1151`) sets the spawn point there once its chunk loads. Neither `VoxelGameSpec`, `PlayerSpec` nor `WorldGenSpec` (whose `Plaza` now knows a flat square) has a field for it. The minecraft example's `Playground` waits for `game.ready`, then moves the player and its spawn point to the hub (`examples/voxel_game_minecraft/lib/src/playground/playground.dart`, `_begin`), and turns the look too.
 - **Cost of leaving it:** a game with a fixed start (a showroom, a lobby, a story's first scene) does it in a system a step late: the player stands at the spiral's column first, a frame or two drawn there on a slow load, and every such game writes the same wait. A spawn declared on the spec (a column, or a function of the world's options as `worldFor` is) would let `_begin` place the player there in the first place.
 - **Found while:** 2026-10-04 — `VA-Zl5`, starting a playground's player at the hub.
-
-## Closed
+- **Closed by:** 2026-10-05 — `voxel_game, examples/voxel_game_minecraft: a new world's start is declared (KL-023)`. `VoxelGameSpec.spawn` (new): a function of a world's options (`VoxelGame.options`, as `playerFor` and `worldFor` are; not of `WorldInfo`, which a game in no slot lacks while it has options) answering a `SpawnPoint` (new: a column and a yaw) or null for the spiral. `_begin` stands the player's column there and turns the look before the first step, and `tryPlace` places them there and keeps it as the respawn point; a game started from a save, a client's included, never asks it. `test/spawn_test.dart` (3 tests: placed and facing from before the first frame, null and none answered keep the spiral, a world's options choose it and a reload keeps the saved place; the kit 437). The app's `Playground.spawnFor` answers `Playground.start` in a playground, and its `_begin` neither waits for `game.ready` nor moves the player: it hands out the kit, the level and the morning on its first tick (the app 101).
 
 ### KL-018 · A game that derives a creature from another copies every field by hand
 

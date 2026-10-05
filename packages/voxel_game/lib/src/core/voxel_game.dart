@@ -342,15 +342,22 @@ class VoxelGame {
     if (save != null) world.replaceEdits(save.editsFor(spec.dimensionIds));
     player.attach(this);
     scene?.add(player.node);
-    // The spawn: the nearest dry column to the origin along a spiral.
+    // The spawn: the game's in a new world, else the nearest dry column to the
+    // origin along a spiral. A save puts the player back where it was.
     final g = world.generator;
+    final declared = save == null ? spec.spawn?.call(options) : null;
     var spawn = (x: 0, z: 0);
-    for (var r = 0; r < 400; r += 8) {
-      final a = r * 0.7;
-      final x = (math.cos(a) * r).round(), z = (math.sin(a) * r).round();
-      if (g.surfaceHeight(x, z) > spec.world.seaLevel + 1) {
-        spawn = (x: x, z: z);
-        break;
+    if (declared != null) {
+      spawn = (x: declared.x, z: declared.z);
+      player.yaw = declared.yaw;
+    } else {
+      for (var r = 0; r < 400; r += 8) {
+        final a = r * 0.7;
+        final x = (math.cos(a) * r).round(), z = (math.sin(a) * r).round();
+        if (g.surfaceHeight(x, z) > spec.world.seaLevel + 1) {
+          spawn = (x: x, z: z);
+          break;
+        }
       }
     }
     _spawnColumn = spawn;

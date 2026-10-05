@@ -103,6 +103,7 @@ export 'src/spec/message_handler.dart';
 export 'src/spec/portal_spec.dart';
 export 'src/spec/screen_spec.dart';
 export 'src/spec/sky_spec.dart';
+export 'src/spec/spawn_point.dart';
 export 'src/spec/structure_loot.dart';
 export 'src/spec/title_spec.dart';
 export 'src/spec/weather_odds.dart';

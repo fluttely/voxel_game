@@ -149,7 +149,8 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
   one marked `join`) and read by a system as `game.options['class']`; the player they make
   is `VoxelGameSpec.playerFor`'s, which every other side draws too, and the world they
   generate `VoxelGameSpec.worldFor`'s (a showroom's flat `Plaza`, say), which a client
-  joining generates too.
+  joining generates too; a new world's player starts where `VoxelGameSpec.spawn` says (a
+  `SpawnPoint`: a column and a yaw), or on the dry column the kit finds by the origin.
 - The bag (`InventoryScreen`): a click or a tap picks a stack up or puts it down, a
   right-click or a long press takes half or leaves one; the held stack follows the pointer
   (above a finger), a tooltip reads the item's row (tool and tier, damage, uses left, food,
