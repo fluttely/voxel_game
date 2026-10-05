@@ -1,5 +1,6 @@
 import '../core/chunk_writer.dart';
 import '../core/world_math.dart';
+import 'spec_generator.dart';
 
 /// What a `Structure` draws with: a site in the world and the chunk being
 /// generated. Coordinates are relative to the site ([x], [y], [z]) — the
@@ -31,6 +32,10 @@ class StructureSite {
 
   /// The world seed.
   final int seed;
+
+  /// The site as `SpecGenerator.structuresNear` answers it, what a
+  /// structure's plan is computed from.
+  PlacedStructure get placed => (name: name, x: x, y: y, z: z);
 
   /// The chunk being generated.
   final ChunkWriter writer;

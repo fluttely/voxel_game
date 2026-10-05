@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- **A dungeon and a mine say where their parts are (KL-022).** `DungeonPlan.of(dungeon,
+  site, roll)` (new): the floor rolled from the site, its three `rooms` (`DungeonRoom`,
+  new: a `centre` over the floor and a `half`), the guard rooms' `spawners` and the last
+  room's `chest`, in world cells. `MinePlan.of(mine, site, roll)` (new): the corridor's
+  `floor`, its rolled `length`, its `end`, the `chest` there and the `spawner` of the one
+  mine in three that has one. `Dungeon` and `Mine` draw from their plan, so a game reads
+  the cells the generator drew without scanning the world. The roll is the drawing's
+  `StructureSite.roll`, with `StructureSite.placed` (new) as the site, or a game's
+  `SpecGenerator.rollOf(site)` (new), the same hash. Both draw the same blocks as before.
+
 ## 0.3.0-dev
 
 - `WorldGenSpec.plaza` (new) of `Plaza` (new): a square of open-sky ground pressed flat, a

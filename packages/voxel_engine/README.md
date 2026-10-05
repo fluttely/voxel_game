@@ -176,7 +176,9 @@ sockets, through `dart:isolate` and `dart:io`, which a browser does not have.
 
 5. **Add structures**: a stock one (`Dungeon`, `Tower`, `Well`, `Camp`, `Ruins`, `Mine`,
    `Village`, `Temple`) takes its blocks by name; your own is a build function. Structures keep
-   apart: a site within reach of an earlier one's is dropped.
+   apart: a site within reach of an earlier one's is dropped. A dungeon's and a mine's parts
+   are where their plan says, so a game finds them without reading the world:
+   `DungeonPlan.of(dungeon, site, generator.rollOf(site)).spawners`, `MinePlan.of(...).chest`.
 
    ```dart
    void tower(StructureSite s) {

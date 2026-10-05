@@ -70,7 +70,17 @@ const _village = Village(
 /// Ground at [ground] (the first air cell) everywhere: stone under dirt under
 /// grass, drawn on by one structure at (0, [ground], 0).
 class _Flat {
-  _Flat(Structure s, {this.ground = 40, int seed = 1}) {
+  _Flat(Structure s, {this.ground = 40, int seed = 1})
+    : site = StructureSite(
+        name: 's',
+        x: 0,
+        y: ground - s.depth,
+        z: 0,
+        seed: seed,
+        writer: ChunkWriter(Uint8List(ChunkSize.volume), 0, 0),
+        block: _id,
+        surfaceAt: (x, z) => ground,
+      ) {
     final reach = floorDiv(s.radius, 16) + 1;
     for (var cz = -reach; cz <= reach; cz++) {
       for (var cx = -reach; cx <= reach; cx++) {
@@ -104,6 +114,9 @@ class _Flat {
 
   final int ground;
   final Map<(int, int), ChunkWriter> _chunks = {};
+
+  /// The structure's site, for its rolls and its plan.
+  final StructureSite site;
 
   /// The block at world ([x], [y], [z]).
   int at(int x, int y, int z) => _chunks[(floorDiv(x, 16), floorDiv(z, 16))]!.get(x, y, z)!;
@@ -145,6 +158,66 @@ void main() {
     expect(ladder.map((c) => (c.$1, c.$3)).toSet(), {(-15, -3)});
     expect(ladder.map((c) => c.$2).reduce((a, b) => a > b ? a : b), 40, reason: 'the shaft opens on the surface');
     expect(f.all('mossy'), isNotEmpty);
+  });
+
+  test("a dungeon's plan is where its parts are drawn, for every seed and depth", () {
+    for (var seed = 1; seed <= 8; seed++) {
+      for (final ground in const [40, 20]) {
+        final f = _Flat(_dungeon, ground: ground, seed: seed);
+        final plan = DungeonPlan.of(_dungeon, f.site.placed, f.site.roll);
+        final why = 'seed $seed, ground $ground';
+        expect(plan.floor, ground == 20 ? 8 : inInclusiveRange(40 - 14 - 13, 40 - 14), reason: why);
+        expect({for (final (x, y, z) in f.all('spawner')) IVec3(x, y, z)}, plan.spawners.toSet(), reason: why);
+        expect(plan.spawners, hasLength(2));
+        final (cx, cy, cz) = f.all('chest').single;
+        expect(IVec3(cx, cy, cz), plan.chest, reason: why);
+        expect(plan.rooms.map((r) => r.centre.x), [-12, 0, 12]);
+        const furniture = {'lamp', 'spawner', 'chest', 'bones', 'gold', 'ladder'};
+        for (final (:centre, :half) in plan.rooms) {
+          expect([_id('bricks'), _id('mossy')], contains(f.at(centre.x, plan.floor, centre.z)), reason: why);
+          expect([_id('bricks'), _id('mossy')], contains(f.at(centre.x, plan.floor + half, centre.z)), reason: why);
+          for (var y = plan.floor + 1; y < plan.floor + half; y++) {
+            for (var z = centre.z - half + 1; z < centre.z + half; z++) {
+              for (var x = centre.x - half + 1; x < centre.x + half; x++) {
+                final id = f.at(x, y, z);
+                final open = id == 0 || (y == plan.floor + 1 && furniture.map(_id).contains(id)) || id == _id('ladder');
+                expect(open, isTrue, reason: '$why: ($x, $y, $z) in a room holds $id');
+              }
+            }
+          }
+        }
+      }
+    }
+    final bare = DungeonPlan.of(const Dungeon(walls: 'bricks', ladder: 'ladder'), (
+      name: 's',
+      x: 0,
+      y: 26,
+      z: 0,
+    ), (_) => 0);
+    expect(bare.spawners, isEmpty);
+    expect(bare.chest, isNull);
+  });
+
+  test("a mine's plan is where its parts are drawn, for every seed and depth", () {
+    final spawned = <bool>{};
+    for (var seed = 1; seed <= 12; seed++) {
+      for (final ground in const [40, 28]) {
+        final f = _Flat(_mine, ground: ground, seed: seed);
+        final plan = MinePlan.of(_mine, f.site.placed, f.site.roll);
+        final why = 'seed $seed, ground $ground';
+        expect(plan.floor, ground == 28 ? 20 : 24, reason: why);
+        expect(plan.length, inInclusiveRange(20, 30), reason: why);
+        final (cx, cy, cz) = f.all('chest').single;
+        expect(IVec3(cx, cy, cz), plan.chest, reason: why);
+        expect(plan.end, plan.chest);
+        final spawners = [for (final (x, y, z) in f.all('spawner')) IVec3(x, y, z)];
+        expect(spawners, [?plan.spawner], reason: why);
+        spawned.add(plan.spawner != null);
+        expect(f.at(plan.end.x, plan.end.y + 1, plan.end.z), 0, reason: '$why: headroom at the end');
+        expect(f.all('rail'), hasLength(plan.length - 1 - spawners.length), reason: why);
+      }
+    }
+    expect(spawned, {true, false}, reason: 'some mines are guarded and some are not');
   });
 
   test('a tower: a door, a ladder to the top floor, the chest up there', () {
@@ -279,6 +352,41 @@ void main() {
           final d = radius[a.name]! + radius[b.name]!;
           expect((a.x - b.x).abs() > d || (a.z - b.z).abs() > d, isTrue, reason: '$a and $b');
         }
+      }
+    });
+
+    test("a world's dungeons and mines are drawn where the generator's rolls plan them", () {
+      final g = spec.compile(_ids, 21);
+      final sites = <PlacedStructure>{};
+      for (var cx = -30; cx <= 30; cx += 2) {
+        for (var cz = -30; cz <= 30; cz += 2) {
+          sites.addAll(g.structuresNear(cx, cz).where((s) => s.name == 'dungeon' || s.name == 'mine'));
+        }
+      }
+      final byName = {
+        for (final name in const ['dungeon', 'mine']) name: sites.where((s) => s.name == name).take(2).toList(),
+      };
+      expect(byName.values.every((l) => l.length == 2), isTrue, reason: 'two of each to look at');
+      for (final site in byName.values.expand((l) => l)) {
+        final reach = site.name == 'dungeon' ? _dungeon.radius : _mine.radius;
+        final cells = <String, Set<IVec3>>{'spawner': {}, 'chest': {}};
+        for (var cz = floorDiv(site.z - reach, 16); cz <= floorDiv(site.z + reach, 16); cz++) {
+          for (var cx = floorDiv(site.x - reach, 16); cx <= floorDiv(site.x + reach, 16); cx++) {
+            final blocks = g.generateIn(cx, cz, 0);
+            for (var i = 0; i < ChunkSize.volume; i++) {
+              final cell = IVec3(cx * 16 + (i & 15), i >> 8, cz * 16 + ((i >> 4) & 15));
+              if ((cell.x - site.x).abs() > reach || (cell.z - site.z).abs() > reach) continue;
+              if (blocks[i] == _id('spawner')) cells['spawner']!.add(cell);
+              if (blocks[i] == _id('chest')) cells['chest']!.add(cell);
+            }
+          }
+        }
+        final roll = g.rollOf(site);
+        final (spawners, chest) = site.name == 'dungeon'
+            ? (DungeonPlan.of(_dungeon, site, roll).spawners, DungeonPlan.of(_dungeon, site, roll).chest)
+            : ([?MinePlan.of(_mine, site, roll).spawner], MinePlan.of(_mine, site, roll).chest);
+        expect(cells['spawner'], spawners.toSet(), reason: '$site');
+        expect(cells['chest'], {chest}, reason: '$site');
       }
     });
 

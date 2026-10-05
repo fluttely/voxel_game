@@ -198,6 +198,12 @@ class SpecGenerator implements ChunkGenerator {
   /// The world's positional hash under [seed].
   int hash(int x, int y, int z) => worldHash(seed, x, y, z);
 
+  /// The rolls of the structure at [site], the same its drawing took
+  /// (`StructureSite.roll`): what a plan of it (`DungeonPlan.of`,
+  /// `MinePlan.of`) is computed from.
+  int Function(int salt) rollOf(PlacedStructure site) =>
+      (salt) => worldHash(seed, site.x, salt, site.z);
+
   /// The first air cell above the ground of column ([x], [z]). In a cavern,
   /// the lowest floor above the sea: the first open cell over rock there, or
   /// just above the sea when the column has none.

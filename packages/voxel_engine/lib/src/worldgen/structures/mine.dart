@@ -1,7 +1,8 @@
-import 'dart:math' as math;
+import 'package:voxel_engine/core.dart';
 
 import '../spec/structure.dart';
 import '../spec/structure_site.dart';
+import 'mine_plan.dart';
 
 /// An abandoned mine: a head frame on the surface ([frame] floor, four
 /// [posts], a [roof]) over a [ladder] shaft down to a corridor at [floorY],
@@ -11,7 +12,8 @@ import '../spec/structure_site.dart';
 /// to the [chest] at the end, a [spawner] before it a third of the time.
 /// Where the corridor's shell meets air or a liquid it is sealed with
 /// [walls]; where it meets the world's rock, [veins] show through it, each
-/// in its per cent of the cells.
+/// in its per cent of the cells. Where its corridor, chest and spawner lie
+/// is its [MinePlan], which a game reads too.
 class Mine extends Structure {
   /// A mine of these blocks; every one left null or empty is left out.
   const Mine({
@@ -99,9 +101,9 @@ class Mine extends Structure {
 
   @override
   void build(StructureSite site) {
-    final h = site.roll(41);
-    final length = minLength + h % (maxLength - minLength + 1);
-    final fy = math.min(floorY, site.y - 8) - site.y;
+    final plan = MinePlan.of(this, site.placed, site.roll);
+    final length = plan.length;
+    final fy = plan.floor - site.y;
     for (var z = -1; z <= 1; z++) {
       for (var x = -1; x <= 1; x++) {
         site.level(x, z, x, z, frame, floor: -1, clearTo: 3);
@@ -144,8 +146,11 @@ class Mine extends Structure {
         site.put(x, fy + 1, 0, rail!);
       }
     }
-    if (chest != null) site.put(length, fy + 1, 0, chest!);
-    if (spawner != null && (h >> 8) % 3 == 0) site.put(length - 3, fy + 1, 0, spawner!);
+    // Site-relative, as the drawing goes; the plan's cells are the world's.
+    void putCell(IVec3 cell, String name) => site.put(cell.x - site.x, cell.y - site.y, cell.z - site.z, name);
+    final chest = plan.chest, spawner = plan.spawner;
+    if (chest != null) putCell(chest, this.chest!);
+    if (spawner != null) putCell(spawner, this.spawner!);
   }
 
   String? _vein(int roll) {

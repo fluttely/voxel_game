@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **A stock structure's plan (KL-022).** `DungeonPlan`, `DungeonRoom` and `MinePlan` are
+  exported with the rest of `voxel_engine`'s worldgen: a game finds a dungeon's rooms and
+  spawners, or a mine's spawner and chest, from `PlacedStructure` and
+  `game.world.generator.rollOf(site)`, with no cell read.
 - **A game keeps its own settings of the player's (KL-020).** `GameSettings.game` (new):
   JSON under the game's keys, which the kit never reads, written with the rest to
   `settings.json` (version 3; a version 1 or 2 file reads it empty) and kept by

@@ -1,14 +1,16 @@
-import 'dart:math' as math;
+import 'package:voxel_engine/core.dart';
 
 import '../spec/structure.dart';
 import '../spec/structure_site.dart';
+import 'dungeon_plan.dart';
 
 /// Three rooms in a row under the ground, joined by corridors, a ladder shaft
 /// up from the first: two guard rooms with a [spawner] each, and a larger
 /// last room with the [chest], a [relic] and a [treasure] block. Every wall,
 /// floor and ceiling is [walls], one brick in four [mossy]; two [light]s a
 /// room. The rooms lie along x, the site in the middle one, [depth] to
-/// [depth] + 13 blocks under the surface (never under y 8).
+/// [depth] + 13 blocks under the surface (never under y 8). Where each part
+/// lies is its [DungeonPlan], which a game reads too.
 class Dungeon extends Structure {
   /// A dungeon of these blocks; every one left null is left out.
   const Dungeon({
@@ -58,10 +60,13 @@ class Dungeon extends Structure {
 
   @override
   void build(StructureSite site) {
-    final floor = math.max(-(site.roll(1) % 14), 8 - site.y);
+    final plan = DungeonPlan.of(this, site.placed, site.roll);
+    // Site-relative, as the drawing goes; the plan's cells are the world's.
+    final floor = plan.floor - site.y;
+    void putCell(IVec3 cell, String name) => site.put(cell.x - site.x, cell.y - site.y, cell.z - site.z, name);
     for (var room = 0; room < 3; room++) {
-      final rx = -12 + room * 12;
-      final half = room == 2 ? 6 : 4;
+      final (:centre, :half) = plan.rooms[room];
+      final rx = centre.x - site.x;
       for (var y = 0; y <= half; y++) {
         for (var z = -half; z <= half; z++) {
           for (var x = rx - half; x <= rx + half; x++) {
@@ -77,7 +82,7 @@ class Dungeon extends Structure {
       }
       if (room < 2) {
         final spawner = this.spawner;
-        if (spawner != null) site.put(rx, floor + 1, 2, spawner);
+        if (spawner != null) putCell(plan.spawners[room], spawner);
         // The corridor to the next room, a brick shell around a 1 x 2 way.
         for (var x = rx + half; x <= rx + 8; x++) {
           site.put(x, floor + 1, 0, 'air');
@@ -90,7 +95,8 @@ class Dungeon extends Structure {
           }
         }
       } else {
-        if (chest != null) site.put(rx, floor + 1, 0, chest!);
+        final chest = plan.chest;
+        if (chest != null) putCell(chest, this.chest!);
         if (relic != null) site.put(rx + 2, floor + 1, -2, relic!);
         if (treasure != null) site.put(rx - 3, floor + 1, 3, treasure!);
       }

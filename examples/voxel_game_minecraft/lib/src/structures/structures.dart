@@ -173,37 +173,23 @@ class Structures extends SavedSystem {
 
   // The troll in the last room; the guard rooms' spawners.
   void _dungeon(VoxelGame game, PlacedStructure s, _Site site) {
-    final floor = _dungeonFloor(game, s);
-    if (floor == null) return;
-    for (final rx in const [-12, 0]) {
-      _spawner(game, IVec3(s.x + rx, floor + 1, s.z + 2));
+    final plan = DungeonPlan.of(dungeonStructure, s, game.world.generator.rollOf(s));
+    for (final spawner in plan.spawners) {
+      _spawner(game, spawner);
     }
-    final room = Vector3(s.x + 12.5, floor + 1.0, s.z + 0.5);
+    final centre = plan.rooms.last.centre;
+    final room = Vector3(centre.x + 0.5, centre.y.toDouble(), centre.z + 0.5);
     if (_has(site, StructureMark.boss) || game.player.position.distanceTo(room) >= trollWakesWithin) return;
+    if (!game.world.isLoaded(centre)) return;
     _mark(site, StructureMark.boss);
     _wake(game, 'troll', room + Vector3(-2.0, 0.0, 2.0), 2);
     game.notify('A Cave Troll guards the treasure!');
   }
 
-  /// The world y of the floor of the dungeon at [s]: the lowest of its
-  /// bricks in the middle of its last room, or null while that is not
-  /// loaded.
-  static int? _dungeonFloor(VoxelGame game, PlacedStructure s) {
-    final bricks = {dungeonStructure.walls, ?dungeonStructure.mossy};
-    final lowest = s.y - 13 < 8 ? 8 : s.y - 13;
-    if (!game.world.isLoaded(IVec3(s.x + 12, lowest, s.z))) return null;
-    for (var y = lowest; y <= s.y; y++) {
-      if (bricks.contains(game.world.blockNameAt(IVec3(s.x + 12, y, s.z)))) return y;
-    }
-    return null;
-  }
-
   // The mine's spawner, a few cells before its chest when it has one.
   void _mineSpawner(VoxelGame game, PlacedStructure s) {
-    final y = (mineStructure.floorY < s.y - 8 ? mineStructure.floorY : s.y - 8) + 1;
-    for (var x = mineStructure.minLength - 3; x <= mineStructure.maxLength - 3; x++) {
-      _spawner(game, IVec3(s.x + x, y, s.z));
-    }
+    final spawner = MinePlan.of(mineStructure, s, game.world.generator.rollOf(s)).spawner;
+    if (spawner != null) _spawner(game, spawner);
   }
 
   /// Brings one of [spawnerBrood] beside the spawner block at [cell], if it

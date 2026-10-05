@@ -50,13 +50,6 @@
 - **Cost of leaving it:** a paced game's FPS readout says the world moves at up to twice the rate it is drawn at (the app saw its readout go from 57 to 85 when it paced, `examples/voxel_game_minecraft/ROADMAP.md:173`), and the benchmark cannot weigh pacing at all: an A/B of `paced` on and off would compare tick rates that barely move. Before that A/B is run, `FrameReport` needs the scene frames rendered per second beside the Flutter ones.
 - **Found while:** 2026-10-03 — VA-Zg, writing `GraphicsSpec.paced`'s cost into its doc.
 
-### KL-022 · A stock structure keeps where its parts are to itself
-
-- **Lens:** kit API / worldgen
-- **Evidence:** `packages/voxel_engine/lib/src/worldgen/structures/dungeon.dart:61-80` rolls the dungeon's floor (`site.roll(1)`) and puts its rooms at x -12, 0 and +12 and its spawners at `(rx, floor + 1, 2)`; `mine.dart:102-148` rolls the corridor's length (`site.roll(41)`) and puts the spawner 3 short of it in one mine of three. None of it is asked of a `Structure`: `structuresNear` answers a name and a site. The minecraft example's `Structures` copies those numbers to find the troll's room and the spawners, and scans cells to recover the floor and the length (`examples/voxel_game_minecraft/lib/src/structures/structures.dart:175-207`); its own fortress answers the same question through `FortressPlan`, which the drawing and the game share.
-- **Cost of leaving it:** a change to a stock structure's layout moves the app's boss and spawners off it with nothing in the kit failing (only the app's `structures_test.dart` notices), and a second game with a dungeon boss copies the same private numbers. Every look also reads up to 14 cells a dungeon and 11 a mine for what the generator knew. The fix is a plan per stock structure from its site and the generator's roll (the rooms, the spawners, the chests), what `FortressPlan` is for the app's.
-- **Found while:** 2026-10-04 — `VA-Zl3`, waking the dungeon's troll and its spawners.
-
 ### KL-024 · Two owners of the audio device do not wait for each other
 
 - **Lens:** concurrency / audio
@@ -64,7 +57,22 @@
 - **Cost of leaving it:** a player who picks a world in the first moments of the title (its device still opening) can enter a world with no sound and no music, nothing failing; today the world's start is long enough that it does not happen, but a faster start (a small world, a joined one) narrows that margin. One opener the kit owns, which a bank waits on until the last one closed, would order them.
 - **Found while:** 2026-10-05 — VL4, moving the title's music into the kit (`KL-019`).
 
+### KL-025 · A dungeon's rooms are walled off from one another
+
+- **Lens:** worldgen / correctness
+- **Evidence:** `packages/voxel_engine/lib/src/worldgen/structures/dungeon.dart:67-97`: each room's box is drawn whole, its walls as bricks (`:73`), after the corridor from the room before it (`:86-97`), so the box bricks over the corridor's doorway where it meets the room's wall. A probe on 2026-10-05 read the cells at the corridors' height: open at x -8 and -6 (the first corridor) and 4 and 5 (the second), solid brick at x -4 (the second room's west wall) and 6 (the last room's). The shaft reaches the first room only.
+- **Cost of leaving it:** the guard rooms and the treasure room are reached only by digging through a wall, which the doc ("three rooms in a row ... joined by corridors") and a player both expect to walk through; the app's troll still wakes by distance, so it waits behind a wall. The fix is the doorways cut after the rooms are drawn (or each corridor drawn after its next room), a change every world's dungeons take on, saved ones too, since a save keeps only its edits over what the seed draws.
+- **Found while:** 2026-10-05 — VL6, reading the dungeon's drawing to write its plan (`KL-022`).
+
 ## Closed
+
+### KL-022 · A stock structure keeps where its parts are to itself
+
+- **Lens:** kit API / worldgen
+- **Evidence:** `packages/voxel_engine/lib/src/worldgen/structures/dungeon.dart:61-80` rolls the dungeon's floor (`site.roll(1)`) and puts its rooms at x -12, 0 and +12 and its spawners at `(rx, floor + 1, 2)`; `mine.dart:102-148` rolls the corridor's length (`site.roll(41)`) and puts the spawner 3 short of it in one mine of three. None of it is asked of a `Structure`: `structuresNear` answers a name and a site. The minecraft example's `Structures` copies those numbers to find the troll's room and the spawners, and scans cells to recover the floor and the length (`examples/voxel_game_minecraft/lib/src/structures/structures.dart:175-207`); its own fortress answers the same question through `FortressPlan`, which the drawing and the game share.
+- **Cost of leaving it:** a change to a stock structure's layout moves the app's boss and spawners off it with nothing in the kit failing (only the app's `structures_test.dart` notices), and a second game with a dungeon boss copies the same private numbers. Every look also reads up to 14 cells a dungeon and 11 a mine for what the generator knew. The fix is a plan per stock structure from its site and the generator's roll (the rooms, the spawners, the chests), what `FortressPlan` is for the app's.
+- **Found while:** 2026-10-04 — `VA-Zl3`, waking the dungeon's troll and its spawners.
+- **Closed by:** 2026-10-05 — `voxel_engine, voxel_game, examples/voxel_game_minecraft: a dungeon and a mine say where their parts are (KL-022)`. `DungeonPlan.of(dungeon, site, roll)` (new) gives the rolled floor, the three rooms (`DungeonRoom`: a centre and a half), the guard rooms' spawners and the chest, in world cells; `MinePlan.of(mine, site, roll)` (new) the corridor's floor, its rolled length, its end, the chest and the one mine in three's spawner. `Dungeon.build` and `Mine.build` draw from them, so a layout change moves the plan with it. The roll is the drawing's `StructureSite.roll` (with `StructureSite.placed`, new) or a game's `SpecGenerator.rollOf(site)` (new), the same hash. `test/worldgen/stock_structures_test.dart` (3 new: the spawners, the chest and the rooms' air where each plan says, 8 dungeon and 12 mine seeds at two depths each, and two dungeons and two mines of a compiled world against `rollOf`; the engine 247). The app's `Structures` reads both plans: the troll's room and the spawners come from them, and only the spawner cell itself is read, to see the block is still there (`structures_test.dart` unchanged, passing).
 
 ### KL-020 · A game keeps nothing of its own in the player's settings
 
