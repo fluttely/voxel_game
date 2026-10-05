@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **A focused tab is filled (KL-013, last part).** `ScreenFocus` gives a `TabBar`'s
+  focused tab `ScreenFocus.fill`, as it gives a list tile: a tab paints its focus in the
+  tab bar's overlay, which Material's own default fills too faintly to find, and never
+  in `focusColor`. The game's own overlay keeps every other state.
 - **A pad and the arrows work the title (KL-013, third part).** `TitleScreen` puts each
   panel (the menu, the worlds, Multiplayer, Settings, Credits) in a `ScreenFocus`, so it
   opens with a focus and draws it: the menu on Play, the worlds on Play (or New world

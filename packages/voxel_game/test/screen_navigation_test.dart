@@ -299,6 +299,31 @@ void main() {
     game.dispose();
   });
 
+  testWidgets('a focused tab is filled; the game\'s own overlay keeps the other states', (tester) async {
+    const hover = Color(0xFF123456);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData(tabBarTheme: TabBarThemeData(overlayColor: WidgetStatePropertyAll(hover))),
+        home: const Scaffold(
+          body: ScreenFocus(
+            child: DefaultTabController(
+              length: 2,
+              child: TabBar(
+                tabs: [
+                  Tab(text: 'One'),
+                  Tab(text: 'Two'),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    final overlay = TabBarTheme.of(tester.element(find.text('One'))).overlayColor!;
+    expect(overlay.resolve({WidgetState.focused}), ScreenFocus.fill);
+    expect(overlay.resolve({WidgetState.hovered}), hover);
+  });
+
   testWidgets('with no screen open, the pad and the arrows are the game\'s', (tester) async {
     final game = await start(tester);
     game.input.onPad(_button(GamepadButton.a, 1));

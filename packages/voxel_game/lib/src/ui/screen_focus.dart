@@ -8,8 +8,8 @@ import 'package:flutter/material.dart';
 /// leave a slider and a disabled button can hold the focus until it wakes;
 /// a [ring] around the focused Material button, icon buttons included, which
 /// the stock overlay draws too faintly to find across a room; and a stronger
-/// [fill] for the focused list tile and anything else that shows its focus
-/// as a fill (Material's `focusColor`).
+/// [fill] for the focused list tile, the focused tab of a `TabBar` and
+/// anything else that shows its focus as a fill (Material's `focusColor`).
 ///
 /// `GameSurface` puts each screen it opens in one, a game's own included.
 class ScreenFocus extends StatefulWidget {
@@ -56,6 +56,7 @@ class _ScreenFocusState extends State<ScreenFocus> {
       child: Theme(
         data: theme.copyWith(
           focusColor: ScreenFocus.fill,
+          tabBarTheme: theme.tabBarTheme.copyWith(overlayColor: _filled(theme.tabBarTheme.overlayColor)),
           iconButtonTheme: IconButtonThemeData(style: _ringed(theme.iconButtonTheme.style)),
           filledButtonTheme: FilledButtonThemeData(style: _ringed(theme.filledButtonTheme.style)),
           outlinedButtonTheme: OutlinedButtonThemeData(style: _ringed(theme.outlinedButtonTheme.style)),
@@ -66,6 +67,13 @@ class _ScreenFocusState extends State<ScreenFocus> {
       ),
     );
   }
+
+  // The game's own tab overlay, with the fill while focused: a tab paints its
+  // focus in the tab bar's overlay, which Material's default always fills,
+  // so `focusColor` never reaches it.
+  static WidgetStateProperty<Color?> _filled(WidgetStateProperty<Color?>? overlay) => WidgetStateProperty.resolveWith(
+    (states) => states.contains(WidgetState.focused) ? ScreenFocus.fill : overlay?.resolve(states),
+  );
 
   // The game's own button theme, with the ring over its side while focused.
   static ButtonStyle _ringed(ButtonStyle? style) {
