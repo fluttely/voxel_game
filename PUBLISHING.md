@@ -31,7 +31,7 @@ and how the folder got this shape in
 repository pub bundles a package's own folder, filtered by the `.gitignore` files
 from the git root down to it. The root holds no package, so nothing above a
 package has to be hidden from it, and the repository's own files (`CLAUDE.md`,
-`AGENTS.md`, this file, `README.md`, `docs/`, `tool/`) sit where no tarball looks.
+`AGENTS.md`, this file, `README.md`, `docs/`, `tool/`, `.github/`) sit where no tarball looks.
 Each package ships its `example/` whole, its runners included — they are where a
 reader sees Flutter GPU turned on, one platform at a time.
 
@@ -44,12 +44,7 @@ the root.
 
 ## Before the first release
 
-Still to do:
-
-1. **A CI that runs the whole workspace** — `dart analyze`, `dart test`,
-   `flutter test` — on one push. That is the reason the monorepo exists.
-
-Done in VR4 (2026-09-23), and after it:
+Nothing is left. Done in VR4 (2026-09-23), and after it:
 
 - **A repository of its own**: `https://github.com/fluttely/voxel_game`. Every
   pubspec points at it, each package at its `tree/main/packages/<p>` path.
@@ -67,6 +62,11 @@ Done in VR4 (2026-09-23), and after it:
   release instead of being spent on a version nobody outside this repo ever saw.
 - **`publish_to: none` removed** from the four packages, kept on the two example
   apps.
+- **A CI that runs the whole workspace** (VL1, 2026-10-05):
+  `.github/workflows/ci.yml`, on GitHub Actions with Flutter 3.47.5 pinned, runs
+  `flutter analyze`, the format check and the five suites (the four packages' and
+  the minecraft app's) on every push to `dev` and `main` and on every PR. That is
+  the reason the monorepo exists.
 
 ## Releasing
 

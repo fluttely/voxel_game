@@ -26,7 +26,7 @@ The root is **only the pub workspace**, never a package: its `pubspec.yaml`
 (`voxel_game_workspace`, `publish_to: none`) lists the four packages under `packages/` and
 their two example apps (`packages/voxel_game/example/`, `packages/voxel_scene/example/`),
 which stay `publish_to: none` for good. Beside it live only the repository's own files —
-`CLAUDE.md`, `AGENTS.md`, `PUBLISHING.md`, `README.md`, `docs/`, `tool/` — which no tarball
+`CLAUDE.md`, `AGENTS.md`, `PUBLISHING.md`, `README.md`, `docs/`, `tool/`, `.github/` — which no tarball
 ever sees, because no package sits above them. So every package publishes in place, with no
 `.pubignore`, through `tool/publish_package.sh` (`PUBLISHING.md`). Do not put a package back
 at the root: that is what forced the `.pubignore` and the git-less copy this layout removed.
@@ -47,6 +47,7 @@ Flutter 3.47.1, **but not the web** (worker isolates, TCP sockets and save files
 | The workspace (not a package) | `pubspec.yaml` · `pubspec.lock` |
 | Pre-publish checklist, release order, the version graph | `PUBLISHING.md` |
 | Publishing (or dry-running) one of the four | `tool/publish_package.sh <package> [--dry-run]` |
+| The CI: analyze, format and the five suites on every push and PR | `.github/workflows/ci.yml` |
 | How the packages were extracted (VP, VK) and consolidated (VC) | `docs/VOXEL_PACKAGES_PLAN_2026-09-14.md` · `docs/VOXEL_KIT_PLAN_2026-09-18.md` · `docs/VOXEL_CONSOLIDATION_PLAN_2026-09-19.md` |
 | How this repository got its shape (VR; the move of `voxel_game` under `packages/` came after it, 2026-09-23) | `docs/VOXEL_RELAYOUT_PLAN_2026-09-21.md` |
 | Architecture ledger (rule 17) | `docs/LEDGER.md` |
@@ -127,14 +128,21 @@ Flutter 3.47.1, **but not the web** (worker isolates, TCP sockets and save files
    ```bash
    flutter pub get                                         # once, resolves the workspace
    flutter analyze                                         # zero issues, all four packages
+   dart format --output=none --set-exit-if-changed packages examples/voxel_game_minecraft
    cd packages/voxel_game    && flutter test
    cd packages/voxel_engine  && dart test                  # pure Dart
    cd packages/voxel_scene   && flutter test
    cd packages/sound_recipes && flutter test
+   cd examples/voxel_game_minecraft && flutter pub get && flutter test   # outside the workspace
    ```
 
-   Green as of VR3 (2026-09-22): analyze clean · 32 + 168 + 10 + 4 = **214 tests**. A
-   count that drops without a deletion in the diff is a suite that stopped finding files.
+   Green as of VL1 (2026-10-05): analyze clean, nothing to format · 421 + 244 + 49 + 7
+   = **721 tests**, and the app's **99**. A count that drops without a deletion in the diff
+   is a suite that stopped finding files.
+
+   The CI (`.github/workflows/ci.yml`) runs this same list on Ubuntu, on every push to
+   `dev` and `main` and on every PR, one job per suite. It guards what lands; it does not
+   replace this run, which stays required before every commit.
 4. **See it running** for anything visual: `cd packages/voxel_game/example && flutter run -d macos` is the
    kit's own witness. A green test is not a visual result.
 5. **Validate against the rules above.**

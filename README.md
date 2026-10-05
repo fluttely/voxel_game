@@ -1,5 +1,7 @@
 # voxel_game
 
+[![CI](https://github.com/fluttely/voxel_game/actions/workflows/ci.yml/badge.svg?branch=dev)](https://github.com/fluttely/voxel_game/actions/workflows/ci.yml)
+
 A voxel sandbox kit for Flutter, in four packages. A game declares its blocks, world,
 player and creatures in one `VoxelGameSpec` and calls `runVoxelGame`; the 3D world is drawn
 with [`flutter_scene`](https://pub.dev/packages/flutter_scene) (Flutter GPU / Impeller).
@@ -24,6 +26,7 @@ A game needs only `voxel_game`: start at [its README](packages/voxel_game/README
 pubspec.yaml     the pub workspace — not a package, never published
 packages/        the four packages, each with its own example
 tool/            publish_package.sh
+.github/         the CI: analyze, format and the five suites on every push
 docs/            the plans and the architecture ledger
 CLAUDE.md        the rules the code is held to (AGENTS.md is the same file)
 PUBLISHING.md    the release checklist and order
