@@ -24,8 +24,8 @@ the code; every `file:line` is from 2026-10-04, so re-check it before a step sta
 
 | Step | State | Gate |
 |:---|:---|:---|
-| VL0 This plan, and the owner's answers to §Decisions | **done** 2026-10-04: every recommendation taken (VLD1–VLD12). Next: VL1 on `opus 5.5:medium` | the owner answers VLD1–VLD12 |
-| VL1 A CI for the workspace and the app | pending | a push to `dev` runs analyze, the format check and the five suites on GitHub Actions, green; the README carries its badge; `PUBLISHING.md`'s "Before the first release" is empty |
+| VL0 This plan, and the owner's answers to §Decisions | **done** 2026-10-04: every recommendation taken (VLD1–VLD12) | the owner answers VLD1–VLD12 |
+| VL1 A CI for the workspace and the app | **done** 2026-10-05 (`23bd795`, `925958f`, `a4c3a60`): `.github/workflows/ci.yml`, one analyze-and-format job and a matrix with one job per suite. Run #5 green on the first push, the counts the same as on the Mac (421 · 244 · 49 · 7 · 99); nothing failed only on Linux, and no native library had to be installed. Before it, the format check found the app written at 120 columns but declaring no page width (58 files rewrapped at 80) and two kit files drifted: fixed in `23bd795`. Next: VL2 on `opus 5.5:medium` | a push to `dev` runs analyze, the format check and the five suites on GitHub Actions, green; the README carries its badge; `PUBLISHING.md`'s "Before the first release" is empty |
 | VL2 `copyWith` on a creature's specs (`KL-018`) | pending | the app's elites are built by `copyWith`; a test per spec shows a field left out is kept and a nullable one can be asked for null |
 | VL3 A new world's start declared (`KL-023`) | pending | `VoxelGameSpec.spawn` places the player in `_begin`; the app's `Playground` no longer waits for `game.ready` to move them |
 | VL4 A title's own music (`KL-019`) | pending | `TitleSpec.music` plays through the kit's mapping and follows the slider live; the app's title vista opens no `SoundBank` |
