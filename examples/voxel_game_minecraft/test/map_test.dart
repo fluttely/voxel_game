@@ -16,7 +16,7 @@ import 'package:voxel_game_minecraft/src/structures/structures.dart';
 import 'package:voxel_game_minecraft/src/ui/game_hud.dart';
 import 'package:voxel_game_minecraft/src/waypoints/waypoints.dart';
 
-const _options = {'class': 'warrior', 'tutorial': 'off'};
+const _options = {'class': 'warrior'};
 
 final VoxelGameSpec _spec = gameSpec.copyWith(player: gameSpec.playerWith(_options));
 

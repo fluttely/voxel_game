@@ -303,13 +303,15 @@ class VoxelGame {
 
   /// A game with no renderer and no isolates: chunks are generated as they
   /// are needed, on this isolate. [loadRadius] chunks around the player: its
-  /// [settings] are the spec's at that render distance. [info] is the slot's
+  /// [settings] are the given ones ([GameSettings.of] the spec when null) at
+  /// that render distance. [info] is the slot's
   /// ([worldInfo]); [options] those of a game in no slot
   /// ([VoxelGame.options]).
   static Future<VoxelGame> startHeadless(
     VoxelGameSpec spec, {
     int loadRadius = 2,
     SavedWorld? save,
+    GameSettings? settings,
     bool authority = true,
     WorldInfo? info,
     Map<String, String>? options,
@@ -327,7 +329,7 @@ class VoxelGame {
       blocks,
       spec.buildItems(blocks),
       world,
-      GameSettings.of(spec).copyWith(renderDistance: loadRadius),
+      (settings ?? GameSettings.of(spec)).copyWith(renderDistance: loadRadius),
       headless: true,
       authority: authority,
       worldInfo: info,

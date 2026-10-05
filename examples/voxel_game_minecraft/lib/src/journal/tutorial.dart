@@ -8,9 +8,11 @@ import 'tutorial_steps.dart';
 
 /// The guided first steps of a new world ([tutorialSteps]), a card each at
 /// the top of the screen (`TutorialCard`): only what finishes the step at
-/// hand moves it on, with a chime, and the last one ends it. A world made
-/// with the tutorial off (`tutorialOption`), or a playground, starts it ended; the card's
-/// button and the `skip_tutorial` action (F6) end it at once.
+/// hand moves it on, with a chime, and the last one ends it. The card's
+/// button and the `skip_tutorial` action (F6) end it at once. It is shown
+/// once per machine: ended or skipped, it is marked [doneKey] in the
+/// player's settings (`GameSettings.game`), and every world after starts it
+/// ended, as a playground always does.
 ///
 /// For the steps that are a state, it measures what the player did since
 /// the step began: [walked], [turned] and [sunRose].
@@ -23,9 +25,20 @@ class Tutorial extends SavedSystem {
   /// The action that skips it.
   static const String skipAction = 'skip_tutorial';
 
-  /// The tutorial of [game], started or ended by the game's options the first
-  /// time it is asked: what the HUD's card reads, which may draw before the
-  /// game's first step.
+  /// The key of the player's settings (`GameSettings.game`) true once this
+  /// machine has seen it end.
+  static const String doneKey = 'tutorialDone';
+
+  /// Whether this machine has seen it end ([doneKey]): not before it has.
+  static bool doneOn(VoxelGame game) => switch (game.settings.value.game[doneKey]) {
+    null => false,
+    final bool done => done,
+    final other => throw ArgumentError.value(other, 'settings.game[$doneKey]', 'a bool'),
+  };
+
+  /// The tutorial of [game], started or ended by the player's settings the
+  /// first time it is asked: what the HUD's card reads, which may draw before
+  /// the game's first step.
   static Tutorial of(VoxelGame game) => game.system<Tutorial>().._begin(game);
 
   VoxelGame? _game;
@@ -54,6 +67,7 @@ class Tutorial extends SavedSystem {
     if (current == null) return;
     step = tutorialSteps.length;
     game.notify('Tutorial skipped.');
+    _markDone(game);
   }
 
   @override
@@ -88,10 +102,18 @@ class Tutorial extends SavedSystem {
     walked = 0.0;
     turned = 0.0;
     game.playSound('quest', volumeDb: -8.0);
-    if (current == null) game.notify('Tutorial complete. Go explore!');
+    if (current != null) return;
+    game.notify('Tutorial complete. Go explore!');
+    _markDone(game);
   }
 
-  // The options' say, once: a world made without the tutorial has it ended.
+  // Kept by the player's settings, which the game widget writes to its file.
+  void _markDone(VoxelGame game) {
+    final s = game.settings.value;
+    game.applySettings(s.copyWith(game: {...s.game, doneKey: true}));
+  }
+
+  // The settings' say, once: a machine that has seen it end starts it ended.
   void _begin(VoxelGame game) {
     if (_game != null) return;
     _game = game;
@@ -100,13 +122,7 @@ class Tutorial extends SavedSystem {
     _pitch = p.pitch;
     _timeOfDay = game.timeOfDay;
     // A playground has no tutorial.
-    step = Playground.isOn(game)
-        ? tutorialSteps.length
-        : switch (game.options['tutorial']) {
-            'on' => 0,
-            'off' => tutorialSteps.length,
-            final other => throw ArgumentError.value(other, 'options', 'the tutorial is on or off'),
-          };
+    step = Playground.isOn(game) || doneOn(game) ? tutorialSteps.length : 0;
   }
 
   @override
@@ -118,7 +134,10 @@ class Tutorial extends SavedSystem {
   @override
   void restore(VoxelGame game, Object? saved) {
     _begin(game);
-    step = (saved! as Map<String, Object?>)['step']! as int;
-    if (step < 0 || step > tutorialSteps.length) throw FormatException('no tutorial step $step');
+    final at = (saved! as Map<String, Object?>)['step']! as int;
+    if (at < 0 || at > tutorialSteps.length) throw FormatException('no tutorial step $at');
+    // A world saved halfway through goes on where it was, unless this machine
+    // has seen the tutorial end since.
+    if (!doneOn(game)) step = at;
   }
 }

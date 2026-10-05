@@ -10,7 +10,7 @@ import 'package:voxel_game_minecraft/src/spec/mob_table.dart';
 import 'package:voxel_game_minecraft/src/spec/world_table.dart';
 
 Future<VoxelGame> _start() async {
-  final game = await VoxelGame.startHeadless(gameSpec, options: const {'class': 'warrior', 'tutorial': 'off'});
+  final game = await VoxelGame.startHeadless(gameSpec, options: const {'class': 'warrior'});
   game.spawner.enabled = false;
   for (var i = 0; i < 600 && !game.ready; i++) {
     game.frame(1 / 60);

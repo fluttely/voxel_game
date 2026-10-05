@@ -60,6 +60,7 @@ void main() {
       expect(s.viewBob, isTrue);
       expect(s.showFps, isFalse);
       expect(s.weather, isTrue);
+      expect(s.game, isEmpty);
     });
 
     test('a value out of its range throws', () {
@@ -88,12 +89,69 @@ void main() {
         viewBob: false,
         showFps: true,
         weather: false,
+        game: {
+          'tutorialDone': true,
+          'keys': ['w', 'a'],
+          'hint': {'seen': 2, 'at': 0.5},
+        },
       );
-      expect(s.toJson()['version'], 2);
+      expect(s.toJson()['version'], 3);
       expect(GameSettings.fromJson(s.toJson()), s);
-      expect(() => GameSettings.fromJson({...s.toJson(), 'version': 3}), throwsStateError);
+      expect(() => GameSettings.fromJson({...s.toJson(), 'version': 4}), throwsStateError);
+      expect(() => GameSettings.fromJson({...s.toJson(), 'version': 0}), throwsStateError);
       expect(() => GameSettings.fromJson({...s.toJson()}..remove('fov')), throwsA(isA<TypeError>()));
       expect(() => GameSettings.fromJson({...s.toJson()}..remove('weather')), throwsA(isA<TypeError>()));
+      expect(() => GameSettings.fromJson({...s.toJson()}..remove('game')), throwsA(isA<TypeError>()));
+    });
+
+    test('a version 2 file still loads, the game\'s own settings empty', () {
+      final v2 = {...GameSettings.of(_spec).copyWith(fov: 95, weather: false).toJson(), 'version': 2}..remove('game');
+      final s = GameSettings.fromJson(v2);
+      expect(s.game, isEmpty);
+      expect(s, GameSettings.of(_spec).copyWith(fov: 95, weather: false));
+    });
+
+    test('the game\'s own settings are a copy no one changes, of JSON alone, told apart by value', () {
+      final given = <String, Object?>{
+        'hint': {'seen': 1},
+        'keys': ['w'],
+      };
+      final s = GameSettings.of(_spec).copyWith(game: given);
+      (given['keys']! as List<Object?>).add('a');
+      expect(s.game['keys'], ['w'], reason: 'copied, not kept');
+      expect(() => s.game['more'] = 1, throwsUnsupportedError);
+      expect(() => (s.game['hint']! as Map<String, Object?>)['seen'] = 2, throwsUnsupportedError);
+      expect(() => (s.game['keys']! as List<Object?>).add('a'), throwsUnsupportedError);
+      final same = GameSettings.of(_spec).copyWith(
+        game: {
+          'keys': ['w'],
+          'hint': {'seen': 1},
+        },
+      );
+      expect(same, s, reason: 'equal by value, nested too');
+      expect(same.hashCode, s.hashCode);
+      expect(
+        GameSettings.of(_spec).copyWith(
+          game: {
+            'hint': {'seen': 2},
+            'keys': ['w'],
+          },
+        ),
+        isNot(s),
+      );
+      expect(s.copyWith(fov: 90).game, s.game, reason: 'a copy keeps them');
+      expect(() => s.copyWith(game: {'at': DateTime(2026)}), throwsArgumentError);
+      expect(() => s.copyWith(game: {'at': double.nan}), throwsArgumentError);
+      expect(
+        () => s.copyWith(
+          game: {
+            'deep': [
+              {'x': Object()},
+            ],
+          },
+        ),
+        throwsArgumentError,
+      );
     });
 
     test('a version 1 file still loads, the weather on', () {
@@ -139,6 +197,28 @@ void main() {
       expect(File('${dir.path}/app/settings.json.tmp').existsSync(), isFalse, reason: 'written beside, renamed over');
     });
 
+    test('the game\'s own settings are kept with the rest, and an older file reads none', () {
+      final file = File('${dir.path}/settings.json');
+      final store = SettingsStore(file);
+      final defaults = GameSettings.of(_spec);
+      final mine = defaults.copyWith(
+        showFps: true,
+        game: {
+          'tutorialDone': true,
+          'layout': {'jump': 'space'},
+        },
+      );
+      store.write(mine);
+      final read = store.read(defaults);
+      expect(read, mine);
+      expect(read.game['layout'], {'jump': 'space'});
+      file.writeAsStringSync(
+        '{"version":2,"renderDistance":4,"lookSpeed":1,"fov":70,'
+        '"volume":1,"musicVolume":1,"viewBob":true,"showFps":false,"weather":true}',
+      );
+      expect(store.read(defaults).game, isEmpty);
+    });
+
     test('a file out of range throws instead of loading the defaults', () {
       final file = File('${dir.path}/settings.json')
         ..writeAsStringSync(
@@ -154,6 +234,14 @@ void main() {
       final game = await VoxelGame.startHeadless(_spec, loadRadius: 3);
       expect(game.settings.value.renderDistance, 3);
       expect(game.world.loadRadius, 3);
+      game.dispose();
+    });
+
+    test('a headless game starts with the player\'s settings given, at its load radius', () async {
+      final mine = GameSettings.of(_spec).copyWith(fov: 100, game: {'tutorialDone': true});
+      final game = await VoxelGame.startHeadless(_spec, loadRadius: 3, settings: mine);
+      expect(game.settings.value, mine.copyWith(renderDistance: 3));
+      expect(game.settings.value.game['tutorialDone'], isTrue, reason: 'there before the first step');
       game.dispose();
     });
 

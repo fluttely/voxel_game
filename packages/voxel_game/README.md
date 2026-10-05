@@ -131,7 +131,8 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
   change it and refuse what cannot be. A screen gates the controls, never the world: the
   game keeps stepping behind every one.
 - The player's settings (`GameSettings`): render distance, look speed (mouse, finger and
-  stick alike), field of view, volume, music volume, view bobbing and the frame rate. The
+  stick alike), field of view, volume, music volume, view bobbing and the frame rate, and
+  the game's own across worlds (`GameSettings.game`, JSON the kit never reads). The
   spec's values are the defaults (`renderDistance`, `PlayerSpec.fov`,
   `SoundSpec.musicVolume`); `VoxelGame.applySettings` puts a change in force at once — the
   world streams further or is cut back on the spot — and `VoxelGameWidget` keeps them in

@@ -11,7 +11,7 @@ import 'package:voxel_game_minecraft/src/waypoints/waypoints.dart';
 
 /// A warrior's game with no tutorial, as the title starts one.
 Future<VoxelGame> _start() async {
-  final options = {'class': 'warrior', 'tutorial': 'off'};
+  final options = {'class': 'warrior'};
   final game = await VoxelGame.startHeadless(gameSpec.copyWith(player: gameSpec.playerWith(options)), options: options);
   game.spawner.enabled = false;
   for (var i = 0; i < 600 && !game.ready; i++) {

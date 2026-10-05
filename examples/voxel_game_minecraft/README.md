@@ -42,7 +42,7 @@ The game opens on its **title**, a meadow orbiting behind **Play**, **Multiplaye
 
 What the game adds to the kit's Minecraft: four **classes**, each with two powers, a dodge,
 stamina, mana and talents bought with levels; a **journal** with quests, achievements, the
-creatures met and the waypoints; a **tutorial** card for a world's first steps; **elites**
+creatures met and the waypoints; a **tutorial** card for a player's first steps, shown once per machine; **elites**
 (swift, giant, venomous, …) among the creatures; **bosses** in the desert temple, the
 dungeon and the underworld's fortress, whose lord seals its core; **villages** whose
 villagers trade; **waypoints** to travel between; an **enchanting** table; the **map** and

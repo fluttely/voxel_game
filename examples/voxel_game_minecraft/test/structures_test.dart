@@ -8,7 +8,7 @@ import 'package:voxel_game_minecraft/src/spec/game_spec.dart';
 import 'package:voxel_game_minecraft/src/structures/fortress.dart';
 import 'package:voxel_game_minecraft/src/structures/structures.dart';
 
-const _options = {'class': 'warrior', 'tutorial': 'off'};
+const _options = {'class': 'warrior'};
 
 final VoxelGameSpec _spec = gameSpec.copyWith(player: gameSpec.playerWith(_options));
 

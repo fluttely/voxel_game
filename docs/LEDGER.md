@@ -50,13 +50,6 @@
 - **Cost of leaving it:** a paced game's FPS readout says the world moves at up to twice the rate it is drawn at (the app saw its readout go from 57 to 85 when it paced, `examples/voxel_game_minecraft/ROADMAP.md:173`), and the benchmark cannot weigh pacing at all: an A/B of `paced` on and off would compare tick rates that barely move. Before that A/B is run, `FrameReport` needs the scene frames rendered per second beside the Flutter ones.
 - **Found while:** 2026-10-03 — VA-Zg, writing `GraphicsSpec.paced`'s cost into its doc.
 
-### KL-020 · A game keeps nothing of its own in the player's settings
-
-- **Lens:** extension / persistence
-- **Evidence:** `packages/voxel_game/lib/src/settings/game_settings.dart:13-128`: `GameSettings` is a fixed set of fields, and `toJson` / `fromJson` write and read only them; `SettingsStore` (`settings_store.dart:7-29`) keeps that one object. A game's state has a home in the world's save (`SavedSystem`, VAD19) and a world's choices in `WorldInfo.options`, but a choice that is the player's across worlds has none.
-- **Cost of leaving it:** the minecraft example's tutorial was shown once per machine (the old `Settings.tutorialDone`); on the kit it became a world option (`tutorialOption`, on until the player turns it off in the new-world form), so a player who knows the game says no to it on every new world. Any other per-player preference of a game's (a key layout, a hint already seen) will hit the same wall.
-- **Found while:** 2026-10-04 — `VA-Zk`, porting the example's tutorial.
-
 ### KL-022 · A stock structure keeps where its parts are to itself
 
 - **Lens:** kit API / worldgen
@@ -72,6 +65,14 @@
 - **Found while:** 2026-10-05 — VL4, moving the title's music into the kit (`KL-019`).
 
 ## Closed
+
+### KL-020 · A game keeps nothing of its own in the player's settings
+
+- **Lens:** extension / persistence
+- **Evidence:** `packages/voxel_game/lib/src/settings/game_settings.dart:13-128`: `GameSettings` is a fixed set of fields, and `toJson` / `fromJson` write and read only them; `SettingsStore` (`settings_store.dart:7-29`) keeps that one object. A game's state has a home in the world's save (`SavedSystem`, VAD19) and a world's choices in `WorldInfo.options`, but a choice that is the player's across worlds has none.
+- **Cost of leaving it:** the minecraft example's tutorial was shown once per machine (the old `Settings.tutorialDone`); on the kit it became a world option (`tutorialOption`, on until the player turns it off in the new-world form), so a player who knows the game says no to it on every new world. Any other per-player preference of a game's (a key layout, a hint already seen) will hit the same wall.
+- **Found while:** 2026-10-04 — `VA-Zk`, porting the example's tutorial.
+- **Closed by:** 2026-10-05 — `voxel_game, examples/voxel_game_minecraft: a game keeps its own settings of the player's (KL-020)`. `GameSettings.game` (new): JSON under the game's keys, frozen and checked as it is built (a non-JSON value throws), compared by value, written to `settings.json` at version 3, read empty from a version 1 or 2 file, and carried by `copyWith`, so the settings screens and `SettingsStore` keep it untouched. `VoxelGame.startHeadless` takes `settings` (new), so a test starts a game on a machine's settings. `test/settings_test.dart` (4 new: a version 2 file reads it empty, the copy is frozen and told apart by value, the store keeps it, a headless game starts with it; the kit 447). The app's `tutorialOption` is gone from the new-world form; `Tutorial` starts ended where `settings.game['tutorialDone']` is true and sets it on ending or skipping, through `applySettings`, which the game widget writes to the file: shown once per machine, as before VA-Zk, and a world saved halfway ends it too on a machine that has seen it end since (`journal_test.dart`, `game_hud_test.dart`; the app 102).
 
 ### KL-019 · A title has no music of its own: a game that wants some opens a second audio device
 

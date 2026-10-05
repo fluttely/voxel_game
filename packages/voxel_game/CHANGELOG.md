@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **A game keeps its own settings of the player's (KL-020).** `GameSettings.game` (new):
+  JSON under the game's keys, which the kit never reads, written with the rest to
+  `settings.json` (version 3; a version 1 or 2 file reads it empty) and kept by
+  `copyWith`, the store and the settings screens. It is a copy no one changes: a value that
+  is not JSON throws, a change is a `copyWith` put in force by `VoxelGame.applySettings`.
+  What holds across worlds (a tutorial seen, a hint read, a layout) no longer has to be a
+  world option asked on every new world. `VoxelGame.startHeadless` takes `settings` (new),
+  the player's own at its load radius, so a test starts a game where a machine stands.
 - **A title plays music of its own (KL-019).** `TitleSpec.music` (new) names one of the
   game's tracks; `TitleScreen` plays it on an audio device it closes as it goes, before a
   world's music starts, and its Settings move the music's volume at once. `GameMusic`

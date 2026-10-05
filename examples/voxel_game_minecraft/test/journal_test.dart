@@ -17,13 +17,17 @@ import 'package:voxel_game_minecraft/src/spec/game_spec.dart';
 import 'package:voxel_game_minecraft/src/spec/game_title.dart';
 import 'package:voxel_game_minecraft/src/spec/mob_table.dart';
 
-/// A warrior's game, the tutorial [tutorial], as the title starts one.
-Future<VoxelGame> _start({String tutorial = 'off', SavedWorld? save}) async {
-  final options = {'class': 'warrior', 'tutorial': tutorial};
+/// A warrior's game, as the title starts one, on a machine whose player's
+/// settings keep [machine] for the game (`GameSettings.game`): one that has
+/// seen the tutorial end unless told otherwise.
+Future<VoxelGame> _start({Map<String, Object?> machine = const {Tutorial.doneKey: true}, SavedWorld? save}) async {
+  const options = {'class': 'warrior'};
+  final spec = gameSpec.copyWith(player: gameSpec.playerWith(options));
   final game = await VoxelGame.startHeadless(
-    gameSpec.copyWith(player: gameSpec.playerWith(options)),
+    spec,
     options: options,
     save: save,
+    settings: GameSettings.of(spec).copyWith(game: machine),
   );
   game.spawner.enabled = false;
   for (var i = 0; i < 600 && !game.ready; i++) {
@@ -80,8 +84,11 @@ void main() {
       reason: 'unlocked by the waypoints and the fortress (VA-Zl)',
     );
     expect(() => Achievements.of(game).unlock(game, 'nope'), throwsArgumentError);
-    expect(tutorialOption.join, isTrue, reason: 'a player joining picks for themself');
-    expect(gameTitle(credits: const []).worldOptions, contains(tutorialOption));
+    expect(
+      gameTitle(credits: const []).worldOptions.map((o) => o.id),
+      isNot(contains('tutorial')),
+      reason: 'the machine says, not the world (KL-020)',
+    );
     game.dispose();
   });
 
@@ -217,7 +224,7 @@ void main() {
   });
 
   test('the tutorial moves on only on its step\'s own deed, and ends on the journal', () async {
-    final game = await _start(tutorial: 'on');
+    final game = await _start(machine: const {});
     final t = Tutorial.of(game);
     final p = game.player;
     expect(t.current!.id, 'move');
@@ -254,35 +261,45 @@ void main() {
     game.step(1 / 60);
     game.step(1 / 60);
     expect(t.current!.id, 'journal', reason: 'the night lived through');
+    expect(Tutorial.doneOn(game), isFalse, reason: 'not before it ends');
     game.actions.tap('journal');
     game.step(1 / 60);
     expect(game.screen.value, const DeclaredScreen('journal'));
     game.step(1 / 60);
     expect(t.current, isNull);
     expect(_told(game), contains('Tutorial complete. Go explore!'));
+    expect(game.settings.value.game, {Tutorial.doneKey: true}, reason: 'the machine keeps that it ended');
     game.dispose();
   });
 
-  test('a world made without the tutorial has none; one with it skips it on F6', () async {
-    final off = await _start();
-    expect(Tutorial.of(off).current, isNull);
-    off.dispose();
-    final on = await _start(tutorial: 'on');
-    on.actions.tap(Tutorial.skipAction);
-    on.step(1 / 60);
-    expect(Tutorial.of(on).current, isNull);
-    expect(_told(on), contains('Tutorial skipped.'));
-    on.dispose();
-    final none = await VoxelGame.startHeadless(gameSpec, options: const {'class': 'warrior'});
-    expect(() => Tutorial.of(none), throwsArgumentError, reason: 'the title always offers it');
-    none.dispose();
+  test('the tutorial is shown once per machine: skipped on F6, no world after shows it', () async {
+    final first = await _start(machine: const {'other': 1});
+    expect(Tutorial.of(first).current!.id, 'move', reason: 'a machine that has not seen it');
+    first.actions.tap(Tutorial.skipAction);
+    first.step(1 / 60);
+    expect(Tutorial.of(first).current, isNull);
+    expect(_told(first), contains('Tutorial skipped.'));
+    final machine = first.settings.value.game;
+    expect(machine, {'other': 1, Tutorial.doneKey: true}, reason: 'the game\'s other keys kept');
+    first.dispose();
+    final next = await _start(machine: machine);
+    expect(Tutorial.of(next).current, isNull);
+    expect(_told(next), isNot(contains('Tutorial skipped.')));
+    next.dispose();
+    final odd = await VoxelGame.startHeadless(
+      gameSpec,
+      options: const {'class': 'warrior'},
+      settings: GameSettings.of(gameSpec).copyWith(game: {Tutorial.doneKey: 'yes'}),
+    );
+    expect(() => Tutorial.of(odd), throwsArgumentError, reason: 'a bool or nothing');
+    odd.dispose();
   });
 
   test('the journal\'s counts are saved with the world and come back', () async {
     final dir = Directory.systemTemp.createTempSync('journal');
     addTearDown(() => dir.deleteSync(recursive: true));
     final saves = WorldSaves(dir);
-    final game = await _start(tutorial: 'on');
+    final game = await _start(machine: const {});
     game
       ..raise(const BlockBroken('stone', IVec3(0, 0, 0)))
       ..raise(const BlockPlaced('stone', IVec3(0, 0, 0)));
@@ -294,7 +311,7 @@ void main() {
     saves.save(game, 'kept');
     game.dispose();
 
-    final back = await _start(tutorial: 'on', save: saves.read('kept'));
+    final back = await _start(machine: const {}, save: saves.read('kept'));
     final again = GameStats.of(back);
     expect((again.blocksBroken, again.blocksPlaced, again.kills), (1, 1, 1));
     expect(again.playTime, greaterThan(played));
@@ -303,5 +320,8 @@ void main() {
     expect(Achievements.of(back).unlocked, containsAll(['first_block', 'first_kill', 'elite']));
     expect(Tutorial.of(back).current!.id, 'move', reason: 'the step it was at');
     back.dispose();
+    final seen = await _start(save: saves.read('kept'));
+    expect(Tutorial.of(seen).current, isNull, reason: 'a machine that has seen it end since');
+    seen.dispose();
   });
 }

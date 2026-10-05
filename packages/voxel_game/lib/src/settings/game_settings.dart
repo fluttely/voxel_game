@@ -2,8 +2,8 @@ import '../spec/voxel_game_spec.dart';
 
 /// What the player sets for themselves, as opposed to what the game declares:
 /// how far they see, how fast the view turns, how wide it is, how loud the
-/// game is, whether the eye bobs, whether the frame rate shows and whether
-/// the weather turns.
+/// game is, whether the eye bobs, whether the frame rate shows, whether the
+/// weather turns, and what the game itself keeps of the player's ([game]).
 ///
 /// The spec's values are the defaults ([GameSettings.of]); `VoxelGame`
 /// applies a change at once ([VoxelGame.applySettings]), and a
@@ -21,7 +21,8 @@ class GameSettings {
     this.viewBob = true,
     this.showFps = false,
     this.weather = true,
-  }) {
+    Map<String, Object?> game = const {},
+  }) : game = _frozen(game) {
     if (renderDistance < minRenderDistance || renderDistance > maxRenderDistance) {
       throw ArgumentError.value(renderDistance, 'renderDistance', 'not in $minRenderDistance..$maxRenderDistance');
     }
@@ -36,6 +37,26 @@ class GameSettings {
   /// bobbing, no frame rate, the weather on.
   factory GameSettings.of(VoxelGameSpec spec) =>
       GameSettings(renderDistance: spec.renderDistance, fov: spec.player.fov, musicVolume: spec.sounds.musicVolume);
+
+  // A deep copy no one can change, of JSON values only.
+  static Map<String, Object?> _frozen(Map<String, Object?> map) =>
+      Map.unmodifiable({for (final e in map.entries) e.key: _frozenValue(e.value, e.key)});
+
+  static Object? _frozenValue(Object? value, String key) => switch (value) {
+    null || bool() || String() || int() => value,
+    double() when value.isFinite => value,
+    List<Object?>() => List<Object?>.unmodifiable([for (final v in value) _frozenValue(v, key)]),
+    Map<String, Object?>() => _frozen(value),
+    _ => throw ArgumentError.value(value, 'game[$key]', 'not a JSON value'),
+  };
+
+  static bool _same(Object? a, Object? b) => switch ((a, b)) {
+    (List<Object?> a, List<Object?> b) =>
+      a.length == b.length && [for (var i = 0; i < a.length; i++) i].every((i) => _same(a[i], b[i])),
+    (Map<String, Object?> a, Map<String, Object?> b) =>
+      a.length == b.length && a.keys.every((k) => b.containsKey(k) && _same(a[k], b[k])),
+    _ => a == b,
+  };
 
   static void _check(double value, String name, double min, double max) {
     if (!(value >= min && value <= max)) throw ArgumentError.value(value, name, 'not in $min..$max');
@@ -88,6 +109,15 @@ class GameSettings {
   /// Whether the weather turns (`SkySpec.weather`); off, the sky stays clear.
   final bool weather;
 
+  /// The game's own settings of the player's, which the kit never reads:
+  /// JSON values (maps, lists, strings, numbers, bools, null) under the
+  /// game's keys, kept with the rest across worlds and runs. What a world
+  /// keeps belongs in its save (`SavedSystem`) and a world's choice in its
+  /// `WorldInfo.options`; this is what holds across them, a tutorial seen,
+  /// say. Copied and unmodifiable: a change is a [copyWith] put in force by
+  /// `VoxelGame.applySettings`. A value that is not JSON throws.
+  final Map<String, Object?> game;
+
   /// These settings with the given values replaced.
   GameSettings copyWith({
     int? renderDistance,
@@ -98,6 +128,7 @@ class GameSettings {
     bool? viewBob,
     bool? showFps,
     bool? weather,
+    Map<String, Object?>? game,
   }) => GameSettings(
     renderDistance: renderDistance ?? this.renderDistance,
     lookSpeed: lookSpeed ?? this.lookSpeed,
@@ -107,10 +138,11 @@ class GameSettings {
     viewBob: viewBob ?? this.viewBob,
     showFps: showFps ?? this.showFps,
     weather: weather ?? this.weather,
+    game: game ?? this.game,
   );
 
-  /// The version of the JSON [toJson] writes: 2 added [weather].
-  static const version = 2;
+  /// The version of the JSON [toJson] writes: 2 added [weather], 3 [game].
+  static const version = 3;
 
   /// These settings as JSON, with their [version].
   Map<String, Object?> toJson() => {
@@ -123,14 +155,15 @@ class GameSettings {
     'viewBob': viewBob,
     'showFps': showFps,
     'weather': weather,
+    'game': game,
   };
 
-  /// Settings read from [toJson]'s JSON, of this [version] or version 1 (the
-  /// weather on); throws for another version, a value missing or one out of
-  /// its range.
+  /// Settings read from [toJson]'s JSON, of this [version], of version 2
+  /// (no [game] yet) or of version 1 (nor the weather: on); throws for
+  /// another version, a value missing or one out of its range.
   factory GameSettings.fromJson(Map<String, Object?> json) {
     final v = (json['version']! as num).toInt();
-    if (v != 1 && v != version) throw StateError('settings version $v: this kit reads 1 and $version');
+    if (v < 1 || v > version) throw StateError('settings version $v: this kit reads 1 to $version');
     return GameSettings(
       renderDistance: (json['renderDistance']! as num).toInt(),
       lookSpeed: (json['lookSpeed']! as num).toDouble(),
@@ -140,6 +173,7 @@ class GameSettings {
       viewBob: json['viewBob']! as bool,
       showFps: json['showFps']! as bool,
       weather: v == 1 || json['weather']! as bool,
+      game: v < 3 ? const {} : json['game']! as Map<String, Object?>,
     );
   }
 
@@ -153,10 +187,21 @@ class GameSettings {
       other.musicVolume == musicVolume &&
       other.viewBob == viewBob &&
       other.showFps == showFps &&
-      other.weather == weather;
+      other.weather == weather &&
+      _same(other.game, game);
 
   @override
-  int get hashCode => Object.hash(renderDistance, lookSpeed, fov, volume, musicVolume, viewBob, showFps, weather);
+  int get hashCode => Object.hash(
+    renderDistance,
+    lookSpeed,
+    fov,
+    volume,
+    musicVolume,
+    viewBob,
+    showFps,
+    weather,
+    Object.hashAllUnordered(game.keys),
+  );
 
   @override
   String toString() => 'GameSettings${toJson()}';

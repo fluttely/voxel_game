@@ -13,7 +13,7 @@ import 'package:voxel_game_minecraft/src/spec/game_spec.dart';
 import 'package:voxel_game_minecraft/src/ui/game_hud.dart';
 import 'package:voxel_game_minecraft/src/waypoints/waypoints.dart';
 
-const _options = {'class': 'warrior', 'tutorial': 'on', 'playground': 'playground'};
+const _options = {'class': 'warrior', 'playground': 'playground'};
 
 final VoxelGameSpec _spec = gameSpec.copyWith(
   player: gameSpec.playerWith(_options),
@@ -264,7 +264,7 @@ void main() {
     expect(gameSpec.screens[Playground.screen]!.listedIn(game), isTrue);
     game.dispose();
 
-    const open = {'class': 'warrior', 'tutorial': 'off'};
+    const open = {'class': 'warrior'};
     final world = await VoxelGame.startHeadless(gameSpec.copyWith(player: gameSpec.playerWith(open)), options: open);
     world.spawner.enabled = false;
     await _until(world, () => world.ready);

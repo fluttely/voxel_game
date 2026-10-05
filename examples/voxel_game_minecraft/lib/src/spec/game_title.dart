@@ -5,16 +5,15 @@ import 'package:voxel_game/voxel_game.dart';
 
 /// The title the game opens on: Play (the world list), Multiplayer (host a
 /// world on 7777, or join one), Settings, the [credits] and, on a desktop,
-/// Quit. A new world is made with three choices of the game's own, kept in
-/// its `world.json`: the class its player plays ([classOption]), whether the
-/// tutorial walks them through their first steps ([tutorialOption]) and
-/// whether it is a playground ([playgroundOption]). The menu sits on [background] (the
+/// Quit. A new world is made with two choices of the game's own, kept in
+/// its `world.json`: the class its player plays ([classOption]) and whether
+/// it is a playground ([playgroundOption]). The menu sits on [background] (the
 /// app's `TitleVista`), the kit's dusk when null, and plays the meadow's track
 /// ([titleTrack]).
 TitleSpec gameTitle({required List<String> credits, WidgetBuilder? background}) => TitleSpec(
   name: 'Voxel Minecraft',
   tagline: 'a Minecraft clone built on voxel_game',
-  worldOptions: const [classOption, tutorialOption, playgroundOption],
+  worldOptions: const [classOption, playgroundOption],
   credits: credits,
   background: background,
   music: titleTrack,
@@ -38,15 +37,6 @@ const WorldOption playgroundOption = WorldOption(
   'playground',
   label: 'Kind',
   choices: {'open': 'Open world', 'playground': 'Playground'},
-);
-
-/// Whether a new world's player is walked through its first steps
-/// (`Tutorial`); a player joining a hosted world picks for themself.
-const WorldOption tutorialOption = WorldOption(
-  'tutorial',
-  label: 'Tutorial',
-  choices: {'on': 'Tutorial', 'off': 'No tutorial'},
-  join: true,
 );
 
 /// Where the roadmap is bundled (`pubspec.yaml`'s assets), for [creditsOf].

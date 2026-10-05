@@ -6,6 +6,7 @@ import 'package:voxel_game_minecraft/src/spec/game_spec.dart';
 import 'package:voxel_game_minecraft/src/classes/class_system.dart';
 import 'package:voxel_game_minecraft/src/ui/game_hud.dart';
 import 'package:voxel_game_minecraft/src/journal/journal_screen.dart';
+import 'package:voxel_game_minecraft/src/journal/tutorial.dart';
 import 'package:voxel_game_minecraft/src/journal/stats_screen.dart';
 import 'package:voxel_game_minecraft/src/ui/controls_screen.dart';
 
@@ -19,9 +20,13 @@ class _Heard implements SoundPlayer {
 /// The game's HUD over a running game, on the `GameSurface` the kit's widget
 /// shows it on.
 void main() {
-  Future<VoxelGame> start(WidgetTester tester, {String tutorial = 'off'}) async {
+  Future<VoxelGame> start(WidgetTester tester, {bool tutorialDone = true}) async {
     final game = (await tester.runAsync(() async {
-      final game = await VoxelGame.startHeadless(gameSpec, options: {'class': 'warrior', 'tutorial': tutorial});
+      final game = await VoxelGame.startHeadless(
+        gameSpec,
+        options: const {'class': 'warrior'},
+        settings: GameSettings.of(gameSpec).copyWith(game: {Tutorial.doneKey: tutorialDone}),
+      );
       game.spawner.enabled = false;
       for (var i = 0; i < 600 && !game.ready; i++) {
         game.frame(1 / 60);
@@ -129,7 +134,7 @@ void main() {
   });
 
   testWidgets('the tutorial\'s card shows the step at hand, and its button skips it all', (tester) async {
-    final game = await start(tester, tutorial: 'on');
+    final game = await start(tester, tutorialDone: false);
     await step(tester, game);
     expect(find.text('Step 1/10   '), findsOneWidget);
     expect(find.text('Walk'), findsOneWidget);

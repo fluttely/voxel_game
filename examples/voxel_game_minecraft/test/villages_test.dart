@@ -9,7 +9,7 @@ import 'package:voxel_game_minecraft/src/villages/trade_screen.dart';
 import 'package:voxel_game_minecraft/src/villages/trade_table.dart';
 import 'package:voxel_game_minecraft/src/villages/villages.dart';
 
-const _options = {'class': 'warrior', 'tutorial': 'off'};
+const _options = {'class': 'warrior'};
 
 final VoxelGameSpec _spec = gameSpec.copyWith(player: gameSpec.playerWith(_options));
 
