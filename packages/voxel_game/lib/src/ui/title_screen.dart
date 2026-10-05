@@ -3,9 +3,12 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:sound_recipes/sound_recipes.dart';
 
+import '../audio/game_music.dart';
 import '../settings/game_settings.dart';
 import '../settings/settings_store.dart';
+import '../spec/music_spec.dart';
 import '../spec/title_spec.dart';
 import '../spec/voxel_game_spec.dart';
 import '../world/world_save.dart';
@@ -21,6 +24,9 @@ enum _Panel { menu, worlds, multiplayer, settings, credits }
 /// [SettingsPanel], read from and written to [settings] directly), Credits,
 /// and Quit when [onQuit] is given. What the player picks goes to [onChoice];
 /// [status] says why the last pick came back (a host that did not answer).
+/// Under it plays the track [menu] names (`TitleSpec.music`), on an audio
+/// device of its own that closes with the screen, before a world opens its
+/// own.
 ///
 /// Escape, or Back, leaves a panel for the menu. A keyboard moves between
 /// the buttons with Tab and presses one with Enter or Space; a pad cannot
@@ -77,18 +83,45 @@ class _TitleScreenState extends State<TitleScreen> {
   // Asked once, when Multiplayer first opens.
   late final Future<List<NetworkInterface>> _interfaces = NetworkInterface.list(type: InternetAddressType.IPv4);
 
+  SoundBank? _bank;
+  GameMusic? _music;
+
   static final RegExp _addressPattern = RegExp(r'^[A-Za-z0-9.\-]+(:\d{1,5})?$');
+
+  @override
+  void initState() {
+    super.initState();
+    final track = widget.menu.music;
+    if (track == null) return;
+    final music = widget.spec.sounds.music;
+    if (music == null || !music.tracks.containsKey(track)) {
+      throw ArgumentError.value(track, 'TitleSpec.music', 'no such track');
+    }
+    if (widget.spec.sounds.enabled) unawaited(_play(music, track));
+  }
+
+  // The audio device alone: the title plays no sound but its music.
+  Future<void> _play(MusicSpec music, String track) async {
+    final bank = SoundBank(recipes: const {});
+    await bank.init();
+    if (!mounted) return bank.dispose();
+    _bank = bank;
+    _music = GameMusic(music, _settings)..play(track);
+  }
 
   @override
   void dispose() {
     _flushSettings();
     _address.dispose();
+    _music?.close();
+    _bank?.dispose();
     super.dispose();
   }
 
   // A slider writes once it comes to rest, as in the game.
   void _changeSettings(GameSettings value) {
     setState(() => _settings = value);
+    _music?.follow(value);
     _settingsWrite?.cancel();
     _settingsWrite = Timer(const Duration(milliseconds: 500), () => widget.settings.write(value));
   }

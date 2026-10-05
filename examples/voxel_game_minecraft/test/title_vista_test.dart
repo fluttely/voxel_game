@@ -68,11 +68,11 @@ void main() {
     expect(1.0 - math.exp(-TitleVista.haze.density * 80.0), closeTo(0.38, 0.01));
   });
 
-  test('the title is the vista over the meadow, at the game\'s music volume', () {
+  test('the title is the vista over the meadow\'s track, one of the game\'s', () {
     expect(gameTitle(credits: const [], background: TitleVista.builder).background, TitleVista.builder);
     expect(gameTitle(credits: const []).background, isNull);
-    expect(gameSpec.sounds.music!.tracks, contains(TitleVista.track));
-    final settings = GameSettings.of(gameSpec).copyWith(volume: 0.5, musicVolume: 0.4);
-    expect(TitleVista.musicGain(settings), closeTo(0.2, 1e-12));
+    expect(gameTitle(credits: const []).music, titleTrack);
+    expect(titleTrack, 'meadow');
+    expect(gameSpec.sounds.music!.tracks, contains(titleTrack));
   });
 }

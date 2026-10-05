@@ -34,7 +34,7 @@ The game opens on its **title**, a meadow orbiting behind **Play**, **Multiplaye
   your own. The host's world is the one played; everyone in the same dimension sees each
   other.
 - **Settings** has the render distance, the look speed, the field of view, the volume and
-  the music's, the view's bobbing, the frame rate on screen and the weather. **Credits**
+  the music's (the meadow's track under the title follows it at once), the view's bobbing, the frame rate on screen and the weather. **Credits**
   rolls what the game is built on and every stage of `ROADMAP.md` (bundled with the app).
 - **Esc** in a world opens the game menu: settings, the **Journal**, the **Map**, the
   **Stats**, the **Controls**, and **Playground** in a playground. The world keeps running

@@ -93,4 +93,31 @@ void main() {
       'Survival · Mage · Tutorial · Playground · seed ${info.seed} · new',
     );
   });
+
+  testWidgets('the title plays the meadow through the kit, at the player\'s music gain, and stops it as it goes', (
+    tester,
+  ) async {
+    final dir = Directory.systemTemp.createTempSync('game_title_test_');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    final settings = SettingsStore(File('${dir.path}/settings.json'));
+    settings.write(GameSettings.of(gameSpec).copyWith(volume: 0.5, musicVolume: 0.4));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TitleScreen(
+          spec: gameSpec,
+          menu: gameTitle(credits: const []),
+          saves: WorldSaves(Directory('${dir.path}/worlds')),
+          settings: settings,
+          onChoice: (_) {},
+        ),
+      ),
+    );
+    await tester.pump();
+    final music = GameMusic.playing.value!;
+    expect(music.track, 'meadow');
+    expect(music.gain, closeTo(0.2, 1e-12));
+    await tester.pumpWidget(const SizedBox());
+    expect(GameMusic.playing.value, isNull);
+    expect(music.track, isNull);
+  });
 }

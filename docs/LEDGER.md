@@ -50,13 +50,6 @@
 - **Cost of leaving it:** a paced game's FPS readout says the world moves at up to twice the rate it is drawn at (the app saw its readout go from 57 to 85 when it paced, `examples/voxel_game_minecraft/ROADMAP.md:173`), and the benchmark cannot weigh pacing at all: an A/B of `paced` on and off would compare tick rates that barely move. Before that A/B is run, `FrameReport` needs the scene frames rendered per second beside the Flutter ones.
 - **Found while:** 2026-10-03 — VA-Zg, writing `GraphicsSpec.paced`'s cost into its doc.
 
-### KL-019 · A title has no music of its own: a game that wants some opens a second audio device
-
-- **Lens:** kit API / audio
-- **Evidence:** `TitleSpec` (`packages/voxel_game/lib/src/spec/title_spec.dart:49`) takes a `background` and no track, and the kit plays music only inside a world: `VoxelGameWidget._startAudio` (`packages/voxel_game/lib/src/ui/voxel_game_widget.dart:304-327`) opens a `SoundBank`, maps the spec's `MusicSpec` tracks to a `MusicDirector`'s two maps and follows `GameSettings`. The minecraft example's title vista (`examples/voxel_game_minecraft/lib/src/ui/title_vista.dart:121-136`) repeats that: its own `SoundBank` (opened bare, for the device), the same mapping for one track, and the gain read once from `settings.json`, because a background is handed only a `BuildContext`; the title's Settings panel (`title_screen.dart:85-88`) writes the file but tells nobody, so a volume moved there reaches the title's track only when the title opens again.
-- **Cost of leaving it:** every game with music under its title copies the mapping and the device's lifetime (open it, close it before the game's widget opens its own, or the two fight over SoLoud), and its title ignores the music slider the title itself shows. A `TitleSpec.music` naming one of the spec's tracks, played by `TitleScreen` through the kit's mapping and its live settings, would carry it.
-- **Found while:** 2026-10-03 — VA-Zi, porting the app's title vista and its meadow track onto `TitleSpec.background`.
-
 ### KL-020 · A game keeps nothing of its own in the player's settings
 
 - **Lens:** extension / persistence
@@ -71,7 +64,22 @@
 - **Cost of leaving it:** a change to a stock structure's layout moves the app's boss and spawners off it with nothing in the kit failing (only the app's `structures_test.dart` notices), and a second game with a dungeon boss copies the same private numbers. Every look also reads up to 14 cells a dungeon and 11 a mine for what the generator knew. The fix is a plan per stock structure from its site and the generator's roll (the rooms, the spawners, the chests), what `FortressPlan` is for the app's.
 - **Found while:** 2026-10-04 — `VA-Zl3`, waking the dungeon's troll and its spawners.
 
+### KL-024 · Two owners of the audio device do not wait for each other
+
+- **Lens:** concurrency / audio
+- **Evidence:** the device is SoLoud's one instance; `SoundBank.init` opens it and `dispose` closes it (`packages/sound_recipes/lib/src/sound_bank.dart:53-98`). `TitleScreen._play` (`packages/voxel_game/lib/src/ui/title_screen.dart`) closes a bank whose `init` returned after the screen went; `VoxelGameWidget._startAudio` (`packages/voxel_game/lib/src/ui/voxel_game_widget.dart`) opens its own once `VoxelGame.start` returns. Nothing orders the two: a title left while its `init` is still in flight closes the device whenever that `init` returns, a world's bank opened in between included.
+- **Cost of leaving it:** a player who picks a world in the first moments of the title (its device still opening) can enter a world with no sound and no music, nothing failing; today the world's start is long enough that it does not happen, but a faster start (a small world, a joined one) narrows that margin. One opener the kit owns, which a bank waits on until the last one closed, would order them.
+- **Found while:** 2026-10-05 — VL4, moving the title's music into the kit (`KL-019`).
+
 ## Closed
+
+### KL-019 · A title has no music of its own: a game that wants some opens a second audio device
+
+- **Lens:** kit API / audio
+- **Evidence:** `TitleSpec` (`packages/voxel_game/lib/src/spec/title_spec.dart:49`) takes a `background` and no track, and the kit plays music only inside a world: `VoxelGameWidget._startAudio` (`packages/voxel_game/lib/src/ui/voxel_game_widget.dart:304-327`) opens a `SoundBank`, maps the spec's `MusicSpec` tracks to a `MusicDirector`'s two maps and follows `GameSettings`. The minecraft example's title vista (`examples/voxel_game_minecraft/lib/src/ui/title_vista.dart:121-136`) repeats that: its own `SoundBank` (opened bare, for the device), the same mapping for one track, and the gain read once from `settings.json`, because a background is handed only a `BuildContext`; the title's Settings panel (`title_screen.dart:85-88`) writes the file but tells nobody, so a volume moved there reaches the title's track only when the title opens again.
+- **Cost of leaving it:** every game with music under its title copies the mapping and the device's lifetime (open it, close it before the game's widget opens its own, or the two fight over SoLoud), and its title ignores the music slider the title itself shows. A `TitleSpec.music` naming one of the spec's tracks, played by `TitleScreen` through the kit's mapping and its live settings, would carry it.
+- **Found while:** 2026-10-03 — VA-Zi, porting the app's title vista and its meadow track onto `TitleSpec.background`.
+- **Closed by:** 2026-10-05 — `voxel_game, examples/voxel_game_minecraft: a title plays music of its own (KL-019)`. `TitleSpec.music` names one of the spec's tracks and `TitleScreen` plays it on a bare `SoundBank` of its own, closed in its `dispose`, in the frame the game's widget is built and before that widget's first await reaches its bank. The mapping moved into `GameMusic` (`packages/voxel_game/lib/src/audio/game_music.dart`), which `VoxelGameWidget` plays through too, at `GameSettings.musicGain`, one at a time (`GameMusic.playing`, a second one throws); the title's Settings panel hands each change to it (`follow`). `test/title_music_test.dart` shows the named track at the player's gain, the slider reaching it unreopened, nothing left playing once a world looks, and an unknown track throwing (the kit 443). The app's `TitleVista` lost its `SoundBank`, its mapping and `musicGain`; `gameTitle` names `titleTrack` (`'meadow'`), and `game_title_test.dart` hears it through the kit (the app 102).
 
 ### KL-023 · A game cannot say where a new world's player starts
 

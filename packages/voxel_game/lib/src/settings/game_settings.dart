@@ -76,6 +76,9 @@ class GameSettings {
   /// The music's loudness, linear, under [volume].
   final double musicVolume;
 
+  /// The loudness the music plays at, linear: [musicVolume] under [volume].
+  double get musicGain => volume * musicVolume;
+
   /// Whether the eye bobs as the player walks (`ViewCamera.bob`).
   final bool viewBob;
 

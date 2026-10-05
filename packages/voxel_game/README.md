@@ -35,7 +35,8 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
   play, an `asset` file that plays instead when bundled, or both; then the places that play
   one: `dimensions`, `cave`, `biomes`, `day`, `night` (null keeps the day's). Places naming
   one track share it without a fade, and a track's `title` is told when it starts
-  (`VoxelGame.musicTrack`).
+  (`VoxelGame.musicTrack`). `GameMusic` plays them at the player's music volume, one music
+  at a time: a world's in `VoxelGameWidget`, the title's in `TitleScreen`.
 - Footsteps by the ground: a block sounds `step_<family>` when walked on, or `step_<kind>`
   when tagged `step:<kind>` (`BlockType('sand', ..., tags: {'step:sand'})`); sound_recipes
   has `step_sand` and `step_snow` beside the families'. A kind the game has no sound for
@@ -141,7 +142,9 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
   (`WorldList`: make one from a name, a seed of any text and survival or creative; play,
   rename, delete), Multiplayer hosts one of them or joins an address, Settings sets the
   player's settings with no game running, Credits rolls `TitleSpec.credits`, and Quit
-  closes the app on a desktop. The game menu's Quit saves and comes back to it. Each world
+  closes the app on a desktop. `TitleSpec.music` names one of the game's tracks to play
+  under the menu; its Settings move the music's volume at once, and it stops before a
+  world's music starts. The game menu's Quit saves and comes back to it. Each world
   keeps a `world.json` (`WorldInfo`: name, seed, mode, options, made, last played, play
   time) beside its save; `WorldSaves.create` / `rename` / `worlds` read and write it, and a
   save from before it still loads. A game's own per-world choices (a class, a playground)

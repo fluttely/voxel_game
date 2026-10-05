@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **A title plays music of its own (KL-019).** `TitleSpec.music` (new) names one of the
+  game's tracks; `TitleScreen` plays it on an audio device it closes as it goes, before a
+  world's music starts, and its Settings move the music's volume at once. `GameMusic`
+  (new) is what both play through: a `MusicSpec`'s tracks on a `MusicDirector`, at
+  `GameSettings.musicGain` (new), following the settings, one music at a time
+  (`GameMusic.playing`). A game with music under its title no longer opens a second
+  `SoundBank` in its background, copies the mapping, or plays at a volume read once.
+  `VoxelGameWidget` keeps its music where the platform has no audio device (silent, as its
+  bank), and closes a bank opened after it was disposed.
 - **A game says where a new world's player starts (KL-023).** `VoxelGameSpec.spawn` (new),
   beside `playerFor` and `worldFor`: given a world's options, a `SpawnPoint` (new: a column
   and a yaw) or null for the dry column the kit finds by the origin. The player stands

@@ -18,6 +18,7 @@ class TitleSpec {
     this.port = 7777,
     this.credits = const [],
     this.background,
+    this.music,
   }) : assert(name != '' && port > 0 && port < 65536);
 
   /// The game's name, large.
@@ -47,4 +48,10 @@ class TitleSpec {
 
   /// What the menu sits on; a dusk gradient when null.
   final WidgetBuilder? background;
+
+  /// The track the menu plays, by name, one of the game's
+  /// (`MusicSpec.tracks`); silence when null. It plays at the player's music
+  /// volume, which the menu's Settings move at once, and stops before a
+  /// world's music starts.
+  final String? music;
 }

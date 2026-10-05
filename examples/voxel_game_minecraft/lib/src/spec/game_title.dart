@@ -9,14 +9,19 @@ import 'package:voxel_game/voxel_game.dart';
 /// its `world.json`: the class its player plays ([classOption]), whether the
 /// tutorial walks them through their first steps ([tutorialOption]) and
 /// whether it is a playground ([playgroundOption]). The menu sits on [background] (the
-/// app's `TitleVista`), the kit's dusk when null.
+/// app's `TitleVista`), the kit's dusk when null, and plays the meadow's track
+/// ([titleTrack]).
 TitleSpec gameTitle({required List<String> credits, WidgetBuilder? background}) => TitleSpec(
   name: 'Voxel Minecraft',
   tagline: 'a Minecraft clone built on voxel_game',
   worldOptions: const [classOption, tutorialOption, playgroundOption],
   credits: credits,
   background: background,
+  music: titleTrack,
 );
+
+/// The track the title plays, one of the game's (`gameSounds`).
+const String titleTrack = 'meadow';
 
 /// The class a new world's player plays, the warrior until another is
 /// picked; a player joining a hosted world picks its own (`playerClasses`).

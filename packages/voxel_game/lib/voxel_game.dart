@@ -56,6 +56,7 @@ export 'package:voxel_engine/worldgen.dart'
         WorldGenSpec;
 export 'package:voxel_scene/voxel_scene.dart' show GpuPacedScene, Haze, StillSky;
 
+export 'src/audio/game_music.dart';
 export 'src/camera/shoulder_orbit.dart';
 export 'src/camera/view_bob.dart';
 export 'src/camera/view_camera.dart';

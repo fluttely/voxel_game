@@ -11,6 +11,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:sound_recipes/sound_recipes.dart';
 import 'package:voxel_scene/voxel_scene.dart';
 
+import '../audio/game_music.dart';
 import '../core/voxel_game.dart';
 import '../settings/game_settings.dart';
 import '../settings/settings_store.dart';
@@ -226,7 +227,7 @@ class _VoxelGameWidgetState extends State<VoxelGameWidget> with SingleTickerProv
   WorldSaves? _saves;
   Timer? _autosave;
   SoundBank? _bank;
-  MusicDirector? _music;
+  GameMusic? _music;
   void Function()? _playTrack;
   SettingsStore? _settingsStore;
   Timer? _settingsWrite;
@@ -306,39 +307,29 @@ class _VoxelGameWidgetState extends State<VoxelGameWidget> with SingleTickerProv
     if (!_disposed) widget.onNetError!(error);
   }
 
+  // Silent where the platform has no audio device: the bank plays nothing
+  // and the music asks for its tracks unheard.
   Future<void> _startAudio(VoxelGame game) async {
     final sound = widget.spec.sounds;
     if (!sound.enabled) return;
     final bank = SoundBank(recipes: {...StockSounds.all, ...sound.recipes}, assets: sound.assets);
-    if (!await bank.init() || _disposed) return;
+    await bank.init();
+    if (_disposed) return bank.dispose();
     _bank = bank;
     game.sounds = bank;
     final spec = sound.music;
     if (spec == null) return;
-    // Keyed by track, not by place: places sharing a track keep it playing.
-    final music = _music = MusicDirector(
-      {
-        for (final e in spec.tracks.entries)
-          if (e.value.asset != null) e.key: e.value.asset!,
-      },
-      recipes: {
-        for (final e in spec.tracks.entries)
-          if (e.value.score != null) e.key: e.value.score!.toRecipe(),
-      },
-      gain: _musicGain(game.settings.value),
-    );
-    _playTrack = () => music.setMood(game.musicTrack.value);
+    final music = _music = GameMusic(spec, game.settings.value);
+    _playTrack = () => music.play(game.musicTrack.value);
     game.musicTrack.addListener(_playTrack!);
     _playTrack!();
   }
-
-  static double _musicGain(GameSettings s) => s.volume * s.musicVolume;
 
   // The music takes a change at once; the file, once a slider has come to
   // rest, so a drag writes it once and not on every step it passes.
   void _settingsChanged() {
     final settings = _game!.settings.value;
-    _music?.setGain(_musicGain(settings));
+    _music?.follow(settings);
     _settingsWrite?.cancel();
     _settingsWrite = Timer(const Duration(milliseconds: 500), () => _settingsStore!.write(settings));
   }
@@ -388,7 +379,7 @@ class _VoxelGameWidgetState extends State<VoxelGameWidget> with SingleTickerProv
     if (unwritten) _settingsStore!.write(_game!.settings.value);
     final playTrack = _playTrack;
     if (playTrack != null) _game!.musicTrack.removeListener(playTrack);
-    _music?.setMood(null);
+    _music?.close();
     _bank?.dispose();
     _save();
     _disposed = true;
