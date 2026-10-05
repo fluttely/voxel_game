@@ -158,7 +158,7 @@ packages:
     source: sdk
     version: "0.0.0"
   gamepads:
-    dependency: transitive
+    dependency: "direct dev"
     description:
       name: gamepads
       sha256: "212cafc5d240b5067eee2a0650b903ddbc18eafbc71a0d1064f8c06587db8ea6"

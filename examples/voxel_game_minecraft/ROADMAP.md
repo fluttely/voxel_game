@@ -72,6 +72,21 @@ they name are the old app's, deleted at stage 34 and kept in git history before 
 
 ## Session log
 
+- **2026-10-05 VL9d** — a pad and the arrows work the game's own screens. The kit's
+  `ScreenFocus` already put each one in a focus scope in directional mode, so their
+  Material buttons, the journal's tabs and every list row (an `InkWell` takes the focus
+  there even with nothing to press) were reachable; what was missing was a first focus
+  and two widgets. Each screen now opens on something drawn: the journal on its tab (a
+  tab has no `autofocus`, so the open one asks its `InkWell`'s focus after the first
+  frame), the trade on its first offer, the playground on its first button, the tutorial,
+  the stats and the map on Back to the game (so a stray press never skips the tutorial).
+  A talent's row learns as its button does, because the row is where a pad stops; the
+  trade's rows wear the kit's ring; the controls' three ways to play are stops of their
+  own, filled while focused, so their text scrolls under a pad. The kit fills a focused
+  tab (`ScreenFocus`), which Material's own overlay drew too faintly. Up from a list row
+  lands on the middle tab, as Flutter measures a full-width row; left and right then reach
+  the rest. A pointer's click on a talent's row now learns it too.
+
 - **2026-10-04 VA-Zm** — the old app is gone. Since VA-Zl5 every behaviour ran on the kit,
   and `main.dart` no longer reached the old `Game`, `Player`, `Mob`, `VoxelWorld`, the
   terrain generator, the HUD or the old screens: 57 files that only the stage tests still

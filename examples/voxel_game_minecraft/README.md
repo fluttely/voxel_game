@@ -38,7 +38,8 @@ The game opens on its **title**, a meadow orbiting behind **Play**, **Multiplaye
   rolls what the game is built on and every stage of `ROADMAP.md` (bundled with the app).
 - **Esc** in a world opens the game menu: settings, the **Journal**, the **Map**, the
   **Stats**, the **Controls**, and **Playground** in a playground. The world keeps running
-  behind every menu.
+  behind every menu. Every menu and screen, the title's included, is worked by a pad (the
+  d-pad or the left stick moves, A presses, B goes back) and by the arrows, Enter and Esc.
 
 What the game adds to the kit's Minecraft: four **classes**, each with two powers, a dodge,
 stamina, mana and talents bought with levels; a **journal** with quests, achievements, the
@@ -68,8 +69,8 @@ The **Controls** screen (F1, the pad's Home, or the game menu) shows these in th
 
 | | |
 |:---|:---|
-| **Keyboard and mouse** | W A S D walk · Space jump · Shift run · Ctrl sneak · left click mine and hit · right click place, use, eat, wear · E bag · Q drop · V first or third person · Esc menu · R and F your class's two powers · Alt dodge · J journal · G glide (with a glider in the bag) · F5 fly (in a Creative world) · M the map: small, then big, then gone · F1 controls · F6 skip the tutorial · in a playground: F7 the weather, F8 the time of day, F9 rebuild the exhibit you stand in |
-| **Gamepad** | left stick walk · right stick look · A jump · B sneak · Y bag · right trigger mine and hit · left trigger place and use · bumpers your powers · X dodge · touchpad journal · d-pad: up glide, right fly, down drop, left the next hotbar slot · Start menu · Back the map · Home controls · Tutorial in the menu skips the tutorial |
+| **Keyboard and mouse** | W A S D walk · Space jump · Shift run · Ctrl sneak · left click mine and hit · right click place, use, eat, wear · E bag · Q drop · V first or third person · Esc menu · R and F your class's two powers · Alt dodge · J journal · G glide (with a glider in the bag) · F5 fly (in a Creative world) · M the map: small, then big, then gone · F1 controls · F6 skip the tutorial · in a playground: F7 the weather, F8 the time of day, F9 rebuild the exhibit you stand in · on a menu: the arrows move, Enter or Space press, Esc go back |
+| **Gamepad** | left stick walk · right stick look · A jump · B sneak · Y bag · right trigger mine and hit · left trigger place and use · bumpers your powers · X dodge · touchpad journal · d-pad: up glide, right fly, down drop, left the next hotbar slot · Start menu · Back the map · Home controls · Tutorial in the menu skips the tutorial · on a menu: the d-pad or the left stick moves, A press, X take half in the bag, B go back |
 | **Phone** | the stick at the left walks; drag anywhere else to look · tap to hit or use, hold to mine; the buttons at the right do the rest · the map button cycles the map · the menu button at the top has the journal, the map, the stats and the controls |
 
 ### Saves

@@ -77,7 +77,7 @@ class MapScreen extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  FilledButton(onPressed: game.closeScreen, child: const Text('Back to the game')),
+                  FilledButton(autofocus: true, onPressed: game.closeScreen, child: const Text('Back to the game')),
                 ],
               ),
             ),

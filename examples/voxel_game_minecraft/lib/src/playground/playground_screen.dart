@@ -43,6 +43,7 @@ class PlaygroundScreen extends StatelessWidget {
                   const Text('Playground', textAlign: TextAlign.center, style: TextStyle(fontSize: 20)),
                   const SizedBox(height: 16),
                   OutlinedButton(
+                    autofocus: true,
                     onPressed: () => then(playground.cycleWeather),
                     child: const Text('Next weather (F7)'),
                   ),

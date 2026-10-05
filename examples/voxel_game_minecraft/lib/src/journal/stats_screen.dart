@@ -52,7 +52,7 @@ class StatsScreen extends StatelessWidget {
                   builder: (context, lines) => Text(lines, style: const TextStyle(fontSize: 15, height: 1.6)),
                 ),
                 const SizedBox(height: 12),
-                FilledButton(onPressed: game.closeScreen, child: const Text('Back to the game')),
+                FilledButton(autofocus: true, onPressed: game.closeScreen, child: const Text('Back to the game')),
               ],
             ),
           ),

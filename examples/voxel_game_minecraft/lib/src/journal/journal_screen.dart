@@ -17,6 +17,11 @@ import 'quest_log.dart';
 /// waypoints, a tap on one a trip there (`Waypoints`); and the quest chain,
 /// the one at hand with how far it is. The world keeps going behind it, so
 /// every tab follows what the game counts while it is open.
+///
+/// A pad and the keys work it through the focus (the kit's `ScreenFocus`):
+/// it opens on its tab, left and right go from tab to tab and A opens one,
+/// down walks the tab's rows (each takes the focus, so a long list scrolls
+/// under it), and A on a talent's row learns it, as its button does.
 class JournalScreen extends StatelessWidget {
   /// The journal of [game]'s player, open on the tab [initialTab].
   const JournalScreen(this.game, {super.key, this.initialTab = 0});
@@ -59,7 +64,7 @@ class JournalScreen extends StatelessWidget {
                     TabBar(
                       isScrollable: true,
                       tabAlignment: TabAlignment.center,
-                      tabs: [for (final t in tabs) Tab(text: t)],
+                      tabs: [for (final (i, t) in tabs.indexed) i == initialTab ? _OpenTab(t) : Tab(text: t)],
                     ),
                     const SizedBox(height: 8),
                     Expanded(
@@ -95,14 +100,15 @@ class JournalScreen extends StatelessWidget {
   Widget _talent(ClassSystem c, Talent t) {
     final rank = c.rank(t.id);
     final maxed = rank >= Talent.maxRank;
+    final learn = maxed || c.points <= 0 ? null : () => c.learn(t.id);
+    // The row learns too: it is where a pad's focus stops, once a row (the
+    // button inside it is never the way up or down).
     return ListTile(
       leading: CircleAvatar(backgroundColor: Color(0xFF000000 | t.color), radius: 14),
       title: Text('${t.name}  $rank/${Talent.maxRank}'),
       subtitle: Text(t.description),
-      trailing: FilledButton(
-        onPressed: maxed || c.points <= 0 ? null : () => c.learn(t.id),
-        child: Text(maxed ? 'Maxed' : 'Learn'),
-      ),
+      onTap: learn,
+      trailing: FilledButton(onPressed: learn, child: Text(maxed ? 'Maxed' : 'Learn')),
     );
   }
 
@@ -288,4 +294,28 @@ class JournalScreen extends StatelessWidget {
       trailing: active ? SizedBox(width: 120, child: LinearProgressIndicator(value: progress / q.count)) : null,
     );
   }
+}
+
+// The tab the journal opens on, which takes the focus once laid out: a tab
+// bar's tab has no autofocus, and its focus is the one around this.
+class _OpenTab extends StatefulWidget {
+  const _OpenTab(this.text);
+
+  final String text;
+
+  @override
+  State<_OpenTab> createState() => _OpenTabState();
+}
+
+class _OpenTabState extends State<_OpenTab> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) Focus.of(context).requestFocus();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => Tab(text: widget.text);
 }

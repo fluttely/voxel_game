@@ -5,7 +5,8 @@ import 'tutorial.dart';
 import 'tutorial_steps.dart';
 
 /// The tutorial in the game menu (Tutorial, while it runs): the step at hand
-/// and a skip of it all, what F6 does, for a pad.
+/// and a skip of it all, what F6 does, for a pad. It opens on Back to the
+/// game, so a stray press does not skip.
 class TutorialScreen extends StatelessWidget {
   /// The screen, over [game].
   const TutorialScreen(this.game, {super.key});
@@ -53,7 +54,7 @@ class TutorialScreen extends StatelessWidget {
                     child: const Text('Skip tutorial (F6)'),
                   ),
                   const SizedBox(height: 16),
-                  FilledButton(onPressed: game.closeScreen, child: const Text('Back to the game')),
+                  FilledButton(autofocus: true, onPressed: game.closeScreen, child: const Text('Back to the game')),
                 ],
               ),
             ),

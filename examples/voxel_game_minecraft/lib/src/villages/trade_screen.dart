@@ -8,7 +8,9 @@ import 'villages.dart';
 /// many, and how many the bag holds (red when short), an arrow, and what it
 /// gives. A row is green when the bag can pay for it and has room for what
 /// it gives, grey-red when not; a tap trades, and the row flashes green for
-/// a trade made, red for one refused.
+/// a trade made, red for one refused. A pad and the keys walk the rows
+/// through the focus, the focused one ringed, and A or Enter trades; it
+/// opens on the first.
 class TradeScreen extends StatefulWidget {
   /// [game]'s open trade.
   const TradeScreen(this.game, {super.key});
@@ -111,22 +113,29 @@ class _TradeScreenState extends State<TradeScreen> {
         color: background,
         shape: const Border.fromBorderSide(BorderSide(color: Color(0xFF737380))),
         child: InkWell(
+          autofocus: i == 0,
           onTap: () => setState(() => _taps[i] = (made: Villages.of(game).trade(game, i), at: game.time)),
-          child: SizedBox(
-            height: TradeScreen.rowHeight,
-            child: Row(
-              children: [
-                Expanded(
-                  child: _side(
-                    o.take,
-                    o.takeCount,
-                    '${game.items[o.take].name} (you have $have)',
-                    can: have >= o.takeCount,
+          // The ring over the row's own border, so the focus does not move it.
+          child: Builder(
+            builder: (context) => Container(
+              height: TradeScreen.rowHeight,
+              foregroundDecoration: Focus.of(context).hasFocus
+                  ? const BoxDecoration(border: Border.fromBorderSide(ScreenFocus.ring))
+                  : null,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _side(
+                      o.take,
+                      o.takeCount,
+                      '${game.items[o.take].name} (you have $have)',
+                      can: have >= o.takeCount,
+                    ),
                   ),
-                ),
-                const Text('->', style: TextStyle(fontSize: 28, color: _arrow)),
-                Expanded(child: _side(o.give, o.giveCount, game.items[o.give].name)),
-              ],
+                  const Text('->', style: TextStyle(fontSize: 28, color: _arrow)),
+                  Expanded(child: _side(o.give, o.giveCount, game.items[o.give].name)),
+                ],
+              ),
             ),
           ),
         ),
