@@ -199,6 +199,57 @@ void main() {
     });
   });
 
+  group('the hotbar', () {
+    test('each bumper steps the slot in hand, around the bar both ways; no key does', () async {
+      final game = await _start(_spec());
+      final p = game.player;
+      final last = p.inventory.hotbarSize - 1;
+      expect(VoxelAction.defaultBindings.keys.containsKey(VoxelAction.hotbarNext), isFalse, reason: 'the wheel does');
+      expect(VoxelAction.defaultBindings.keys.containsKey(VoxelAction.hotbarPrevious), isFalse);
+      p.selectedSlot = last;
+      game.input.onPad(_pad(GamepadButton.rightBumper, 1.0));
+      await _step(game);
+      expect(p.selectedSlot, 0, reason: 'the last slot steps on to the first');
+      await _step(game);
+      expect(p.selectedSlot, 0, reason: 'holding it is one step, not one a step');
+      game.input.onPad(_pad(GamepadButton.rightBumper, 0.0));
+      game.input.onPad(_pad(GamepadButton.leftBumper, 1.0));
+      await _step(game);
+      expect(p.selectedSlot, last, reason: 'the first slot steps back to the last');
+      game.input.onPad(_pad(GamepadButton.leftBumper, 0.0));
+      game.input.onPad(_pad(GamepadButton.leftBumper, 1.0));
+      await _step(game);
+      expect(p.selectedSlot, last - 1);
+      game.input.onPad(_pad(GamepadButton.leftBumper, 0.0));
+      game.input.tap(VoxelAction.hotbarNext);
+      await _step(game);
+      expect(p.selectedSlot, last, reason: 'code presses it too');
+      game.dispose();
+    });
+
+    test('a game may bind only hotbarNext, and take both bumpers for actions of its own', () async {
+      const ability = ActionSpec('ability', gamepad: [GamepadButton.leftBumper]);
+      const ability2 = ActionSpec('ability2', gamepad: [GamepadButton.rightBumper]);
+      final actions = [_journal, _dash, ability, ability2];
+      expect(() => _spec(actions: actions).checkActions(), throwsArgumentError, reason: 'the bumpers step the bar');
+      final moved = VoxelAction.defaultBindings.rebind(
+        gamepad: {VoxelAction.hotbarNext: GamepadButton.dpadLeft, VoxelAction.hotbarPrevious: null},
+      );
+      _spec(actions: actions, bindings: moved).checkActions();
+      final game = await _start(_spec(actions: actions, bindings: moved));
+      final p = game.player..selectedSlot = 0;
+      game.input.onPad(_pad(GamepadButton.leftBumper, 1.0));
+      expect(game.actions.justPressed('ability'), isTrue);
+      await _step(game);
+      expect(p.selectedSlot, 0, reason: 'the bumper is the game\'s now');
+      game.input.onPad(_pad(GamepadButton.leftBumper, 0.0));
+      game.input.onPad(_pad(GamepadButton.dpadLeft, 1.0));
+      await _step(game);
+      expect(p.selectedSlot, 1);
+      game.dispose();
+    });
+  });
+
   group('fly', () {
     test('a creative player takes off and lands with a press: no gravity, jump rises, sneak sinks', () async {
       final game = await _start(_spec(player: const PlayerSpec(creative: true)));

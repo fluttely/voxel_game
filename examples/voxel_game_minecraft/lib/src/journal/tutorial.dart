@@ -9,10 +9,11 @@ import 'tutorial_steps.dart';
 /// The guided first steps of a new world ([tutorialSteps]), a card each at
 /// the top of the screen (`TutorialCard`): only what finishes the step at
 /// hand moves it on, with a chime, and the last one ends it. The card's
-/// button and the `skip_tutorial` action (F6) end it at once. It is shown
-/// once per machine: ended or skipped, it is marked [doneKey] in the
-/// player's settings (`GameSettings.game`), and every world after starts it
-/// ended, as a playground always does.
+/// button, the `skip_tutorial` action (F6) and Tutorial in the game menu
+/// (`TutorialScreen`) end it at once. It is shown once per machine: ended or
+/// skipped, it is marked [doneKey] in the player's settings
+/// (`GameSettings.game`), and every world after starts it ended, as a
+/// playground always does.
 ///
 /// For the steps that are a state, it measures what the player did since
 /// the step began: [walked], [turned] and [sunRose].
@@ -24,6 +25,10 @@ class Tutorial extends SavedSystem {
 
   /// The action that skips it.
   static const String skipAction = 'skip_tutorial';
+
+  /// The id of its screen in the game menu (`TutorialScreen`), a pad's way to
+  /// skip it.
+  static const String screen = 'tutorial';
 
   /// The key of the player's settings (`GameSettings.game`) true once this
   /// machine has seen it end.

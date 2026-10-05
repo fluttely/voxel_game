@@ -602,10 +602,13 @@ class PlayerEntity extends NodeBody implements Target, Angler {
       return;
     }
     if (gameplay) {
-      final wheel = input.takeWheel();
       final hotbar = inventory.hotbarSize;
-      if (wheel != 0) selectedSlot = (selectedSlot + wheel) % hotbar;
-      if (selectedSlot < 0) selectedSlot += hotbar;
+      var by = input.takeWheel();
+      if (input.justPressed(VoxelAction.hotbarNext)) by += 1;
+      if (input.justPressed(VoxelAction.hotbarPrevious)) by -= 1;
+      // Dart's `%` of a positive divisor is never negative: a step back from
+      // the first slot lands on the last.
+      if (by != 0) selectedSlot = (selectedSlot + by) % hotbar;
       final digit = input.digitPressed();
       if (digit >= 0 && digit < hotbar) selectedSlot = digit;
       if (input.justPressed(VoxelAction.toggleView)) {

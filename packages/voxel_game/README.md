@@ -173,6 +173,8 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
   a game that draws the world its own way) can mount the kit's wiring over any widget.
 - Controls for keyboard and mouse, gamepad and touch; first and third person. A finger on
   the world is a gesture: lift in place to use (or swing), stay put to mine, drag to look.
+  The slot in hand moves by the wheel and the digits, by the bumpers on a pad
+  (`VoxelAction.hotbarNext` / `hotbarPrevious`, around the bar), or by a tap on the hotbar.
   A phone also gets `TouchControls`: a floating stick in the lower-left zone (pushed to the
   rim it runs), jump and a sneak switch at the bottom right, the view and pause at the top
   right. They show only while the last device was a finger (`InputMap.lastDevice`), so a

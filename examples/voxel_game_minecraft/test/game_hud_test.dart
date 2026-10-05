@@ -7,6 +7,7 @@ import 'package:voxel_game_minecraft/src/classes/class_system.dart';
 import 'package:voxel_game_minecraft/src/ui/game_hud.dart';
 import 'package:voxel_game_minecraft/src/journal/journal_screen.dart';
 import 'package:voxel_game_minecraft/src/journal/tutorial.dart';
+import 'package:voxel_game_minecraft/src/journal/tutorial_screen.dart';
 import 'package:voxel_game_minecraft/src/journal/stats_screen.dart';
 import 'package:voxel_game_minecraft/src/ui/controls_screen.dart';
 
@@ -142,6 +143,21 @@ void main() {
     await tester.tap(find.text('Skip tutorial (F6)'));
     await step(tester, game);
     expect(find.text('Walk'), findsNothing);
+    game.dispose();
+  });
+
+  testWidgets('while the tutorial runs the game menu lists it, and its screen skips it all', (tester) async {
+    final game = await start(tester, tutorialDone: false);
+    final screen = gameSpec.screens[Tutorial.screen]!;
+    expect(screen.menu, 'Tutorial');
+    expect(screen.listedIn(game), isTrue);
+    game.openScreen(const DeclaredScreen(Tutorial.screen));
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: TutorialScreen(game))));
+    expect(find.text('Step 1/10: Walk'), findsOneWidget);
+    await tester.tap(find.text('Skip tutorial (F6)'));
+    expect(game.screen.value, isNull, reason: 'closed, so the player sees it told');
+    expect(Tutorial.of(game).current, isNull);
+    expect(screen.listedIn(game), isFalse, reason: 'an ended tutorial leaves the menu');
     game.dispose();
   });
 

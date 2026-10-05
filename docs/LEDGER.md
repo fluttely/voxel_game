@@ -36,13 +36,6 @@
 - **Cost of leaving it:** a desktop host whose window is covered or minimised stops its world for everyone: no steps, so no client's edit applied and nothing broadcast, the opposite of what rule 12 wants of an authority. A lone game pausing while hidden is harmless, which is why it went unseen. A phone in the background is suspended by its system anyway, so the cost is the desktop host's, and later a dedicated one's.
 - **Found while:** 2026-10-02 — seeing VA9's weather on the Mac with the window behind the owner's editor.
 
-### KL-016 · A pad cannot change the hotbar's slot
-
-- **Lens:** input parity (rule 13)
-- **Evidence:** `packages/voxel_game/lib/src/player/player_entity.dart:458-463`: the slot in hand moves only by `InputMap.takeWheel` (a mouse's wheel) and `InputMap.digitPressed` (the digit keys, or a finger's `touchDigit` on the hotbar, `input_map.dart:527`). No `VoxelAction` steps the slot, and `VoxelAction.defaultBindings.gamepad` (`voxel_action.dart:76`) leaves both bumpers free. The app binds its bumpers to its two abilities (`examples/voxel_game_minecraft/lib/src/game/input.dart:66-67`), so it has the same gap.
-- **Cost of leaving it:** a player on a pad holds the first slot for the whole game: no tool, block or food but the one the bag put there, unless they open the bag and move stacks into it. Mouse and touch each have their own way, a pad has none. The fix is a `hotbarNext` / `hotbarPrevious` pair of actions on the bumpers read beside the wheel, and a game that wants the bumpers (the app's abilities) moving them with `InputBindings.rebind`.
-- **Found while:** 2026-10-02 — VA-Za, choosing pad buttons for `fly` and `glide` among the free ones.
-
 ### KL-017 · The frame rate the kit reports is the ticks', not the world's frames drawn
 
 - **Lens:** measurement
@@ -65,6 +58,14 @@
 - **Found while:** 2026-10-05 — VL6, reading the dungeon's drawing to write its plan (`KL-022`).
 
 ## Closed
+
+### KL-016 · A pad cannot change the hotbar's slot
+
+- **Lens:** input parity (rule 13)
+- **Evidence:** `packages/voxel_game/lib/src/player/player_entity.dart:458-463`: the slot in hand moves only by `InputMap.takeWheel` (a mouse's wheel) and `InputMap.digitPressed` (the digit keys, or a finger's `touchDigit` on the hotbar, `input_map.dart:527`). No `VoxelAction` steps the slot, and `VoxelAction.defaultBindings.gamepad` (`voxel_action.dart:76`) leaves both bumpers free. The app binds its bumpers to its two abilities (`examples/voxel_game_minecraft/lib/src/game/input.dart:66-67`), so it has the same gap.
+- **Cost of leaving it:** a player on a pad holds the first slot for the whole game: no tool, block or food but the one the bag put there, unless they open the bag and move stacks into it. Mouse and touch each have their own way, a pad has none. The fix is a `hotbarNext` / `hotbarPrevious` pair of actions on the bumpers read beside the wheel, and a game that wants the bumpers (the app's abilities) moving them with `InputBindings.rebind`.
+- **Found while:** 2026-10-02 — VA-Za, choosing pad buttons for `fly` and `glide` among the free ones.
+- **Closed by:** 2026-10-05 — `voxel_game, examples/voxel_game_minecraft: a pad steps the hotbar (VL8)`. `VoxelAction.hotbarNext` / `hotbarPrevious` (new), on the right and left bumpers and on no key, are read in `PlayerEntity.tick` beside the wheel, each press a step around the bar. `checkActions` was already right: it refuses a button bound twice and never required every action bound, so a game may unbind `hotbarPrevious` alone. `test/actions_test.dart` (2 new: each bumper steps and wraps both ways, and a game binding only `hotbarNext` on the dpad keeps both bumpers for actions of its own; the kit 454). The app rebinds `hotbarNext` to `dpadLeft` and unbinds `hotbarPrevious`, its abilities keep the bumpers, and the tutorial's skip leaves the pad for `TutorialScreen` in the game menu (`game_spec_test.dart`, `game_hud_test.dart`; the app 104).
 
 ### KL-022 · A stock structure keeps where its parts are to itself
 

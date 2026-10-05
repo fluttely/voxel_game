@@ -69,7 +69,7 @@ The **Controls** screen (F1, the pad's Home, or the game menu) shows these in th
 | | |
 |:---|:---|
 | **Keyboard and mouse** | W A S D walk · Space jump · Shift run · Ctrl sneak · left click mine and hit · right click place, use, eat, wear · E bag · Q drop · V first or third person · Esc menu · R and F your class's two powers · Alt dodge · J journal · G glide (with a glider in the bag) · F5 fly (in a Creative world) · M the map: small, then big, then gone · F1 controls · F6 skip the tutorial · in a playground: F7 the weather, F8 the time of day, F9 rebuild the exhibit you stand in |
-| **Gamepad** | left stick walk · right stick look · A jump · B sneak · Y bag · right trigger mine and hit · left trigger place and use · bumpers your powers · X dodge · touchpad journal · d-pad: up glide, right fly, down drop, left skip the tutorial · Start menu · Back the map · Home controls |
+| **Gamepad** | left stick walk · right stick look · A jump · B sneak · Y bag · right trigger mine and hit · left trigger place and use · bumpers your powers · X dodge · touchpad journal · d-pad: up glide, right fly, down drop, left the next hotbar slot · Start menu · Back the map · Home controls · Tutorial in the menu skips the tutorial |
 | **Phone** | the stick at the left walks; drag anywhere else to look · tap to hit or use, hold to mine; the buttons at the right do the rest · the map button cycles the map · the menu button at the top has the journal, the map, the stats and the controls |
 
 ### Saves

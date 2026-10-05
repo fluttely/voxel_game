@@ -36,6 +36,22 @@ void main() {
     game.dispose();
   });
 
+  test('a pad\'s dpad left steps the hotbar on, around the bar; the bumpers stay the class\'s two powers', () async {
+    final pad = gameSpec.bindings.gamepad;
+    expect(pad[VoxelAction.hotbarNext], GamepadButton.dpadLeft);
+    expect(pad.containsKey(VoxelAction.hotbarPrevious), isFalse, reason: 'no button is free to step it back');
+    final buttons = {for (final a in gameSpec.actions) a.id: a.gamepad};
+    expect(buttons['ability'], [GamepadButton.leftBumper]);
+    expect(buttons['ability2'], [GamepadButton.rightBumper]);
+    expect(buttons['skip_tutorial'], isEmpty, reason: 'a pad skips it from the game menu');
+    final game = await _start();
+    final p = game.player..selectedSlot = game.player.inventory.hotbarSize - 1;
+    game.input.tap(VoxelAction.hotbarNext);
+    game.step(1 / 60);
+    expect(p.selectedSlot, 0);
+    game.dispose();
+  });
+
   test('every block a body walks on sounds one of the recorded footsteps', () async {
     final game = await _start();
     final recorded = {for (final k in stepKinds) 'step_$k'};

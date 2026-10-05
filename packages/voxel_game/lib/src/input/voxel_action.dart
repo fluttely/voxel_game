@@ -53,7 +53,17 @@ enum VoxelAction {
 
   /// Held in the air with an item that glides in the bag (`ItemType.glider`):
   /// the fall slows and the body sails toward the look (G, dpad up).
-  glide;
+  glide,
+
+  /// The next hotbar slot, the last one around to the first (right bumper);
+  /// the wheel and the digit keys pick a slot on a keyboard, a finger taps
+  /// one.
+  hotbarNext,
+
+  /// The slot before, the first one around to the last (left bumper). A game
+  /// that wants one bumper for itself may unbind this one and keep
+  /// [hotbarNext]: on a nine-slot bar, stepping one way is enough.
+  hotbarPrevious;
 
   /// The default bindings: the usual WASD keys and an Xbox / PlayStation pad.
   static const InputBindings<VoxelAction> defaultBindings = InputBindings(
@@ -83,6 +93,8 @@ enum VoxelAction {
       pause: GamepadButton.start,
       fly: GamepadButton.dpadRight,
       glide: GamepadButton.dpadUp,
+      hotbarNext: GamepadButton.rightBumper,
+      hotbarPrevious: GamepadButton.leftBumper,
     },
     triggers: {attack: TriggerBinding.right, use: TriggerBinding.left},
   );

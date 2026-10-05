@@ -29,9 +29,10 @@ class ControlsScreen extends StatelessWidget {
       'Left stick  walk  ·  Right stick  look  ·  A  jump  ·  B  sneak  ·  Y  bag',
       'Right trigger  mine and hit  ·  Left trigger  place and use',
       'Bumpers  your powers  ·  X  dodge  ·  Touchpad  journal',
-      'D-pad: up glide, right fly, down drop, left skip the tutorial  ·  Start  menu',
+      'D-pad: up glide, right fly, down drop, left the next hotbar slot  ·  Start  menu',
       'Back  the map: small, then big, then gone  ·  Home  these controls',
       'In a playground, Playground in the menu changes the weather and the time and rebuilds an exhibit',
+      'Tutorial in the menu skips the tutorial',
     ],
     'Phone': [
       'The stick at the left walks; drag anywhere else to look',

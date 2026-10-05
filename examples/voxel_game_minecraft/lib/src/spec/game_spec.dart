@@ -13,6 +13,7 @@ import '../journal/journal_screen.dart';
 import '../journal/quest_log.dart';
 import '../journal/stats_screen.dart';
 import '../journal/tutorial.dart';
+import '../journal/tutorial_screen.dart';
 import '../map/map_screen.dart';
 import '../map/world_map.dart';
 import '../player/heartbeat.dart';
@@ -129,7 +130,8 @@ final VoxelGameSpec gameSpec = VoxelGameSpec(
   // journal counts what the player does, the quests and the achievements on it, and the tutorial watches.
   systems: _systems,
   // The class's two abilities, the dodge, the journal, the map, the controls, a skip of the tutorial, and a
-  // playground's three.
+  // playground's three. A pad and a phone reach the last four through the game menu (`TutorialScreen`,
+  // `PlaygroundScreen`).
   actions: const [
     ActionSpec('ability', keys: [PhysicalKeyboardKey.keyR], gamepad: [GamepadButton.leftBumper], touch: Icons.flash_on),
     ActionSpec(
@@ -147,8 +149,7 @@ final VoxelGameSpec gameSpec = VoxelGameSpec(
     ActionSpec('journal', keys: [PhysicalKeyboardKey.keyJ], gamepad: [GamepadButton.touchpad], touch: Icons.menu_book),
     ActionSpec(WorldMap.action, keys: [PhysicalKeyboardKey.keyM], gamepad: [GamepadButton.back], touch: Icons.map),
     ActionSpec('controls', keys: [PhysicalKeyboardKey.f1], gamepad: [GamepadButton.home]),
-    ActionSpec(Tutorial.skipAction, keys: [PhysicalKeyboardKey.f6], gamepad: [GamepadButton.dpadLeft]),
-    // A pad and a phone reach these through the game menu (`PlaygroundScreen`).
+    ActionSpec(Tutorial.skipAction, keys: [PhysicalKeyboardKey.f6]),
     ActionSpec(Playground.weatherAction, keys: [PhysicalKeyboardKey.f7]),
     ActionSpec(Playground.timeAction, keys: [PhysicalKeyboardKey.f8]),
     ActionSpec(Playground.rebuildAction, keys: [PhysicalKeyboardKey.f9]),
@@ -166,6 +167,7 @@ final VoxelGameSpec gameSpec = VoxelGameSpec(
     'stats': ScreenSpec(StatsScreen.builder, menu: 'Stats'),
     'controls': ScreenSpec(ControlsScreen.builder, menu: 'Controls', action: 'controls'),
     Playground.screen: ScreenSpec(PlaygroundScreen.builder, menu: 'Playground', listed: PlaygroundScreen.listed),
+    Tutorial.screen: ScreenSpec(TutorialScreen.builder, menu: 'Tutorial', listed: TutorialScreen.listed),
   },
   vehicles: const [
     BoatSpec(item: 'boat'),
@@ -185,12 +187,14 @@ final VoxelGameSpec gameSpec = VoxelGameSpec(
       LootEntry('iron_sword', 1, 1, 0.01),
     ]),
   ),
-  // V turns the view and F5 flies, in a Creative world.
+  // V turns the view and F5 flies, in a Creative world. The bumpers are the class's abilities, so the dpad's
+  // left steps the hotbar on, around the bar, and nothing steps it back.
   bindings: VoxelAction.defaultBindings.rebind(
     keys: {
       VoxelAction.toggleView: [PhysicalKeyboardKey.keyV],
       VoxelAction.fly: [PhysicalKeyboardKey.f5],
     },
+    gamepad: {VoxelAction.hotbarNext: GamepadButton.dpadLeft, VoxelAction.hotbarPrevious: null},
   ),
   // A frame is held back while the GPU is busy, which keeps the menus' text whole (`GpuPacedScene`).
   graphics: (_phone ? GraphicsSpec.phone : GraphicsSpec.desktop).copyWith(paced: true),

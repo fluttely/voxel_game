@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **A pad steps the hotbar (KL-016).** `VoxelAction.hotbarNext` / `hotbarPrevious` (new),
+  on the right and left bumpers, step the slot in hand around the bar both ways, read
+  beside the wheel; no key binds them (the wheel and the digits do that). A game that wants
+  the bumpers moves them with `rebind`, and may unbind `hotbarPrevious` and keep
+  `hotbarNext` alone. Breaking for a game whose own action sat on a bumper: the spec now
+  throws until it moves one of the two.
 - **A boss is marked on the creature; a cart can start rolling.** `Mob.boss` (new): whether
   it is a boss, seeded from `MobSpec.boss` and set by a game's system on a creature it
   summons or wakes as one. `VoxelGame.boss` reads it (no longer the species), so the
