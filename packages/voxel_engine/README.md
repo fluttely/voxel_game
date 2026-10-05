@@ -6,7 +6,7 @@ generation, blocks and items, circuits and a network layer. It draws nothing —
 a renderer (`voxel_scene`) takes the meshes, and `voxel_game` ties everything
 into a playable game.
 
-> **Status: 0.3.0-dev**, beta. The API can still change.
+> **Status: 0.4.0-dev**, beta. The API can still change.
 
 ## The five subjects
 
@@ -25,7 +25,7 @@ Each one is a library of its own. Import only what you use, or
 
 ```yaml
 dependencies:
-  voxel_engine: ^0.3.0-dev
+  voxel_engine: ^0.4.0-dev
 ```
 
 Dart SDK `^3.13.0`. No Flutter dependency: it runs in `dart test`, on a server
@@ -107,9 +107,9 @@ sockets, through `dart:isolate` and `dart:io`, which a browser does not have.
    makes says `holdable: false`). One that is eaten says what it does in `food` (a
    `Food` that `cures` ends the bad effects), one that is worn where in `armor`, one that
    carries a liquid in `bucket` (`Bucket.empty`, `Bucket.full`), one that shoots in
-   `launcher` (`Launcher(shot:, ammo:)`), one that lights the way in hand in `light`. What
-   it looks like is its `shape`, or one read off the rest of its row;
-   `ItemModel.of(item, blocks, items)` builds its voxels.
+   `launcher` (`Launcher(shot:, ammo:)`), one that lights the way in hand in `light`, one
+   that glides in `glider`. What it looks like is its `shape`, or one read off the rest of
+   its row; `ItemModel.of(item, blocks, items)` builds its voxels.
 
    ```dart
    final items = ItemRegistry([
@@ -122,7 +122,8 @@ sockets, through `dart:isolate` and `dart:io`, which a browser does not have.
    ```
 
 3. **Mine.** `const MiningRules().mineTime(block, tool)` gives seconds, or -1
-   when that tool cannot break it.
+   when that tool cannot break it; a tool whose kind `cuts` a block's tag takes it at
+   once (shears through leaves).
 
 4. **Carry things.**
 
@@ -194,7 +195,13 @@ sockets, through `dart:isolate` and `dart:io`, which a browser does not have.
 6. **Dress the ground** with rows: `strata` (dark stone in the deep), a biome's `covers`
    (snow above a height, patches of mud), `pools` (water over mud), trees by `weight`,
    and plants that grow taller (`maxHeight`), in patches (`spread`) or by water
-   (`byWater`).
+   (`byWater`), low ground pressed toward the sea (`flats`, a swamp), and biomes of
+   their own on the beach's columns (`shores`, a frozen one).
+
+7. **Other kinds of world.** A `cavern` (`CavernSpec`) is one great cave between a
+   bedrock floor and roof; a `plaza` (`Plaza`, or `withPlaza`) is a square of open ground
+   pressed flat, a showroom's floor; a `DimensionGenerator` hands each dimension's chunks
+   to its own spec, for the worker isolates.
 
 ### signals — circuits and rails
 

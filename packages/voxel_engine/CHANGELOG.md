@@ -1,6 +1,11 @@
 # Changelog
 
-## Unreleased
+## 0.4.0-dev
+
+**Breaking**
+
+- `StructureSpec(name, structure, regionChunks:, chance:, biomes:)` takes a `Structure`;
+  a build function is a `CustomStructure(build, radius:, depth:, blocks:)` (VA11).
 
 - **A dungeon and a mine say where their parts are (KL-022).** `DungeonPlan.of(dungeon,
   site, roll)` (new): the floor rolled from the site, its three `rooms` (`DungeonRoom`,
@@ -11,8 +16,6 @@
   the cells the generator drew without scanning the world. The roll is the drawing's
   `StructureSite.roll`, with `StructureSite.placed` (new) as the site, or a game's
   `SpecGenerator.rollOf(site)` (new), the same hash. Both draw the same blocks as before.
-
-## 0.3.0-dev
 
 - `WorldGenSpec.plaza` (new) of `Plaza` (new): a square of open-sky ground pressed flat, a
   showroom's floor (the app's playground, VA-Zl5). Its columns stand at its `height` in the
@@ -174,6 +177,14 @@
   edits recorded for it written over it, as a generation landing would. Since 0.2.0-dev
   made `chunks` read-only it was the one way in that was missing: a world built without
   jobs had nowhere to put its chunks.
+
+- A `NetConnection` whose peer hangs up while a write is in flight closes (`done`
+  completes, and a `NetHost` drops the peer through `onLeave`), where the write's
+  `SocketException` (`Broken pipe`) used to reach the zone unhandled, which ends a plain
+  Dart process. A message sent that way is lost, as it was.
+
+## 0.3.0-dev
+
 - `ChunkWorkerPool.defaultWorkers` is two thirds of the cores (`workersFor`, new), no
   longer all of them but one: 8 on an M2 Pro instead of 11, 5 on a Galaxy S24 instead of
   7. Past that the window's fill time did not fall (on the phone 735 ms with 5 workers,
@@ -205,10 +216,6 @@
   a host's 20 Hz state of 40 creatures cost it 369 µs with 4 peers and 797 with 8 (M2
   Pro), against 106 and 122 now. `EncodedMessage` (new) is a message encoded once;
   `NetConnection.sendEncoded` (new) sends one to a connection.
-- A `NetConnection` whose peer hangs up while a write is in flight closes (`done`
-  completes, and a `NetHost` drops the peer through `onLeave`), where the write's
-  `SocketException` (`Broken pipe`) used to reach the zone unhandled, which ends a plain
-  Dart process. A message sent that way is lost, as it was.
 
 ## 0.2.0-dev
 

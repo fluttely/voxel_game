@@ -1,7 +1,37 @@
 # Changelog
 
-## Unreleased
+## 0.4.0-dev
 
+**Breaking**
+
+- `FrameStats.fps`, the HUD's FPS readout, is the scene frames rendered a second, no longer
+  the ticks; the ticks' rate is `FrameStats.ticksPerSecond` (VL11).
+- While a screen is open, the arrows, Enter, Space and Esc, and the pad's dpad, A and B,
+  work the screen through Flutter's focus and no longer reach `VoxelGame.input` (KL-013).
+- `hotbarNext` and `hotbarPrevious` take the bumpers by default; a spec whose own action
+  sits on one throws until it moves one of the two (KL-016).
+- `Mob.stun`, `slow` and `forget` on a replica ask the host instead of throwing (VA-Zf).
+- `SignalSpec.explosives` maps a block to an `Explosive`, not a radius (VA-Ze).
+- `VoxelGameSpec.onBlockBroken`, `onBlockPlaced`, `onMobKilled` and `onTick` are gone
+  (a `GameSystem` hears `GameEvent`s), and `VoxelGameSpec.systems` is a factory (VA-Zb).
+- `SoundSpec.music` is a `MusicSpec?`, no longer a map of moods to asset paths (VA17a).
+- A rail kind with one straight alone throws at start (VA15b).
+- `PlayerEntity.riding` is a `Rideable?`, and `Mob.carry` takes a `RideInput` (VA15a).
+- `Drop` is gone: `MobSpec.loot` is a voxel_engine `LootTable`; `SpawnRule.place`
+  replaces `onSurfaceOnly` (VA13a).
+- voxel_engine's `StructureSpec` takes a `Structure` (VA11).
+- `WorldSaves.codecFor(n)` replaces `WorldSaves.codec` (VA10).
+- `VoxelGame.showFps` is gone; the HUD reads `GameSettings.showFps`.
+- `PickupModel` is gone: a drop draws its item's `ItemMesh` (VA5).
+- `VoxelGame.openScreen` is a method taking a `GameScreen`, no longer a
+  `ValueNotifier<String?>` (VA3).
+- `VoxelGameSpec.copyWith` takes its nullable fields as getters of the new value.
+- The HUD is hit-tested: `VoxelGameWidget` no longer wraps it in an `IgnorePointer`.
+- `ProjectileSpec` declares the shot's box (`thickness`, `length`); a kind other than
+  `'arrow'` no longer draws a cube of its radius.
+
+- `InputMap.pointerLockSupported`'s doc says which platforms lock the mouse: macOS alone of
+  the desktops; Windows and Linux look by a drag (`KL-004`, deferred).
 - **The frame rate is the world's frames drawn (KL-017).** `FrameStats.fps`, the HUD's
   FPS readout, counted ticks, one per `VoxelGame.frame`; paced (`GraphicsSpec.paced`) the
   world is drawn only on the vsyncs that find the last frame finished, about every other

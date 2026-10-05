@@ -4,7 +4,7 @@ Draws `voxel_engine` worlds with [flutter_scene](https://pub.dev/packages/flutte
 chunks drawn a region at a time, a terrain material with its own shaders, a day
 and night sky, block models and the selection outline.
 
-> **Status: 0.3.0-dev**, beta. The API can still change.
+> **Status: 0.4.0-dev**, beta. The API can still change.
 
 ## Features
 
@@ -25,13 +25,19 @@ and night sky, block models and the selection outline.
   finished them, so text over the scene stays readable on a busy GPU under Metal; the
   scene shows one frame late and renders only when the last one is done (`ScenePacer`).
 - `ItemMesh`: one mesh per `ItemModel`, shared by everything that draws the item.
-- `DayNightSky`, `VoxelModelMesh`, `RigPart`, `NodeBody`.
+- `DayNightSky`: the sun's day, the weather's grey and lightning (`overcast`, `flash`), a
+  dimension's own sunless sky (`StillSky`) and a fog of one colour from the eye (`Haze`,
+  water's); the numbers are `SkyLook`'s, checked with no GPU.
+- `WeatherParticles` (rain and snow around a point) and `DebrisParticles` (chips and
+  embers thrown out of one), each one `ParticleSystem`, so one draw.
+- `VoxelModelMesh`, with one shared material a tint (`tinted`, see-through under an alpha
+  of 1) and a white one for a hit (`flash`); `RigPart`, `NodeBody`.
 
 ## Install
 
 ```yaml
 dependencies:
-  voxel_scene: ^0.3.0-dev
+  voxel_scene: ^0.4.0-dev
 ```
 
 Dart SDK `^3.13.0`.

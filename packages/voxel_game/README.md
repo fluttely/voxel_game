@@ -9,7 +9,7 @@ multiplayer.
 It is the kit over `voxel_engine`, `voxel_scene` and `sound_recipes`, and it
 re-exports what a game needs, so a game imports only this library.
 
-> **Status: 0.3.0-dev**, beta. The API can still change.
+> **Status: 0.4.0-dev**, beta. The API can still change.
 
 ## The four packages
 
@@ -130,13 +130,15 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
   ScreenSpec(buildJournal, menu: 'Journal', action: 'journal')}`, opened and closed by the
   game's own `journal` action as well). `openScreen`, `closeScreen` and `respawn`
   change it and refuse what cannot be. A screen gates the controls, never the world: the
-  game keeps stepping behind every one. A pad and the keys work a screen through Flutter's
+  game keeps stepping behind every one, and behind a covered or minimised window too
+  (`FrameDriver` steps it from a timer while the window is hidden). A pad and the keys work a screen through Flutter's
   focus (`FocusBridge`): the arrows, the dpad and the left stick move it, Enter, Space and A
   press, Esc and B back out as pause does, and X (the pad's or the key) is the other
   press, a right-click's (`SecondaryActivateIntent`), wherever the focus takes it and only
   there. Each screen opens with a focus and outlines it
   (`ScreenFocus`), so one of yours built of Material buttons is worked by a pad with no
-  focus code; a slider takes left and right as its step in the settings.
+  focus code; a slider takes left and right as its step in the settings. A row with
+  nothing to press (a list to read through) shows the focus in a `FocusFill`.
 - The player's settings (`GameSettings`): render distance, look speed (mouse, finger and
   stick alike), field of view, volume, music volume, view bobbing and the frame rate, and
   the game's own across worlds (`GameSettings.game`, JSON the kit never reads). The
@@ -285,7 +287,7 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
 
 ```yaml
 dependencies:
-  voxel_game: ^0.3.0-dev
+  voxel_game: ^0.4.0-dev
 ```
 
 To work against a checkout of the repository instead, override all four packages by
@@ -316,7 +318,8 @@ Dart SDK `^3.13.0`.
   `--enable-flutter-gpu` flag turns Flutter GPU on, and release builds ignore it.
   macOS and Android are measured (`example/`); the example's iOS, Windows and Linux
   runners are set up but have not been run yet. On Windows and Linux the mouse look is a
-  drag, not a locked cursor: `pointer_lock` locks it only on macOS.
+  drag, not a locked cursor: `pointer_lock` locks it only on macOS
+  (`InputMap.pointerLockSupported`).
 - **Not the web.** Chunks are generated on worker isolates, multiplayer is TCP sockets and
   saves are files, through `dart:isolate` and `dart:io`, which a browser does not have.
   (`flutter_scene` itself runs on the web; the kit does not.)

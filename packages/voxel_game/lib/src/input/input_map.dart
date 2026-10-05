@@ -237,7 +237,9 @@ class InputMap<A extends Object> {
     _touchMineTimers.clear();
   }
 
-  /// Whether the platform locks the pointer (desktop); elsewhere a drag looks.
+  /// Whether the platform locks the pointer: macOS only, the one desktop
+  /// `pointer_lock` registers. Elsewhere a drag looks, Windows and Linux with a
+  /// mouse included (the kit's `KL-004`, deferred until a fix can be run there).
   bool get pointerLockSupported => PointerLock.instance.isSupported;
 
   /// Whether the game is looking around right now: the pointer is locked, or

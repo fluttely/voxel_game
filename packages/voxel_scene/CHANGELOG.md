@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.3.0-dev
+## 0.4.0-dev
+
+**Breaking**
+
+- None: every change here is new API.
 
 - `GpuPacedScene` (new): a `ResizeSafeScene` that, when `paced` (the default), shows a
   frame only once the GPU has finished it, so no Flutter frame waits on the 3D render.
@@ -38,7 +42,7 @@
 - `WeatherParticles` (new): rain and snow on flutter_scene's `ParticleSystem`, falling
   through a box around a point; `update(around, rainShare:, snowShare:)` once a frame.
 
-- `ItemMesh` (new): the mesh of an `ItemModel` (voxel_engine, unreleased), built the
+- `ItemMesh` (new): the mesh of an `ItemModel` (voxel_engine 0.4.0-dev), built the
   first time it is drawn, one per model (`ItemMesh.of`). Everything drawing the item hangs
   its own `node()` on the one geometry and the shared `VoxelModelMesh.material`, so
   flutter_scene instances them (VA5, the rule `KL-007` set for drops and shots).
@@ -53,6 +57,9 @@
   that frame flutter_scene discards the tiles and builds new ones on the next. The
   example renders with it. To remove once Flutter keys that cache on every attachment
   (flutter/flutter#192539).
+
+## 0.3.0-dev
+
 - **Breaking: `VoxelChunkView` draws what changed in `rebuild`, once a frame, within a
   time budget.** `apply` and `remove` only keep or drop the chunk and mark its region;
   `rebuild(near, {budgetUsec})` builds the marked regions nearest the chunk `near` first,

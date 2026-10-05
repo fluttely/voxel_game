@@ -5,9 +5,15 @@ All four packages are on pub.dev. `0.1.0-dev` went out on 2026-09-23, `0.1.1-dev
 and `0.1.2-dev` after it (the frame-rate work of the PF plan, the fixes that give every
 package its 160 pub points). `0.2.0-dev` followed, the four moving together: frames drawn between two steps, the greedy mesher, the packed terrain vertex and
 recipe music. It broke the API (`MeshSurface.colors`, `RigInstance.place`, the bundle
-`TerrainMaterial.loadLibrary` requires). `0.3.0-dev` is the next release, again with the four together: it breaks the API
+`TerrainMaterial.loadLibrary` requires). `0.3.0-dev` went out on 2026-09-29, again with the four together: it broke the API
 once more (`VoxelChunkView` draws what changed in `rebuild`), and below 1.0 a break moves the minor: a caret
-range such as `^0.2.0-dev` stops before `0.3.0`, so nobody on it is upgraded into the break. Each package is under the MIT license, with
+range such as `^0.2.0-dev` stops before `0.3.0`, so nobody on it is upgraded into the break.
+`0.4.0-dev` is the next release, the four together once more: the Minecraft clone's
+mechanics taken into the kit (`docs/VOXEL_ABSORB_PLAN_2026-09-30.md`) and the ledger's
+debts paid (`docs/VOXEL_LEDGER_PLAN_2026-10-04.md`). It breaks the API in `voxel_engine`
+(`StructureSpec` takes a `Structure`) and in `voxel_game` (events instead of the spec's
+callbacks, the screens a state machine, `SoundSpec.music`, `FrameStats.fps` the scene's
+rate, and more); each CHANGELOG opens its `0.4.0-dev` with the list. Each package is under the MIT license, with
 its metadata and real version ranges (`docs/VOXEL_RELAYOUT_PLAN_2026-09-21.md`, VR4). They resolve
 each other through the pub workspace declared in the root `pubspec.yaml`, which is
 not a package: all four live under `packages/`. The reasoning behind the four-package split is in
@@ -85,6 +91,18 @@ Then the same four without `--dry-run`, in that order, bumping the constraint in
 each dependent to the version just released. `voxel_engine` and `sound_recipes`
 do not depend on each other, so their order between themselves does not matter.
 
+**Each package gets a tag at the release commit**, `<package>-v<version>`, pushed with
+the release, so a git dependency (below) has a name to pin:
+
+```sh
+for p in voxel_engine sound_recipes voxel_scene voxel_game; do
+  git tag "$p-v0.4.0-dev"
+done
+git push origin voxel_engine-v0.4.0-dev sound_recipes-v0.4.0-dev voxel_scene-v0.4.0-dev voxel_game-v0.4.0-dev
+```
+
+No release before `0.4.0-dev` was tagged.
+
 **A dependent waits for its dependencies' analysis.** pub.dev analyses a version the
 moment it lands, and a version published seconds earlier is not yet visible to its
 analyser. `0.1.1-dev` went out four packages in thirty seconds, and `voxel_scene` and
@@ -112,7 +130,9 @@ than one version. The pin stays: the terrain material imports
 patch release of `flutter_scene` can break the build of everyone who installed the
 kit. A dry run that ends with that warning and nothing else is green; so is the
 "checked-in files are modified" warning while a release is still uncommitted.
-Anything else is not.
+Anything else is not. pub's hint that the version is "not an incremental update"
+(`0.3.0-dev` to `0.4.0-dev`, where it proposes `0.4.0` or `0.3.0`) is a hint, not a
+warning: the `-dev` stays while the API moves.
 
 A published version can never be replaced, only retracted for seven days. The
 dry run is not a formality.
@@ -137,7 +157,7 @@ dependencies:
     git:
       url: https://github.com/fluttely/voxel_game.git
       path: packages/voxel_engine   # or packages/voxel_game, packages/voxel_scene, ...
-      ref: <a tag or a commit>
+      ref: voxel_engine-v0.4.0-dev   # a tag, or a commit
 ```
 
 It is a legitimate place to stop. Publishing buys discoverability and a version

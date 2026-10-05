@@ -8,7 +8,7 @@ music that crossfades by mood.
 Nothing here is specific to voxels, or to any genre: it is one file of
 synthesis, a bank and a player.
 
-> **Status: 0.3.0-dev**, beta. The API can still change.
+> **Status: 0.4.0-dev**, beta. The API can still change.
 
 ## Features
 
@@ -23,7 +23,7 @@ synthesis, a bank and a player.
 
 ```yaml
 dependencies:
-  sound_recipes: ^0.3.0-dev
+  sound_recipes: ^0.4.0-dev
 ```
 
 Dart SDK `^3.13.0`.

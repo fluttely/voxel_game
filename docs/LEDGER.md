@@ -21,6 +21,7 @@
 - **Evidence:** `packages/voxel_game/lib/src/input/input_map.dart:180-191`: the look is `pointer_lock`'s when `PointerLock.instance.isSupported`, and a drag otherwise. `pointer_lock` 0.4.1 registers only `macos` (and web), and its method channel answers `isSupported` false on every other target (`pointer_lock_method_channel.dart:28`). So a desktop with a mouse on Windows or Linux falls into the phone's branch: the cursor stays free and visible, and the view turns only while a button is held down. Both examples gained `windows/` and `linux/` runners on 2026-09-24, and neither has been built or run on those systems.
 - **Cost of leaving it:** the kit says it targets every platform Flutter supports, but a first-person game on two of the three desktops plays like a touch screen with a mouse. Nothing tells a game author about it: `pointerLockSupported` is public, but the README never mentions it.
 - **Found while:** 2026-09-24 — adding Windows and Linux runners to the examples, for the launch post.
+- **Deferred:** 2026-10-05 — VLD3, VL12. The fix is native code (upstream in `pointer_lock`, or a plugin the kit would carry), and nothing here can run it; what lifts it is a Windows or Linux machine to see a fix run. Meanwhile it is said where an author looks: `voxel_game`'s README (the Flutter GPU section) and `InputMap.pointerLockSupported`'s doc (`packages/voxel_game/lib/src/input/input_map.dart:240`) name macOS as the one desktop that locks.
 
 ### KL-024 · Two owners of the audio device do not wait for each other
 
