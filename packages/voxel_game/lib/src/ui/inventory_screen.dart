@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:voxel_engine/content.dart';
 
 import '../core/voxel_game.dart';
+import 'focus_fill.dart';
 import 'item_icon.dart';
 import 'screen_focus.dart';
 import 'secondary_activate_intent.dart';
@@ -282,17 +283,20 @@ class _InventoryScreenState extends State<InventoryScreen> {
           : ListView(
               children: [
                 for (final r in recipes)
-                  ListTile(
-                    dense: true,
-                    leading: _stack(ItemStack(r.result, r.count), size: 32),
-                    title: Text('${_itemName(r.result)} x${r.count}'),
-                    subtitle: Text(
-                      r.ingredients.entries
-                          .map((e) => '${_itemName(e.key)} ${_inv.countOf(e.key)}/${e.value}')
-                          .join(', '),
+                  // One it cannot make yet still holds a pad's focus.
+                  FocusFill(
+                    child: ListTile(
+                      dense: true,
+                      leading: _stack(ItemStack(r.result, r.count), size: 32),
+                      title: Text('${_itemName(r.result)} x${r.count}'),
+                      subtitle: Text(
+                        r.ingredients.entries
+                            .map((e) => '${_itemName(e.key)} ${_inv.countOf(e.key)}/${e.value}')
+                            .join(', '),
+                      ),
+                      enabled: game.recipes.canCraft(r, _inv),
+                      onTap: () => game.player.craft(r),
                     ),
-                    enabled: game.recipes.canCraft(r, _inv),
-                    onTap: () => game.player.craft(r),
                   ),
               ],
             ),

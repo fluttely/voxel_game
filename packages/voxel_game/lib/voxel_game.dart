@@ -126,6 +126,7 @@ export 'src/ui/damage_numbers.dart';
 export 'src/ui/death_menu.dart';
 export 'src/ui/default_hud.dart';
 export 'src/ui/focus_bridge.dart';
+export 'src/ui/focus_fill.dart';
 export 'src/ui/game_screen.dart';
 export 'src/ui/game_surface.dart';
 export 'src/ui/hud_bar.dart';

@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 /// the stock overlay draws too faintly to find across a room; and a stronger
 /// [fill] for the focused list tile, the focused tab of a `TabBar` and
 /// anything else that shows its focus as a fill (Material's `focusColor`).
+/// A row with nothing to press shows it in a `FocusFill`.
 ///
 /// `GameSurface` puts each screen it opens in one, a game's own included.
 class ScreenFocus extends StatefulWidget {

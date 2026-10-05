@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **A row with nothing to press shows the focus (KL-013, last part).** `FocusFill` (new)
+  fills its child with `ScreenFocus.fill` while the focus is on it or under it. On a
+  screen every `InkWell` takes the focus, a disabled one too, so a pad stops on a row it
+  cannot press and a list scrolls under it; but Flutter paints a disabled `InkWell`'s
+  focus transparent, so the focus was there unseen. The bag's recipes are in one, so a
+  recipe the bag cannot make yet shows the focus; a game's read-only rows (a list to read
+  through) take one too. The fill replaces the child's own `focusColor`.
 - **A focused tab is filled (KL-013, last part).** `ScreenFocus` gives a `TabBar`'s
   focused tab `ScreenFocus.fill`, as it gives a list tile: a tab paints its focus in the
   tab bar's overlay, which Material's own default fills too faintly to find, and never

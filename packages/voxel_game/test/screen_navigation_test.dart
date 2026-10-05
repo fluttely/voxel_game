@@ -385,6 +385,15 @@ void main() {
     await press();
     expect(inv.countOf('stone'), 1, reason: 'A crafts');
     expect(inv.countOf('dirt'), 3);
+    await press();
+    expect(inv.countOf('dirt'), 1);
+    expect(tester.widget<ListTile>(recipe('Stone x1')).enabled, isFalse);
+    expect(focused(tester, recipe('Stone x1')), isTrue);
+    final fill = find.descendant(
+      of: find.ancestor(of: recipe('Stone x1'), matching: find.byType(FocusFill)),
+      matching: find.byType(Material),
+    );
+    expect(tester.widget<Material>(fill.first).color, ScreenFocus.fill, reason: 'one it cannot make still shows it');
     await move(TraversalDirection.up);
     final close = find.byType(IconButton);
     expect(focused(tester, close), isTrue, reason: 'up from the first recipe is the close button');
