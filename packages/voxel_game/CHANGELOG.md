@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- **A pad and the arrows work the title (KL-013, third part).** `TitleScreen` puts each
+  panel (the menu, the worlds, Multiplayer, Settings, Credits) in a `ScreenFocus`, so it
+  opens with a focus and draws it: the menu on Play, the worlds on Play (or New world
+  when there is none), the new-world form on its name, Multiplayer on Host, the
+  settings on their first row. B and Esc back out a level: the form to the list, a panel
+  to the menu. The pad reaches it through a `FocusBridge` scoped to the navigator, so a
+  rename or delete dialog and a dropdown's menu over the title are worked by it too;
+  `TitleScreen.pad` (new) is the pads it listens to, every pad the device hears when
+  null. The keys need no bridge there: the app's own shortcuts already make them the
+  focus intents, and a text field keeps its arrows and Space. `FocusBridge` now points a
+  pad's direction with `ignoreTextFields: false`, so the dpad and the stick leave a text
+  field; the arrow keys do not.
 - **A pad and the arrows work the bag (KL-013, second part).** Each of the bag's slots
   takes the focus, the slot in hand first, and draws it (`ScreenFocus.fill` under its
   ring); A, Enter and Space are a slot's click and X its right-click, through the same

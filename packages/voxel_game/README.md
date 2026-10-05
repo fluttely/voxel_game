@@ -150,7 +150,10 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
   (`WorldList`: make one from a name, a seed of any text and survival or creative; play,
   rename, delete), Multiplayer hosts one of them or joins an address, Settings sets the
   player's settings with no game running, Credits rolls `TitleSpec.credits`, and Quit
-  closes the app on a desktop. `TitleSpec.music` names one of the game's tracks to play
+  closes the app on a desktop. A pad and the keys work it as they work a game's screens:
+  each panel opens with a focus, B and Esc back out a level, and the pad also works a
+  dialog or a dropdown over it; a name field keeps its arrows and Space for the
+  typing. `TitleSpec.music` names one of the game's tracks to play
   under the menu; its Settings move the music's volume at once, and it stops before a
   world's music starts. The game menu's Quit saves and comes back to it. Each world
   keeps a `world.json` (`WorldInfo`: name, seed, mode, options, made, last played, play

@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:gamepads/gamepads.dart';
 import 'package:sound_recipes/sound_recipes.dart';
 
 import '../audio/game_music.dart';
@@ -13,6 +13,8 @@ import '../spec/title_spec.dart';
 import '../spec/voxel_game_spec.dart';
 import '../world/world_save.dart';
 import 'credits_roll.dart';
+import 'focus_bridge.dart';
+import 'screen_focus.dart';
 import 'settings_panel.dart';
 import 'title_choice.dart';
 import 'world_list.dart';
@@ -28,9 +30,15 @@ enum _Panel { menu, worlds, multiplayer, settings, credits }
 /// device of its own that closes with the screen, before a world opens its
 /// own.
 ///
-/// Escape, or Back, leaves a panel for the menu. A keyboard moves between
-/// the buttons with Tab and presses one with Enter or Space; a pad cannot
-/// (`KL-013`).
+/// A pad and the keys work it through Flutter's focus, as they work a game's
+/// screens: each panel sits in a [ScreenFocus], so it opens with a focus and
+/// draws it; the dpad and the left stick move it, A presses, B backs out a
+/// level (a panel for the menu, the new-world form for the list), and a
+/// dialog or a dropdown's menu over the title is worked the same way. The
+/// keys need no bridge here, since nothing above the title takes them: the
+/// app's own shortcuts (`WidgetsApp.defaultShortcuts`) make the arrows,
+/// Enter, Space and Esc the same intents, and leave a text field its caret
+/// and its Space. The pad is [pad]'s, read through a [FocusBridge].
 class TitleScreen extends StatefulWidget {
   /// The title of a game of [spec].
   const TitleScreen({
@@ -42,6 +50,7 @@ class TitleScreen extends StatefulWidget {
     required this.onChoice,
     this.onQuit,
     this.status,
+    this.pad,
   });
 
   /// The game.
@@ -65,6 +74,11 @@ class TitleScreen extends StatefulWidget {
   /// A line under the menu, or none.
   final String? status;
 
+  /// The pads that work the title, listened to while it is up: every pad
+  /// the device hears (`Gamepads.normalizedEvents`) when null, and a test's
+  /// own events when it hands them.
+  final Stream<NormalizedGamepadEvent>? pad;
+
   @override
   State<TitleScreen> createState() => _TitleScreenState();
 }
@@ -86,11 +100,17 @@ class _TitleScreenState extends State<TitleScreen> {
   SoundBank? _bank;
   GameMusic? _music;
 
+  // Scoped to the navigator, so a dialog or a dropdown's menu over the title
+  // is worked by the pad too.
+  FocusBridge? _bridge;
+  late final StreamSubscription<NormalizedGamepadEvent> _pad;
+
   static final RegExp _addressPattern = RegExp(r'^[A-Za-z0-9.\-]+(:\d{1,5})?$');
 
   @override
   void initState() {
     super.initState();
+    _pad = (widget.pad ?? Gamepads.normalizedEvents).listen((event) => _bridge!.onPad(event));
     final track = widget.menu.music;
     if (track == null) return;
     final music = widget.spec.sounds.music;
@@ -110,7 +130,15 @@ class _TitleScreenState extends State<TitleScreen> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _bridge ??= FocusBridge(Navigator.of(context).focusNode);
+  }
+
+  @override
   void dispose() {
+    _pad.cancel();
+    _bridge!.dispose();
     _flushSettings();
     _address.dispose();
     _music?.close();
@@ -136,61 +164,29 @@ class _TitleScreenState extends State<TitleScreen> {
     setState(() => _panel = panel);
   }
 
+  // A panel's own back (B, Esc) is its Back; the menu has none.
+  void _back() {
+    if (_panel != _Panel.menu) _open(_Panel.menu);
+  }
+
   @override
   Widget build(BuildContext context) {
     // Material under it all: the menu's text is not a stray Text's.
     return Material(
       type: MaterialType.transparency,
-      child: Focus(
-        autofocus: true,
-        onKeyEvent: (node, event) {
-          if (event is! KeyDownEvent || event.logicalKey != LogicalKeyboardKey.escape || _panel == _Panel.menu) {
-            return KeyEventResult.ignored;
-          }
-          _open(_Panel.menu);
-          return KeyEventResult.handled;
-        },
+      child: Actions(
+        actions: {DismissIntent: CallbackAction<DismissIntent>(onInvoke: (_) => _back())},
         child: Stack(
           fit: StackFit.expand,
           children: [
             widget.menu.background?.call(context) ?? const _Dusk(),
             SafeArea(
               child: Center(
-                child: switch (_panel) {
-                  _Panel.menu => _menu(),
-                  _Panel.worlds => _framed(
-                    'Worlds',
-                    WorldList(
-                      saves: widget.saves,
-                      modes: widget.menu.modes,
-                      options: widget.menu.worldOptions,
-                      onPlay: (slot) => widget.onChoice(PlayWorld(slot)),
-                      onBack: () => _open(_Panel.menu),
-                    ),
-                    width: 560,
-                  ),
-                  _Panel.multiplayer => _framed('Multiplayer', _multiplayer()),
-                  _Panel.settings => _framed(
-                    'Settings',
-                    Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Flexible(
-                          child: SingleChildScrollView(
-                            child: SettingsPanel(spec: widget.spec, value: _settings, onChanged: _changeSettings),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        FilledButton(onPressed: () => _open(_Panel.menu), child: const Text('Done')),
-                      ],
-                    ),
-                  ),
-                  _Panel.credits => _framed(
-                    null,
-                    CreditsRoll(lines: widget.menu.credits, onBack: () => _open(_Panel.menu)),
-                  ),
-                },
+                // Keyed by the panel, so each opens on a focus of its own.
+                child: KeyedSubtree(
+                  key: ValueKey(_panel),
+                  child: ScreenFocus(child: _panelWidget()),
+                ),
               ),
             ),
           ],
@@ -199,12 +195,45 @@ class _TitleScreenState extends State<TitleScreen> {
     );
   }
 
+  Widget _panelWidget() => switch (_panel) {
+    _Panel.menu => _menu(),
+    _Panel.worlds => _framed(
+      'Worlds',
+      WorldList(
+        saves: widget.saves,
+        modes: widget.menu.modes,
+        options: widget.menu.worldOptions,
+        onPlay: (slot) => widget.onChoice(PlayWorld(slot)),
+        onBack: () => _open(_Panel.menu),
+      ),
+      width: 560,
+    ),
+    _Panel.multiplayer => _framed('Multiplayer', _multiplayer()),
+    _Panel.settings => _framed(
+      'Settings',
+      Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Flexible(
+            child: SingleChildScrollView(
+              child: SettingsPanel(spec: widget.spec, value: _settings, onChanged: _changeSettings, autofocus: true),
+            ),
+          ),
+          const SizedBox(height: 8),
+          FilledButton(onPressed: () => _open(_Panel.menu), child: const Text('Done')),
+        ],
+      ),
+    ),
+    _Panel.credits => _framed(null, CreditsRoll(lines: widget.menu.credits, onBack: () => _open(_Panel.menu))),
+  };
+
   Widget _menu() {
     const shadow = [Shadow(color: Colors.black54, offset: Offset(2, 2), blurRadius: 4)];
     final menu = widget.menu, quit = widget.onQuit;
-    Widget button(String label, VoidCallback onPressed) => Padding(
+    Widget button(String label, VoidCallback onPressed, {bool autofocus = false}) => Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
-      child: FilledButton(onPressed: onPressed, child: Text(label)),
+      child: FilledButton(autofocus: autofocus, onPressed: onPressed, child: Text(label)),
     );
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -226,7 +255,7 @@ class _TitleScreenState extends State<TitleScreen> {
                 style: const TextStyle(fontSize: 15, shadows: shadow),
               ),
             const SizedBox(height: 20),
-            button('Play', () => _open(_Panel.worlds)),
+            button('Play', () => _open(_Panel.worlds), autofocus: true),
             if (menu.multiplayer) button('Multiplayer', () => _open(_Panel.multiplayer)),
             button('Settings', () => _open(_Panel.settings)),
             if (menu.credits.isNotEmpty) button('Credits', () => _open(_Panel.credits)),
@@ -271,6 +300,7 @@ class _TitleScreenState extends State<TitleScreen> {
           _Addresses(_interfaces),
           const SizedBox(height: 8),
           FilledButton(
+            autofocus: true,
             onPressed: host == null ? null : () => widget.onChoice(PlayWorld(host, hostPort: port)),
             child: const Text('Host'),
           ),

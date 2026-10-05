@@ -10,6 +10,10 @@ import '../world/world_save.dart';
 /// (any text, `WorldSaves.seedOf`), with [modes] survival or creative, and
 /// a pick of each of the game's [options]. A world made is played at once.
 /// Every change goes through [saves].
+///
+/// It opens with the focus on Play, or on New world when there is no world
+/// to play, and the form on its name; a [DismissIntent] (B, Esc) in the form
+/// cancels it, and one in the list is left to the screen around it.
 class WorldList extends StatefulWidget {
   /// The worlds of [saves]; [onPlay] takes the slot to play, [onBack] leaves.
   const WorldList({
@@ -133,7 +137,12 @@ class _WorldListState extends State<WorldList> {
   }
 
   @override
-  Widget build(BuildContext context) => _making ? _form() : _list();
+  Widget build(BuildContext context) => _making
+      ? Actions(
+          actions: {DismissIntent: CallbackAction<DismissIntent>(onInvoke: (_) => setState(() => _making = false))},
+          child: _form(),
+        )
+      : _list();
 
   Widget _list() {
     final sel = _selection;
@@ -168,8 +177,16 @@ class _WorldListState extends State<WorldList> {
           runSpacing: 8,
           alignment: WrapAlignment.center,
           children: [
-            FilledButton(onPressed: sel == null ? null : () => widget.onPlay(sel.slot), child: const Text('Play')),
-            OutlinedButton(onPressed: () => setState(() => _making = true), child: const Text('New world')),
+            FilledButton(
+              autofocus: sel != null,
+              onPressed: sel == null ? null : () => widget.onPlay(sel.slot),
+              child: const Text('Play'),
+            ),
+            OutlinedButton(
+              autofocus: sel == null,
+              onPressed: () => setState(() => _making = true),
+              child: const Text('New world'),
+            ),
             OutlinedButton(onPressed: sel == null ? null : () => _rename(sel), child: const Text('Rename')),
             OutlinedButton(onPressed: sel == null ? null : () => _delete(sel), child: const Text('Delete')),
             OutlinedButton(onPressed: widget.onBack, child: const Text('Back')),

@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -58,7 +61,8 @@ NormalizedGamepadEvent _axis(GamepadAxis axis, double value) => NormalizedGamepa
 
 /// The kit's screens — the game menu, the settings, the death screen, the
 /// bag, a game's own — worked by a pad alone and by the keys alone, over the
-/// surface `VoxelGameWidget` shows ([GameSurface] over a plain box).
+/// surface `VoxelGameWidget` shows ([GameSurface] over a plain box); and the
+/// title, which has no game under it, worked the same ways.
 void main() {
   setUp(_pressed.clear);
 
@@ -432,5 +436,159 @@ void main() {
     await key(tester, LogicalKeyboardKey.enter);
     expect(back, 1);
     await tester.pumpAndSettle();
+  });
+
+  group('the title', () {
+    late StreamController<NormalizedGamepadEvent> pads;
+    late WorldSaves saves;
+    late List<TitleChoice> picked;
+
+    setUp(() {
+      pads = StreamController();
+      final dir = Directory.systemTemp.createTempSync('voxel_title');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      saves = WorldSaves(dir);
+      picked = [];
+    });
+    tearDown(() => pads.close());
+
+    Future<void> mount(
+      WidgetTester tester, {
+      TitleSpec menu = const TitleSpec(name: 'Blocks', credits: ['Blocks', 'by us']),
+    }) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: TitleScreen(
+            spec: _spec,
+            menu: menu,
+            saves: saves,
+            settings: SettingsStore(File('${saves.directory.path}/settings.json')),
+            onChoice: picked.add,
+            pad: pads.stream,
+          ),
+        ),
+      );
+      await settle(tester);
+    }
+
+    // The stream hands the event on in a microtask, which the pump runs.
+    Future<void> press(WidgetTester tester, GamepadButton button) async {
+      pads.add(_button(button, 1));
+      await tester.pump();
+      pads.add(_button(button, 0));
+      await settle(tester);
+    }
+
+    Future<void> padTo(WidgetTester tester, GamepadButton way, Finder target) async {
+      for (var i = 0; i < 10 && !focused(tester, target); i++) {
+        await press(tester, way);
+      }
+      expect(focused(tester, target), isTrue);
+    }
+
+    Finder field(String label) => find.widgetWithText(TextField, label);
+
+    testWidgets('a pad alone rolls the credits and makes a world to play', (tester) async {
+      await mount(tester);
+      expect(focused(tester, button('Play')), isTrue, reason: 'the title opens on Play');
+
+      await padTo(tester, GamepadButton.dpadDown, button('Credits'));
+      await press(tester, GamepadButton.a);
+      expect(find.text('by us'), findsOneWidget);
+      expect(focused(tester, button('Back')), isTrue, reason: 'the credits open on Back');
+      await press(tester, GamepadButton.b);
+      expect(find.text('by us'), findsNothing, reason: 'B backs out to the menu');
+      expect(focused(tester, button('Play')), isTrue);
+
+      await press(tester, GamepadButton.a);
+      expect(find.text('Worlds'), findsOneWidget);
+      expect(focused(tester, button('New world')), isTrue, reason: 'no world to play yet');
+      await press(tester, GamepadButton.a);
+      expect(focused(tester, field('Name')), isTrue, reason: 'the form opens on the name');
+      await press(tester, GamepadButton.b);
+      expect(field('Name'), findsNothing, reason: 'B cancels the form, and stays in the list');
+      expect(find.text('Worlds'), findsOneWidget);
+      expect(focused(tester, button('New world')), isTrue);
+
+      await press(tester, GamepadButton.a);
+      await padTo(tester, GamepadButton.dpadDown, button('Create'));
+      await press(tester, GamepadButton.a);
+      expect(picked.single, isA<PlayWorld>().having((p) => p.slot, 'slot', saves.list().single));
+      expect(saves.info(saves.list().single).name, 'New world');
+    });
+
+    testWidgets('a pad works a dialog over the title, and B leaves the worlds', (tester) async {
+      saves.create('Home', seed: 1);
+      await mount(tester);
+      await press(tester, GamepadButton.a);
+      expect(focused(tester, button('Play')), isTrue, reason: 'the last played is selected');
+      await padTo(tester, GamepadButton.dpadRight, button('Rename'));
+      await press(tester, GamepadButton.a);
+      await tester.pumpAndSettle();
+      expect(find.text('Rename world'), findsOneWidget);
+      await padTo(tester, GamepadButton.dpadDown, button('Cancel'));
+      await press(tester, GamepadButton.b);
+      await tester.pumpAndSettle();
+      expect(find.text('Rename world'), findsNothing, reason: 'B closes the dialog');
+      expect(focused(tester, button('Rename')), isTrue, reason: 'and the focus is back where it was');
+
+      await press(tester, GamepadButton.b);
+      expect(find.text('Worlds'), findsNothing);
+      await press(tester, GamepadButton.a);
+      await press(tester, GamepadButton.a);
+      expect(picked.single, isA<PlayWorld>().having((p) => p.slot, 'slot', 'home'));
+    });
+
+    testWidgets('a pad picks from a dropdown\'s menu', (tester) async {
+      await mount(
+        tester,
+        menu: const TitleSpec(
+          name: 'Blocks',
+          worldOptions: [
+            WorldOption('class', label: 'Class', choices: {'warrior': 'Warrior', 'mage': 'Mage'}),
+          ],
+        ),
+      );
+      await press(tester, GamepadButton.a);
+      await press(tester, GamepadButton.a);
+      final dropdown = find.byType(DropdownButtonFormField<String>);
+      await padTo(tester, GamepadButton.dpadDown, dropdown);
+      await press(tester, GamepadButton.a);
+      await tester.pumpAndSettle();
+      final mage = find.ancestor(of: find.text('Mage').last, matching: find.byType(InkWell)).first;
+      await padTo(tester, GamepadButton.dpadDown, mage);
+      await press(tester, GamepadButton.a);
+      await tester.pumpAndSettle();
+      expect(focused(tester, dropdown), isTrue, reason: 'the menu closed, back on its button');
+      await padTo(tester, GamepadButton.dpadDown, button('Create'));
+      await press(tester, GamepadButton.a);
+      expect(saves.info(saves.list().single).options, {'class': 'mage'});
+    });
+
+    testWidgets('the keys alone play a world, and a text field keeps its own', (tester) async {
+      saves.create('Home', seed: 1);
+      await mount(tester);
+      expect(focused(tester, button('Play')), isTrue);
+      await key(tester, LogicalKeyboardKey.enter);
+      expect(focused(tester, button('Play')), isTrue);
+      await key(tester, LogicalKeyboardKey.arrowRight);
+      expect(focused(tester, button('New world')), isTrue);
+      await key(tester, LogicalKeyboardKey.space);
+      expect(focused(tester, field('Name')), isTrue);
+
+      expect(await tester.sendKeyEvent(LogicalKeyboardKey.space), isFalse, reason: 'Space goes on to be typed');
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await settle(tester);
+      expect(focused(tester, field('Name')), isTrue, reason: 'the arrows are the caret\'s');
+      await key(tester, LogicalKeyboardKey.escape);
+      expect(field('Name'), findsNothing, reason: 'Esc cancels the form');
+
+      await key(tester, LogicalKeyboardKey.escape);
+      expect(find.text('Worlds'), findsNothing, reason: 'and the list');
+      await key(tester, LogicalKeyboardKey.enter);
+      await key(tester, LogicalKeyboardKey.enter);
+      expect(picked.single, isA<PlayWorld>().having((p) => p.slot, 'slot', 'home'));
+    });
   });
 }

@@ -19,6 +19,10 @@ import 'secondary_activate_intent.dart';
 /// slot the key and the button are still the game's, and the key still
 /// types in a text field.
 ///
+/// A pad's direction leaves a text field (`ignoreTextFields: false`): a pad
+/// has no Tab, and no caret to move. An arrow key keeps Flutter's default,
+/// which leaves the focus in the field.
+///
 /// A held direction repeats, after [repeatDelay] and then every
 /// [repeatEvery]. The keyboard's repeat is the system's own
 /// ([KeyRepeatEvent]); the pad's is the bridge's, kept from the presses and
@@ -63,10 +67,10 @@ class FocusBridge {
   };
 
   static Intent? _ofButton(GamepadButton button) => switch (button) {
-    GamepadButton.dpadUp => const DirectionalFocusIntent(TraversalDirection.up),
-    GamepadButton.dpadDown => const DirectionalFocusIntent(TraversalDirection.down),
-    GamepadButton.dpadLeft => const DirectionalFocusIntent(TraversalDirection.left),
-    GamepadButton.dpadRight => const DirectionalFocusIntent(TraversalDirection.right),
+    GamepadButton.dpadUp => const DirectionalFocusIntent(TraversalDirection.up, ignoreTextFields: false),
+    GamepadButton.dpadDown => const DirectionalFocusIntent(TraversalDirection.down, ignoreTextFields: false),
+    GamepadButton.dpadLeft => const DirectionalFocusIntent(TraversalDirection.left, ignoreTextFields: false),
+    GamepadButton.dpadRight => const DirectionalFocusIntent(TraversalDirection.right, ignoreTextFields: false),
     GamepadButton.a => const ActivateIntent(),
     GamepadButton.b => const DismissIntent(),
     GamepadButton.x => const SecondaryActivateIntent(),
@@ -116,7 +120,7 @@ class FocusBridge {
     _stick = way;
     _letGo(_stickSource);
     if (way != null && _inside) {
-      final intent = DirectionalFocusIntent(way);
+      final intent = DirectionalFocusIntent(way, ignoreTextFields: false);
       _invoke(intent);
       _hold(_stickSource, intent);
     }
