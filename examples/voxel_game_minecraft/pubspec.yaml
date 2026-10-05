@@ -13,9 +13,9 @@ dependencies:
   flutter_scene: ^0.23.0
   hooks: ^2.2.0
   vector_math: ^2.4.2
-  voxel_engine: ^0.3.0-dev
-  voxel_game: ^0.3.0-dev
-  voxel_scene: ^0.3.0-dev
+  voxel_engine: ^0.4.0-dev
+  voxel_game: ^0.4.0-dev
+  voxel_scene: ^0.4.0-dev
 
 # The kit from this tree, never pub.dev's: this app witnesses a kit change before it is
 # published (KL-006). Overrides, not path dependencies, because the kit's packages depend

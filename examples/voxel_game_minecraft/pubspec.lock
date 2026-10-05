@@ -472,7 +472,7 @@ packages:
       path: "../../packages/sound_recipes"
       relative: true
     source: path
-    version: "0.3.0-dev"
+    version: "0.4.0-dev"
   source_span:
     dependency: transitive
     description:
@@ -551,21 +551,21 @@ packages:
       path: "../../packages/voxel_engine"
       relative: true
     source: path
-    version: "0.3.0-dev"
+    version: "0.4.0-dev"
   voxel_game:
     dependency: "direct main"
     description:
       path: "../../packages/voxel_game"
       relative: true
     source: path
-    version: "0.3.0-dev"
+    version: "0.4.0-dev"
   voxel_scene:
     dependency: "direct main"
     description:
       path: "../../packages/voxel_scene"
       relative: true
     source: path
-    version: "0.3.0-dev"
+    version: "0.4.0-dev"
   web:
     dependency: transitive
     description:
