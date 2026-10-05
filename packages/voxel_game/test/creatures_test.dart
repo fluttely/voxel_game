@@ -492,6 +492,42 @@ void main() {
       expect(back.data, isEmpty);
     });
 
+    test('a creature marked a boss after it spawns is the game\'s boss, and the save keeps the mark', () async {
+      final (saves, _) = newSaves();
+      final game = await _start(spec);
+      final stays = game.spawnMob('keeper', game.player.position + Vector3(-4, 0, 2));
+      expect(stays.boss, isFalse, reason: 'as its species is');
+      expect(game.boss, isNull);
+      stays.boss = true;
+      expect(game.boss, same(stays));
+      saves.save(game, 'boss');
+
+      final loaded = await VoxelGame.startHeadless(spec, save: saves.read('boss'));
+      expect(loaded.mobs.single.boss, isTrue);
+      expect(loaded.boss, same(loaded.mobs.single));
+    });
+
+    test('a version 9 save, which kept no boss mark, marks each creature as its species is', () async {
+      final (saves, dir) = newSaves();
+      const boss = MobSpec('lord', hp: 20, brain: [], persistent: true, boss: true);
+      final bossSpec = _flat(mobs: [keeper, boss]);
+      final game = await _start(bossSpec);
+      game.spawnMob('keeper', game.player.position + Vector3(-4, 0, 2)).boss = true;
+      game.spawnMob('lord', game.player.position + Vector3(4, 0, 2)).boss = false;
+      saves.save(game, 'old');
+      final file = File('${dir.path}/old/game.json');
+      final s = jsonDecode(file.readAsStringSync()) as Map<String, Object?>;
+      s['version'] = 9;
+      for (final row
+          in ((s['mobs']! as Map<String, Object?>)['world']! as List<Object?>).cast<Map<String, Object?>>()) {
+        row.remove('boss');
+      }
+      file.writeAsStringSync(jsonEncode(s));
+
+      final loaded = await VoxelGame.startHeadless(bossSpec, save: saves.read('old'));
+      expect({for (final m in loaded.mobs) m.spec.id: m.boss}, {'keeper': false, 'lord': true});
+    });
+
     test('a version 8 save, which kept no home and no data, still loads', () async {
       final (saves, dir) = newSaves();
       final game = await _start(spec);

@@ -39,7 +39,7 @@ import 'rig.dart';
 /// copy follows the poses it sends ([followRider]).
 class Mob extends GameEntity implements Target, Rideable {
   /// A [spec] standing at [at].
-  Mob(this.spec, Vector3 at) : hp = spec.hp, home = at.clone() {
+  Mob(this.spec, Vector3 at) : hp = spec.hp, boss = spec.boss, home = at.clone() {
     halfWidth = spec.halfWidth;
     height = spec.height;
     position = at.clone();
@@ -55,6 +55,12 @@ class Mob extends GameEntity implements Target, Rideable {
 
   /// Its health.
   double hp;
+
+  /// Whether it is a boss: `VoxelGame.boss` is the nearest living one, whose
+  /// health the default HUD shows at the top. Seeded from `MobSpec.boss`; a
+  /// game's system marks one it summons or wakes as a boss. Kept in its
+  /// [row].
+  bool boss;
 
   /// Its level, from 1: what its health, its strikes and its experience
   /// grow by (`MobSpec.levels`). Set it with [growTo].
@@ -330,8 +336,8 @@ class Mob extends GameEntity implements Target, Rideable {
 
   /// What the save and a trip to another dimension keep of it, read back by
   /// `VoxelGame.mobFrom`: its id, where it stands facing where, its health
-  /// and level, whether it is tamed, its [home], how long its fleece has to
-  /// grow when shorn, and the game's [data].
+  /// and level, whether it is tamed and whether a [boss], its [home], how
+  /// long its fleece has to grow when shorn, and the game's [data].
   Map<String, Object?> get row => {
     'id': spec.id,
     'pos': [position.x, position.y, position.z],
@@ -339,6 +345,7 @@ class Mob extends GameEntity implements Target, Rideable {
     'hp': hp,
     'level': level,
     'tamed': tamed,
+    'boss': boss,
     'home': [home.x, home.y, home.z],
     // Only a shorn one says how long its fleece has to grow.
     if (shorn) 'shorn': shornLeft,
@@ -424,11 +431,19 @@ class Mob extends GameEntity implements Target, Rideable {
 
   /// A replica's state from the host: where it is, facing where, its health,
   /// who tamed it ([owner], null for a wild one), whether it is [shorn],
-  /// and whether it died. Health
+  /// whether a [boss], and whether it died. Health
   /// lost since the last state is a hit, here as on the host: its number
   /// shows over it, and [sinceHurt] starts again. While the local player
   /// rides it, where it is and where it faces are this side's.
-  void applyNetState(Vector3 at, double yaw, double health, {Target? owner, bool shorn = false, bool dead = false}) {
+  void applyNetState(
+    Vector3 at,
+    double yaw,
+    double health, {
+    Target? owner,
+    bool shorn = false,
+    bool boss = false,
+    bool dead = false,
+  }) {
     if (!replica) throw StateError('${spec.id} $netId is the host\'s own, not a replica');
     // The first state is where the replica starts, not a hit.
     if (_netTo != null && health < hp) {
@@ -443,6 +458,7 @@ class Mob extends GameEntity implements Target, Rideable {
     hp = health;
     _owner = owner;
     shornLeft = shorn ? 1.0 : 0.0;
+    this.boss = boss;
     if (dead && !_dead) kill(dropLoot: false);
   }
 

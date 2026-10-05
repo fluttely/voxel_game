@@ -55,6 +55,15 @@ class Minecart extends Vehicle {
   double get speed => _speed;
   double _speed = 0.0;
 
+  /// Sets it rolling the way it heads at [speed] metres a second, from 0 to
+  /// `CartSpec.maxSpeed`: a cart put down already moving (`VoxelGame.placeVehicle`
+  /// returns it), or given a shove by a game's system. From the next step it
+  /// rolls by the rules, as any cart does.
+  void push(double speed) {
+    assert(speed >= 0.0 && speed <= spec.maxSpeed, 'a cart rolls at 0 to ${spec.maxSpeed} m/s, not $speed');
+    _speed = speed;
+  }
+
   /// The way it heads along the ground: the end of its rail it leaves by, a
   /// flat unit step.
   IVec3 get heading => IVec3(_to.x, 0, _to.z);

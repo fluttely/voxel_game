@@ -944,6 +944,23 @@ void main() {
     await _close(session, clients);
   });
 
+  test("a creature the host marks a boss is a boss on every side, and unmarked is none", () async {
+    final (host, session, clients) = await _session(1, spec: _farmSpec);
+    final [a] = clients;
+    final sheep = host.spawnMob('sheep', a.player.position + Vector3(0, 0, -2.5));
+    await _run([host, ...clients], 0.5);
+    final mine = _replicaOf(a, sheep);
+    expect(a.boss, isNull);
+    sheep.boss = true;
+    await _run([host, ...clients], 0.5);
+    expect(mine.boss, isTrue, reason: "the host's row says so");
+    expect(a.boss, same(mine));
+    sheep.boss = false;
+    await _run([host, ...clients], 0.5);
+    expect(a.boss, isNull);
+    await _close(session, clients);
+  });
+
   test('the night passes once the host and every client sleep, on every side', () async {
     final (host, session, clients) = await _session(1, spec: _farmSpec);
     final [a] = clients;

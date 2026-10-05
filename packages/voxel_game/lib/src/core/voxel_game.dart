@@ -480,6 +480,7 @@ class VoxelGame {
     if (level != 1) mob.growTo(level);
     mob.hp = (row['hp']! as num).toDouble();
     if (row['tamed']! as bool) mob.tame(player);
+    mob.boss = row['boss']! as bool;
     if (row['shorn'] case final num left) mob.shornLeft = left.toDouble();
     mob.data.addAll(row['data']! as Map<String, Object?>);
     return mob;
@@ -1277,12 +1278,12 @@ class VoxelGame {
   /// How liquid [kind] flows and looks: the spec's, or its default.
   LiquidSpec liquid(String kind) => spec.liquids[kind] ?? LiquidSpec.defaultFor(kind);
 
-  /// The nearest living boss (`MobSpec.boss`) to the player, or null.
+  /// The nearest living boss (`Mob.boss`) to the player, or null.
   Mob? get boss {
     Mob? best;
     var bestD = double.infinity;
     for (final m in mobs) {
-      if (!m.spec.boss || m.isDead) continue;
+      if (!m.boss || m.isDead) continue;
       final d = m.position.distanceToSquared(player.position);
       if (d < bestD) {
         best = m;

@@ -57,7 +57,7 @@ bool _level10(VoxelGame game) => game.player.level >= 10;
 
 bool _pickedDiamond(VoxelGame game, GameEvent e) => e is ItemPickedUp && e.item == 'diamond';
 
-bool _killedBoss(VoxelGame game, GameEvent e) => e is MobKilled && e.byPlayer && e.mob.spec.boss;
+bool _killedBoss(VoxelGame game, GameEvent e) => e is MobKilled && e.byPlayer && e.mob.boss;
 
 bool _killedElite(VoxelGame game, GameEvent e) => e is MobKilled && e.byPlayer && isElite(e.mob.spec.id);
 

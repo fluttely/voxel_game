@@ -104,7 +104,8 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
   over it (`VoxelGame.damageNumbers`). The crosshair turns red on a creature in reach, a ring
   around it fills as a block is mined, a worn tool shows what is left of it under its slot,
   the screen takes the colour of the liquid the camera is in (`LiquidSpec(tint: 0.25)`), a
-  `MobSpec(boss: true)` that lives puts its health at the top, and the player's
+  boss that lives puts its health at the top (`Mob.boss`, seeded from `MobSpec(boss:
+  true)` and set by a game on a creature it summons as one), and the player's
   `GameSettings.showFps` the frame rate at the top left.
 - Blocks that do things, each a field of its row: sand `falls` to where it lands, a torch
   with a `support` drops once its floor or wall goes and is never placed where it would not
@@ -214,7 +215,7 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
   its item. The minecart goes on a rail and rides the rails: rails lay themselves into
   straights, curves and slopes as they are placed (`Rails`), a cart rolls down a slope,
   a powered rail on speeds it and one off brakes it, and its rider pushes it along with the
-  move keys. A mount and a vehicle are both `Rideable` (`PlayerEntity.ride` / `riding` /
+  move keys; a game sets one rolling with `Minecart.push`. A mount and a vehicle are both `Rideable` (`PlayerEntity.ride` / `riding` /
   `dismount`). A vehicle stays where it was left, in the save and across a trip to another
   dimension.
 - Fishing, declared: `VoxelGameSpec.fishing: FishingSpec(rod: 'fishing_rod', catches:

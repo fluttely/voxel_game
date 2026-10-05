@@ -180,11 +180,20 @@ void main() {
   test('the arena: a plate calls its boss once, and the gold button fills it again', () async {
     final game = await _start();
     final arena = await _visit(game, 'arena');
+    final trollPlate = ExhibitBuilder.bossPlateCell(arena, 1);
+    game.player.placeAt(trollPlate.centre..y = trollPlate.y + 0.05);
+    _run(game, 0.5);
+    final troll = game.boss!;
+    expect(troll.spec.id, 'troll', reason: 'no boss of its species, the summon marks it one');
+    expect(troll.spec.boss, isFalse);
+    troll.removed = true;
+    game.player.placeAt(Vector3(arena.cx + 0.5, Playground.floor + 0.1, arena.cz + 22.5));
+    _run(game, 0.2);
     final plate = ExhibitBuilder.bossPlateCell(arena, 2);
     game.player.placeAt(plate.centre..y = plate.y + 0.05);
     _run(game, 0.5);
     expect(_tagged(game, 'arena').where((m) => m.spec.id == 'yeti'), hasLength(1));
-    expect(game.boss?.spec.id, 'yeti', reason: 'a boss of its species shows its bar');
+    expect(game.boss?.spec.id, 'yeti', reason: 'a boss of its species too');
     game.player.placeAt(Vector3(arena.cx + 0.5, Playground.floor + 0.1, arena.cz + 22.5));
     _run(game, 0.2);
     game.player.placeAt(plate.centre..y = plate.y + 0.05);

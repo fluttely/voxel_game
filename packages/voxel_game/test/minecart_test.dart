@@ -212,6 +212,23 @@ void main() {
     expect(cart.velocity.length, 0.0);
   });
 
+  test('pushed as it is put down, it rolls along a flat rail until the friction stops it', () async {
+    final game = await _start();
+    final base = _ground(game, 2, 0);
+    _line(game, base, _east, 30);
+    final cart = game.placeVehicle('minecart', _on(base + _east * 2), facing: _yawAlong(_east))! as Minecart..push(4.0);
+    final from = cart.position.clone();
+    await _run(game, 1.0);
+    expect(cart.speed, closeTo(4.0 - _cart.friction, 0.05), reason: 'a second\'s friction off its start');
+    expect(cart.heading, _east, reason: 'the way it was put down');
+    expect(cart.position.x - from.x, closeTo(3.8, 0.1));
+    await _run(game, 10.0);
+    expect(cart.speed, 0.0);
+    expect(cart.position.x - from.x, closeTo(4.0 * 4.0 / (2 * _cart.friction), 0.2), reason: 'v² / 2 × friction');
+    expect(() => cart.push(-1.0), throwsA(isA<AssertionError>()), reason: 'it rolls the way it heads');
+    expect(() => cart.push(_cart.maxSpeed + 1.0), throwsA(isA<AssertionError>()), reason: 'past its top speed');
+  });
+
   test('its rider pushes it along its heading by the move, and back the other way; the line\'s end stops it', () async {
     final game = await _start();
     final base = _ground(game, 2, 0);

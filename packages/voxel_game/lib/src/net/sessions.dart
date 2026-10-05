@@ -1012,6 +1012,7 @@ class HostSession extends GameSession {
             'hp': m.hp,
             'dead': m.isDead,
             if (m.shorn) 'sh': true,
+            if (m.boss) 'b': true,
             if (m.owner case final o?) 'o': _peerOf(o),
             if (m.rider case final r?) 'r': _peerOf(r),
           },
@@ -1658,6 +1659,7 @@ class ClientSession extends GameSession {
         (r['hp']! as num).toDouble(),
         owner: owner == null ? null : _player(owner),
         shorn: r['sh'] == true,
+        boss: r['b'] == true,
         dead: r['dead'] == true,
       );
     }

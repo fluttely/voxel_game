@@ -505,7 +505,9 @@ class Playground extends SavedSystem {
     if (there != null && !there.removed && !there.isDead) {
       return game.notify('The ${there.name} is already in the arena');
     }
-    final m = _creature(game, species, _at(z.cx, z.cz), 'arena', home: _at(z.cx, z.cz));
+    // A plate's creature is a boss here, its species one or not (the troll,
+    // the boomer): its health is the bar at the top.
+    final m = _creature(game, species, _at(z.cx, z.cz), 'arena', home: _at(z.cx, z.cz))..boss = true;
     _summoned[species] = m;
     game.debris.burst(m.position + Vector3(0.0, 1.0, 0.0), Vector3(0.9, 0.3, 0.2), count: 30);
     game.playSound('quest', volumeDb: -4.0, pitch: 0.6);

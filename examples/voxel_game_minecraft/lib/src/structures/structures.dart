@@ -248,10 +248,11 @@ class Structures extends SavedSystem {
     }
   }
 
-  /// A creature of [id] at [at], [above] levels over the player's (the old
-  /// game's, whose levels counted from 1).
+  /// A boss of [id] at [at], [above] levels over the player's (the old
+  /// game's, whose levels counted from 1), its species one or not (the
+  /// troll).
   static Mob _wake(VoxelGame game, String id, Vector3 at, int above) {
-    final mob = game.spawnMob(id, at);
+    final mob = game.spawnMob(id, at)..boss = true;
     mob.growTo(game.player.level + 1 + above);
     return mob;
   }

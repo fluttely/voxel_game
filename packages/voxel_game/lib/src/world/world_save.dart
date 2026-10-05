@@ -63,7 +63,7 @@ class SavedWorld {
 /// from them (its name is its slot, it plays as the game declares, when it
 /// was made is not known) until its next [save] or [rename] writes one.
 ///
-/// `game.json` is version 9. Older saves still load, each a branch on its
+/// `game.json` is version 10. Older saves still load, each a branch on its
 /// version: a version 1 save, from before the player had hunger, experience,
 /// effects and armour, stands its player up fed, at level 0, wearing nothing;
 /// a save before version 3 has no crops growing, and one before version 4
@@ -73,7 +73,8 @@ class SavedWorld {
 /// before version 6 keeps no creature, one before version 7 no vehicle, and
 /// one before version 8 nothing of the game's own (its systems start as
 /// made); a save before version 9 keeps creatures only where the player
-/// is, each at home where it stands, with no game's data.
+/// is, each at home where it stands, with no game's data; and one before
+/// version 10 marks a creature a boss as its species is (`Mob.boss`).
 class WorldSaves {
   /// Saves under [directory]; [clock] says when a world is made and played.
   WorldSaves(this.directory, {this.clock = DateTime.now});
@@ -85,7 +86,7 @@ class WorldSaves {
   final DateTime Function() clock;
 
   /// The version of `game.json` [save] writes.
-  static const stateVersion = 9;
+  static const stateVersion = 10;
 
   /// The edit file's layout for a game of [dimensions]: magic `VXK1`,
   /// version 2, every dimension; a version 1 file, of one dimension, still
@@ -365,12 +366,18 @@ class WorldSaves {
   }
 
   // Before version 9 a creature kept no home (it wandered about where it was
-  // loaded) and no game's data, and only the player's dimension had any.
+  // loaded) and no game's data, and only the player's dimension had any;
+  // before version 10 it was a boss as its species is.
   static void _restoreMobs(VoxelGame game, Map<String, Object?> byDimension, int version) {
+    Map<String, Object?> current(Map<String, Object?> row) => {
+      ...row,
+      if (version < 9) 'home': row['pos'],
+      if (version < 9) 'data': <String, Object?>{},
+      if (version < 10) 'boss': game.mobSpec(row['id']! as String).boss,
+    };
     for (final e in byDimension.entries) {
       game.restoreMobs(e.key, [
-        for (final row in (e.value! as List<Object?>).cast<Map<String, Object?>>())
-          version >= 9 ? row : {...row, 'home': row['pos'], 'data': <String, Object?>{}},
+        for (final row in (e.value! as List<Object?>).cast<Map<String, Object?>>()) current(row),
       ]);
     }
   }

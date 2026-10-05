@@ -380,6 +380,20 @@ void main() {
     game.dispose();
   });
 
+  testWidgets('a creature marked a boss after it spawns shows the bar, and unmarked hides it', (tester) async {
+    final game = await start(tester, _spec.copyWith(mobs: const [MobSpec('troll', hp: 30, brain: [])]));
+    final t = game.spawnMob('troll', game.player.position + Vector3(0, 0, -10));
+    await step(tester, game);
+    expect(find.textContaining('Troll'), findsNothing, reason: 'its species is no boss');
+    t.boss = true;
+    await step(tester, game);
+    expect(find.text('Troll   30 / 30'), findsOneWidget);
+    t.boss = false;
+    await step(tester, game);
+    expect(find.textContaining('Troll'), findsNothing);
+    game.dispose();
+  });
+
   testWidgets('the frame rate shows only when asked for', (tester) async {
     final game = await start(tester);
     await step(tester, game);

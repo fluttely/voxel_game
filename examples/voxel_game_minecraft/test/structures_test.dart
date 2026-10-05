@@ -145,6 +145,7 @@ void main() {
     final room = await _lastRoomOf(game, dungeon);
     await _standAt(game, room);
     expect(_alive(game, 'troll'), hasLength(1));
+    expect(_alive(game, 'troll').single.boss, isTrue, reason: 'woken a boss, its health the bar at the top');
     expect(_told(game), contains('A Cave Troll guards the treasure!'));
 
     _run(game, 20.0);

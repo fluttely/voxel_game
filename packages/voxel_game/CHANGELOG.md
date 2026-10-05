@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **A boss is marked on the creature; a cart can start rolling.** `Mob.boss` (new): whether
+  it is a boss, seeded from `MobSpec.boss` and set by a game's system on a creature it
+  summons or wakes as one. `VoxelGame.boss` reads it (no longer the species), so the
+  default HUD's bar follows the mark; a client's replica carries the host's. `Mob.row`
+  keeps it: `game.json` is version 10, and a version 9 save marks each creature as its
+  species is. `Minecart.push` (new) sets a cart rolling the way it heads, at 0 to
+  `CartSpec.maxSpeed`: a cart `VoxelGame.placeVehicle` puts down already moving, or one a
+  game shoves.
 - **A stock structure's plan (KL-022).** `DungeonPlan`, `DungeonRoom` and `MinePlan` are
   exported with the rest of `voxel_engine`'s worldgen: a game finds a dungeon's rooms and
   spawners, or a mine's spawner and chest, from `PlacedStructure` and
