@@ -6,8 +6,10 @@ import 'package:flutter/material.dart';
 /// it when none does, so the first direction lands on the widget that way;
 /// directional navigation ([NavigationMode.directional]), so up and down
 /// leave a slider and a disabled button can hold the focus until it wakes;
-/// and a [ring] around the focused Material button, which the stock overlay
-/// draws too faintly to find across a room.
+/// a [ring] around the focused Material button, icon buttons included, which
+/// the stock overlay draws too faintly to find across a room; and a stronger
+/// [fill] for the focused list tile and anything else that shows its focus
+/// as a fill (Material's `focusColor`).
 ///
 /// `GameSurface` puts each screen it opens in one, a game's own included.
 class ScreenFocus extends StatefulWidget {
@@ -19,6 +21,9 @@ class ScreenFocus extends StatefulWidget {
 
   /// What the focused button is outlined with.
   static const BorderSide ring = BorderSide(color: Colors.white, width: 2);
+
+  /// What the focused list tile is filled with.
+  static const Color fill = Colors.white24;
 
   @override
   State<ScreenFocus> createState() => _ScreenFocusState();
@@ -50,6 +55,8 @@ class _ScreenFocusState extends State<ScreenFocus> {
       data: MediaQuery.of(context).copyWith(navigationMode: NavigationMode.directional),
       child: Theme(
         data: theme.copyWith(
+          focusColor: ScreenFocus.fill,
+          iconButtonTheme: IconButtonThemeData(style: _ringed(theme.iconButtonTheme.style)),
           filledButtonTheme: FilledButtonThemeData(style: _ringed(theme.filledButtonTheme.style)),
           outlinedButtonTheme: OutlinedButtonThemeData(style: _ringed(theme.outlinedButtonTheme.style)),
           textButtonTheme: TextButtonThemeData(style: _ringed(theme.textButtonTheme.style)),

@@ -138,6 +138,7 @@ export 'src/ui/loading_stage.dart';
 export 'src/ui/notices.dart';
 export 'src/ui/pause_menu.dart';
 export 'src/ui/screen_focus.dart';
+export 'src/ui/secondary_activate_intent.dart';
 export 'src/ui/settings_menu.dart';
 export 'src/ui/settings_panel.dart';
 export 'src/ui/title_choice.dart';

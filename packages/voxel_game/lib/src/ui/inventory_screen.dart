@@ -4,6 +4,8 @@ import 'package:voxel_engine/content.dart';
 
 import '../core/voxel_game.dart';
 import 'item_icon.dart';
+import 'screen_focus.dart';
+import 'secondary_activate_intent.dart';
 
 /// The bag and crafting: every slot (the hotbar last, as block sandboxes lay
 /// it out) and, beside it, the recipes of [station] (`''` for the hand) with
@@ -17,6 +19,13 @@ import 'item_icon.dart';
 /// outside the panel is thrown into the world, ahead of the player, as a
 /// press of drop throws one. A tooltip says what the slot under the mouse
 /// holds, or else what is held, from the item's row.
+///
+/// A pad and the keys work it through the focus (`FocusBridge`): each slot
+/// takes it, the slot in hand first, and draws it; A (Enter, Space) is a
+/// slot's click and X (the X key) its right-click
+/// ([SecondaryActivateIntent]), through the same handlers. The held stack
+/// and the tooltip then sit by the focused slot, as they would by a mouse
+/// over it. A recipe is a list tile, crafted by A as by a tap.
 ///
 /// The slots rebuild when the bag or the store changes, never every frame,
 /// so a click is never lost to a rebuild under the pointer; only the held
@@ -46,13 +55,15 @@ class InventoryScreen extends StatefulWidget {
   State<InventoryScreen> createState() => _InventoryScreenState();
 }
 
-/// Where the pointer last was, what kind it is, and the slot a mouse hovers.
+/// Where the pointer last was, what kind it is, and the slot a mouse hovers;
+/// or, [focus], the corner of the slot the focus is on, [over] while it is.
 class _Pointer {
-  const _Pointer(this.at, {required this.touch, this.over});
+  const _Pointer(this.at, {required this.touch, this.over, this.focus = false});
 
   final Offset at;
   final bool touch;
   final (Inventory, int)? over;
+  final bool focus;
 }
 
 class _InventoryScreenState extends State<InventoryScreen> {
@@ -88,8 +99,29 @@ class _InventoryScreenState extends State<InventoryScreen> {
     if (mounted) setState(() {});
   }
 
-  void _moved(PointerEvent e) =>
-      _pointer.value = _Pointer(e.localPosition, touch: e.kind == PointerDeviceKind.touch, over: _pointer.value?.over);
+  /// A pointer moved: what it is over is a mouse's hover, never the focus's.
+  void _moved(PointerEvent e) {
+    final p = _pointer.value;
+    _pointer.value = _Pointer(
+      e.localPosition,
+      touch: e.kind == PointerDeviceKind.touch,
+      over: p == null || p.focus ? null : p.over,
+    );
+  }
+
+  /// The focus onto or off slot [i] of [inv], laid out at [slot]: onto it,
+  /// the held stack and the tooltip go to its corner.
+  void _focused(BuildContext slot, Inventory inv, int i, {required bool on}) {
+    final p = _pointer.value;
+    if (on) {
+      final box = slot.findRenderObject()! as RenderBox;
+      final corner = box.localToGlobal(box.size.topRight(Offset.zero));
+      final at = (context.findRenderObject()! as RenderBox).globalToLocal(corner);
+      _pointer.value = _Pointer(at, touch: false, over: (inv, i), focus: true);
+    } else if (p != null && p.focus && p.over == (inv, i)) {
+      _pointer.value = _Pointer(p.at, touch: false, focus: true);
+    }
+  }
 
   /// A mouse into or out of slot [i] of [inv]. A slot's event is in the
   /// slot's own space: the screen's is found from where it is on the screen.
@@ -132,20 +164,39 @@ class _InventoryScreenState extends State<InventoryScreen> {
 
   Widget _slot(Inventory inv, int i) {
     final selected = inv == _inv && i == widget.game.player.selectedSlot;
-    return MouseRegion(
-      onEnter: (e) => _hover(inv, i, e, inside: true),
-      onExit: (e) => _hover(inv, i, e, inside: false),
-      child: GestureDetector(
-        onTap: () => _click(inv, i, one: false),
-        onSecondaryTap: () => _click(inv, i, one: true),
-        onLongPress: () => _click(inv, i, one: true),
-        child: Container(
-          margin: const EdgeInsets.all(2),
-          decoration: BoxDecoration(
-            color: Colors.black38,
-            border: Border.all(color: selected ? Colors.white : Colors.white24),
-          ),
-          child: _stack(inv.slots[i]),
+    return Builder(
+      builder: (slot) => FocusableActionDetector(
+        autofocus: selected,
+        actions: {
+          ActivateIntent: CallbackAction<ActivateIntent>(onInvoke: (_) => _click(inv, i, one: false)),
+          SecondaryActivateIntent: CallbackAction<SecondaryActivateIntent>(onInvoke: (_) => _click(inv, i, one: true)),
+        },
+        onFocusChange: (on) => _focused(slot, inv, i, on: on),
+        child: Builder(
+          builder: (context) {
+            final focused = Focus.of(context).hasFocus;
+            return MouseRegion(
+              onEnter: (e) => _hover(inv, i, e, inside: true),
+              onExit: (e) => _hover(inv, i, e, inside: false),
+              child: GestureDetector(
+                onTap: () => _click(inv, i, one: false),
+                onSecondaryTap: () => _click(inv, i, one: true),
+                onLongPress: () => _click(inv, i, one: true),
+                child: Container(
+                  margin: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    color: focused ? ScreenFocus.fill : Colors.black38,
+                    border: Border.all(color: selected ? Colors.white : Colors.white24),
+                  ),
+                  // Drawn over the slot, so the ring does not move it.
+                  foregroundDecoration: focused
+                      ? const BoxDecoration(border: Border.fromBorderSide(ScreenFocus.ring))
+                      : null,
+                  child: _stack(inv.slots[i]),
+                ),
+              ),
+            );
+          },
         ),
       ),
     );

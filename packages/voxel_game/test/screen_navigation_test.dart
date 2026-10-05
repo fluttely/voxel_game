@@ -16,8 +16,8 @@ Widget _journal(BuildContext context, VoxelGame game) => Center(
   ),
 );
 
-/// Level grass, a quick respawn, and a screen of the game's own built of
-/// plain Material buttons, with no focus code of its own.
+/// Level grass, a quick respawn, a recipe, and a screen of the game's own
+/// built of plain Material buttons, with no focus code of its own.
 const _spec = VoxelGameSpec(
   blocks: [
     BlockType('stone', color: 0x808080, hardness: 1.5, tool: 'pickaxe'),
@@ -34,6 +34,9 @@ const _spec = VoxelGameSpec(
   ),
   sky: SkySpec.alwaysDay,
   player: PlayerSpec(respawnDelay: 0.5),
+  recipes: [
+    Recipe('stone', 1, {'dirt': 2}),
+  ],
   screens: {'journal': ScreenSpec(_journal, menu: 'Journal')},
 );
 
@@ -53,8 +56,8 @@ NormalizedGamepadEvent _axis(GamepadAxis axis, double value) => NormalizedGamepa
   rawEvent: GamepadEvent(gamepadId: 'pad', timestamp: 0, type: KeyType.analog, key: 'k', value: value),
 );
 
-/// The kit's simple screens — the game menu, the settings, the death screen,
-/// a game's own — worked by a pad alone and by the keys alone, over the
+/// The kit's screens — the game menu, the settings, the death screen, the
+/// bag, a game's own — worked by a pad alone and by the keys alone, over the
 /// surface `VoxelGameWidget` shows ([GameSurface] over a plain box).
 void main() {
   setUp(_pressed.clear);
@@ -300,6 +303,118 @@ void main() {
     await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowUp);
     expect(game.input.keyDown(PhysicalKeyboardKey.arrowUp), isTrue);
     await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowUp);
+    game.dispose();
+  });
+
+  // Slot [i] of [inv] as the bag lays it out (the bag's rows first, the
+  // hotbar last), and the widget that takes its focus.
+  Finder slot(Inventory inv, int i) => find
+      .byWidgetPredicate((w) => w is GestureDetector && w.onSecondaryTap != null && w.child is Container)
+      .at(i >= inv.hotbarSize ? i - inv.hotbarSize : inv.capacity - inv.hotbarSize + i);
+  Finder slotFocus(Inventory inv, int i) =>
+      find.ancestor(of: slot(inv, i), matching: find.byType(FocusableActionDetector)).first;
+  Finder recipe(String label) => find.ancestor(of: find.text(label), matching: find.byType(ListTile));
+
+  /// Picks the stack in hand up, puts it down a slot over, takes half of it
+  /// back, puts that down a slot further, and crafts, with [move], [press]
+  /// (A) and [half] (X) alone; [back] (B) closes the bag.
+  Future<void> workTheBag(
+    WidgetTester tester,
+    VoxelGame game, {
+    required Future<void> Function(TraversalDirection) move,
+    required Future<void> Function() press,
+    required Future<void> Function() half,
+    required Future<void> Function() back,
+  }) async {
+    final inv = game.player.inventory..setSlot(0, ItemStack('dirt', 5));
+    game.openScreen(const BagScreen());
+    await settle(tester);
+    expect(focused(tester, slotFocus(inv, 0)), isTrue, reason: 'the bag opens on the slot in hand');
+
+    await press();
+    expect(inv.isEmptySlot(0), isTrue, reason: 'A picks the stack up');
+    expect(game.player.carried!.count, 5);
+    await move(TraversalDirection.right);
+    expect(focused(tester, slotFocus(inv, 1)), isTrue);
+    final held = find.descendant(of: find.byType(IgnorePointer).last, matching: find.byType(ItemIcon));
+    expect(tester.getCenter(held), tester.getTopRight(slotFocus(inv, 1)), reason: 'the held stack is by the focus');
+    await press();
+    expect(inv.countAt(1), 5, reason: 'and puts it down');
+    expect(game.player.carried, isNull);
+
+    await half();
+    expect(inv.countAt(1), 2, reason: 'X takes half, the larger on the cursor');
+    expect(game.player.carried!.count, 3);
+    await move(TraversalDirection.right);
+    await press();
+    expect(inv.countAt(2), 3);
+
+    for (var i = 0; i < 12 && !focused(tester, recipe('Stone x1')); i++) {
+      await move(TraversalDirection.right);
+    }
+    expect(focused(tester, recipe('Stone x1')), isTrue, reason: 'right from the hotbar reaches the recipes');
+    await press();
+    expect(inv.countOf('stone'), 1, reason: 'A crafts');
+    expect(inv.countOf('dirt'), 3);
+    await move(TraversalDirection.up);
+    final close = find.byType(IconButton);
+    expect(focused(tester, close), isTrue, reason: 'up from the first recipe is the close button');
+    final ring = Theme.of(tester.element(close)).iconButtonTheme.style!.side!;
+    expect(ring.resolve({WidgetState.focused}), ScreenFocus.ring);
+
+    await back();
+    await step(tester, game);
+    expect(game.screen.value, isNull, reason: 'backing out closes the bag');
+  }
+
+  testWidgets('a pad alone picks, halves, places and crafts in the bag', (tester) async {
+    final game = await start(tester);
+    await workTheBag(
+      tester,
+      game,
+      move: (way) => pad(tester, game, switch (way) {
+        TraversalDirection.right => GamepadButton.dpadRight,
+        TraversalDirection.left => GamepadButton.dpadLeft,
+        TraversalDirection.up => GamepadButton.dpadUp,
+        TraversalDirection.down => GamepadButton.dpadDown,
+      }),
+      press: () => pad(tester, game, GamepadButton.a),
+      half: () => pad(tester, game, GamepadButton.x),
+      back: () => pad(tester, game, GamepadButton.b),
+    );
+    expect(game.input.padPressed(GamepadButton.x), isFalse, reason: 'X on a slot was the bag\'s');
+    game.dispose();
+  });
+
+  testWidgets('the keys alone pick, halve, place and craft in the bag', (tester) async {
+    final game = await start(tester);
+    await workTheBag(
+      tester,
+      game,
+      move: (way) => key(tester, switch (way) {
+        TraversalDirection.right => LogicalKeyboardKey.arrowRight,
+        TraversalDirection.left => LogicalKeyboardKey.arrowLeft,
+        TraversalDirection.up => LogicalKeyboardKey.arrowUp,
+        TraversalDirection.down => LogicalKeyboardKey.arrowDown,
+      }),
+      press: () => key(tester, LogicalKeyboardKey.enter),
+      half: () => key(tester, LogicalKeyboardKey.keyX),
+      back: () => key(tester, LogicalKeyboardKey.escape),
+    );
+    game.dispose();
+  });
+
+  testWidgets('off a slot, X is still the game\'s', (tester) async {
+    final game = await start(tester);
+    game.openScreen(const PauseScreen());
+    await settle(tester);
+    game.input.onPad(_button(GamepadButton.x, 1));
+    expect(game.input.padPressed(GamepadButton.x), isTrue, reason: 'nothing on the menu takes half');
+    game.input.onPad(_button(GamepadButton.x, 0));
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.keyX);
+    expect(game.input.keyDown(PhysicalKeyboardKey.keyX), isTrue);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.keyX);
+    expect(focused(tester, button('Resume')), isTrue);
     game.dispose();
   });
 

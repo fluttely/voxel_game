@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- **A pad and the arrows work the bag (KL-013, second part).** Each of the bag's slots
+  takes the focus, the slot in hand first, and draws it (`ScreenFocus.fill` under its
+  ring); A, Enter and Space are a slot's click and X its right-click, through the same
+  handlers, so it picks a stack up, puts it down, takes half or leaves one. The held stack
+  and the tooltip sit by the focused slot, as they would by a mouse. The focus goes on from
+  the bag to the recipes, crafted by A as by a tap, and to the close button, which
+  `ScreenFocus` now rings as it rings the other buttons. `SecondaryActivateIntent` (new)
+  is that other press: `FocusBridge` invokes it for the pad's X and the X key, and only
+  where the focus has an action for it, so elsewhere X is still the game's and still types
+  in a text field. `ScreenFocus` fills a focused list tile more strongly (Material's
+  `focusColor`, `ScreenFocus.fill`), the settings' rows included.
 - **A pad and the arrows work the game menu, the settings and the death screen (KL-013,
   first part).** While a screen is open, `GameSurface` hands the keys and pad presses that
   work it to the screen through Flutter's focus (`FocusBridge`, new): the arrows, the dpad

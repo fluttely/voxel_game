@@ -4,12 +4,20 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:gamepads/gamepads.dart';
 
+import 'secondary_activate_intent.dart';
+
 /// Turns the keys and the pad presses that work a screen into Flutter's focus
 /// intents, invoked where the focus is: the arrows, the dpad and the left
 /// stick move it ([DirectionalFocusIntent]), Enter, Space and A press what it
-/// is on ([ActivateIntent]), Esc and B back out ([DismissIntent]). So a
-/// widget that takes focus — a Material button, a slider, a switch — is
-/// worked by a pad and a keyboard as it is by a pointer.
+/// is on ([ActivateIntent]), Esc and B back out ([DismissIntent]), and X,
+/// the pad's and the key, is the other press, a right-click's
+/// ([SecondaryActivateIntent]). So a widget that takes focus — a Material
+/// button, a slider, a switch, a bag's slot — is worked by a pad and a
+/// keyboard as it is by a pointer.
+///
+/// X is taken only where the focus has an action for it, so off a bag's
+/// slot the key and the button are still the game's, and the key still
+/// types in a text field.
 ///
 /// A held direction repeats, after [repeatDelay] and then every
 /// [repeatEvery]. The keyboard's repeat is the system's own
@@ -50,6 +58,7 @@ class FocusBridge {
     PhysicalKeyboardKey.arrowRight => const DirectionalFocusIntent(TraversalDirection.right),
     PhysicalKeyboardKey.enter || PhysicalKeyboardKey.numpadEnter || PhysicalKeyboardKey.space => const ActivateIntent(),
     PhysicalKeyboardKey.escape => const DismissIntent(),
+    PhysicalKeyboardKey.keyX => const SecondaryActivateIntent(),
     _ => null,
   };
 
@@ -60,6 +69,7 @@ class FocusBridge {
     GamepadButton.dpadRight => const DirectionalFocusIntent(TraversalDirection.right),
     GamepadButton.a => const ActivateIntent(),
     GamepadButton.b => const DismissIntent(),
+    GamepadButton.x => const SecondaryActivateIntent(),
     _ => null,
   };
 
@@ -68,7 +78,7 @@ class FocusBridge {
   KeyEventResult onKey(KeyEvent event) {
     if (event is KeyUpEvent) return KeyEventResult.ignored;
     final intent = _ofKey(event.physicalKey);
-    if (intent == null) return KeyEventResult.ignored;
+    if (intent == null || !_takes(intent)) return KeyEventResult.ignored;
     _invoke(intent);
     return KeyEventResult.handled;
   }
@@ -86,7 +96,7 @@ class FocusBridge {
         _letGo(button);
         return false;
       }
-      if (!_inside) return false;
+      if (!_inside || !_takes(intent)) return false;
       // Already down: the press was taken, and so is its change of pressure.
       if (!_held.add(button)) return true;
       _invoke(intent);
@@ -136,6 +146,15 @@ class FocusBridge {
   bool get _inside {
     final focus = FocusManager.instance.primaryFocus;
     return focus != null && (identical(focus, scope) || focus.ancestors.contains(scope));
+  }
+
+  // The other press is the screen's only where the focus has an action for
+  // it; every other intent is the screen's wherever the focus is.
+  bool _takes(Intent intent) {
+    if (intent is! SecondaryActivateIntent) return true;
+    if (!_inside) return false;
+    final action = Actions.maybeFind<SecondaryActivateIntent>(FocusManager.instance.primaryFocus!.context!);
+    return action != null && action.isEnabled(intent);
   }
 
   void _invoke(Intent intent) {

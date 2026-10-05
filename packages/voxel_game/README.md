@@ -132,7 +132,9 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
   change it and refuse what cannot be. A screen gates the controls, never the world: the
   game keeps stepping behind every one. A pad and the keys work a screen through Flutter's
   focus (`FocusBridge`): the arrows, the dpad and the left stick move it, Enter, Space and A
-  press, Esc and B back out as pause does. Each screen opens with a focus and outlines it
+  press, Esc and B back out as pause does, and X (the pad's or the key) is the other
+  press, a right-click's (`SecondaryActivateIntent`), wherever the focus takes it and only
+  there. Each screen opens with a focus and outlines it
   (`ScreenFocus`), so one of yours built of Material buttons is worked by a pad with no
   focus code; a slider takes left and right as its step in the settings.
 - The player's settings (`GameSettings`): render distance, look speed (mouse, finger and
@@ -164,7 +166,10 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
   right-click or a long press takes half or leaves one; the held stack follows the pointer
   (above a finger), a tooltip reads the item's row (tool and tier, damage, uses left, food,
   armour, the block it places), a store's slots sit beside the bag, and a stack let go
-  outside the panel is thrown into the world. The panel shrinks to fit a phone.
+  outside the panel is thrown into the world. The panel shrinks to fit a phone. A pad and
+  the keys work it too: it opens on the slot in hand, the focus moves from slot to slot
+  and on to the recipes, A (Enter) is a slot's click and X its right-click, and the held
+  stack and the tooltip sit by the focused slot.
 - `runVoxelGame` / `VoxelGameWidget`: the 3D view, a HUD, the inventory and crafting screen.
   A HUD of your own is built once; its pieces follow the game through `HudSelector`s.
   The default HUD's hotbar takes a finger: tap a slot to pick it, hold the one in hand to
