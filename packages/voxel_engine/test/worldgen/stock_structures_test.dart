@@ -198,6 +198,45 @@ void main() {
     expect(bare.chest, isNull);
   });
 
+  test("a dungeon's rooms are joined: the shaft's foot reaches inside every room, for every seed and depth", () {
+    for (var seed = 1; seed <= 8; seed++) {
+      for (final ground in const [40, 20]) {
+        final f = _Flat(_dungeon, ground: ground, seed: seed);
+        final plan = DungeonPlan.of(_dungeon, f.site.placed, f.site.roll);
+        // Through air and ladder, kept under the rooms' ceilings so the fill
+        // never climbs the shaft out onto the surface.
+        final top = plan.floor + plan.rooms.map((r) => r.half).reduce((a, b) => a > b ? a : b);
+        final foot = IVec3(-15, plan.floor + 1, -3);
+        expect(f.at(foot.x, foot.y, foot.z), _id('ladder'));
+        final reached = {foot};
+        final open = [foot];
+        while (open.isNotEmpty) {
+          final cell = open.removeLast();
+          for (final step in const [
+            IVec3(1, 0, 0),
+            IVec3(-1, 0, 0),
+            IVec3(0, 1, 0),
+            IVec3(0, -1, 0),
+            IVec3(0, 0, 1),
+            IVec3(0, 0, -1),
+          ]) {
+            final next = cell + step;
+            if (next.y > top || reached.contains(next)) continue;
+            final id = f.at(next.x, next.y, next.z);
+            if (id != 0 && id != _id('ladder')) continue;
+            reached.add(next);
+            open.add(next);
+          }
+        }
+        expect(
+          [for (final room in plan.rooms) reached.contains(room.centre + const IVec3(0, 1, 0))],
+          [true, true, true],
+          reason: 'seed $seed, ground $ground',
+        );
+      }
+    }
+  });
+
   test("a mine's plan is where its parts are drawn, for every seed and depth", () {
     final spawned = <bool>{};
     for (var seed = 1; seed <= 12; seed++) {

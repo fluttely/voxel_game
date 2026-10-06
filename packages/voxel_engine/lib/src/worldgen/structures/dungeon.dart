@@ -101,6 +101,13 @@ class Dungeon extends Structure {
         if (treasure != null) site.put(rx - 3, floor + 1, 3, treasure!);
       }
     }
+    // The doorways: each corridor ends in the next room's west wall, which
+    // the room's box bricked over.
+    for (final (:centre, :half) in plan.rooms.skip(1)) {
+      final door = centre.x - site.x - half;
+      site.put(door, floor + 1, 0, 'air');
+      site.put(door, floor + 2, 0, 'air');
+    }
     // The shaft up from the first room: a ladder on a brick back, open at the top.
     final top = site.surfaceAt(-15, -3);
     for (var y = floor + 1; y <= top; y++) {

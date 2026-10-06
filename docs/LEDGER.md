@@ -30,13 +30,6 @@
 - **Cost of leaving it:** a player who picks a world in the first moments of the title (its device still opening) can enter a world with no sound and no music, nothing failing; today the world's start is long enough that it does not happen, but a faster start (a small world, a joined one) narrows that margin. One opener the kit owns, which a bank waits on until the last one closed, would order them.
 - **Found while:** 2026-10-05 — VL4, moving the title's music into the kit (`KL-019`).
 
-### KL-025 · A dungeon's rooms are walled off from one another
-
-- **Lens:** worldgen / correctness
-- **Evidence:** `packages/voxel_engine/lib/src/worldgen/structures/dungeon.dart:67-97`: each room's box is drawn whole, its walls as bricks (`:73`), after the corridor from the room before it (`:86-97`), so the box bricks over the corridor's doorway where it meets the room's wall. A probe on 2026-10-05 read the cells at the corridors' height: open at x -8 and -6 (the first corridor) and 4 and 5 (the second), solid brick at x -4 (the second room's west wall) and 6 (the last room's). The shaft reaches the first room only.
-- **Cost of leaving it:** the guard rooms and the treasure room are reached only by digging through a wall, which the doc ("three rooms in a row ... joined by corridors") and a player both expect to walk through; the app's troll still wakes by distance, so it waits behind a wall. The fix is the doorways cut after the rooms are drawn (or each corridor drawn after its next room), a change every world's dungeons take on, saved ones too, since a save keeps only its edits over what the seed draws.
-- **Found while:** 2026-10-05 — VL6, reading the dungeon's drawing to write its plan (`KL-022`).
-
 ### KL-026 · `sound_recipes` stays a major version behind `flutter_soloud`
 
 - **Lens:** dependencies / release
@@ -67,6 +60,14 @@
 - **Found while:** 2026-10-06 — planning VD, reading what `flutter_scene` 0.24 changes in the shaders the terrain copies (VDD7).
 
 ## Closed
+
+### KL-025 · A dungeon's rooms are walled off from one another
+
+- **Lens:** worldgen / correctness
+- **Evidence:** `packages/voxel_engine/lib/src/worldgen/structures/dungeon.dart:67-97`: each room's box is drawn whole, its walls as bricks (`:73`), after the corridor from the room before it (`:86-97`), so the box bricks over the corridor's doorway where it meets the room's wall. A probe on 2026-10-05 read the cells at the corridors' height: open at x -8 and -6 (the first corridor) and 4 and 5 (the second), solid brick at x -4 (the second room's west wall) and 6 (the last room's). The shaft reaches the first room only.
+- **Cost of leaving it:** the guard rooms and the treasure room are reached only by digging through a wall, which the doc ("three rooms in a row ... joined by corridors") and a player both expect to walk through; the app's troll still wakes by distance, so it waits behind a wall. The fix is the doorways cut after the rooms are drawn (or each corridor drawn after its next room), a change every world's dungeons take on, saved ones too, since a save keeps only its edits over what the seed draws.
+- **Found while:** 2026-10-05 — VL6, reading the dungeon's drawing to write its plan (`KL-022`).
+- **Closed by:** 2026-10-06 — `voxel_engine: a dungeon's rooms are joined (VD2)`. After the rooms are drawn, `Dungeon.build` opens a two-high doorway in the west wall of the second and third rooms, where each corridor meets it. `stock_structures_test.dart` floods through air from the shaft's foot and reaches inside all three rooms, for eight seeds and both depths; before the fix it reached the first only. Every world's dungeons take it on, saved ones too (VDD4).
 
 ### KL-017 · The frame rate the kit reports is the ticks', not the world's frames drawn
 

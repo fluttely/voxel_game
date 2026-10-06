@@ -30,7 +30,7 @@ Every `file:line` is from 2026-10-06; re-check it before a step starts.
 |:---|:---|:---|
 | VD0 This plan, and the owner's answers to §Decisions | **done** 2026-10-06: every recommendation taken (VDD1–VDD7) | the owner answers VDD1–VDD7 |
 | VD1 `KL-028` asked upstream | **done** 2026-10-06: the owner approved the draft; [pleiondev/flutter3d#80](https://github.com/pleiondev/flutter3d/issues/80) is open, `KL-028` waits on it, the README says why | the issue is open and linked from `KL-028`; the README says why pub.dev shows one platform |
-| VD2 A dungeon's doorways (`KL-025`) | pending | a flood fill from the shaft reaches every room; suite green |
+| VD2 A dungeon's doorways (`KL-025`) | **done** 2026-10-06: two doorway cells in the west wall of rooms 1 and 2; the flood-fill test reaches `[true, true, true]` (it read `[true, false, false]` before the fix) | a flood fill from the shaft reaches every room; suite green |
 | VD3 One owner of the audio device (`KL-024`) | pending | the title and a world never close each other's device, proven with a fake device; the tests no longer depend on SoLoud failing to load |
 | VD4 `flutter_scene` 0.24 (`KL-027`) | pending | the five suites green, the bundle rebuilt, the terrain drawn in `flutter run -d macos` with shadows and torchlight |
 | VD5 `flutter_soloud` 5 (`KL-026`) | pending; **the owner's word to push** (CI) | the suites green locally and on CI; the example plays its title music on the Mac |

@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- **A dungeon's rooms are joined (KL-025).** Each room's box used to brick over the
+  doorway of the corridor that led into it, so the shaft reached the first room only.
+  `Dungeon` now opens a two-high doorway in the west wall of the second and last rooms.
+  Every world's dungeons open, saved ones too: a save keeps only its edits over what the
+  seed draws.
+
 ## 0.4.0-dev
 
 **Breaking**
