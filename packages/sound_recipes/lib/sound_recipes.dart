@@ -3,6 +3,7 @@
 /// (from files, or synthesised when a file is absent), through flutter_soloud.
 library;
 
+export 'src/audio_device.dart';
 export 'src/sound_bank.dart';
 export 'src/stock_music.dart';
 export 'src/stock_sounds.dart';

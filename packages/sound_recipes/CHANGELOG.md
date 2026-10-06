@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+**Breaking**
+
+- `SoundBank.dispose` no longer closes the audio device: it frees the bank's own sounds
+  and lets go of its hold, and the device closes when no one holds it.
+- `SoundBank.init` returns false, silently, only when the device does not open. A sound
+  or asset that fails to load now throws instead of leaving the bank silent.
+
+- `AudioDevice` (new): the one audio device every bank shares (KL-024). `acquire()`
+  opens it for the first holder, and `release()` closes it after the last one. Every open
+  and close runs in one queue, so a bank let go while another is opening never closes the
+  device under it. `AudioDevice.instance` is SoLoud's `init` and `deinit`. A test sets
+  `AudioDevice(open:, close:)` there and so never touches SoLoud.
+
 ## 0.4.0-dev
 
 **Breaking**

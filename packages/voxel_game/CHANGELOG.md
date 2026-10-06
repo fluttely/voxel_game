@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- **A world entered while the title is still opening the audio device keeps its sound
+  and music (KL-024).** The title and the world each hold `sound_recipes`'
+  `AudioDevice`, which closes after the last of them, so the title leaving can no longer
+  close the device under the world. `AudioDevice` is exported. A game's tests set
+  `AudioDevice.instance` to a device of their own, as this package's do in
+  `test/flutter_test_config.dart`.
+
 ## 0.4.0-dev
 
 **Breaking**

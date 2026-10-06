@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:isolate';
 import 'dart:math' as math;
 
@@ -5,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_soloud/flutter_soloud.dart';
 
+import 'audio_device.dart';
 import 'stock_sounds.dart';
 import 'wav.dart';
 
@@ -40,6 +42,7 @@ class SoundBank implements SoundPlayer {
 
   final Map<String, List<AudioSource>> _sources = {};
   final math.Random _rng = math.Random();
+  AudioDevice? _device;
   bool _ready = false;
 
   /// Nothing plays while set.
@@ -48,23 +51,21 @@ class SoundBank implements SoundPlayer {
   /// Whether the audio device is open and the sounds loaded.
   bool get ready => _ready;
 
-  /// Opens the audio device and loads every sound; false when the platform
-  /// has no audio (the bank then stays silent).
+  /// Takes a hold of [AudioDevice.instance] and loads every sound; false
+  /// when the platform has no audio (the bank then stays silent).
   Future<bool> init() async {
     if (_ready) return true;
-    try {
-      await SoLoud.instance.init();
-      for (final e in recipes.entries) {
-        _sources[e.key] = [await SoLoud.instance.loadMem('${e.key}.wav', renderWav(e.value))];
-      }
-      for (final e in assets.entries) {
-        _sources[e.key] = [for (final path in e.value) await SoLoud.instance.loadAsset(path)];
-      }
-      _ready = true;
-    } catch (e) {
-      debugPrint('[sound_recipes] audio unavailable: $e');
+    final device = AudioDevice.instance;
+    if (!await device.acquire()) return false;
+    _device = device;
+    for (final e in recipes.entries) {
+      _sources[e.key] = [await SoLoud.instance.loadMem('${e.key}.wav', renderWav(e.value))];
     }
-    return _ready;
+    for (final e in assets.entries) {
+      _sources[e.key] = [for (final path in e.value) await SoLoud.instance.loadAsset(path)];
+    }
+    _ready = true;
+    return true;
   }
 
   /// Whether [name] is in the bank.
@@ -90,10 +91,22 @@ class SoundBank implements SoundPlayer {
     }
   }
 
-  /// Closes the audio device.
+  /// Frees the bank's sounds and lets go of the audio device, which closes
+  /// once no one else holds it.
   void dispose() {
-    if (_ready) SoLoud.instance.deinit();
+    final device = _device;
+    _device = null;
     _ready = false;
+    if (device == null) return;
+    // Freed on the device before the release is queued: disposeSource drops
+    // the native sound before its first await.
+    for (final takes in _sources.values) {
+      for (final source in takes) {
+        unawaited(SoLoud.instance.disposeSource(source));
+      }
+    }
+    _sources.clear();
+    unawaited(device.release());
   }
 }
 
@@ -111,7 +124,7 @@ enum MusicOrigin {
 /// asset the app does not bundle (or that has none) plays its entry in
 /// [recipes] instead, synthesised once off the main isolate, so a game can
 /// ship with placeholder music and drop real files in later. Needs an
-/// initialised [SoundBank] (the audio device).
+/// initialised [SoundBank] (a hold of the [AudioDevice]).
 class MusicDirector {
   /// A director over [tracks], falling back to [recipes], at [gain].
   MusicDirector(this.tracks, {this.recipes = const {}, this.gain = 0.45, this.crossfade = 3.0});

@@ -91,6 +91,42 @@ class _WorldState extends State<_World> {
   Widget build(BuildContext context) => const SizedBox();
 }
 
+/// A world's widget as `VoxelGameWidget` starts its audio: a bank on the
+/// device, then the world's music once the bank is open.
+class _SoundWorld extends StatefulWidget {
+  const _SoundWorld();
+
+  @override
+  State<_SoundWorld> createState() => _SoundWorldState();
+}
+
+class _SoundWorldState extends State<_SoundWorld> {
+  final SoundBank _bank = SoundBank(recipes: const {});
+  GameMusic? _playing;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_start());
+  }
+
+  Future<void> _start() async {
+    await _bank.init();
+    if (!mounted) return _bank.dispose();
+    _playing = GameMusic(_music, GameSettings.of(_spec()))..play('deep');
+  }
+
+  @override
+  void dispose() {
+    _playing?.close();
+    _bank.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => const SizedBox();
+}
+
 void main() {
   Future<void> mount(WidgetTester tester, VoxelGameSpec spec, TitleSpec menu, {Widget world = const SizedBox()}) async {
     final (saves, settings) = _store();
@@ -154,6 +190,40 @@ void main() {
     await tester.pump();
     expect(found, [null, null], reason: 'nothing before the title, nothing left once the world looks');
     expect(music.track, isNull);
+  });
+
+  testWidgets('a world entered while the title opens the device finds it open, and plays its music', (tester) async {
+    final absent = AudioDevice.instance;
+    addTearDown(() => AudioDevice.instance = absent);
+    final opening = Completer<bool>();
+    final log = <String>[];
+    final device = AudioDevice.instance = AudioDevice(
+      open: () {
+        log.add('open');
+        return opening.future;
+      },
+      close: () async => log.add('close'),
+    );
+    await mount(
+      tester,
+      _spec(),
+      const TitleSpec(name: 'Blocks', music: 'meadow'),
+      world: const _SoundWorld(),
+    );
+    expect(GameMusic.playing.value, isNull, reason: 'the title is still opening the device');
+    await tester.tap(find.text('Play'));
+    await tester.pump();
+    await tester.tap(find.widgetWithText(FilledButton, 'Play'));
+    await tester.pump();
+    opening.complete(true);
+    await tester.pump();
+    expect(log, ['open'], reason: "the title's release comes after the world's hold");
+    expect(device.isOpen, isTrue);
+    expect(device.held, 1);
+    expect(GameMusic.playing.value?.track, 'deep');
+    await tester.pumpWidget(const SizedBox());
+    expect(log, ['open', 'close']);
+    expect(GameMusic.playing.value, isNull);
   });
 
   test('GameMusic is one at a time', () {

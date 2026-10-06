@@ -15,6 +15,7 @@ synthesis, a bank and a player.
 - `SoundRecipe` + `renderWav`: a sound is a length and a waveform function.
 - `StockSounds`: `break_`, `place_` and `step_` for every `SoundFamily`, `step_sand` and `step_snow`, plus `hit`, `hurt`, `pickup`, `explode` and more.
 - `SoundBank`: plays sounds by name, from recipes or asset files.
+- `AudioDevice`: the one audio device every bank shares, opened by the first and closed after the last.
 - `SoundPlayer` / `SilentSounds`: play through an interface, so tests and servers stay silent.
 - `MusicScore` / `StockMusic`: background music synthesised from notes, six stock loops.
 - `MusicDirector`: one track per mood, crossfaded; a file when the app bundles it, else its recipe.
@@ -41,7 +42,10 @@ Needs Flutter (it plays through `flutter_soloud`).
    ```
 
 2. **Open the device** once, at start-up. It returns false where there is
-   no audio, and the bank then stays silent.
+   no audio, and the bank then stays silent. Every bank holds the one
+   `AudioDevice`, and `dispose` lets go of it, so the device closes only after
+   the last bank is disposed. Code that plays through SoLoud itself holds the
+   device the same way, with `AudioDevice.instance.acquire()` and `release()`.
 
    ```dart
    WidgetsFlutterBinding.ensureInitialized();
@@ -65,7 +69,12 @@ Needs Flutter (it plays through `flutter_soloud`).
    await music.setMood('day');
    ```
 
-5. **In tests,** pass a `SilentSounds` wherever a `SoundPlayer` is asked for.
+5. **In tests,** pass a `SilentSounds` wherever a `SoundPlayer` is asked for, and set
+   `AudioDevice.instance` to a device of your own, so no test opens SoLoud:
+
+   ```dart
+   AudioDevice.instance = AudioDevice(open: () async => false, close: () async {});
+   ```
 
 ## Example
 

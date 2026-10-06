@@ -23,13 +23,6 @@
 - **Found while:** 2026-09-24 — adding Windows and Linux runners to the examples, for the launch post.
 - **Deferred:** 2026-10-05 — VLD3, VL12. The fix is native code (upstream in `pointer_lock`, or a plugin the kit would carry), and nothing here can run it; what lifts it is a Windows or Linux machine to see a fix run. Meanwhile it is said where an author looks: `voxel_game`'s README (the Flutter GPU section) and `InputMap.pointerLockSupported`'s doc (`packages/voxel_game/lib/src/input/input_map.dart:240`) name macOS as the one desktop that locks.
 
-### KL-024 · Two owners of the audio device do not wait for each other
-
-- **Lens:** concurrency / audio
-- **Evidence:** the device is SoLoud's one instance; `SoundBank.init` opens it and `dispose` closes it (`packages/sound_recipes/lib/src/sound_bank.dart:53-98`). `TitleScreen._play` (`packages/voxel_game/lib/src/ui/title_screen.dart`) closes a bank whose `init` returned after the screen went; `VoxelGameWidget._startAudio` (`packages/voxel_game/lib/src/ui/voxel_game_widget.dart`) opens its own once `VoxelGame.start` returns. Nothing orders the two: a title left while its `init` is still in flight closes the device whenever that `init` returns, a world's bank opened in between included.
-- **Cost of leaving it:** a player who picks a world in the first moments of the title (its device still opening) can enter a world with no sound and no music, nothing failing; today the world's start is long enough that it does not happen, but a faster start (a small world, a joined one) narrows that margin. One opener the kit owns, which a bank waits on until the last one closed, would order them.
-- **Found while:** 2026-10-05 — VL4, moving the title's music into the kit (`KL-019`).
-
 ### KL-026 · `sound_recipes` stays a major version behind `flutter_soloud`
 
 - **Lens:** dependencies / release
@@ -60,6 +53,14 @@
 - **Found while:** 2026-10-06 — planning VD, reading what `flutter_scene` 0.24 changes in the shaders the terrain copies (VDD7).
 
 ## Closed
+
+### KL-024 · Two owners of the audio device do not wait for each other
+
+- **Lens:** concurrency / audio
+- **Evidence:** the device is SoLoud's one instance; `SoundBank.init` opens it and `dispose` closes it (`packages/sound_recipes/lib/src/sound_bank.dart:53-98`). `TitleScreen._play` (`packages/voxel_game/lib/src/ui/title_screen.dart`) closes a bank whose `init` returned after the screen went; `VoxelGameWidget._startAudio` (`packages/voxel_game/lib/src/ui/voxel_game_widget.dart`) opens its own once `VoxelGame.start` returns. Nothing orders the two: a title left while its `init` is still in flight closes the device whenever that `init` returns, a world's bank opened in between included.
+- **Cost of leaving it:** a player who picks a world in the first moments of the title (its device still opening) can enter a world with no sound and no music, nothing failing; today the world's start is long enough that it does not happen, but a faster start (a small world, a joined one) narrows that margin. One opener the kit owns, which a bank waits on until the last one closed, would order them.
+- **Found while:** 2026-10-05 — VL4, moving the title's music into the kit (`KL-019`).
+- **Closed by:** 2026-10-06 — `sound_recipes, voxel_game: one owner of the audio device (VD3)`. `AudioDevice` (`packages/sound_recipes/lib/src/audio_device.dart`) is the one opener: the first `acquire` opens it, the last `release` closes it, and every open and close runs in one queue. `SoundBank.init` acquires, and `dispose` frees its own sounds and releases; it no longer calls `deinit`. `title_music_test.dart` holds the title's open on a `Completer`, enters a world, then lets the open finish: the device stays open, held once, and the world's music plays. Every test of `voxel_game` and of the app runs on a device that never opens (`test/flutter_test_config.dart`), never on SoLoud failing to load.
 
 ### KL-025 · A dungeon's rooms are walled off from one another
 

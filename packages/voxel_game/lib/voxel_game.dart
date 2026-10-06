@@ -10,6 +10,7 @@ export 'package:gamepads/gamepads.dart' show GamepadButton;
 
 export 'package:sound_recipes/sound_recipes.dart'
     show
+        AudioDevice,
         MusicDirector,
         MusicScore,
         SilentSounds,
