@@ -14,6 +14,8 @@
   and close runs in one queue, so a bank let go while another is opening never closes the
   device under it. `AudioDevice.instance` is SoLoud's `init` and `deinit`. A test sets
   `AudioDevice(open:, close:)` there and so never touches SoLoud.
+- `MusicDirector.setMood` reads `AudioDevice.instance.isOpen` before `SoLoud.instance`, so
+  a platform without SoLoud's native library (a test on Linux) never loads it.
 
 ## 0.4.0-dev
 

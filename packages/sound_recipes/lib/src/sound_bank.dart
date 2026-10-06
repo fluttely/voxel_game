@@ -175,8 +175,10 @@ class MusicDirector {
     if (mood == _mood) return;
     _mood = mood;
     final gen = ++_generation;
+    // The device first: SoLoud.instance loads the native library, which a
+    // platform without one (a test on Linux) cannot.
+    if (!AudioDevice.instance.isOpen) return;
     final soloud = SoLoud.instance;
-    if (!soloud.isInitialized) return;
     final fade = Duration(milliseconds: (crossfade * 1000).toInt());
     final old = _active;
     if (old != null && soloud.getIsValidVoiceHandle(old)) {
