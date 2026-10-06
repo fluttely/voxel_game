@@ -37,6 +37,27 @@
 - **Cost of leaving it:** the guard rooms and the treasure room are reached only by digging through a wall, which the doc ("three rooms in a row ... joined by corridors") and a player both expect to walk through; the app's troll still wakes by distance, so it waits behind a wall. The fix is the doorways cut after the rooms are drawn (or each corridor drawn after its next room), a change every world's dungeons take on, saved ones too, since a save keeps only its edits over what the seed draws.
 - **Found while:** 2026-10-05 — VL6, reading the dungeon's drawing to write its plan (`KL-022`).
 
+### KL-026 · `sound_recipes` stays a major version behind `flutter_soloud`
+
+- **Lens:** dependencies / release
+- **Evidence:** `packages/sound_recipes/pubspec.yaml:25`: `flutter_soloud: ^4.1.7`, the last 4.x (2026-08-08). `flutter_soloud` 5.0.0 came out 2026-09-03 and stands at 5.1.6 (2026-10-02). pub.dev's report for `sound_recipes` 0.4.0-dev (pana 0.23.19): up-to-date dependencies 30/40, "`^4.1.7` does not support the stable version 5.0.0", so 150 of 160, the one package of the four below 160.
+- **Cost of leaving it:** the score stays at 150 for every version until the constraint moves, and a game that wants `flutter_soloud` 5 for itself cannot resolve next to the kit. 5.0 is a major version, so the move is a read of its changes against `SoundBank` (`packages/sound_recipes/lib/src/sound_bank.dart`), not a constraint edit; until then the kit keeps the API it was tested on.
+- **Found while:** 2026-10-05 — VL13, reading the four scores after the owner published `0.4.0-dev`.
+
+### KL-027 · The kit pins a `flutter_scene` that is no longer the latest
+
+- **Lens:** dependencies / release
+- **Evidence:** `packages/voxel_scene/pubspec.yaml:26` and `packages/voxel_game/pubspec.yaml:27`: `flutter_scene: 0.23.0`, an exact pin (the terrain material imports `flutter_scene`'s private gpu shim, `:25`); the app asks `^0.23.0` (`examples/voxel_game_minecraft/pubspec.yaml:13`). `flutter_scene` 0.24.0 came out 2026-10-05 22:48Z, hours before `voxel_scene` 0.4.0-dev. Both reports score 40/40 today and warn: "When flutter_scene is 30 days old, this package will no longer be awarded points in this category."
+- **Cost of leaving it:** on 2026-11-04 `voxel_scene` and `voxel_game` drop to 150, as `sound_recipes` did (`KL-026`). The move is not a constraint edit either: the private shim may have moved, and rule 15's shader bundle is rebuilt against the new package, then seen on the Mac.
+- **Found while:** 2026-10-05 — VL13, reading the four scores after the owner published `0.4.0-dev`.
+
+### KL-028 · pub.dev lists `voxel_game` for macOS only
+
+- **Lens:** platform parity / release
+- **Evidence:** `packages/voxel_game/pubspec.yaml:30`: `pointer_lock: ^0.4.1`, which declares the `macos` platform alone (`KL-004`). pub.dev's report for `voxel_game` 0.4.0-dev: Android, iOS, Windows, Linux "blocked by the `pointer_lock` package", and the package's tags hold `platform:macos` only; `voxel_scene`, under it, holds all five. The dependency is there since `0.1.0-dev`, so every version so far was listed the same way.
+- **Cost of leaving it:** a reader who filters pub.dev by Android or iOS never finds the kit, which runs there and draws touch controls for it (VT); its README says five platforms and its listing says one. What lifts it is the kit not depending on a plugin that declares one platform: `pointer_lock` declaring the others (upstream), or the lock reached through a plugin that does.
+- **Found while:** 2026-10-05 — VL13, reading the four scores after the owner published `0.4.0-dev`.
+
 ## Closed
 
 ### KL-017 · The frame rate the kit reports is the ticks', not the world's frames drawn
