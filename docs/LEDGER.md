@@ -58,6 +58,13 @@
 - **Cost of leaving it:** a reader who filters pub.dev by Android or iOS never finds the kit, which runs there and draws touch controls for it (VT); its README says five platforms and its listing says one. What lifts it is the kit not depending on a plugin that declares one platform: `pointer_lock` declaring the others (upstream), or the lock reached through a plugin that does.
 - **Found while:** 2026-10-05 — VL13, reading the four scores after the owner published `0.4.0-dev`.
 
+### KL-029 · Every opaque block pays for the terrain's alpha test
+
+- **Lens:** rendering / performance
+- **Evidence:** `packages/voxel_scene/shaders/terrain.frag:106-110`: one fragment shader draws opaque and masked blocks alike, and its `discard` sits behind `frag_info.alpha_mode == 1.0`. A `discard` anywhere in a shader can turn off early depth testing on tile-based mobile GPUs, whether the branch runs or not. `flutter_scene` 0.24.0 removed it from its own opaque materials for that reason (its CHANGELOG: "2.5-6x faster on Mali-G57").
+- **Cost of leaving it:** every solid block on a phone may shade fragments that end up hidden, the one place the terrain is drawn most. How much it costs is unmeasured: a split (an opaque variant without the `discard`, the masked one for leaves and glass) is frame work, judged with numbers.
+- **Found while:** 2026-10-06 — planning VD, reading what `flutter_scene` 0.24 changes in the shaders the terrain copies (VDD7).
+
 ## Closed
 
 ### KL-017 · The frame rate the kit reports is the ticks', not the world's frames drawn

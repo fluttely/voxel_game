@@ -55,6 +55,7 @@ Flutter 3.47.1, **but not the web** (worker isolates, TCP sockets and save files
 | The touch-controls plan (VT): the stick, buttons and tappable hotbar a phone gets | `docs/VOXEL_TOUCH_PLAN_2026-09-29.md` |
 | The absorption plan (VA): what of `examples/voxel_game_minecraft` the kit takes, and the app onto `VoxelGame` | `docs/VOXEL_ABSORB_PLAN_2026-09-30.md` |
 | The ledger-and-release plan (VL): CI, the ledger's open entries, then `0.4.0-dev` | `docs/VOXEL_LEDGER_PLAN_2026-10-04.md` |
+| The dependencies-and-debts plan (VD): `flutter_scene` 0.24, `flutter_soloud` 5, the audio device's owner, the dungeon's doorways, then `0.5.0-dev` before 2026-11-04 | `docs/VOXEL_DEPS_PLAN_2026-10-06.md` |
 | Measuring the frame rate | `dart tool/run_benchmark.dart` · `packages/voxel_game/example/lib/benchmark.dart` |
 | The terrain shader, source and compiled | `packages/voxel_scene/shaders/` · `packages/voxel_scene/assets/shaders/terrain.shaderbundle` |
 
