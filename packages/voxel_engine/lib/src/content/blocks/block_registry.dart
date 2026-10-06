@@ -7,7 +7,9 @@ import 'block_type.dart';
 /// never reordered or removed. Entry 0 is air.
 class BlockRegistry<T extends BlockType> {
   /// [types] with air first; at most 256. Throws [ArgumentError] on a
-  /// duplicate id or an air that is not id 0.
+  /// duplicate id, an air that is not id 0, or a block that names one that
+  /// does not exist (what it leans on, its wall form, its facing variants,
+  /// what a use, a tool or growing turns it into).
   BlockRegistry(List<T> types) : types = List<T>.unmodifiable(types) {
     if (types.isEmpty || types.first.solid || types.first.shape != BlockShape.cube) {
       throw ArgumentError('block 0 must be air (not solid, a cube shape)');
@@ -20,6 +22,27 @@ class BlockRegistry<T extends BlockType> {
       final kind = types[i].liquid;
       if (kind != null && !liquidKinds.contains(kind)) liquidKinds.add(kind);
     }
+    for (final t in types) {
+      void known(String? name, String what) {
+        if (name != null && !_index.containsKey(name)) throw ArgumentError.value(name, t.id, '$what names no block');
+      }
+
+      known(t.onWall, 'its wall form');
+      known(t.usedInto, 'what a use turns it into');
+      known(t.grows?.into, 'what it grows into');
+      for (final into in t.turnsWith.values) {
+        known(into, 'what a tool turns it into');
+      }
+      for (final v in t.facing?.variants ?? const <String>[]) {
+        known(v, 'a facing variant');
+      }
+      for (final on in t.support?.on ?? const <String>{}) {
+        known(on, 'what it stands on');
+      }
+    }
+    _standsOn = [
+      for (final t in types) {for (final on in t.support?.on ?? const <String>{}) _index[on]!},
+    ];
     table = VoxelBlockTable([
       for (final t in types)
         VoxelBlockDef(
@@ -83,6 +106,26 @@ class BlockRegistry<T extends BlockType> {
   bool isReplaceable(int index) {
     final s = types[index].shape;
     return index == air || s == BlockShape.cross || s == BlockShape.flower || s == BlockShape.liquid;
+  }
+
+  late final List<Set<int>> _standsOn;
+
+  /// Whether block [id] would stay at [cell] of [world]: it has no `support`,
+  /// or what it leans on is there (`Support.below`: a solid block below, one
+  /// of its `on` when it names some; `Support.side`: an opaque block on one of
+  /// the four sides).
+  bool stands(VoxelQuery world, IVec3 cell, int id) {
+    final support = types[id].support;
+    if (support == null) return true;
+    if (support.side) {
+      for (final s in IVec3.sides) {
+        if (table.isOpaque(world.getBlockXYZ(cell.x + s.x, cell.y, cell.z + s.z))) return true;
+      }
+      return false;
+    }
+    final below = world.getBlockXYZ(cell.x, cell.y - 1, cell.z);
+    final on = _standsOn[id];
+    return on.isEmpty ? table.isSolid(below) : on.contains(below);
   }
 
   /// Whether block [index] carries [tag].

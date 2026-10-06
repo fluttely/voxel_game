@@ -6,7 +6,7 @@ generation, blocks and items, circuits and a network layer. It draws nothing —
 a renderer (`voxel_scene`) takes the meshes, and `voxel_game` ties everything
 into a playable game.
 
-> **Status: 0.3.0-dev**, beta. The API can still change.
+> **Status: 0.4.0-dev**, beta. The API can still change.
 
 ## The five subjects
 
@@ -25,7 +25,7 @@ Each one is a library of its own. Import only what you use, or
 
 ```yaml
 dependencies:
-  voxel_engine: ^0.3.0-dev
+  voxel_engine: ^0.4.0-dev
 ```
 
 Dart SDK `^3.13.0`. No Flutter dependency: it runs in `dart test`, on a server
@@ -87,7 +87,13 @@ sockets, through `dart:isolate` and `dart:io`, which a browser does not have.
 ### content — blocks, items and what the player carries
 
 1. **Declare blocks.** Air first; the order numbers them for the engine, and
-   `blocks.table` is the `VoxelBlockTable` step 1 above asked for.
+   `blocks.table` is the `VoxelBlockTable` step 1 above asked for. A row also says what the
+   block does, for a game to act on: it `falls`, it needs a `support` (`Support.below`,
+   `Support.side`; `blocks.stands` answers whether it would stay), it has an `onWall` form,
+   it drops a rolled `loot`, it turns to face the placer (`Facing.compass`, `Facing.axis`),
+   it is two cells `tall`, a use turns it into another (`usedInto`), it `grows` into its
+   next stage (a `Growth`), a tool turns it into another (`turnsWith`), it stores things
+   (a `Storage` of slots, and the loot a generated one holds).
 
    ```dart
    final blocks = BlockRegistry(const [
@@ -97,17 +103,27 @@ sockets, through `dart:isolate` and `dart:io`, which a browser does not have.
    ]);
    ```
 
-2. **Declare items.** Every block you can hold is an item already.
+2. **Declare items.** Every block you can hold is an item already (a block only the world
+   makes says `holdable: false`). One that is eaten says what it does in `food` (a
+   `Food` that `cures` ends the bad effects), one that is worn where in `armor`, one that
+   carries a liquid in `bucket` (`Bucket.empty`, `Bucket.full`), one that shoots in
+   `launcher` (`Launcher(shot:, ammo:)`), one that lights the way in hand in `light`, one
+   that glides in `glider`. What it looks like is its `shape`, or one read off the rest of
+   its row; `ItemModel.of(item, blocks, items)` builds its voxels.
 
    ```dart
    final items = ItemRegistry([
      ...ItemRegistry.forBlocks(blocks),
      const ItemType('wooden_pickaxe', color: 0xB08850, tool: 'pickaxe', tier: 1, stack: 1, durability: 60),
+     const ItemType('apple', color: 0xD03A2A, food: Food(hunger: 4)),
+     const ItemType('wool_tunic', color: 0xE8E8E8, stack: 1, armor: Armor('chest', 3)),
+     const ItemType('wool_cap', color: 0xE8E8E8, stack: 1, armor: Armor('head', 1), shape: ItemShape.cap),
    ]);
    ```
 
 3. **Mine.** `const MiningRules().mineTime(block, tool)` gives seconds, or -1
-   when that tool cannot break it.
+   when that tool cannot break it; a tool whose kind `cuts` a block's tag takes it at
+   once (shears through leaves).
 
 4. **Carry things.**
 
@@ -121,6 +137,15 @@ sockets, through `dart:isolate` and `dart:io`, which a browser does not have.
    ```dart
    final book = RecipeBook(const [Recipe('stone', 1, {'cobblestone': 1}, station: 'furnace')]);
    book.craft(book.available('furnace').first, bag);
+   ```
+
+6. **Roll loot.** A `LootTable` rolls each entry by its own chance (a chest, a mob's
+   drops); a `LootTable.oneOf` gives one entry or nothing, each chance a slice of one roll
+   (a fishing line's catch). `check()` throws for slices summing over 1.
+
+   ```dart
+   const catches = LootTable.oneOf([LootEntry('raw_fish', 1, 1, 0.7), LootEntry('stick', 1, 2, 0.15)]);
+   final got = catches.roll(math.Random()); // raw_fish 70 %, sticks 15 %, nothing 15 %
    ```
 
 ### worldgen — a world declared instead of coded
@@ -150,15 +175,33 @@ sockets, through `dart:isolate` and `dart:io`, which a browser does not have.
 4. **Ask it about the world** without generating chunks: `surfaceHeight(x, z)`,
    `biomeAt(x, z)`, `structuresNear(cx, cz)`.
 
-5. **Add a structure** with a build function:
+5. **Add structures**: a stock one (`Dungeon`, `Tower`, `Well`, `Camp`, `Ruins`, `Mine`,
+   `Village`, `Temple`) takes its blocks by name; your own is a build function. Structures keep
+   apart: a site within reach of an earlier one's is dropped. A dungeon's and a mine's parts
+   are where their plan says, so a game finds them without reading the world:
+   `DungeonPlan.of(dungeon, site, generator.rollOf(site)).spawners`, `MinePlan.of(...).chest`.
 
    ```dart
    void tower(StructureSite s) {
      s.level(-2, -2, 2, 2, 'stone', clearTo: 10);
      s.fill(-2, 0, -2, 2, 8, 2, 'stone', hollow: true);
    }
-   // structures: [StructureSpec('tower', build: tower, biomes: ['plains'], radius: 3)]
+   // structures: [
+   //   StructureSpec('well', Well(rim: 'cobblestone', water: 'water', posts: 'fence', roof: 'planks')),
+   //   StructureSpec('tower', CustomStructure(tower, radius: 3, blocks: {'stone'}), biomes: ['plains']),
+   // ]
    ```
+
+6. **Dress the ground** with rows: `strata` (dark stone in the deep), a biome's `covers`
+   (snow above a height, patches of mud), `pools` (water over mud), trees by `weight`,
+   and plants that grow taller (`maxHeight`), in patches (`spread`) or by water
+   (`byWater`), low ground pressed toward the sea (`flats`, a swamp), and biomes of
+   their own on the beach's columns (`shores`, a frozen one).
+
+7. **Other kinds of world.** A `cavern` (`CavernSpec`) is one great cave between a
+   bedrock floor and roof; a `plaza` (`Plaza`, or `withPlaza`) is a square of open ground
+   pressed flat, a showroom's floor; a `DimensionGenerator` hands each dimension's chunks
+   to its own spec, for the worker isolates.
 
 ### signals — circuits and rails
 

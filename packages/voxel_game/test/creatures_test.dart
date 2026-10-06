@@ -1,0 +1,578 @@
+import 'dart:convert';
+import 'dart:io';
+import 'dart:math' as math;
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:vector_math/vector_math.dart';
+import 'package:voxel_game/voxel_game.dart';
+
+import 'support/heard.dart';
+
+const _blocks = [
+  BlockType('stone', color: 0x808080, hardness: 1.5),
+  BlockType('dirt', color: 0x74502F, hardness: 0.5),
+  BlockType('grass', color: 0x4C9437, hardness: 0.6, drop: 'dirt'),
+  BlockType.liquid('water', color: 0x3366CC),
+];
+
+const _effects = [EffectType('poison', 'Poison', 0.3, 0.6, 0.2, period: 1.0, damage: 1.0, bad: true)];
+
+/// Level grass at y 20 (the first air cell), no caves, no trees.
+VoxelGameSpec _flat({
+  List<MobSpec> mobs = const [],
+  SkySpec sky = SkySpec.alwaysDay,
+  Map<String, int> start = const {},
+}) => VoxelGameSpec(
+  blocks: _blocks,
+  world: const WorldGenSpec(
+    terrain: TerrainRecipe.flat(20),
+    seaLevel: 5,
+    caves: CaveSpec.none,
+    biomes: [Biome('plains', top: 'grass', under: 'dirt')],
+  ),
+  items: const [ItemType('bone', color: 0xEEEEDD)],
+  effects: _effects,
+  player: PlayerSpec(xp: const XpSpec(), startingItems: start),
+  mobs: mobs,
+  sky: sky,
+);
+
+Future<VoxelGame> _start(VoxelGameSpec spec) async {
+  final game = await VoxelGame.startHeadless(spec);
+  game.spawner.enabled = false;
+  for (var i = 0; i < 600 && !game.ready; i++) {
+    game.frame(1 / 60);
+    await Future<void>.delayed(Duration.zero);
+  }
+  expect(game.ready, isTrue, reason: 'the spawn chunk loads and the player stands on it');
+  return game;
+}
+
+/// [seconds] of simulation, letting the chunk jobs land between frames.
+Future<void> _run(VoxelGame game, double seconds) async {
+  for (var t = 0.0; t < seconds; t += 1 / 60) {
+    game.frame(1 / 60);
+    await Future<void>.delayed(Duration.zero);
+  }
+}
+
+/// Turns the player to look at [m]'s middle.
+void _face(VoxelGame game, Mob m) {
+  final p = game.player;
+  final to = m.centre() - p.eyePosition;
+  p.yaw = -Vector3(0, 0, -1).angleToSigned(Vector3(to.x, 0, to.z).normalized(), Vector3(0, 1, 0));
+  p.pitch = math.atan2(to.y, Vector3(to.x, 0, to.z).length);
+}
+
+const _wolf = MobSpec(
+  'wolf',
+  hp: 12,
+  speed: 4.0,
+  brain: [Wander()],
+  tameWith: ['bone'],
+  tamedBrain: [MeleeAttack(damage: 4), PetFight(), Heel()],
+);
+
+const _horse = MobSpec(
+  'horse',
+  hp: 20,
+  speed: 5.0,
+  halfWidth: 0.5,
+  height: 1.6,
+  brain: [],
+  tameWith: ['bone'],
+  tamedBrain: [MountWait()],
+  mount: MountSpec(seat: 1.0),
+);
+
+int _dropped(VoxelGame game, String item) =>
+    game.entities.whereType<ItemPickup>().where((d) => d.stack.id == item).fold(0, (n, d) => n + d.stack.count);
+
+void main() {
+  test('a creature the player kills drops its loot and is worth its experience; one the blast kills is not', () async {
+    const pig = MobSpec('pig', hp: 6, brain: [], loot: LootTable([LootEntry('dirt', 3, 3, 1.0)]), xp: 7);
+    final game = await _start(_flat(mobs: const [pig]));
+    final p = game.player;
+    final m = game.spawnMob('pig', p.position + Vector3(0, 0, -10));
+    m.takeDamage(Damage(100, attacker: p));
+    expect(m.isDead, isTrue);
+    expect(_dropped(game, 'dirt'), 3, reason: 'its loot table rolled once');
+    expect(p.xp, 7);
+    final other = game.spawnMob('pig', p.position + Vector3(0, 0, 10));
+    other.takeDamage(const Damage(100, source: 'explosion'));
+    expect(other.isDead, isTrue);
+    expect(p.xp, 7, reason: 'only the player\'s kill is worth experience');
+  });
+
+  test('levels grow a creature\'s health, strikes and experience, and a spawn comes at the player\'s', () async {
+    const levels = MobLevels(hp: 0.5, damage: 0.25, xp: 1.0, spread: 1, caveBonus: 2);
+    expect(levels.levelFor(0, 0, cave: false), 1, reason: 'a player at level 0 meets level 1');
+    expect(levels.levelFor(4, 1, cave: true), 8);
+    expect(levels.levelFor(0, -1, cave: false), 1, reason: 'never under 1');
+    const brute = MobSpec('brute', hp: 10, brain: [], xp: 10, levels: levels, spawn: SpawnRule(maxAlive: 3));
+    final game = await _start(_flat(mobs: const [brute]));
+    final m = game.spawnMob('brute', game.player.position + Vector3(0, 0, -10));
+    expect((m.level, m.hp, m.damageScale, m.xpWorth), (1, 10.0, 1.0, 10));
+    m.growTo(3);
+    expect((m.level, m.hp, m.maxHp, m.damageScale, m.xpWorth), (3, 20.0, 20.0, 1.5, 30));
+    m.removed = true;
+    game.player.level = 4;
+    game.spawner
+      ..enabled = true
+      ..minDistance = 6
+      ..maxDistance = 14;
+    await _run(game, 6.0);
+    final spawned = game.mobs.where((m) => !m.removed).toList();
+    expect(spawned, isNotEmpty);
+    for (final s in spawned) {
+      expect(s.level, inInclusiveRange(4, 6), reason: 'the player\'s level plus one, give or take one');
+      expect(s.hp, s.maxHp);
+    }
+  });
+
+  test('a creature that burns by day burns under the open noon sky, not under a roof, not at night', () async {
+    const zombie = MobSpec('zombie', hp: 20, brain: [], burnsInDaylight: true);
+    final day = await _start(_flat(mobs: const [zombie]));
+    final open = day.spawnMob('zombie', day.player.position + Vector3(0, 0, -6));
+    final roofed = day.spawnMob('zombie', day.player.position + Vector3(0, 0, 6));
+    final over = IVec3.floor(roofed.position) + const IVec3(0, 3, 0);
+    for (var x = -2; x <= 2; x++) {
+      for (var z = -2; z <= 2; z++) {
+        day.world.setBlock(over + IVec3(x, 0, z), day.blocks.indexOf('stone'));
+      }
+    }
+    // The roof's shade is lit in by the next look.
+    await _run(day, 1.0);
+    final roofedHp = roofed.hp;
+    await _run(day, 2.0);
+    expect(open.burning, isTrue);
+    expect(open.hp, lessThan(20.0));
+    expect(roofed.burning, isFalse, reason: 'a roof keeps the full sky off its head');
+    expect(roofed.hp, roofedHp);
+
+    final night = await _start(_flat(mobs: const [zombie], sky: const SkySpec(startTime: 0.0, cycle: false)));
+    final dark = night.spawnMob('zombie', night.player.position + Vector3(0, 0, -6));
+    await _run(night, 2.0);
+    expect(dark.hp, 20.0, reason: 'the night burns no one');
+  });
+
+  test('a creature that splits dies into its children, at its level, and they are worth their own', () async {
+    const slime = MobSpec('slime', hp: 8, brain: [], levels: MobLevels(), splitsInto: MobSplit('small', count: 3));
+    const small = MobSpec('small', hp: 2, brain: [], levels: MobLevels());
+    final game = await _start(_flat(mobs: const [slime, small]));
+    final m = game.spawnMob('slime', game.player.position + Vector3(0, 0, -8))..growTo(3);
+    m.takeDamage(Damage(100, attacker: game.player));
+    final children = game.mobs.where((c) => c.spec.id == 'small').toList();
+    expect(children, hasLength(3));
+    expect(children.map((c) => c.level).toSet(), {3});
+    await _run(game, 1.0);
+    expect(game.mobs.where((c) => c.spec.id == 'slime'), isEmpty);
+    expect(game.mobs.where((c) => c.spec.id == 'small'), hasLength(3), reason: 'the children do not split again');
+  });
+
+  test('a strike leaves its creature\'s effect on the player', () async {
+    const spider = MobSpec(
+      'spider',
+      hp: 10,
+      speed: 3.0,
+      brain: [MeleeAttack(damage: 1), Hunt(range: 20)],
+      onHit: HitEffect('poison', seconds: 8.0),
+    );
+    final game = await _start(_flat(mobs: const [spider]));
+    game.spawnMob('spider', game.player.position + Vector3(0, 0, -3));
+    await _run(game, 3.0);
+    expect(game.player.effects.has('poison'), isTrue);
+  });
+
+  test('underground, a cave rule spawns in a pocket of air near the player and a surface rule does not', () async {
+    const bat = MobSpec('bat', hp: 4, brain: [], spawn: SpawnRule.cave(maxAlive: 4));
+    const cow = MobSpec('cow', hp: 4, brain: [], spawn: SpawnRule(maxAlive: 4));
+    final game = await _start(_flat(mobs: const [bat, cow]));
+    final p = game.player;
+    // A room 9 x 9, three high, its floor at y 8, twelve under the grass.
+    final c = IVec3.floor(p.position);
+    for (var x = -4; x <= 4; x++) {
+      for (var z = -4; z <= 4; z++) {
+        for (var y = 8; y <= 10; y++) {
+          game.world.setBlock(IVec3(c.x + x, y, c.z + z), BlockRegistry.air);
+        }
+      }
+    }
+    p.position = Vector3(c.x + 0.5, 8.0, c.z + 0.5);
+    p.velocity = Vector3.zero();
+    await _run(game, 0.5);
+    game.spawner
+      ..enabled = true
+      ..minDistance = 1
+      ..maxDistance = 3
+      ..caveShare = 1.0;
+    await _run(game, 20.0);
+    final bats = game.mobs.where((m) => m.spec.id == 'bat');
+    expect(bats, isNotEmpty);
+    for (final b in bats) {
+      expect(b.position.y, inInclusiveRange(7.9, 10.0), reason: 'in the room, not on the grass');
+    }
+    expect(game.mobs.where((m) => m.spec.id == 'cow'), isEmpty);
+  });
+
+  test('a biome weight multiplies a rule\'s weight there', () {
+    const rule = SpawnRule(weight: 4, biomeWeights: {'swamp': 2.5});
+    expect(rule.weightIn('swamp'), 10.0);
+    expect(rule.weightIn('plains'), 4.0);
+  });
+
+  test('a spec\'s creatures are checked: their loot, splits, strikes and experience', () {
+    void check(VoxelGameSpec spec) {
+      final blocks = spec.buildBlocks();
+      spec.checkMobs(spec.buildItems(blocks));
+    }
+
+    check(
+      _flat(
+        mobs: const [
+          MobSpec('pig', loot: LootTable([LootEntry('dirt', 1, 1, 1.0)]), xp: 3),
+        ],
+      ),
+    );
+    expect(
+      () => check(
+        _flat(
+          mobs: const [
+            MobSpec('pig', loot: LootTable([LootEntry('gold', 1, 1, 1.0)])),
+          ],
+        ),
+      ),
+      throwsArgumentError,
+    );
+    expect(() => check(_flat(mobs: const [MobSpec('slime', splitsInto: MobSplit('small'))])), throwsArgumentError);
+    expect(() => check(_flat(mobs: const [MobSpec('spider', onHit: HitEffect('fire'))])), throwsArgumentError);
+    expect(() => check(_flat(mobs: const [MobSpec('pig'), MobSpec('pig')])), throwsArgumentError);
+    expect(
+      () => check(_flat(mobs: const [MobSpec('pig', xp: 3)]).copyWith(player: const PlayerSpec())),
+      throwsArgumentError,
+    );
+  });
+
+  test('a use with what tames a creature tames it: it follows its owner, and past thirty metres is carried', () async {
+    final game = await _start(_flat(mobs: const [_wolf], start: const {'bone': 3}));
+    final p = game.player;
+    final wolf = game.spawnMob('wolf', p.position + Vector3(0, 0, -2));
+    _face(game, wolf);
+    await _run(game, 0.1);
+    expect(p.aimedMob, same(wolf));
+    expect(p.usableOn(wolf), isTrue);
+    expect(game.input.touchTapPrimary, isFalse, reason: 'a finger\'s tap on it uses, as the right button does');
+    game.input.tap(VoxelAction.use);
+    await _run(game, 0.1);
+    expect(wolf.tamed, isTrue);
+    expect(wolf.owner, same(p));
+    expect(p.inventory.countOf('bone'), 2, reason: 'one bone went');
+    expect(p.usableOn(wolf), isFalse, reason: 'a companion is not ridden');
+    expect(wolf.running.whereType<Heel>(), isNotEmpty);
+
+    p.position = p.position + Vector3(10, 0, 0);
+    await _run(game, 4.0);
+    expect(wolf.position.distanceTo(p.position), lessThan(4.5), reason: 'it walked after its owner');
+    p.position = p.position + Vector3(0, 0, 34);
+    await _run(game, 0.5);
+    expect(wolf.position.distanceTo(p.position), lessThan(3.0), reason: 'carried beside its owner');
+  });
+
+  test('a taming that does not take still uses up what was offered', () async {
+    const shy = MobSpec('shy', hp: 4, brain: [], tameWith: ['bone'], tameChance: 1e-9, tamedBrain: [Heel()]);
+    final game = await _start(_flat(mobs: const [shy], start: const {'bone': 1}));
+    final m = game.spawnMob('shy', game.player.position + Vector3(0, 0, -2));
+    _face(game, m);
+    await _run(game, 0.1);
+    game.input.tap(VoxelAction.use);
+    await _run(game, 0.1);
+    expect(m.tamed, isFalse);
+    expect(game.player.inventory.countOf('bone'), 0);
+  });
+
+  test('a companion fights what hunts its owner', () async {
+    const zombie = MobSpec('zombie', hp: 30, speed: 1.0, brain: [Hunt(range: 30)]);
+    final game = await _start(_flat(mobs: const [_wolf, zombie]));
+    final p = game.player;
+    final wolf = game.spawnMob('wolf', p.position + Vector3(2, 0, 0))..tame(p);
+    final z = game.spawnMob('zombie', p.position + Vector3(0, 0, -10));
+    await _run(game, 4.0);
+    expect(wolf.target, same(z));
+    expect(z.hp, lessThan(30.0), reason: 'the companion bit it');
+  });
+
+  test('a tamed mount is ridden by a use, walks by the rider\'s input, and a sneak gets off', () async {
+    final heard = Heard();
+    final game = await _start(_flat(mobs: const [_horse]).copyWith(systems: () => [heard]));
+    final p = game.player;
+    final horse = game.spawnMob('horse', p.position + Vector3(0, 0, -2.5));
+    _face(game, horse);
+    await _run(game, 0.1);
+    expect(p.usableOn(horse), isFalse, reason: 'a wild mount is not ridden, and the hand holds nothing that tames it');
+    horse.tame(p);
+    await _run(game, 0.1);
+    expect(p.aimedMob, same(horse));
+    expect(p.usableOn(horse), isTrue);
+    game.input.tap(VoxelAction.use);
+    await _run(game, 0.1);
+    expect(p.riding, same(horse));
+    expect(horse.rider, same(p));
+    expect(heard.events.whereType<Mounted>().single.mount, same(horse));
+    expect(heard.events.whereType<Tamed>(), isEmpty, reason: 'tamed by code, not by the player');
+    expect(p.position.distanceTo(horse.seat()), lessThan(1e-6));
+    p.yaw = 0.0;
+    final from = horse.position.clone();
+    game.input.hold(VoxelAction.moveForward, true);
+    await _run(game, 1.0);
+    game.input.hold(VoxelAction.moveForward, false);
+    expect(from.z - horse.position.z, greaterThan(3.0), reason: 'a second forward at its pace');
+    expect(p.position.distanceTo(horse.seat()), lessThan(1e-6), reason: 'the rider sits on it');
+    expect(p.aimedMob, isNot(same(horse)), reason: 'the rider does not aim at their own mount');
+    game.input.tap(VoxelAction.sneak);
+    await _run(game, 0.1);
+    expect(p.riding, isNull);
+    expect(horse.rider, isNull);
+    expect(p.onFloor || p.velocity.y <= 0.0, isTrue);
+  });
+
+  test('a mount that dies throws its rider off; tamed creatures neither burn nor wander off the spawner', () async {
+    const undead = MobSpec(
+      'undead',
+      hp: 20,
+      brain: [],
+      burnsInDaylight: true,
+      tameWith: ['bone'],
+      tamedBrain: [MountWait()],
+      mount: MountSpec(seat: 1.0),
+      spawn: SpawnRule(maxAlive: 1),
+    );
+    final game = await _start(_flat(mobs: const [undead]));
+    final p = game.player;
+    final m = game.spawnMob('undead', p.position + Vector3(0, 0, -2))..tame(p);
+    await _run(game, 2.0);
+    expect(m.hp, 20.0, reason: 'a tamed creature does not burn');
+    p.ride(m);
+    m.takeDamage(const Damage(100));
+    await _run(game, 0.1);
+    expect(p.riding, isNull);
+    final far = game.spawnMob('undead', p.position + Vector3(0, 0, -20))..tame(p);
+    game.spawner
+      ..enabled = true
+      ..despawnDistance = 5;
+    await _run(game, 2.0);
+    expect(far.removed, isFalse, reason: 'the spawner leaves a tamed creature alone');
+  });
+
+  test('a spec\'s tameable creatures are checked', () {
+    void check(MobSpec m) {
+      final spec = _flat(mobs: [m]);
+      spec.checkMobs(spec.buildItems(spec.buildBlocks()));
+    }
+
+    check(_wolf);
+    expect(() => check(const MobSpec('wolf', tameWith: ['steak'], tamedBrain: [Heel()])), throwsArgumentError);
+    expect(() => check(const MobSpec('wolf', tameWith: ['bone'])), throwsArgumentError);
+    expect(
+      () => check(const MobSpec('wolf', tameWith: ['bone'], tameChance: 0.0, tamedBrain: [Heel()])),
+      throwsArgumentError,
+    );
+  });
+
+  test('a persistent creature stays however far the player goes; a ghost flies through walls', () async {
+    const keeper = MobSpec('keeper', brain: [], persistent: true, spawn: SpawnRule(maxAlive: 1));
+    const ghost = MobSpec('ghost', brain: [Hunt()], gait: Gait.fly, ghost: true);
+    const bat = MobSpec('bat', brain: [Hunt()], gait: Gait.fly);
+    final game = await _start(_flat(mobs: const [keeper, ghost, bat]));
+    final p = game.player;
+    final far = game.spawnMob('keeper', p.position + Vector3(0, 0, -20));
+    game.spawner
+      ..enabled = true
+      ..despawnDistance = 5;
+    await _run(game, 2.0);
+    expect(far.removed, isFalse, reason: 'the spawner leaves a persistent creature alone');
+    game.spawner.enabled = false;
+    // A wall between the player and two hunters, each of whom flies straight at them.
+    final feet = IVec3.floor(p.position);
+    final wall = feet.x + 3;
+    for (var y = 0; y < 8; y++) {
+      for (var z = -6; z <= 6; z++) {
+        game.world.setBlockNamed(IVec3(wall, feet.y + y, feet.z + z), 'stone');
+      }
+    }
+    final g = game.spawnMob('ghost', p.position + Vector3(6, 0, -1));
+    final b = game.spawnMob('bat', p.position + Vector3(6, 0, 1));
+    expect(g.noclip, isTrue);
+    expect(b.noclip, isFalse);
+    await _run(game, 3.0);
+    expect(g.position.x, lessThan(wall), reason: 'the wall does not hold it');
+    expect(b.position.x, greaterThan(wall + 1), reason: 'it holds a flier');
+    expect(
+      () => _flat(mobs: const [MobSpec('ghost', ghost: true)]).checkMobs(_flat().buildItems(_flat().buildBlocks())),
+      throwsArgumentError,
+      reason: 'a ghost that walks would fall through the floor',
+    );
+  });
+
+  test('an invulnerable creature feels a blow and is shoved, but loses no health and never burns', () async {
+    const villager = MobSpec('villager', hp: 20, brain: [], invulnerable: true);
+    final game = await _start(_flat(mobs: const [villager]));
+    final p = game.player;
+    final m = game.spawnMob('villager', p.position + Vector3(0, 0, -3));
+    await _run(game, 0.5);
+    final before = m.position.clone();
+    expect(m.takeDamage(Damage(100, attacker: p, from: p.position, knockback: 6.0)), 0.0);
+    expect(m.flashing, isTrue, reason: 'the blow is felt');
+    expect(m.lastHurtBy, same(p));
+    await _run(game, 0.3);
+    expect(m.position.distanceTo(before), greaterThan(0.5), reason: 'and shoves it');
+    m.takeDamage(const Damage(100, source: 'explosion'));
+    m.ignite(5.0);
+    expect(m.burning, isFalse, reason: 'no fire catches on it');
+    await _run(game, 1.0);
+    expect(m.hp, 20.0);
+    expect(m.isDead, isFalse);
+  });
+
+  group('the save', () {
+    const pet = MobSpec(
+      'pet',
+      hp: 10,
+      brain: [Wander()],
+      levels: MobLevels(hp: 0.5),
+      tameWith: ['bone'],
+      tamedBrain: [Heel()],
+    );
+    const keeper = MobSpec('keeper', hp: 8, brain: [], persistent: true);
+    const pig = MobSpec('pig', hp: 6, brain: [], spawn: SpawnRule());
+    final spec = _flat(mobs: const [pet, keeper, pig]);
+
+    (WorldSaves, Directory) newSaves() {
+      final dir = Directory.systemTemp.createTempSync('voxel_creatures');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      return (WorldSaves(dir), dir);
+    }
+
+    test('keeps a tamed creature, its owner the player, and a persistent one; a wild one is not kept', () async {
+      final (saves, dir) = newSaves();
+      final game = await _start(spec);
+      final p = game.player;
+      final dog = game.spawnMob('pet', p.position + Vector3(3, 0, 1))
+        ..growTo(3)
+        ..tame(p)
+        ..facing = 1.25;
+      dog.hp = 7.5;
+      final stays = game.spawnMob('keeper', p.position + Vector3(-4, 0, 2))
+        ..hp = 5
+        ..home = p.position + Vector3(-6, 0, 2);
+      stays.data['mood'] = {'calm': true, 'days': 3};
+      game.spawnMob('pig', p.position + Vector3(0, 0, 5));
+      game.spawnMob('pet', p.position + Vector3(0, 0, -5));
+      saves.save(game, 'pets');
+      final json = jsonDecode(File('${dir.path}/pets/game.json').readAsStringSync()) as Map<String, Object?>;
+      expect(json['version'], WorldSaves.stateVersion);
+      expect(((json['mobs']! as Map<String, Object?>)['world']! as List<Object?>).length, 2);
+
+      final loaded = await VoxelGame.startHeadless(spec, save: saves.read('pets'));
+      expect(loaded.mobs.map((m) => m.spec.id), ['pet', 'keeper'], reason: 'neither the pig nor the wild pet');
+      final [back, kept] = loaded.mobs;
+      expect(back.position, dog.position);
+      expect(back.facing, 1.25);
+      expect(back.level, 3);
+      expect(back.maxHp, dog.maxHp);
+      expect(back.hp, 7.5);
+      expect(back.tamed, isTrue);
+      expect(back.owner, same(loaded.player));
+      expect(kept.position, stays.position);
+      expect(kept.hp, 5.0);
+      expect(kept.tamed, isFalse);
+      expect(kept.home, stays.home);
+      expect(kept.data, {
+        'mood': {'calm': true, 'days': 3},
+      });
+      expect(back.data, isEmpty);
+    });
+
+    test('a creature marked a boss after it spawns is the game\'s boss, and the save keeps the mark', () async {
+      final (saves, _) = newSaves();
+      final game = await _start(spec);
+      final stays = game.spawnMob('keeper', game.player.position + Vector3(-4, 0, 2));
+      expect(stays.boss, isFalse, reason: 'as its species is');
+      expect(game.boss, isNull);
+      stays.boss = true;
+      expect(game.boss, same(stays));
+      saves.save(game, 'boss');
+
+      final loaded = await VoxelGame.startHeadless(spec, save: saves.read('boss'));
+      expect(loaded.mobs.single.boss, isTrue);
+      expect(loaded.boss, same(loaded.mobs.single));
+    });
+
+    test('a version 9 save, which kept no boss mark, marks each creature as its species is', () async {
+      final (saves, dir) = newSaves();
+      const boss = MobSpec('lord', hp: 20, brain: [], persistent: true, boss: true);
+      final bossSpec = _flat(mobs: [keeper, boss]);
+      final game = await _start(bossSpec);
+      game.spawnMob('keeper', game.player.position + Vector3(-4, 0, 2)).boss = true;
+      game.spawnMob('lord', game.player.position + Vector3(4, 0, 2)).boss = false;
+      saves.save(game, 'old');
+      final file = File('${dir.path}/old/game.json');
+      final s = jsonDecode(file.readAsStringSync()) as Map<String, Object?>;
+      s['version'] = 9;
+      for (final row
+          in ((s['mobs']! as Map<String, Object?>)['world']! as List<Object?>).cast<Map<String, Object?>>()) {
+        row.remove('boss');
+      }
+      file.writeAsStringSync(jsonEncode(s));
+
+      final loaded = await VoxelGame.startHeadless(bossSpec, save: saves.read('old'));
+      expect({for (final m in loaded.mobs) m.spec.id: m.boss}, {'keeper': false, 'lord': true});
+    });
+
+    test('a version 8 save, which kept no home and no data, still loads', () async {
+      final (saves, dir) = newSaves();
+      final game = await _start(spec);
+      final stays = game.spawnMob('keeper', game.player.position + Vector3(-4, 0, 2))
+        ..home = game.player.position + Vector3(9, 0, 9);
+      saves.save(game, 'old');
+      final file = File('${dir.path}/old/game.json');
+      final s = jsonDecode(file.readAsStringSync()) as Map<String, Object?>;
+      s['version'] = 8;
+      for (final row
+          in ((s['mobs']! as Map<String, Object?>)['world']! as List<Object?>).cast<Map<String, Object?>>()) {
+        row
+          ..remove('home')
+          ..remove('data');
+      }
+      file.writeAsStringSync(jsonEncode(s));
+
+      final loaded = await VoxelGame.startHeadless(spec, save: saves.read('old'));
+      expect(loaded.mobs.single.home, stays.position, reason: 'at home where it stands');
+      expect(loaded.mobs.single.data, isEmpty);
+    });
+
+    test('a version 5 save, which kept no creature, still loads', () async {
+      final (saves, dir) = newSaves();
+      final game = await _start(spec);
+      game.spawnMob('pet', game.player.position + Vector3(3, 0, 1)).tame(game.player);
+      saves.save(game, 'old');
+      final file = File('${dir.path}/old/game.json');
+      final s = jsonDecode(file.readAsStringSync()) as Map<String, Object?>;
+      s['version'] = 5;
+      s.remove('mobs');
+      file.writeAsStringSync(jsonEncode(s));
+
+      final loaded = await VoxelGame.startHeadless(spec, save: saves.read('old'));
+      expect(loaded.mobs, isEmpty);
+      expect(loaded.player.position, game.player.position);
+    });
+
+    test('a network hello, which carries no player, keeps no creature either', () async {
+      final loaded = await VoxelGame.startHeadless(
+        spec,
+        save: const SavedWorld(7, {}, {'time': 3.0, 'timeOfDay': 0.5}),
+      );
+      expect(loaded.time, 3.0);
+      expect(loaded.mobs, isEmpty);
+    });
+  });
+}

@@ -68,6 +68,85 @@ void main() {
         throwsArgumentError,
       );
     });
+
+    test('refuses a block that leans on, or turns into, a block that does not exist', () {
+      const air = BlockType('air', color: 0, solid: false);
+      expect(
+        () => BlockRegistry(const [air, BlockType('torch', color: 0, solid: false, onWall: 'wall_torch')]),
+        throwsArgumentError,
+      );
+      expect(
+        () => BlockRegistry(const [
+          air,
+          BlockType('wheat', color: 0, solid: false, support: Support.below(on: {'farmland'})),
+        ]),
+        throwsArgumentError,
+      );
+    });
+
+    test('a facing picks the variant the placer looks toward, or along', () {
+      const stairs = Facing.compass(north: 'n', east: 'e', south: 's', west: 'w');
+      expect(stairs.toward(0, -1), 'n', reason: 'north is -Z');
+      expect(stairs.toward(0.9, 0.2), 'e');
+      expect(stairs.toward(-0.1, 0.8), 's');
+      expect(stairs.toward(-0.7, -0.3), 'w');
+      const door = Facing.axis(x: 'door_x', z: 'door_z');
+      expect(door.toward(-0.9, 0.1), 'door_x');
+      expect(door.toward(0.1, 0.9), 'door_z');
+      expect(stairs.variants, ['n', 'e', 's', 'w']);
+      expect(door.variants, ['door_x', 'door_z']);
+      expect(
+        () => BlockRegistry(const [
+          BlockType('air', color: 0, solid: false),
+          BlockType('door_z', color: 0, facing: door),
+        ]),
+        throwsArgumentError,
+        reason: 'door_x does not exist',
+      );
+      expect(
+        () => BlockRegistry(const [
+          BlockType('air', color: 0, solid: false),
+          BlockType('wheat_0', color: 0, grows: Growth('wheat_1', seconds: 30)),
+        ]),
+        throwsArgumentError,
+        reason: 'wheat_1 does not exist',
+      );
+      expect(
+        () => BlockRegistry(const [
+          BlockType('air', color: 0, solid: false),
+          BlockType('dirt', color: 0, turnsWith: {'hoe': 'farmland'}),
+        ]),
+        throwsArgumentError,
+        reason: 'farmland does not exist',
+      );
+    });
+
+    test('a block stands where what it leans on is', () {
+      final r = BlockRegistry(const [
+        BlockType('air', color: 0, solid: false),
+        BlockType('stone', color: 0x808080),
+        BlockType('glass', color: 0xCCEEFF, alpha: 0.3),
+        BlockType('farmland', color: 0x664422),
+        BlockType('torch', color: 0xFFD070, solid: false, support: Support.below()),
+        BlockType('ladder', color: 0x996633, solid: false, support: Support.side()),
+        BlockType('wheat', color: 0x99BB44, solid: false, support: Support.below(on: {'farmland'})),
+      ]);
+      final w = _Cells(r.table);
+      const at = IVec3(0, 5, 0);
+      int id(String name) => r.indexOf(name);
+      expect(r.stands(w, at, id('stone')), isTrue, reason: 'a block with no support stands anywhere');
+      expect(r.stands(w, at, id('torch')), isFalse);
+      w.cells[at + IVec3.down] = id('glass');
+      expect(r.stands(w, at, id('torch')), isTrue, reason: 'any solid block below will do');
+      expect(r.stands(w, at, id('wheat')), isFalse, reason: 'wheat stands on farmland only');
+      w.cells[at + IVec3.down] = id('farmland');
+      expect(r.stands(w, at, id('wheat')), isTrue);
+      expect(r.stands(w, at, id('ladder')), isFalse, reason: 'the floor is not a wall');
+      w.cells[at + IVec3.right] = id('glass');
+      expect(r.stands(w, at, id('ladder')), isFalse, reason: 'a wall must be opaque');
+      w.cells[at + IVec3.back] = id('stone');
+      expect(r.stands(w, at, id('ladder')), isTrue);
+    });
   });
 
   group('items and mining', () {
@@ -81,6 +160,40 @@ void main() {
       expect(items.has('air'), isFalse);
     });
 
+    test('a block only the world makes is no item, and a block\'s item gives its light in hand', () {
+      final world = BlockRegistry(const [
+        BlockType('air', color: 0, solid: false, hardness: -1, drop: ''),
+        BlockType('torch', color: 0xFFD070, shape: BlockShape.torch, solid: false, hardness: 0, light: 14),
+        BlockType('portal', color: 0x8A3CF0, solid: false, hardness: -1, drop: '', holdable: false),
+        BlockType('bed', color: 0xC03030, hardness: 0.5, bed: true),
+      ]);
+      final held = ItemRegistry(ItemRegistry.forBlocks(world));
+      expect(held.has('portal'), isFalse);
+      expect(held['torch'].light, 14);
+      expect(held['bed'].light, 0);
+      expect(world[world.indexOf('bed')].bed, isTrue);
+      expect(world[world.indexOf('torch')].bed, isFalse);
+      expect(blocks[blocks.indexOf('water')].holdable, isFalse, reason: 'a liquid is held only in a bucket');
+      // ignore: prefer_const_constructors
+      expect(() => ItemType('sun', color: 0xFFFFFF, light: 16), throwsA(isA<AssertionError>()));
+    });
+
+    test('a tool cuts the blocks of its tags at once, and gets the block itself', () {
+      const rules = MiningRules(
+        cuts: {
+          'shovel': {'plant'},
+        },
+      );
+      expect(rules.cut(b('flower'), items['stone_shovel']), isTrue);
+      expect(rules.cut(b('flower'), items['wooden_pickaxe']), isFalse, reason: 'another tool');
+      expect(rules.cut(b('flower'), null), isFalse, reason: 'the hand cuts nothing');
+      expect(rules.cut(b('dirt'), items['stone_shovel']), isFalse, reason: 'not of the tag');
+      final leaves = BlockType('leaves', color: 0x3F8A2E, hardness: 0.2, tool: 'axe', tier: 1, tags: {'plant'});
+      expect(rules.mineTime(leaves, items['stone_shovel']), 0.05);
+      expect(rules.drops(leaves, items['stone_shovel']), isTrue, reason: 'cut, whatever tier it asks');
+      expect(rules.drops(leaves, null), isFalse);
+    });
+
     test('the right tool at its tier is fast, the hand is slow, a missing tier cannot', () {
       expect(rules.mineTime(b('dirt'), null), closeTo(0.8 * 3, 1e-9), reason: 'no shovel: three times the hardness');
       expect(rules.mineTime(b('dirt'), items['stone_shovel']), closeTo(0.8 / 4, 1e-9));
@@ -90,6 +203,56 @@ void main() {
       expect(rules.mineTime(b('water'), items['wooden_pickaxe']), -1);
       expect(rules.drops(b('stone'), items['wooden_pickaxe']), isTrue);
       expect(rules.drops(b('stone'), items['stone_shovel']), isFalse);
+    });
+
+    test('an item says what eating it does and where it is worn', () {
+      const stew = ItemType('stew', color: 0x8B5A2B, stack: 1, food: Food(hunger: 6, heal: 2.0, leaves: 'bowl'));
+      const potion = ItemType('potion', color: 0xFF30A0, food: Food(effect: 'regeneration', seconds: 10.0, power: 2.0));
+      const helmet = ItemType('helmet', color: 0xC0C0C0, stack: 1, armor: Armor('head', 2));
+      expect(stew.food!.hunger, 6);
+      expect(stew.food!.leaves, 'bowl');
+      expect(stew.armor, isNull);
+      expect(potion.food!.effect, 'regeneration');
+      expect(potion.food!.hunger, 0, reason: 'a drink fills nothing');
+      expect(helmet.armor!.slot, 'head');
+      expect(helmet.food, isNull);
+      expect(items['stone'].food, isNull, reason: "a block's item is neither eaten nor worn");
+    });
+
+    test('an effect without its seconds, or seconds without an effect, is refused', () {
+      // ignore: prefer_const_constructors
+      expect(() => Food(effect: 'regeneration'), throwsA(isA<AssertionError>()));
+      // ignore: prefer_const_constructors
+      expect(() => Food(hunger: 2, seconds: 5.0), throwsA(isA<AssertionError>()));
+      // ignore: prefer_const_constructors
+      expect(() => Armor('chest', 0), throwsA(isA<AssertionError>()));
+    });
+
+    test('an item says what it shoots, and a cure on a food', () {
+      const bow = ItemType(
+        'bow',
+        color: 0x9A7040,
+        stack: 1,
+        launcher: Launcher(shot: 'arrow', ammo: 'arrow'),
+      );
+      expect(bow.launcher!.cooldown, 0.5, reason: 'a shot every half second unless told');
+      expect(items['stone'].launcher, isNull);
+      // ignore: prefer_const_constructors
+      expect(() => Launcher(shot: 'arrow', cooldown: 0.0), throwsA(isA<AssertionError>()));
+      const milk = ItemType('milk', color: 0xF4F4F0, food: Food(heal: 2.0, cures: true));
+      expect(milk.food!.cures, isTrue);
+      expect(items['stone'].food?.cures, isNull);
+    });
+
+    test('an item says how it glides; a glider that does not fly forward, sink or turn is refused', () {
+      const wings = ItemType('wings', color: 0xE04030, stack: 1, glider: Glider(speed: 14.0));
+      expect(wings.glider!.speed, 14.0);
+      expect(wings.glider!.fall, 1.6, reason: 'a hang glider\'s sink unless told');
+      expect(items['stone'].glider, isNull);
+      // ignore: prefer_const_constructors
+      expect(() => Glider(fall: 0.0), throwsA(isA<AssertionError>()));
+      // ignore: prefer_const_constructors
+      expect(() => Glider(steer: -1.0), throwsA(isA<AssertionError>()));
     });
   });
 
@@ -109,6 +272,18 @@ void main() {
       expect(full.roomFor('dirt', 10), 0);
     });
 
+    test('roomForStack is what put would take: a new stack tops up, a worn one wants an empty slot', () {
+      final i = Inventory(stackSize: (id) => 64, capacity: 2)..add('dirt', 100);
+      expect(i.roomForStack(ItemStack('dirt', 40)), 28);
+      expect(i.roomForStack(ItemStack('sword', 1, dur: 10)), 0);
+      expect(i.roomForStack(ItemStack('sword', 1, bonus: 2)), 0);
+      i.remove('dirt', 64);
+      expect(i.roomForStack(ItemStack('sword', 1, dur: 10)), 1);
+      final room = i.roomForStack(ItemStack('dirt', 200));
+      expect(room, 92);
+      expect(i.put(ItemStack('dirt', 200)), 200 - room);
+    });
+
     test('remove takes from the back and all-or-nothing; wear breaks a tool', () {
       final i = inv()..add('dirt', 70);
       expect(i.remove('dirt', 100), isFalse);
@@ -123,6 +298,16 @@ void main() {
       expect(i.durAt(slot), 1);
       expect(i.wear(slot), isTrue);
       expect(i.isEmptySlot(slot), isTrue);
+    });
+
+    test('put tops up with a new stack and keeps a worn one whole, in a slot of its own', () {
+      final full = Inventory(stackSize: (id) => items[id].stack, capacity: 2)..add('dirt', 60);
+      expect(full.put(ItemStack('dirt', 10)), 0, reason: '4 top up the stack, 6 open a slot');
+      expect(full.countAt(0), 64);
+      expect(full.put(ItemStack('wooden_pickaxe', 1, dur: 7)), 1, reason: 'no empty slot');
+      final i = inv();
+      expect(i.put(ItemStack('wooden_pickaxe', 1, dur: 7)), 0);
+      expect(i.slots[0]!.dur, 7);
     });
 
     test('round-trips through JSON, dropping unknown items', () {
@@ -168,6 +353,39 @@ void main() {
     expect(a.single.count, inInclusiveRange(2, 4));
   });
 
+  test('LootTable.oneOf gives one entry by its slice of the roll, or nothing from what the slices leave', () {
+    const table = LootTable.oneOf([
+      LootEntry('fish', 1, 1, 0.7),
+      LootEntry('salmon', 1, 1, 0.1),
+      LootEntry('junk', 1, 2, 0.15),
+    ]);
+    table.check();
+    final rng = math.Random(7);
+    final counts = <String, int>{};
+    const rolls = 20000;
+    for (var i = 0; i < rolls; i++) {
+      final got = table.roll(rng);
+      expect(got.length, lessThanOrEqualTo(1), reason: 'one entry at most');
+      final key = got.isEmpty ? '' : got.single.id;
+      counts[key] = (counts[key] ?? 0) + 1;
+      if (got.isNotEmpty && got.single.id == 'junk') expect(got.single.count, inInclusiveRange(1, 2));
+    }
+    expect(counts['fish']! / rolls, closeTo(0.7, 0.02));
+    expect(counts['salmon']! / rolls, closeTo(0.1, 0.02));
+    expect(counts['junk']! / rolls, closeTo(0.15, 0.02));
+    expect(counts['']! / rolls, closeTo(0.05, 0.02), reason: 'what the slices leave gives nothing');
+
+    const full = LootTable.oneOf([LootEntry('a', 1, 1, 0.7), LootEntry('b', 1, 1, 0.1), LootEntry('c', 1, 1, 0.2)]);
+    full.check();
+    for (var i = 0; i < 200; i++) {
+      expect(full.roll(rng), hasLength(1), reason: 'slices summing to 1 always give one');
+    }
+    const over = LootTable.oneOf([LootEntry('a', 1, 1, 0.7), LootEntry('b', 1, 1, 0.4)]);
+    expect(over.check, throwsArgumentError);
+    expect(() => over.roll(rng), throwsArgumentError);
+    const LootTable([LootEntry('a', 1, 1, 0.7), LootEntry('b', 1, 1, 0.9)]).check();
+  });
+
   group('StatusEffects', () {
     const types = {
       'poison': EffectType('poison', 'Poisoned', 0.3, 0.8, 0.3, period: 2, damage: 1, bad: true),
@@ -193,11 +411,26 @@ void main() {
       expect(e.multiplier('speed'), closeTo(1.3 / 1.8, 1e-12));
       expect(e.bonus('armor'), 6.0);
       expect(e.multiplier('damage'), 1.0);
+      expect(e.hasBad, isTrue);
       expect(e.clearBad(), 1);
+      expect(e.hasBad, isFalse);
       expect(e.multiplier('speed'), closeTo(1.3, 1e-12));
       final back = StatusEffects(types)..fromJson(e.toJson());
       expect(back.timeLeft('speed'), 10);
       expect(() => e.apply('nope', 1), throwsArgumentError);
     });
   });
+}
+
+/// A few cells by hand, air everywhere else.
+class _Cells implements VoxelQuery {
+  _Cells(this.table);
+
+  @override
+  final VoxelBlockTable table;
+
+  final Map<IVec3, int> cells = {};
+
+  @override
+  int getBlockXYZ(int x, int y, int z) => cells[IVec3(x, y, z)] ?? 0;
 }

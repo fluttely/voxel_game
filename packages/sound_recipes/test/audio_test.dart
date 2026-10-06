@@ -35,6 +35,16 @@ void main() {
     }
   });
 
+  test('sand and snow have footsteps of their own, unlike the earth they belong to', () {
+    final earth = renderWav(StockSounds.all['step_earth']!);
+    for (final name in ['step_sand', 'step_snow']) {
+      final bytes = renderWav(StockSounds.all[name]!);
+      expect(bytes.length, greaterThan(44 + 2000), reason: '$name renders samples');
+      expect(bytes.sublist(44).any((b) => b != 0), isTrue, reason: '$name is not silence');
+      expect(bytes, isNot(earth), reason: '$name is not earth\'s step');
+    }
+  });
+
   test('the same seed renders the same noise', () {
     final r = StockSounds.all['dig']!;
     expect(renderWav(r, seed: 3), renderWav(r, seed: 3));

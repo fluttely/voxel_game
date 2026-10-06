@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:voxel_game/voxel_game.dart';
@@ -45,5 +46,33 @@ void main() {
     final seen = selects;
     frames.value++;
     expect(selects, seen, reason: 'a selector that goes away stops listening');
+  });
+
+  testWidgets('a HudSelector of a list compares it by its equals', (tester) async {
+    final frames = ValueNotifier(0);
+    var names = ['a'];
+    var builds = 0;
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: HudSelector<List<String>>(
+          frames: frames,
+          select: () => [...names],
+          equals: listEquals<String>,
+          builder: (context, value) {
+            builds++;
+            return Text(value.join());
+          },
+        ),
+      ),
+    );
+    frames.value++;
+    await tester.pump();
+    expect(builds, 1, reason: 'a new list of the same names is the same');
+    names = ['a', 'b'];
+    frames.value++;
+    await tester.pump();
+    expect(builds, 2);
+    expect(find.text('ab'), findsOneWidget);
   });
 }

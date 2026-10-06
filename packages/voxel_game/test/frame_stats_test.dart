@@ -45,6 +45,7 @@ void main() {
     expect(report.steps, 3);
     expect(report.stepMs, [0.5, 0.75]);
     expect(report.gpuLatencyMs, [12.0]);
+    expect((report.rendered, report.shown), (0, 0), reason: 'no scene painted');
     expect(stats.recording, isFalse);
     final json = report.toJson(1000 / 60);
     expect(json['frames'], 5);
@@ -91,6 +92,45 @@ void main() {
     expect(report.toJson(1000 / 60).containsKey('view'), isFalse);
   });
 
+  test("the readout is the scene's frames drawn, not the ticks", () {
+    final stats = FrameStats();
+    // A paced scene at 120 Hz: every tick runs, the world is drawn every other
+    // one, and each Flutter frame shows the last frame finished.
+    for (var i = 1; i <= 20; i++) {
+      stats.addFrame(seconds: 1 / 120, simMs: 0.1, steps: i.isEven ? 1 : 0);
+      stats.addScene(rendered: i ~/ 2, shown: i);
+    }
+    expect(stats.ticksPerSecond, 40.0, reason: 'twenty ticks in the last half second');
+    expect(stats.fps, 20.0, reason: 'ten scene frames in it');
+    // A hidden window: the timer ticks, nothing is painted.
+    for (var i = 0; i < 10; i++) {
+      stats.addFrame(seconds: 1 / 60, simMs: 0.1, steps: 1);
+    }
+    expect(stats.ticksPerSecond, 60.0);
+    expect(stats.fps, 20.0, reason: 'a tick draws nothing');
+    expect(FrameStats().fps, 0.0, reason: 'a headless game draws nothing');
+  });
+
+  test("a recording counts the scene frames rendered and shown from the scene's totals", () {
+    final stats = FrameStats();
+    stats.addScene(rendered: 5, shown: 6); // before the recording: not counted
+    stats.startRecording();
+    stats.addScene(rendered: 5, shown: 6); // a paint with nothing finished: nothing grew
+    stats.addScene(rendered: 6, shown: 7);
+    stats.addScene(rendered: 6, shown: 8); // the same frame shown again
+    stats.addScene(rendered: 7, shown: 9);
+    final report = stats.stopRecording();
+    expect(report.rendered, 2);
+    expect(report.shown, 3);
+    expect(report.sceneFps, 2 / report.seconds);
+    final json = report.toJson(1000 / 60);
+    expect((json['rendered'], json['shown']), (2, 3));
+    expect(json.containsKey('sceneFps'), isTrue);
+    stats.startRecording();
+    stats.addScene(rendered: 8, shown: 10);
+    expect(stats.stopRecording().rendered, 1, reason: 'counted from the last totals, not from zero');
+  });
+
   test('stopping without starting is a mistake', () {
     expect(() => FrameStats().stopRecording(), throwsStateError);
   });
@@ -106,5 +146,23 @@ void main() {
     expect(far.seed, 7);
     expect(far.blocks, same(spec.blocks));
     expect(far.world, same(spec.world));
+    expect(far.touchControls, same(TouchControlsSpec.standard));
+  });
+
+  test('copyWith can ask for null, and keeps a nullable field it is not given', () {
+    const spec = VoxelGameSpec(
+      blocks: [BlockType('stone', color: 0x808080)],
+      world: WorldGenSpec(biomes: [Biome('plain', top: 'stone')]),
+      graphics: GraphicsSpec.phone,
+    );
+    final bare = spec.copyWith(touchControls: () => null);
+    expect(bare.touchControls, isNull);
+    expect(bare.graphics, same(GraphicsSpec.phone));
+    final plain = spec.copyWith(graphics: () => null);
+    expect(plain.graphics, isNull);
+    expect(plain.touchControls, same(TouchControlsSpec.standard));
+    final kept = spec.copyWith(seed: 2);
+    expect(kept.graphics, same(GraphicsSpec.phone));
+    expect(kept.touchControls, same(TouchControlsSpec.standard));
   });
 }

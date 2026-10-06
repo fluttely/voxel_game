@@ -8,12 +8,12 @@ music that crossfades by mood.
 Nothing here is specific to voxels, or to any genre: it is one file of
 synthesis, a bank and a player.
 
-> **Status: 0.3.0-dev**, beta. The API can still change.
+> **Status: 0.4.0-dev**, beta. The API can still change.
 
 ## Features
 
 - `SoundRecipe` + `renderWav`: a sound is a length and a waveform function.
-- `StockSounds`: `break_`, `place_` and `step_` for every `SoundFamily`, plus `hit`, `hurt`, `pickup`, `explode` and more.
+- `StockSounds`: `break_`, `place_` and `step_` for every `SoundFamily`, `step_sand` and `step_snow`, plus `hit`, `hurt`, `pickup`, `explode` and more.
 - `SoundBank`: plays sounds by name, from recipes or asset files.
 - `SoundPlayer` / `SilentSounds`: play through an interface, so tests and servers stay silent.
 - `MusicScore` / `StockMusic`: background music synthesised from notes, six stock loops.
@@ -23,7 +23,7 @@ synthesis, a bank and a player.
 
 ```yaml
 dependencies:
-  sound_recipes: ^0.3.0-dev
+  sound_recipes: ^0.4.0-dev
 ```
 
 Dart SDK `^3.13.0`.

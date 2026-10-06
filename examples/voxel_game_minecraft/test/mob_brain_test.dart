@@ -1,36 +1,31 @@
-import 'package:voxel_game_minecraft/src/core/species.dart';
-import 'package:voxel_game_minecraft/src/entities/mob.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:voxel_game/voxel_game.dart' show BehaviorSlot;
+import 'package:voxel_game/voxel_game.dart';
+import 'package:voxel_game_minecraft/src/spec/mob_table.dart';
 
-/// VK5.5: the species table read as brains of goals on the kit's selector.
+/// The species table read as brains of the kit's behaviours: what each kind
+/// does is a row, and the kit's selector runs it.
 void main() {
-  List<Type> brain(String id, {bool tamed = false}) => [for (final g in brainOf(Species.def(id), tamed: tamed)) g.runtimeType];
+  final byId = {for (final m in mobTable) m.id: m};
+  List<Type> brain(String id) => [for (final b in byId[id]!.brain) b.runtimeType];
+  List<Type> tamed(String id) => [for (final b in byId[id]!.tamedBrain) b.runtimeType];
 
   test('each kind of creature thinks with its own goals', () {
-    expect(brain('sheep'), [Flee, Roam], reason: 'a passive animal runs when hurt and roams');
-    expect(brain('wolf'), [Flee, Strike, Chase, Roam], reason: 'a neutral one also answers a hit');
-    expect(brain('zombie'), [Strike, Chase, Roam]);
-    expect(brain('skeleton'), [Kite, Roam], reason: 'an archer keeps its distance and never closes to strike');
-    expect(brain('boomer'), [Fuse, Chase, Roam]);
-    expect(brain('villager'), [Roam], reason: 'a trader never fights nor flees');
-    expect(brain('horse', tamed: true), [MountWait]);
-    expect(brain('wolf', tamed: true), [PetFight, Heel]);
+    expect(brain('sheep'), [FleeWhenHurt, Wander], reason: 'a farm animal runs when hurt and roams');
+    expect(brain('wolf'), [MeleeAttack, Hunt, Wander], reason: 'a neutral one answers a hit');
+    expect(byId['wolf']!.brain.whereType<Hunt>().single.whenProvoked, isTrue);
+    expect(brain('zombie'), [MeleeAttack, Hunt, Wander]);
+    expect(byId['zombie']!.brain.whereType<Hunt>().single.whenProvoked, isFalse);
+    expect(brain('skeleton'), [RangedAttack, Hunt, Wander], reason: 'an archer shoots and never closes to strike');
+    expect(brain('boomer'), [Explode, Hunt, Wander]);
+    expect(brain('villager'), [Wander], reason: 'a trader never fights nor flees');
+    expect(tamed('horse'), [MountWait]);
+    expect(tamed('wolf'), [MeleeAttack, PetFight, Heel]);
   });
 
-  test('every brain is asked in priority order and always has something to do', () {
-    for (final sp in Species.defs.values) {
-      for (final tamed in [false, true]) {
-        final goals = brainOf(sp, tamed: tamed);
-        final priorities = [for (final g in goals) g.priority];
-        expect(priorities, List<int>.of(priorities)..sort(), reason: '${sp.id} tamed=$tamed');
-        expect(goals.last.slots, contains(BehaviorSlot.move), reason: '${sp.id}: the last goal holds the legs');
-        expect(goals.last.priority, 90, reason: '${sp.id}: and is the fallback');
-      }
+  test('every creature wild or tamed has something to do with its legs last', () {
+    for (final m in mobTable) {
+      expect(m.brain.last, isA<Wander>(), reason: m.id);
+      if (m.tamedBrain.isNotEmpty) expect(m.tamedBrain.last, anyOf(isA<Heel>(), isA<MountWait>()), reason: m.id);
     }
-  });
-
-  test('a creature without a species thinks nothing and reads idle', () {
-    expect(Mob().state, MobState.idle);
   });
 }

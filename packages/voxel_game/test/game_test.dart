@@ -1,8 +1,11 @@
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:ui' show Size;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vector_math/vector_math.dart';
+import 'package:voxel_engine/core.dart' show ChunkMesher;
 import 'package:voxel_game/voxel_game.dart';
 
 const _blocks = [
@@ -55,7 +58,39 @@ Future<void> _run(VoxelGame game, double seconds) async {
   }
 }
 
+/// A system that calls [step] every step.
+class _EveryStep extends GameSystem {
+  _EveryStep(this.step);
+
+  final void Function() step;
+
+  @override
+  void tick(VoxelGame game, double dt) => step();
+}
+
 void main() {
+  test('the on-screen stick walks and, pushed to the rim, runs', () async {
+    final game = await _start(_flat());
+    final p = game.player;
+    await _run(game, 0.5);
+    final start = p.position.clone();
+    game.input.touchMove(0.0, -1.0);
+    await _run(game, 1.0);
+    final walked = ((p.position - start)..y = 0).length;
+    expect(p.position.z, lessThan(start.z), reason: 'up on the stick is forward');
+    game.input.setTouchHeld(VoxelAction.sprint, true);
+    final from = p.position.clone();
+    await _run(game, 1.0);
+    game.input
+      ..touchMove(0.0, 0.0)
+      ..setTouchHeld(VoxelAction.sprint, false);
+    expect(
+      ((p.position - from)..y = 0).length,
+      greaterThan(walked),
+      reason: 'a second of running outruns one of walking',
+    );
+  });
+
   test('the player stands on the ground, walks forward and jumps', () async {
     final game = await _start(_flat());
     final p = game.player;
@@ -77,6 +112,26 @@ void main() {
     }
     game.input.hold(VoxelAction.jump, false);
     expect(peak - 20.0, greaterThan(1.2));
+  });
+
+  test('the game is filled once the player stands and the whole window has its meshes', () async {
+    final game = await VoxelGame.startHeadless(_flat());
+    game.spawner.enabled = false;
+    expect(game.filled, isFalse, reason: 'nothing is loaded before the first frame');
+    for (var i = 0; i < 600 && !game.filled; i++) {
+      game.frame(1 / 60);
+      await Future<void>.delayed(Duration.zero);
+    }
+    expect(game.filled, isTrue);
+    expect(game.ready, isTrue);
+    const side = 2 * 2 + 1;
+    expect(game.world.meshCount, greaterThanOrEqualTo(side * side), reason: 'every chunk of the window');
+
+    game.breakBlock(IVec3.floor(game.player.position) - IVec3(0, 1, 0));
+    expect(game.filled, isFalse, reason: 'the edited chunk waits for its new mesh');
+    await _run(game, 0.5);
+    expect(game.filled, isTrue);
+    game.dispose();
   });
 
   test('a fall of more than four blocks hurts; a creative player never', () async {
@@ -149,6 +204,24 @@ void main() {
     );
   });
 
+  test('a worn tool dropped and picked up again is the same tool, wear and all', () async {
+    final game = await _start(_flat(player: const PlayerSpec(startingItems: {'wooden_pickaxe': 1})));
+    final p = game.player;
+    final slot = p.inventory.find('wooden_pickaxe');
+    p.selectedSlot = slot;
+    p.inventory.wear(slot, 53);
+    expect(p.inventory.durAt(slot), 7);
+    game.input.tap(VoxelAction.drop);
+    await _run(game, 0.1);
+    expect(p.inventory.countOf('wooden_pickaxe'), 0);
+    final drop = game.entities.whereType<ItemPickup>().single;
+    expect(drop.stack.dur, 7, reason: 'the stack on the ground is the one that left the slot');
+    await _run(game, 3.0);
+    final back = p.inventory.find('wooden_pickaxe');
+    expect(back, isNot(-1), reason: 'the drop flies back to the player that threw it');
+    expect(p.inventory.durAt(back), 7, reason: 'not a new pickaxe');
+  });
+
   test('a held block is placed against the aimed face and used up', () async {
     final game = await _start(_flat(player: const PlayerSpec(startingItems: {'planks': 3})));
     final p = game.player;
@@ -174,7 +247,7 @@ void main() {
       hp: 6,
       speed: 3.0,
       brain: [MeleeAttack(damage: 2), Hunt(range: 20), Wander()],
-      drops: [Drop('dirt', 2, 2)],
+      loot: LootTable([LootEntry('dirt', 2, 2, 1.0)]),
     );
     final game = await _start(
       _flat(
@@ -199,6 +272,28 @@ void main() {
     await _run(game, 2.0);
     expect(p.inventory.countOf('dirt'), greaterThanOrEqualTo(2));
     expect(game.mobs, isEmpty, reason: 'a dead mob leaves the world');
+  });
+
+  test('a finger\'s tap swings at a creature in reach, and uses anything else', () async {
+    const cow = MobSpec('cow', hp: 10, brain: []);
+    final game = await _start(_flat(mobs: const [cow]));
+    final p = game.player;
+    final m = game.spawnMob('cow', p.position + Vector3(0, 0, -2));
+    final to = m.centre() - p.eyePosition;
+    p.yaw = -Vector3(0, 0, -1).angleToSigned(Vector3(to.x, 0, to.z).normalized(), Vector3(0, 1, 0));
+    p.pitch = 0.0;
+    await _run(game, 0.1);
+    expect(p.aimedMob, same(m));
+    expect(game.input.touchTapPrimary, isTrue);
+    game.input
+      ..onPointerDown(const PointerDownEvent(pointer: 1, kind: PointerDeviceKind.touch))
+      ..onPointerUp(const PointerUpEvent(pointer: 1, kind: PointerDeviceKind.touch));
+    await _run(game, 0.1);
+    expect(m.hp, lessThan(10), reason: 'the tap was the primary button, a swing');
+    p.yaw += math.pi;
+    await _run(game, 0.1);
+    expect(p.aimedMob, isNull);
+    expect(game.input.touchTapPrimary, isFalse, reason: 'with no creature aimed, a tap uses');
   });
 
   test('a hunter that cannot reach its target plans on a timer, not every step', () async {
@@ -320,7 +415,7 @@ void main() {
       blocks: spec.blocks,
       world: spec.world,
       sky: spec.sky,
-      onTick: (game, dt) => steps++,
+      systems: () => [_EveryStep(() => steps++)],
     );
     final game = await _start(withSystem);
     final at = IVec3.floor(game.player.position) + const IVec3(3, 0, 3);
@@ -417,7 +512,7 @@ void main() {
           levers: {'lever': 'lever_on'},
           plates: {'plate'},
           lamps: {'lamp': 'lamp_lit'},
-          explosives: {'tnt': 2.0},
+          explosives: {'tnt': Explosive(radius: 2.0, damage: 8.0)},
         ),
       ),
     );
@@ -444,11 +539,155 @@ void main() {
     await _run(game, 0.5);
     expect(w.blockNameAt(feet + const IVec3(0, 0, -2)), 'lamp_lit');
 
-    // TNT beside the lit wire goes off.
+    // TNT beside the lit wire is lit, and goes off when its fuse runs out.
     w.setBlockNamed(base + const IVec3(2, 0, 1), 'tnt');
     await _run(game, 0.3);
     expect(w.blockNameAt(base + const IVec3(2, 0, 1)), 'air');
+    expect(game.entities.whereType<LitExplosive>(), hasLength(1));
+    expect(w.blockNameAt(base + const IVec3(2, -1, 1)), isNot('air'), reason: 'still burning');
+    await _run(game, 3.0);
+    expect(game.entities.whereType<LitExplosive>(), isEmpty);
     expect(w.blockNameAt(base + const IVec3(2, -1, 1)), 'air', reason: 'the ground under it went with it');
+  });
+
+  const pistonBlocks = [
+    ..._blocks,
+    BlockType('wire', color: 0x701010, shape: BlockShape.wire, solid: false, hardness: 0),
+    BlockType('wire_lit', color: 0xFF3020, shape: BlockShape.wire, solid: false, hardness: 0, light: 3),
+    BlockType('lever', color: 0x806040, shape: BlockShape.torch, solid: false, hardness: 0),
+    BlockType('lever_on', color: 0xA08060, shape: BlockShape.torch, solid: false, hardness: 0),
+    BlockType(
+      'piston',
+      color: 0x9E8056,
+      hardness: 1.5,
+      facing: Facing.compass(north: 'piston', east: 'piston_e', south: 'piston_s', west: 'piston_w'),
+    ),
+    BlockType('piston_e', color: 0x9E8056, hardness: 1.5, drop: 'piston'),
+    BlockType('piston_s', color: 0x9E8056, hardness: 1.5, drop: 'piston'),
+    BlockType('piston_w', color: 0x9E8056, hardness: 1.5, drop: 'piston'),
+    BlockType('piston_out', color: 0x808088, hardness: 1.5, drop: 'piston'),
+    BlockType('piston_e_out', color: 0x808088, hardness: 1.5, drop: 'piston'),
+    BlockType('piston_s_out', color: 0x808088, hardness: 1.5, drop: 'piston'),
+    BlockType('piston_w_out', color: 0x808088, hardness: 1.5, drop: 'piston'),
+    BlockType('bedrock', color: 0x2A2A2E, hardness: -1),
+    BlockType('chest', color: 0x8A5A2A, hardness: 2.0, storage: Storage()),
+    BlockType('powered_rail', color: 0xB09048, shape: BlockShape.railEw, solid: false, hardness: 0.5),
+    BlockType(
+      'powered_rail_on',
+      color: 0xFF8C40,
+      shape: BlockShape.railEw,
+      solid: false,
+      hardness: 0.5,
+      light: 4,
+      drop: 'powered_rail',
+    ),
+    // A rail kind lays both straights (`Rails`).
+    BlockType(
+      'powered_rail_ns',
+      color: 0xB09048,
+      shape: BlockShape.railNs,
+      solid: false,
+      hardness: 0.5,
+      drop: 'powered_rail',
+    ),
+    BlockType(
+      'powered_rail_ns_on',
+      color: 0xFF8C40,
+      shape: BlockShape.railNs,
+      solid: false,
+      hardness: 0.5,
+      light: 4,
+      drop: 'powered_rail',
+    ),
+  ];
+  const pistonSignals = SignalSpec(
+    wire: ('wire', 'wire_lit'),
+    levers: {'lever': 'lever_on'},
+    pistons: {
+      'piston': 'piston_out',
+      'piston_e': 'piston_e_out',
+      'piston_s': 'piston_s_out',
+      'piston_w': 'piston_w_out',
+    },
+    poweredRails: {'powered_rail': 'powered_rail_on', 'powered_rail_ns': 'powered_rail_ns_on'},
+  );
+  VoxelGameSpec pistonSpec({List<BlockType> blocks = pistonBlocks, SignalSpec signals = pistonSignals}) {
+    final flat = _flat();
+    return VoxelGameSpec(blocks: blocks, world: flat.world, sky: flat.sky, signals: signals);
+  }
+
+  test('declared pistons push the way they face, pull their head back, and stop at what will not move', () async {
+    final game = await _start(pistonSpec());
+    final w = game.world;
+    final base = IVec3.floor(game.player.position) + const IVec3(3, 0, 0);
+
+    // East: a lever behind, a cobblestone in front.
+    w.setBlockNamed(base, 'lever');
+    w.setBlockNamed(base + const IVec3(1, 0, 0), 'piston_e');
+    w.setBlockNamed(base + const IVec3(2, 0, 0), 'cobblestone');
+    await _run(game, 0.3);
+    expect(w.blockNameAt(base + const IVec3(1, 0, 0)), 'piston_e');
+    game.signals!.use(base);
+    await _run(game, 0.3);
+    expect(w.blockNameAt(base + const IVec3(1, 0, 0)), 'piston_e_out');
+    expect(w.blockNameAt(base + const IVec3(2, 0, 0)), 'air');
+    expect(w.blockNameAt(base + const IVec3(3, 0, 0)), 'cobblestone', reason: 'pushed one cell east');
+    game.signals!.use(base);
+    await _run(game, 0.3);
+    expect(w.blockNameAt(base + const IVec3(1, 0, 0)), 'piston_e', reason: 'unpowered, the head goes back');
+    expect(w.blockNameAt(base + const IVec3(3, 0, 0)), 'cobblestone', reason: 'and pulls nothing with it');
+
+    // North (the compass's first variant): bedrock, a chest, or a wall past the block keep it retracted.
+    for (final (i, front, past) in [(0, 'bedrock', 'air'), (1, 'chest', 'air'), (2, 'cobblestone', 'stone')]) {
+      final at = base + IVec3(-4 + i * 3, 0, 5);
+      w.setBlockNamed(at + const IVec3(0, 0, 1), 'lever');
+      w.setBlockNamed(at, 'piston');
+      w.setBlockNamed(at + const IVec3(0, 0, -1), front);
+      w.setBlockNamed(at + const IVec3(0, 0, -2), past);
+      game.signals!.use(at + const IVec3(0, 0, 1));
+      await _run(game, 0.3);
+      expect(w.blockNameAt(at), 'piston', reason: '$front before $past does not move');
+      expect(w.blockNameAt(at + const IVec3(0, 0, -1)), front);
+    }
+
+    // Nothing in front: the head comes out all the same.
+    final free = base + const IVec3(0, 0, 10);
+    w.setBlockNamed(free + const IVec3(0, 0, -1), 'lever_on');
+    w.setBlockNamed(free, 'piston_s');
+    await _run(game, 0.3);
+    expect(w.blockNameAt(free), 'piston_s_out');
+  });
+
+  test('a declared run of powered rails is lit as far as its reach from the power', () async {
+    final game = await _start(pistonSpec());
+    final w = game.world;
+    final base = IVec3.floor(game.player.position) + const IVec3(3, 0, 2);
+    w.setBlockNamed(base, 'lever');
+    for (var i = 1; i <= 12; i++) {
+      w.setBlockNamed(base + IVec3(i, 0, 0), 'powered_rail');
+    }
+    await _run(game, 0.3);
+    game.signals!.use(base);
+    await _run(game, 0.3);
+    for (var i = 1; i <= 12; i++) {
+      expect(
+        w.blockNameAt(base + IVec3(i, 0, 0)),
+        i <= 9 ? 'powered_rail_on' : 'powered_rail',
+        reason: 'rail $i: the first is powered, eight more carry it',
+      );
+    }
+    game.signals!.use(base);
+    await _run(game, 0.3);
+    for (var i = 1; i <= 12; i++) {
+      expect(w.blockNameAt(base + IVec3(i, 0, 0)), 'powered_rail');
+    }
+  });
+
+  test('a declared piston must face somewhere', () async {
+    final blocks = [
+      for (final b in pistonBlocks) b.id == 'piston' ? const BlockType('piston', color: 0x9E8056, hardness: 1.5) : b,
+    ];
+    await expectLater(VoxelGame.startHeadless(pistonSpec(blocks: blocks)), throwsArgumentError);
   });
 
   test('the shoulder orbit comes in at once at a wall and goes out gently', () {
@@ -568,9 +807,10 @@ void main() {
     expect(p.position.distanceTo(p.spawnPoint), greaterThan(3.0));
     p.takeDamage(const Damage(1000, source: 'test'));
     expect(p.isDead, isTrue);
-    for (var i = 0; i < 2000 && p.isDead; i++) {
+    for (var i = 0; i < 2000 && !game.canRespawn; i++) {
       game.frame(1 / 120);
     }
+    game.respawn();
     expect(p.isDead, isFalse);
     expect(p.drawnPosition.distanceTo(p.spawnPoint), lessThan(1e-4));
     game.frame(1 / 120);
@@ -582,12 +822,93 @@ void main() {
     await _run(game, 0.5);
     game.input.tap(VoxelAction.inventory);
     await _run(game, 1 / 60);
-    expect(game.openScreen.value, '', reason: 'the bag opens on the press the step read');
+    expect(game.screen.value, const BagScreen(), reason: 'the bag opens on the press the step read');
     game.input.tap(VoxelAction.inventory);
     await _run(game, 1 / 60);
-    expect(game.openScreen.value, isNull, reason: 'and the same button closes it');
+    expect(game.screen.value, isNull, reason: 'and the same button closes it');
     // A press is spent once: the steps that follow read nothing.
     await _run(game, 0.2);
-    expect(game.openScreen.value, isNull);
+    expect(game.screen.value, isNull);
+  });
+
+  test('a frame builds one camera, the one the scene and the HUD project through', () async {
+    final game = await _start(_flat());
+    final p = game.player;
+    p.pitch = 0.0;
+    await _run(game, 0.1);
+    final camera = game.camera();
+    expect(game.camera(), same(camera), reason: 'asked twice in a frame, the same view');
+    const size = Size(800, 600);
+    final ahead = camera.worldToScreen(camera.position + p.forward * 5.0, size)!;
+    expect(ahead.dx, closeTo(400, 1));
+    expect(ahead.dy, closeTo(300, 1));
+    final right = camera.worldToScreen(camera.position + p.forward * 5.0 + p.right, size)!;
+    expect(right.dx, greaterThan(400), reason: 'the mirrored lens keeps right on the right');
+    game.frame(1 / 60);
+    expect(game.camera(), isNot(same(camera)));
+    game.dispose();
+  });
+
+  test('a hit on a creature shows what it took', () async {
+    const cow = MobSpec('cow', hp: 5, brain: []);
+    final game = await _start(_flat(mobs: const [cow]));
+    final m = game.spawnMob('cow', game.player.position + Vector3(0, 0, -3));
+    m.takeDamage(const Damage(3));
+    m.takeDamage(const Damage(4));
+    expect([for (final n in game.damageNumbers.shown) n.amount], [3, 2], reason: 'no more than it had');
+    expect(game.damageNumbers.shown.first.at.y, greaterThan(m.position.y + m.height), reason: 'over its head');
+    await _run(game, DamageNumbers.seconds + 0.05);
+    expect(game.damageNumbers.shown, isEmpty);
+    game.dispose();
+  });
+
+  test('the boss is the nearest living one', () async {
+    const cow = MobSpec('cow', brain: []);
+    const brute = MobSpec('brute', hp: 40, brain: [], boss: true);
+    final game = await _start(_flat(mobs: const [cow, brute]));
+    final at = game.player.position;
+    game.spawnMob('cow', at + Vector3(0, 0, -2));
+    expect(game.boss, isNull);
+    final far = game.spawnMob('brute', at + Vector3(0, 0, -12));
+    final near = game.spawnMob('brute', at + Vector3(0, 0, 6));
+    expect(game.boss, same(near));
+    near.kill();
+    expect(game.boss, same(far));
+    game.dispose();
+  });
+
+  test('the camera in a liquid is in its block', () async {
+    final game = await _start(_flat());
+    await _run(game, 0.1);
+    expect(game.eyeLiquid, isNull);
+    game.world.setBlockNamed(IVec3.floor(game.camera().position), 'water');
+    expect(game.eyeLiquid?.id, 'water');
+    expect(game.liquid('water').tint, 0.25);
+    expect(game.liquid('lava').tint, 0.55, reason: 'a kind not declared takes its default');
+    expect(game.haze, same(LiquidSpec.water), reason: 'the view closes in under water');
+    expect(game.liquid('lava').haze, same(LiquidSpec.lava));
+    game.world.setBlockNamed(IVec3.floor(game.camera().position), 'air');
+    expect(game.haze, isNull, reason: 'out of it, the distance fog');
+    game.dispose();
+    final clear = await _start(_flat().copyWith(liquids: const {'water': LiquidSpec(haze: null)}));
+    await _run(clear, 0.1);
+    clear.world.setBlockNamed(IVec3.floor(clear.camera().position), 'water');
+    expect(clear.haze, isNull, reason: 'a liquid declared with none');
+    clear.dispose();
+  });
+
+  test("an eye in a pool's top cell is in it under the drawn surface only, and in it under more water", () async {
+    for (final (eyeHeight, under) in [(1.62, true), (1.95, false)]) {
+      final game = await _start(_flat(player: PlayerSpec(eyeHeight: eyeHeight)));
+      await _run(game, 0.5);
+      final eye = game.camera().position;
+      final cell = IVec3.floor(eye);
+      expect(eye.y - cell.y > ChunkMesher.liquidTop, !under, reason: 'the eye ${eye.y} where the test wants it');
+      game.world.setBlockNamed(cell, 'water');
+      expect(game.eyeLiquid?.id, under ? 'water' : null, reason: 'the surface is drawn ${ChunkMesher.liquidTop} up');
+      game.world.setBlockNamed(cell + const IVec3(0, 1, 0), 'water');
+      expect(game.eyeLiquid?.id, 'water', reason: 'with water above, the cell is full');
+      game.dispose();
+    }
   });
 }

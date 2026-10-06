@@ -1,5 +1,188 @@
 # Changelog
 
+## 0.4.0-dev
+
+**Breaking**
+
+- `StructureSpec(name, structure, regionChunks:, chance:, biomes:)` takes a `Structure`;
+  a build function is a `CustomStructure(build, radius:, depth:, blocks:)` (VA11).
+
+- **A dungeon and a mine say where their parts are (KL-022).** `DungeonPlan.of(dungeon,
+  site, roll)` (new): the floor rolled from the site, its three `rooms` (`DungeonRoom`,
+  new: a `centre` over the floor and a `half`), the guard rooms' `spawners` and the last
+  room's `chest`, in world cells. `MinePlan.of(mine, site, roll)` (new): the corridor's
+  `floor`, its rolled `length`, its `end`, the `chest` there and the `spawner` of the one
+  mine in three that has one. `Dungeon` and `Mine` draw from their plan, so a game reads
+  the cells the generator drew without scanning the world. The roll is the drawing's
+  `StructureSite.roll`, with `StructureSite.placed` (new) as the site, or a game's
+  `SpecGenerator.rollOf(site)` (new), the same hash. Both draw the same blocks as before.
+
+- `WorldGenSpec.plaza` (new) of `Plaza` (new): a square of open-sky ground pressed flat, a
+  showroom's floor (the app's playground, VA-Zl5). Its columns stand at its `height` in the
+  land biome it names and carve no caves; the ground outside eases back over `blend` (16)
+  blocks; no tree, plant or cave comes within `clearing` (8) of it and no structure's site
+  within `structureClearing` (48). Refused in a cavern or naming a biome the land has not.
+  `WorldGenSpec.withPlaza` (new) presses one into a world; a world without one generates
+  what it did.
+- `ChunkMesher.liquidTop` (new, 0.875): how high a liquid's top is drawn in a cell with no
+  liquid of its own above, what a game reads to tell an eye over a pool's surface from one
+  under it (VA-Zf).
+- Minecraft's world, as rows (VA-Ze).
+  - `Biome.flats` (new) of `Flats` (new: `height` 2, `keep` 0.3, `reach` 9, the app's swamp):
+    a column standing from one to `reach` blocks over the sea is pressed toward `height`
+    over it, wherever the biome declaring it is the one the column would then grow (so a
+    desert tried first keeps its ground). Only a land biome's; a cavern's or a shore's throws.
+  - `WorldGenSpec.shores` (new): biomes tried in order on the beach's columns, the first
+    whose climate holds taking it, else the beach. A cold one with `ice` is a frozen shore.
+    `WorldGenSpec.allBiomes` (new) lists the land's, the shores, the ocean and the beach.
+  - `Temple` (new, stock): a step pyramid of `stone`, 9 x 9 and five steps, over a 3 x 3 x 3
+    chamber reached from the south, two `chest`s, a `light`, a `plate` on a `trap`; every
+    furnishing nullable. (The app's fortress stays its own `CustomStructure`: its layout is
+    read by its boss, VA-Zl.)
+  - `SpecGenerator.structureNamed` (new).
+  A spec using none of them generates what it did.
+
+- Minecraft's items, declared as rows (VA-Zd); the engine only declares them, the kit's
+  player does what they say.
+  - `ItemType.launcher` (new) of `Launcher` (new: the `shot` by name, the `ammo` item a shot
+    spends or none, a `cooldown`, 0.5 s): an item that shoots. `ItemModel.shapeOf` draws one
+    as a bow.
+  - `ItemType.light` (new, 0..15): the light an item gives in hand; `ItemRegistry.forBlocks`
+    gives a block's item its block's.
+  - `Food.cures` (new): eating it ends every bad effect. `StatusEffects.hasBad` (new).
+  - `MiningRules.cuts` (new, tool kind → block tags) and `MiningRules.cut` (new): a tool
+    that cuts a block takes it at once (`mineTime` 0.05), and `drops` is true for it.
+  - `BlockType.bed` (new): a bed. `BlockType.holdable` (new, true; false for a liquid): a
+    block only the world makes (a portal, an open door, a rail's curve) is no item, and
+    `ItemRegistry.forBlocks` leaves it out.
+  - `ItemShape.shears` (new, a stock shape), and a tool of kind `shears` takes it.
+
+- `ItemType.glider` (new) of `Glider` (new: `speed`, `fall`, `steer`, a hang glider's by
+  default): an item that glides, carried in the bag. The engine only declares it; the kit's
+  player glides with it (`VoxelAction.glide`).
+
+- `Inventory.roomForStack` (new): how many of a stack `put` would take — a new one as many as
+  `roomFor`, a worn or bonused one all or nothing. A host reads it of a peer's declared bag
+  before it hands a drop over.
+
+- `SignalRules.usedInto` (new): what a use turns a block into (a lever flipped, a button
+  pressed), null for neither; `SignalNetwork.use` writes it. A client, which runs no circuits,
+  reads it to flip a lever as a block edit of its own that the host's circuits answer.
+
+- `LootTable.oneOf` (new): a table that gives one of its entries or nothing — each entry's
+  chance is its slice of one roll, in order, and what the slices leave gives nothing (a
+  fishing line's catch: 70 % fish, 10 % salmon, ...). `LootTable.check` (new) throws for
+  slices that sum over 1, and `roll` checks them; `LootTable.oneOf` (the flag) tells the
+  two kinds apart. A table built as before rolls each entry by its own chance, unchanged.
+
+- A richer world, declared as rows (VA11). A spec that uses none of them generates what it
+  did before, chunk for chunk (`spec_test.dart` pins it).
+  - `WorldGenSpec.strata` (new) of `Stratum(block, belowY:)` (new): the rock below a height
+    is that block instead of `stone` (dark stone in the deep); ores vein it as they vein
+    stone, in a cavern too.
+  - `Biome.covers` (new) of `Cover(block, perMille:, minHeight:, maxHeight:, patch:)` (new):
+    the surface block where the ground stands in a window of height and a roll hits, one
+    roll per `patch` square, tried in order — snow on the peaks, gravel on the sea floor,
+    patches of mud. A cavern's floors take them too.
+  - `Biome.pools` (new, a `Pools(bed:, threshold:, scale:)`): one block of the world's water
+    over `bed` where noise runs high on land above the sea, never beside lower ground or
+    over a cave, so the water stays put. Nothing grows in a pool.
+  - `TreeSpec.weight` (new, 1): a biome picks its trees by weight. `TreeSpec.belowY` (new):
+    a tree grows only on ground below it. `TreeSpec.oak`/`spruce`/`palm` take both.
+  - `Plant.maxHeight` (new; `height` when null): a plant stands `height` to `maxHeight`
+    tall (a cactus, two or three). `Plant.spread` (new, 0..4): that many neighbours (+x, +z,
+    -x, -z) level with it may grow one too, each on a coin — a patch of melons, whole across
+    chunk borders. `Plant.byWater` (new): it grows only beside water at the surface (the
+    sea, a river, a pool), and a column away from water skips it without spending its
+    share (reeds). A cavern throws `ArgumentError` for pools, spreading and water-seeking
+    plants.
+  - **Breaking:** `StructureSpec(name, structure, regionChunks:, chance:, biomes:)` takes a
+    `Structure` (new): how far it reaches (`radius`), how deep it sits (`depth`), how far
+    trees stay off (`clearing`), its `blockNames` and `build(site)`. A build function is a
+    `CustomStructure(build, radius:, depth:, blocks:)` (was `StructureSpec(name, build:,
+    radius:, depth:)`); `StructureBuild` moved to `structure.dart`. A structure's blocks are
+    in `WorldGenSpec.blockNames`, so a world fails to compile naming a missing one.
+  - The stock structures (new), every block taken by name, the furnishings nullable:
+    `Dungeon` (three rooms under the ground, guarded, a ladder shaft up), `Tower`, `Well`,
+    `Camp`, `Ruins`, `Mine` (a head frame, a ladder down to a corridor at `floorY` with
+    supports, lights, a rail to its chest, `veins` in its rock shell, liquids sealed off)
+    and `Village` (huts on a ring around a well, doors to the well, paths, an optional
+    `VillageFarm`).
+  - Structures keep apart: a site within reach (the two radii) of an earlier structure's
+    candidate is dropped. Two structures of one name throw `ArgumentError`.
+  - `StructureSite.hashAt` (a cell's hash), `worldY`, `isRock` (the world's stone, strata
+    and ores) and `isOpen` (air, its water or lava); `StructureSite.level` takes `floor:`
+    (the floor's dy, 0 by default).
+  - The generator works out each column's height and biome once a chunk (the surface, the
+    plants and the pools share them) where it used to twice.
+
+- `WorldGenSpec.cavern` (a `CavernSpec`, new; null by default): a world that is one great
+  cave (VA10) — a slab of its `stone` between a bedrock `floor` and `roof` (7 and 100), opened
+  by 3D noise over `threshold` (about two fifths open) and stretched by `scale`, its sea
+  (`water`, lava in an underworld) in the open cells up to `seaLevel`, open sky above the
+  roof. Each floor above the sea takes its column's biome's `top` over its `under` and its
+  plants; `CavernSpec.hangs` (`Plant`s) hang from the ceilings; ores vein the rock;
+  structures stand on the lowest floor above the sea, which is what `surfaceHeight` answers
+  there. A cavern throws `ArgumentError` for biomes with trees, caves on, or a roof at the
+  top of the world.
+- `DimensionGenerator` (new): a world of several dimensions, one `WorldGenSpec` each,
+  compiled for one seed; the `ChunkGenerator` that hands chunk (x, z) of dimension `d` to
+  `specs[d]`'s generator, for the worker isolates. `SpecGenerator.generateIn` still ignores
+  its dimension: one spec is one dimension.
+
+- `Biome.precipitation` (a `Precipitation`, new: `rain`, the default, `snow` or `none`):
+  what falls on a biome when the weather turns (VA9). The generator does not read it.
+
+- `Inventory.put(stack)` (new): a new stack tops up stacks as `add` does, a worn or
+  bonused one takes an empty slot whole as `addStack` does; returns what did not fit.
+- What an item looks like (VA5): `ItemType.shape` (an `ItemShape`, new, null by default)
+  and `ItemModel.of(item, blocks, items)` (new), its voxels built once a look — two items
+  that look alike are one model, so a renderer makes one mesh or icon for both. A shape is
+  one of the kit's (`ItemShape.block`, the item's block as the mesher draws it: a cube, a
+  slab, stairs, a torch, a sprout, a flower, a door, a fence, a ladder, a wire, a rail;
+  `pickaxe`, `axe`, `shovel`, `hoe`, `sword`, `bow`, `lump`, `gem`, `cap`, `tunic`, `pail`,
+  the `StockItemShape`s, painted in the item's colours; a full pail is the empty one's
+  colour with its liquid's in it) or a `CustomItemShape` of the game's own boxes of
+  voxels. An item that declares none takes one from its row (`ItemModel.shapeOf`): a
+  block's item its block, a tool of the five stock kinds its kind, food a lump, armour a
+  tunic, a bucket a pail, anything else a gem; a tool of any other kind throws
+  `ArgumentError` and must declare its shape. Each model says how it is held
+  (`ItemGrip`, new: `block` against the palm, `flat` or `upright` out of the fist), where
+  (`origin`), at what size (`scale`, `ItemShape.voxelSize` for the stock ones) and its
+  `bounds`.
+- `ItemType.bucket` (a `Bucket`, new): `Bucket.empty` names, per liquid kind, the full item
+  it becomes once it scoops that liquid's source; `Bucket.full` names the source block it
+  pours and the item it becomes once poured (VA2).
+- `BlockType` says what a block does on its own (VA2), all off by default: `falls` (sand,
+  gravel), `support` (a `Support`, new: `Support.below`, on any solid block or on the ones
+  named in `on`, or `Support.side`, an opaque block on one of the four sides), `onWall` (the
+  block placed instead against a wall: a torch's wall torch) and `loot` (a `LootTable`
+  rolled for its drops instead of `drop`), `facing` (a `Facing`, new: `Facing.compass`,
+  four variants by the side the placer looks toward, or `Facing.axis`, two by the axis they
+  look along), `tall` (two cells, both halves this block), `usedInto` (the block a use
+  turns it into: a door opens, its open state closes), `grows` (a `Growth`, new: the next
+  stage of a crop, the seconds of light it takes and the least light it grows in) and
+  `turnsWith` (tool kind to the block that tool turns it into: a hoe tills) and `storage`
+  (a `Storage`, new: the slots a chest holds and the `LootTable` a generated one is found
+  with). `BlockRegistry.stands` answers
+  whether a block would stay at a cell, and the registry refuses a row naming a block that
+  does not exist.
+- `ItemType.food` (a `Food`: hunger it fills, health it gives back, an effect it starts for
+  some seconds at some power, an item it leaves behind) and `ItemType.armor` (an `Armor`: the
+  slot it is worn in and the points it is worth), both new, both null for an item that is
+  neither eaten nor worn. The comment that told a game to subclass `ItemType` for food and
+  armour is gone: they are fields now, so the kit's player reads them from any game's rows.
+
+- `ChunkStreamer.putChunk` stores a volume generated elsewhere (a test's floor), with the
+  edits recorded for it written over it, as a generation landing would. Since 0.2.0-dev
+  made `chunks` read-only it was the one way in that was missing: a world built without
+  jobs had nowhere to put its chunks.
+
+- A `NetConnection` whose peer hangs up while a write is in flight closes (`done`
+  completes, and a `NetHost` drops the peer through `onLeave`), where the write's
+  `SocketException` (`Broken pipe`) used to reach the zone unhandled, which ends a plain
+  Dart process. A message sent that way is lost, as it was.
+
 ## 0.3.0-dev
 
 - `ChunkWorkerPool.defaultWorkers` is two thirds of the cores (`workersFor`, new), no

@@ -127,6 +127,9 @@ class StatusEffects {
   /// Ends [id].
   void clear(String id) => rows.remove(id);
 
+  /// Whether a bad effect is on: what a cure would end.
+  bool get hasBad => rows.keys.any((id) => typeOf(id).bad);
+
   /// Ends every bad effect; returns how many.
   int clearBad() {
     final bad = [

@@ -116,7 +116,8 @@ class CharacterMotor {
   /// [speed], jumping while [jump] is held, sneaking (no auto step up a full
   /// block) with [sneak]; [onLadder] makes the body climb (a wall climbed is a
   /// ladder too). [glide] caps the fall at [MotorTuning.glideFall] and counts
-  /// as footing for the fall's height; [accel] replaces the walk's catch-up
+  /// as footing for the fall's height ([glideFall] replaces the tuning's cap
+  /// for this step: a glider of its own); [accel] replaces the walk's catch-up
   /// rate for this step (a dash, a glide's slow steering), and [jumpSpeed]
   /// the launch of a jump off the floor (a mount's leap). A swimmer pushing
   /// at a bank launches over it while [jump] is held, or whenever
@@ -129,6 +130,7 @@ class CharacterMotor {
     bool sneak = false,
     bool onLadder = false,
     bool glide = false,
+    double? glideFall,
     double? accel,
     double? jumpSpeed,
     bool? leaveWater,
@@ -158,7 +160,7 @@ class CharacterMotor {
     }
     if (glide) {
       gliding = true;
-      b.velocity.y = math.max(b.velocity.y, -tuning.glideFall);
+      b.velocity.y = math.max(b.velocity.y, -(glideFall ?? tuning.glideFall));
     }
     final rate = accel ?? (b.onFloor || _hopping ? tuning.groundAccel : tuning.airAccel);
     if (stagger <= 0.0) {

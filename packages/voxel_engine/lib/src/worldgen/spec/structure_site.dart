@@ -1,10 +1,8 @@
 import '../core/chunk_writer.dart';
 import '../core/world_math.dart';
+import 'spec_generator.dart';
 
-/// Draws one structure into one chunk.
-typedef StructureBuild = void Function(StructureSite site);
-
-/// What a [StructureBuild] draws with: a site in the world and the chunk being
+/// What a `Structure` draws with: a site in the world and the chunk being
 /// generated. Coordinates are relative to the site ([x], [y], [z]) — the
 /// surface, or [depth] under it — and every write outside the chunk is
 /// dropped, so the builder draws the whole structure every time and each
@@ -20,7 +18,11 @@ class StructureSite {
     required this.writer,
     required this._block,
     required this._surfaceAt,
+    this._isRock = _none,
+    this._isLiquid = _none,
   });
+
+  static bool _none(int id) => false;
 
   /// The structure's name.
   final String name;
@@ -31,11 +33,16 @@ class StructureSite {
   /// The world seed.
   final int seed;
 
+  /// The site as `SpecGenerator.structuresNear` answers it, what a
+  /// structure's plan is computed from.
+  PlacedStructure get placed => (name: name, x: x, y: y, z: z);
+
   /// The chunk being generated.
   final ChunkWriter writer;
 
   final int Function(String name) _block;
   final int Function(int x, int z) _surfaceAt;
+  final bool Function(int id) _isRock, _isLiquid;
   final Map<String, int> _ids = {};
 
   /// The id of block [name].
@@ -44,6 +51,27 @@ class StructureSite {
   /// A roll of this site, the same in every chunk: a hash of the site and
   /// [salt]. Take `roll(n) % k` for a choice among k.
   int roll(int salt) => worldHash(seed, x, salt, z);
+
+  /// A hash of the cell at site-relative ([dx], [dy], [dz]), the same in
+  /// every chunk: which brick is mossy, which wall stands.
+  int hashAt(int dx, int dy, int dz) => worldHash(seed, x + dx, y + dy, z + dz);
+
+  /// The world's height of site-relative [dy].
+  int worldY(int dy) => y + dy;
+
+  /// Whether the block at site-relative ([dx], [dy], [dz]) is the world's
+  /// rock (its stone, a stratum's or an ore); false outside the chunk.
+  bool isRock(int dx, int dy, int dz) {
+    final id = get(dx, dy, dz);
+    return id != null && _isRock(id);
+  }
+
+  /// Whether the block at site-relative ([dx], [dy], [dz]) is air or the
+  /// world's water or lava; false outside the chunk.
+  bool isOpen(int dx, int dy, int dz) {
+    final id = get(dx, dy, dz);
+    return id != null && (id == 0 || _isLiquid(id));
+  }
 
   /// The surface height (first air cell) at site-relative ([dx], [dz]), in
   /// site-relative y.
@@ -71,12 +99,12 @@ class StructureSite {
 
   /// Sits a floor on a slope: every column of the site-relative rectangle
   /// ([x0], [z0])..([x1], [z1]) is filled with [foundation] from its ground up
-  /// to under dy 0 and cleared from dy 1 up to [clearTo].
-  void level(int x0, int z0, int x1, int z1, String foundation, {int clearTo = 6}) {
+  /// to under dy [floor] and cleared from above [floor] up to [clearTo].
+  void level(int x0, int z0, int x1, int z1, String foundation, {int floor = 0, int clearTo = 6}) {
     final id = block(foundation);
     for (var zz = z0; zz <= z1; zz++) {
       for (var xx = x0; xx <= x1; xx++) {
-        writer.levelColumn(x + xx, z + zz, _surfaceAt(x + xx, z + zz), y, y + clearTo, id);
+        writer.levelColumn(x + xx, z + zz, _surfaceAt(x + xx, z + zz), y + floor, y + clearTo, id);
       }
     }
   }

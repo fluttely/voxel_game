@@ -1,10 +1,13 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:gamepads/gamepads.dart';
 import 'package:pointer_lock/pointer_lock.dart';
+
+import 'input_device.dart';
 
 /// The mouse buttons an action can be bound to.
 enum MouseBinding {
@@ -54,12 +57,43 @@ class InputBindings<A extends Object> {
 
   /// Gamepad triggers per action.
   final Map<A, TriggerBinding> triggers;
+
+  /// These bindings with [keys] and [gamepad] replaced for the actions they
+  /// name, the rest kept: an empty list of keys unbinds an action's keys, a
+  /// null button its pad button. How a game moves an action to another key,
+  /// or off one it wants for an action of its own (`VoxelGameSpec.bindings`):
+  ///
+  /// ```dart
+  /// VoxelAction.defaultBindings.rebind(keys: {
+  ///   VoxelAction.toggleView: [PhysicalKeyboardKey.keyV],
+  ///   VoxelAction.fly: [PhysicalKeyboardKey.f5],
+  /// })
+  /// ```
+  InputBindings<A> rebind({
+    Map<A, List<PhysicalKeyboardKey>> keys = const {},
+    Map<A, GamepadButton?> gamepad = const {},
+  }) => InputBindings(
+    keys: {
+      for (final e in this.keys.entries)
+        if (!keys.containsKey(e.key)) e.key: e.value,
+      for (final e in keys.entries)
+        if (e.value.isNotEmpty) e.key: e.value,
+    },
+    mouse: mouse,
+    gamepad: {
+      for (final e in this.gamepad.entries)
+        if (!gamepad.containsKey(e.key)) e.key: e.value,
+      for (final e in gamepad.entries) e.key: ?e.value,
+    },
+    triggers: triggers,
+  );
 }
 
 /// Held and just-pressed actions and the wheel, read by the simulation once
 /// per step and cleared by [endTick], and the look motion (mouse and right
-/// stick), drained once a frame by [takeLook]. Generic over the game's own
-/// action type; `VoxelAction` is the kit's.
+/// stick), drained once a frame by [takeLook]. Generic over the action type;
+/// `VoxelAction` is the kit's, and a game's own actions read the keys and pad
+/// buttons it records through [keyDown] / [padDown] (`GameActions`).
 ///
 /// Feed it from a widget ([onKey], the pointer callbacks) and [attachDevices];
 /// or drive it from code with [hold] (tests, bots, cutscenes).
@@ -70,9 +104,14 @@ class InputBindings<A extends Object> {
 /// names; one that stays put for [mineDelay] holds the primary button until it
 /// lifts; one that travels further than [tapSlop] is the look and presses
 /// nothing. On-screen controls write the rest through [touchMove],
-/// [setTouchHeld] and [touchDigit], which fold into the same [down] /
-/// [justPressed] / [axis] / [digitPressed] a key or a pad goes through, so
-/// nothing downstream can tell a thumb from a key.
+/// [setTouchHeld], [touchToggle], [touchPress] and [touchDigit], which fold
+/// into the same [down] / [justPressed] / [axis] / [digitPressed] a key or a
+/// pad goes through, so nothing downstream can tell a thumb from a key. A
+/// control [claimTouch]es the finger that lands on it, so that finger is never
+/// also a gesture on the world.
+///
+/// [lastDevice] says which kind of device spoke last, for a HUD to show the
+/// hints and the controls of the one in hand.
 class InputMap<A extends Object> {
   /// A map over [bindings]. [lookSensitivity] turns a pixel of mouse motion
   /// into radians; a full stick turns [stickTurnRate] radians a second.
@@ -92,6 +131,11 @@ class InputMap<A extends Object> {
 
   /// Radians per pixel of mouse motion.
   double lookSensitivity;
+
+  /// How fast the view turns, times the stock speed: scales the mouse, a
+  /// finger's drag, [look] and the right stick alike, but not a [turn] (the
+  /// player's `GameSettings.lookSpeed`).
+  double lookScale = 1.0;
 
   /// Radians a second at full right-stick deflection.
   double stickTurnRate;
@@ -134,6 +178,8 @@ class InputMap<A extends Object> {
   // the timers still waiting to decide (one per live finger).
   final Set<int> _touchMining = {};
   final Map<int, Timer> _touchMineTimers = {};
+  // The fingers an on-screen control took for itself.
+  final Set<int> _touchClaimed = {};
   // The on-screen controls' half: what a button holds, what it pressed this
   // step, where the stick is pushed and which digit a finger chose.
   final Set<A> _touchHeld = {};
@@ -142,6 +188,19 @@ class InputMap<A extends Object> {
   double _touchMoveY = 0.0;
   int _touchDigit = -1;
 
+  /// The kind of device the player last pressed, pushed or touched with:
+  /// written by [onKey], [onPointerDown] and [onPad] from the event each was
+  /// handed. It starts as [InputDevice.touch] on a phone (Android, iOS) and as
+  /// [InputDevice.keyboardMouse] elsewhere, so the first frame already shows
+  /// the right hints.
+  InputDevice lastDevice = switch (defaultTargetPlatform) {
+    TargetPlatform.android || TargetPlatform.iOS => InputDevice.touch,
+    TargetPlatform.fuchsia ||
+    TargetPlatform.linux ||
+    TargetPlatform.macOS ||
+    TargetPlatform.windows => InputDevice.keyboardMouse,
+  };
+
   /// Whether the game wants the mouse captured (looking around).
   bool wantCapture = false;
 
@@ -149,7 +208,8 @@ class InputMap<A extends Object> {
   /// window): a game opens its pause menu on it.
   bool captureLost = false;
 
-  /// What a tap on the world means, written by the game every time it re-aims:
+  /// What a tap on the world means, written every step by whatever aims
+  /// (`PlayerEntity`, true while a creature is in reach under the crosshair):
   /// true presses the primary mouse button (the swing at whatever the
   /// crosshair is nearest to), false presses the secondary (place, open, use).
   /// It is the mouse's own split, and the reason a phone needs no separate
@@ -158,7 +218,7 @@ class InputMap<A extends Object> {
 
   /// Listens to gamepads and to pointer-lock state; a widget calls it once.
   void attachDevices() {
-    _padSub ??= Gamepads.normalizedEvents.listen(_onPad);
+    _padSub ??= Gamepads.normalizedEvents.listen(onPad);
     _lockSub ??= PointerLock.instance.onStateChanged.listen((state) {
       if (state == CaptureState.released && wantCapture) {
         captureLost = true;
@@ -177,7 +237,9 @@ class InputMap<A extends Object> {
     _touchMineTimers.clear();
   }
 
-  /// Whether the platform locks the pointer (desktop); elsewhere a drag looks.
+  /// Whether the platform locks the pointer: macOS only, the one desktop
+  /// `pointer_lock` registers. Elsewhere a drag looks, Windows and Linux with a
+  /// mouse included (the kit's `KL-004`, deferred until a fix can be run there).
   bool get pointerLockSupported => PointerLock.instance.isSupported;
 
   /// Whether the game is looking around right now: the pointer is locked, or
@@ -203,6 +265,7 @@ class InputMap<A extends Object> {
   KeyEventResult onKey(FocusNode node, KeyEvent event) {
     final key = event.physicalKey;
     if (event is KeyDownEvent) {
+      lastDevice = InputDevice.keyboardMouse;
       _held.add(key);
       _pressed.add(key);
     } else if (event is KeyUpEvent) {
@@ -247,6 +310,26 @@ class InputMap<A extends Object> {
     }
   }
 
+  /// An on-screen switch flipping [action]: held from this tap until the next
+  /// (the sneak button, which a thumb that also looks cannot hold). Turning it
+  /// on counts as a press for this step, as [setTouchHeld] does; [releaseKeys]
+  /// turns it off with every other held input.
+  void touchToggle(A action) => setTouchHeld(action, !_touchHeld.contains(action));
+
+  /// Whether an on-screen control is holding [action] ([setTouchHeld],
+  /// [touchToggle]): what a switch draws itself lit by.
+  bool touchHeld(A action) => _touchHeld.contains(action);
+
+  /// An on-screen button pressing [action] once: pressed for this step and
+  /// never held, the one-shots (drop, the bag, the view, pause).
+  void touchPress(A action) => _touchPressed.add(action);
+
+  /// Takes the touch [pointer] for an on-screen control: from now until it
+  /// lifts it is not a look, a dig or a tap on the world. A control calls it
+  /// from its own `onPointerDown`, which runs before the world's (the control
+  /// is deeper in the hit-test path), and the lift or the cancel forgets it.
+  void claimTouch(int pointer) => _touchClaimed.add(pointer);
+
   /// A finger on an on-screen slot, read by [digitPressed] like the digit row:
   /// 0..8 for the nine digits.
   void touchDigit(int index) {
@@ -280,10 +363,13 @@ class InputMap<A extends Object> {
   /// until the finger moves, lifts, or outstays [mineDelay].
   void onPointerDown(PointerDownEvent e) {
     if (e.kind == PointerDeviceKind.touch) {
+      lastDevice = InputDevice.touch;
+      if (_touchClaimed.contains(e.pointer)) return;
       _touchOrigin[e.pointer] = e.position;
       _touchMineTimers[e.pointer] = Timer(mineDelay, () => _beginTouchMining(e.pointer));
       return;
     }
+    lastDevice = InputDevice.keyboardMouse;
     final b = _buttons(e.buttons);
     _mouseHeld.addAll(b);
     _mousePressed.addAll(b);
@@ -293,6 +379,10 @@ class InputMap<A extends Object> {
   /// and taps the same one-shot a mouse button does ([touchTapPrimary]).
   void onPointerUp(PointerUpEvent e) {
     if (e.kind == PointerDeviceKind.touch) {
+      if (_touchClaimed.remove(e.pointer)) {
+        _forgetTouch(e.pointer);
+        return;
+      }
       final origin = _touchOrigin.remove(e.pointer);
       final dragged = _touchDragged.remove(e.pointer);
       final mined = _touchMining.remove(e.pointer);
@@ -308,15 +398,18 @@ class InputMap<A extends Object> {
   }
 
   /// A touch the system took away (a system gesture, a call). It decided
-  /// nothing, so it presses nothing — it is only forgotten.
-  void onPointerCancel(PointerCancelEvent e) => _forgetTouch(e.pointer);
+  /// nothing, so it presses nothing — it is only forgotten, claim and all.
+  void onPointerCancel(PointerCancelEvent e) {
+    _touchClaimed.remove(e.pointer);
+    _forgetTouch(e.pointer);
+  }
 
   /// A pointer motion: the look, where the pointer cannot be locked, and
   /// wherever a finger is doing the dragging (a finger never locks).
   void onPointerMove(PointerMoveEvent e) {
     if (e.kind == PointerDeviceKind.touch) {
       final origin = _touchOrigin[e.pointer];
-      if (origin == null) return;
+      if (origin == null || _touchClaimed.contains(e.pointer)) return;
       if ((e.position - origin).distance > tapSlop && _touchDragged.add(e.pointer)) {
         // The finger moved before it was old enough to hold the button, so it
         // never will: this one is steering. A finger already holding it keeps
@@ -334,8 +427,21 @@ class InputMap<A extends Object> {
     if (e is PointerScrollEvent) _wheel += e.scrollDelta.dy.sign.toInt();
   }
 
-  void _onPad(NormalizedGamepadEvent event) {
+  /// Sees each pad event before this map records it, once [lastDevice] has
+  /// heard it: an event it answers true for is the caller's, and goes no
+  /// further. `GameSurface` hands an open screen the presses that work it
+  /// (`FocusBridge`), so a press that moved the focus or pressed a button is
+  /// not also a jump once the screen has closed.
+  bool Function(NormalizedGamepadEvent event)? interceptPad;
+
+  /// A gamepad event; [attachDevices] feeds every pad's here. A press, or a
+  /// stick or trigger pushed past the [deadzone], makes the pad
+  /// [lastDevice]: a pad resting on the table, drifting or letting go, does
+  /// not take it from the finger or the keys. [interceptPad] sees it next.
+  void onPad(NormalizedGamepadEvent event) {
     final button = event.button;
+    if (button != null ? event.value != 0 : event.value.abs() > deadzone) lastDevice = InputDevice.gamepad;
+    if (interceptPad case final take? when take(event)) return;
     final was = button != null && _pad.isPressed(button);
     _pad.update(event);
     if (button != null && !was && _pad.isPressed(button)) _padPressed.add(button);
@@ -374,14 +480,14 @@ class InputMap<A extends Object> {
   bool down(A action) {
     if (_scriptHeld.contains(action) || _touchHeld.contains(action)) return true;
     for (final k in bindings.keys[action] ?? const <PhysicalKeyboardKey>[]) {
-      if (_held.contains(k)) return true;
+      if (keyDown(k)) return true;
     }
     final m = bindings.mouse[action];
     // A finger that stayed put holds the primary button: the same action a
     // mouse's own left button holds, whichever one the game bound to it.
     if (m != null && (_mouseHeld.contains(m) || (m == MouseBinding.left && _touchMining.isNotEmpty))) return true;
     final g = bindings.gamepad[action];
-    if (g != null && _pad.isPressed(g)) return true;
+    if (g != null && padDown(g)) return true;
     final t = bindings.triggers[action];
     return t != null && _triggerHeld.contains(t);
   }
@@ -390,15 +496,28 @@ class InputMap<A extends Object> {
   bool justPressed(A action) {
     if (_scriptPressed.contains(action) || _touchPressed.contains(action)) return true;
     for (final k in bindings.keys[action] ?? const <PhysicalKeyboardKey>[]) {
-      if (_pressed.contains(k)) return true;
+      if (keyPressed(k)) return true;
     }
     final m = bindings.mouse[action];
     if (m != null && _mousePressed.contains(m)) return true;
     final g = bindings.gamepad[action];
-    if (g != null && _padPressed.contains(g)) return true;
+    if (g != null && padPressed(g)) return true;
     final t = bindings.triggers[action];
     return t != null && _triggerPressed.contains(t);
   }
+
+  /// Whether [key] is held, whatever it is bound to: what a game's own
+  /// actions read (`GameActions`), fed by the same [onKey] as the kit's.
+  bool keyDown(PhysicalKeyboardKey key) => _held.contains(key);
+
+  /// Whether [key] was pressed since the last [endTick].
+  bool keyPressed(PhysicalKeyboardKey key) => _pressed.contains(key);
+
+  /// Whether the pad's [button] is held, whatever it is bound to.
+  bool padDown(GamepadButton button) => _pad.isPressed(button);
+
+  /// Whether the pad's [button] was pressed since the last [endTick].
+  bool padPressed(GamepadButton button) => _padPressed.contains(button);
 
   /// -1..1 from [negative] and [positive] held, plus [stick] past the
   /// deadzone ([invertStick] flips it: a stick's up is -y on screen) and
@@ -449,10 +568,10 @@ class InputMap<A extends Object> {
     d += _drag;
     _drag = Offset.zero;
     if (pointerLockSupported && wantCapture) d += PointerLock.instance.takeDelta();
-    var rad = d * lookSensitivity + _scriptTurn * dt;
+    var rad = d * (lookSensitivity * lookScale);
     final gx = _pad.axisValue(GamepadAxis.rightStickX), gy = _pad.axisValue(GamepadAxis.rightStickY);
-    if (gx.abs() > deadzone || gy.abs() > deadzone) rad += Offset(gx, -gy) * (stickTurnRate * dt);
-    return rad;
+    if (gx.abs() > deadzone || gy.abs() > deadzone) rad += Offset(gx, -gy) * (stickTurnRate * lookScale * dt);
+    return rad + _scriptTurn * dt;
   }
 
   /// Forgets this step's presses; the game calls it after every step.

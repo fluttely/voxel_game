@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter_scene/scene.dart';
 import 'package:vector_math/vector_math.dart';
+import 'package:voxel_engine/content.dart';
 import 'package:voxel_engine/core.dart';
 import 'package:voxel_scene/voxel_scene.dart';
 
@@ -204,6 +205,17 @@ class RigModel {
   double get backHeight => _backHeight;
   double _backHeight = 0.0;
 
+  /// Where a humanoid's right fist is, under its `arm1` pivot, and the scale
+  /// of its body against the player's 1.75 m; null for the other plans.
+  ({Vector3 at, double scale})? get hand => _hand;
+  ({Vector3 at, double scale})? _hand;
+
+  /// How far a seated humanoid is drawn below its feet, metres before [fit]:
+  /// its hips less half a thigh, so its thighs rest where its feet stood (a
+  /// seat's height); 0 for the other plans, which do not sit.
+  double get seatDrop => _seatDrop;
+  double _seatDrop = 0.0;
+
   /// The scale that brings the authored body inside its collider (1 when it fits).
   double get fit => _fit;
   double _fit = 1.0;
@@ -287,6 +299,8 @@ class RigModel {
         VoxelModel.box(v, const IVec3(-2, -12, -2), const IVec3(1, -1, 1), skin);
         _part('arm0', v, Vector3(-0.345 * k, 1.30 * k, 0), s);
         _part('arm1', v, Vector3(0.345 * k, 1.30 * k, 0), s);
+        _hand = (at: Vector3(0, -11.3 * s, -0.7 * s), scale: k);
+        _seatDrop = 0.66 * k - 2 * s;
         v = {};
         VoxelModel.box(v, const IVec3(-4, 0, -4), const IVec3(3, 7, 3), skin, 0.04);
         final eye = rig.redEyes ? Vector3(0.9, 0.1, 0.1) : dark;
@@ -364,7 +378,10 @@ class RigInstance {
       final pivot = Node();
       final g = p.shape.geometry;
       final mesh = Node()..scale = p.shape.shrink.clone();
-      if (g != null) mesh.mesh = Mesh(g, VoxelModelMesh.material());
+      if (g != null) {
+        mesh.mesh = Mesh(g, _paint);
+        _meshes.add((mesh, g));
+      }
       pivot.add(mesh);
       root.add(pivot);
       parts[p.name] = RigPart(pivot, p.base)
@@ -397,6 +414,28 @@ class RigInstance {
   /// `wing0`, `wing1`, `tail`).
   final Map<String, RigPart> parts = {};
 
+  final List<(Node, MeshGeometry)> _meshes = [];
+  Material _paint = VoxelModelMesh.material();
+
+  /// What its parts are drawn in: `VoxelModelMesh.material()`, its colours,
+  /// unless [paint] said otherwise.
+  Material get painted => _paint;
+
+  /// Draws every part in [material] from now on: one every rig shares (a
+  /// hit's `VoxelModelMesh.flash()`, a ghost's or a fade's
+  /// `VoxelModelMesh.tinted`), so the creatures in it still batch. What a
+  /// fist holds keeps its own. Painting it what it is in already does
+  /// nothing.
+  void paint(Material material) {
+    if (identical(material, _paint)) return;
+    _paint = material;
+    // flutter_scene copies a primitive's material into its render item when
+    // the mesh is set: a new mesh over the same geometry is what reaches it.
+    for (final (node, geometry) in _meshes) {
+      node.mesh = Mesh(geometry, material);
+    }
+  }
+
   /// What poses [parts] every frame.
   late final RigAnimator animator = RigAnimator(rig.kind, parts, armRest: _armRest, legFan: model.legFan);
   double _yaw = 0.0;
@@ -408,14 +447,62 @@ class RigInstance {
   /// The saddle line of a quadruped (metres above the feet), 0 otherwise.
   double get backHeight => model.backHeight;
 
+  /// How far below its feet it is drawn [animate]d seated, metres: a
+  /// humanoid's thighs then rest at its feet's height; 0 for the plans that
+  /// do not sit.
+  double get seatDrop => model.seatDrop * model.fit;
+
   double get _armRest => rig.armsForward ? 1.4 : 0.0;
 
   /// Starts an attack swing (a humanoid's arm, a bird's peck).
   void swing() => animator.startSwing();
 
+  /// Whether its body plan has a fist to [hold] things in: a humanoid's.
+  bool get canHold => model.hand != null;
+
+  /// What the right fist holds; null for an empty one.
+  ItemModel? get held => _held?.model;
+  ({ItemModel model, Node node})? _held;
+
+  /// Lays a drawn shape against the palm and sends it forward out of the fist:
+  /// every item stands up its own +Y from its grip, and the arm hangs down.
+  static final Quaternion _outOfTheFist = Quaternion.axisAngle(Vector3(1, 0, 0), -math.pi / 2);
+
+  /// Puts [item] in a humanoid's right fist, or empties it (null); a rig that
+  /// cannot ([canHold]) throws [StateError]. A block hangs from the fist with
+  /// a face against the palm; anything else stands out of it with its head in
+  /// the swing, leading the chop.
+  void hold(ItemModel? item) {
+    final hand = model.hand;
+    if (hand == null) throw StateError('only a humanoid holds things: this is a ${rig.kind.name}');
+    if (identical(item, _held?.model)) return;
+    final arm = parts['arm1']!.node;
+    if (_held case (:final node, model: _)) arm.remove(node);
+    _held = null;
+    if (item == null) return;
+    final node = ItemMesh.of(item).node()..scale = Vector3.all(hand.scale);
+    if (item.grip == ItemGrip.block) {
+      node
+        ..rotation = _outOfTheFist
+        ..position = hand.at + Vector3(0, -0.14, -0.04) * hand.scale;
+    } else {
+      node
+        ..rotation = _outOfTheFist * headInSwingPlane
+        ..position = hand.at.clone();
+    }
+    arm.add(node);
+    _held = (model: item, node: node);
+  }
+
+  /// A quarter turn about a held model's shaft: a flat piece is drawn with
+  /// its head across X, and a fist turns it so the head runs along the swing.
+  static final Quaternion headInSwingPlane = Quaternion.axisAngle(Vector3(0, 1, 0), math.pi / 2);
+
   /// Poses the rig for one frame of [dt]: moving at [speed] metres a second,
   /// facing [targetYaw], standing [onFloor] or [flying]; [lookYaw] turns the
   /// head toward something (relative to the body), null for straight ahead.
+  /// [seated], a humanoid sits (`RigAnimator.seatedLegs`): its owner places
+  /// it [seatDrop] lower. [gliding], a humanoid spreads its arms.
   void animate(
     double dt, {
     required double speed,
@@ -424,6 +511,8 @@ class RigInstance {
     bool flying = false,
     double? lookYaw,
     double verticalSpeed = 0.0,
+    bool seated = false,
+    bool gliding = false,
   }) {
     _age += dt;
     _yaw = lerpAngle(_yaw, targetYaw, math.min(1.0, dt * 12.0));
@@ -435,6 +524,8 @@ class RigInstance {
       flying: flying,
       lookYaw: lookYaw,
       verticalSpeed: verticalSpeed,
+      seated: seated,
+      gliding: gliding,
     );
     for (final p in parts.values) {
       p.apply();

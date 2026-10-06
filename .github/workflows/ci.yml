@@ -1,0 +1,77 @@
+# The suite CLAUDE.md asks for before every commit, run on every push to dev and main and
+# on every PR. A local green run is still required: this guards what lands, it does not
+# replace the run (VL1, VLD8).
+name: CI
+
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: 3.47.5
+
+jobs:
+  analyze:
+    name: analyze and format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: flutter pub get (workspace)
+        run: flutter pub get
+      # The app sits outside the workspace and resolves the kit through path overrides
+      # (KL-006); the root analyze reads it too, so it resolves first.
+      - name: flutter pub get (examples/voxel_game_minecraft)
+        working-directory: examples/voxel_game_minecraft
+        run: flutter pub get
+      - name: flutter analyze
+        run: flutter analyze
+      - name: dart format
+        run: dart format --output=none --set-exit-if-changed packages examples/voxel_game_minecraft
+
+  test:
+    name: test (${{ matrix.suite }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - suite: voxel_game
+            dir: packages/voxel_game
+            run: flutter test
+          - suite: voxel_engine
+            dir: packages/voxel_engine
+            run: dart test
+          - suite: voxel_scene
+            dir: packages/voxel_scene
+            run: flutter test
+          - suite: sound_recipes
+            dir: packages/sound_recipes
+            run: flutter test
+          - suite: voxel_game_minecraft
+            dir: examples/voxel_game_minecraft
+            run: flutter pub get && flutter test
+    steps:
+      - uses: actions/checkout@v7
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: flutter pub get (workspace)
+        run: flutter pub get
+      - name: ${{ matrix.suite }}
+        working-directory: ${{ matrix.dir }}
+        run: ${{ matrix.run }}

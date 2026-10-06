@@ -37,7 +37,8 @@ abstract final class SoundFamily {
 
 /// The kit's stock sounds, every one synthesised (the set the kit was first
 /// played with, and footsteps made the same way). Per material family `break_<family>`,
-/// `place_<family>` and `step_<family>`; and `dig`, `hit`, `hurt`, `pickup`,
+/// `place_<family>` and `step_<family>`; the footsteps of two grounds a family
+/// lumps together, `step_sand` and `step_snow`; and `dig`, `hit`, `hurt`, `pickup`,
 /// `swing`, `shoot`, `splash`, `eat`, `click`, `door`, `levelup`, `explode`,
 /// `thunder`, `heartbeat`, `hurt_small`, `hurt_large`, `hurt_undead`,
 /// `hurt_flying`.
@@ -162,6 +163,19 @@ abstract final class StockSounds {
     'step_liquid': SoundRecipe(
       0.16,
       (t, p, r) => _rnd(r) * _sn(p * math.pi) * (0.5 + 0.5 * _sn(t * 20.0 * _tau)) * 0.3,
+    ),
+    'step_sand': SoundRecipe(
+      0.11,
+      (t, p, r) => _rnd(r) * _pw(1.0 - p, 3.0) * (r.nextDouble() < 0.6 ? 1.0 : 0.3) * 0.32,
+    ),
+    'step_snow': SoundRecipe(
+      0.16,
+      (t, p, r) =>
+          _rnd(r) *
+          _sn(p * math.pi) *
+          ((p * 22.0).toInt() % 3 != 0 ? 1.0 : 0.25) *
+          (0.7 + 0.3 * _sn(t * 35.0 * _tau)) *
+          0.32,
     ),
   };
 }

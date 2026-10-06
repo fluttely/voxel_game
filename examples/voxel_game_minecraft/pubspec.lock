@@ -140,7 +140,7 @@ packages:
     source: hosted
     version: "0.23.0"
   flutter_soloud:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: flutter_soloud
       sha256: "9e753b54f858f988558614db82ae692dd1043fe2a446dd6187076e7d34c000b4"
@@ -158,7 +158,7 @@ packages:
     source: sdk
     version: "0.0.0"
   gamepads:
-    dependency: "direct main"
+    dependency: "direct dev"
     description:
       name: gamepads
       sha256: "212cafc5d240b5067eee2a0650b903ddbc18eafbc71a0d1064f8c06587db8ea6"
@@ -358,7 +358,7 @@ packages:
     source: hosted
     version: "1.9.1"
   path_provider:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: path_provider
       sha256: a7f4874f987173da295a61c181b8ee71dab59b332a486b391babf26a1b884825
@@ -422,7 +422,7 @@ packages:
     source: hosted
     version: "2.1.8"
   pointer_lock:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: pointer_lock
       sha256: aa7e4ab44ab2946170b50175c1e94f871bc7b9e5a88429f39e6a7c31e1c38717
@@ -467,12 +467,12 @@ packages:
     source: sdk
     version: "0.0.0"
   sound_recipes:
-    dependency: "direct main"
+    dependency: "direct overridden"
     description:
       path: "../../packages/sound_recipes"
       relative: true
     source: path
-    version: "0.1.2-dev"
+    version: "0.4.0-dev"
   source_span:
     dependency: transitive
     description:
@@ -548,27 +548,24 @@ packages:
   voxel_engine:
     dependency: "direct main"
     description:
-      name: voxel_engine
-      sha256: "03438df2e11fa8f35fed11503d89e15844c3c896317b401a7d8624f5ba0e5053"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.1.1-dev"
+      path: "../../packages/voxel_engine"
+      relative: true
+    source: path
+    version: "0.4.0-dev"
   voxel_game:
     dependency: "direct main"
     description:
-      name: voxel_game
-      sha256: "3b88dc03390f3eb14204298a407e9e372b48a16eb89ab483e2a12ddd792851d0"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.1.1-dev"
+      path: "../../packages/voxel_game"
+      relative: true
+    source: path
+    version: "0.4.0-dev"
   voxel_scene:
     dependency: "direct main"
     description:
-      name: voxel_scene
-      sha256: "80b86199b703bebbbef476e8fcb81ce1c2e706d4c749993c84ba5f9fb4fd1999"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.1.1-dev"
+      path: "../../packages/voxel_scene"
+      relative: true
+    source: path
+    version: "0.4.0-dev"
   web:
     dependency: transitive
     description:

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.0-dev
+
+**Breaking**
+
+- None: `step_sand` and `step_snow` are new sounds.
+
+- `StockSounds` adds `step_sand` (a dry hiss of grains) and `step_snow` (a crunch): the
+  footsteps of two grounds the `earth` family lumps together, for a game to name beside
+  the families' `step_<family>`.
+
 ## 0.3.0-dev
 
 - No change of its own: released with the other three, which move together.

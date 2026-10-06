@@ -5,12 +5,15 @@
         android:label="voxel_game_example"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+        <!-- Landscape either way round from the launch theme on, as runVoxelGame
+             asks once main() runs, so the splash never shows upright. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
             android:taskAffinity=""
             android:theme="@style/LaunchTheme"
+            android:screenOrientation="sensorLandscape"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustResize">

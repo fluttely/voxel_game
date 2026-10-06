@@ -1,3 +1,5 @@
+import 'explosive.dart';
+
 /// A game's circuits, by block name: what carries power, what makes it, what
 /// answers it. Every state is its own block (a lever off and on, a lamp lit
 /// and dark), so a flip is a plain block edit that saves and meshes like any
@@ -8,7 +10,9 @@
 ///   wire: ('wire', 'wire_lit'),
 ///   levers: {'lever': 'lever_on'},
 ///   lamps: {'lamp': 'lamp_lit'},
-///   explosives: {'tnt': 4.0},
+///   explosives: {'tnt': Explosive()},
+///   pistons: {'piston': 'piston_out', 'piston_e': 'piston_e_out', ...},
+///   poweredRails: {'powered_rail': 'powered_rail_on'},
 /// ),
 /// ```
 class SignalSpec {
@@ -22,6 +26,9 @@ class SignalSpec {
     this.lamps = const {},
     this.doors = const {},
     this.explosives = const {},
+    this.pistons = const {},
+    this.poweredRails = const {},
+    this.railReach = 8,
   });
 
   /// The wire, unpowered and powered.
@@ -45,6 +52,26 @@ class SignalSpec {
   /// Two-high doors: closed to open while powered.
   final Map<String, String> doors;
 
-  /// Blocks that blow up when powered, and how far the blast reaches.
-  final Map<String, double> explosives;
+  /// Blocks that are lit when powered, and how they burn and burst. A blast
+  /// lights the ones it reaches instead of breaking them.
+  final Map<String, Explosive> explosives;
+
+  /// Pistons: retracted to extended. Powered, a piston pushes the block in
+  /// front of it one cell on, when that block can move (it breaks, holds no
+  /// store and is one cell high) and the cell past it takes a block (air, a
+  /// plant, a liquid); a blocked piston stays retracted. Unpowered, it pulls
+  /// back its head and nothing else.
+  ///
+  /// A piston pushes the way it faces: its retracted block is one of the
+  /// variants of a `Facing.compass` (north is -Z, east +X), so it is placed
+  /// pushing away from whoever places it.
+  final Map<String, String> pistons;
+
+  /// Powered rails: unpowered to powered. Rails joined side by side are one
+  /// run, and every rail of it within [railReach] rails of a powered one is
+  /// on.
+  final Map<String, String> poweredRails;
+
+  /// How far along a run a powered rail passes the power on.
+  final int railReach;
 }

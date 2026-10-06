@@ -14,20 +14,31 @@ import 'package:vector_math/vector_math.dart';
 /// and how long a scene frame waited and ran on the GPU (`gpuLatencyMs`,
 /// `gpuLagFrames`). The camera each frame drew with ([addView]) says how evenly
 /// the view moved, which none of the timings can: a frame presented on time may
-/// show the same view as the one before.
+/// show the same view as the one before. The scene's own frames ([addScene])
+/// are counted apart from both: paced (`GraphicsSpec.paced`), the world is
+/// rendered only on the Flutter frames that find the last one finished, and a
+/// hidden window ticks with no frame at all (`FrameDriver`).
 ///
 /// Always on and cheap: [fps] is a readout for a HUD. Between [startRecording]
 /// and [stopRecording] every sample is kept, for a benchmark.
 class FrameStats {
   final Stopwatch _clock = Stopwatch()..start();
-  final List<int> _recentFrames = [];
+  final List<int> _recentTicks = [], _recentRendered = [];
+  int _rendered = 0, _shown = 0;
   _Samples? _recording;
 
-  /// Frames per second over the last half second of ticks.
-  double get fps {
+  /// Scene frames rendered per second, over the last half second: the rate
+  /// the world is drawn at, which a paced scene holds below [ticksPerSecond].
+  double get fps => _rate(_recentRendered);
+
+  /// Ticks ([addFrame]) per second, over the last half second: the rate the
+  /// world moves at, drawn or not.
+  double get ticksPerSecond => _rate(_recentTicks);
+
+  double _rate(List<int> times) {
     final now = _clock.elapsedMicroseconds;
-    _recentFrames.removeWhere((t) => now - t > 500000);
-    return _recentFrames.length * 2.0;
+    times.removeWhere((t) => now - t > 500000);
+    return times.length * 2.0;
   }
 
   /// Whether samples are being kept.
@@ -61,7 +72,7 @@ class FrameStats {
   /// One tick of the kit's own: [seconds] since the last one, [simMs] in
   /// `VoxelGame.frame`, [steps] fixed steps run.
   void addFrame({required double seconds, required double simMs, required int steps}) {
-    _recentFrames.add(_clock.elapsedMicroseconds);
+    _recentTicks.add(_clock.elapsedMicroseconds);
     final r = _recording;
     if (r == null) return;
     r.simMs.add(simMs);
@@ -92,6 +103,26 @@ class FrameStats {
     r.lastForward = forward.clone();
   }
 
+  /// A scene painted into a Flutter frame, with its running totals: the
+  /// scene frames it has [rendered] and the Flutter frames it has [shown] one
+  /// in (`GpuPacedScene.rendered` and `.shown`). What they grew by since the
+  /// last call is what this paint did; a paint that grew neither (the warm-up,
+  /// a paced paint with nothing finished yet) counts nothing.
+  void addScene({required int rendered, required int shown}) {
+    assert(rendered >= _rendered && shown >= _shown, 'a scene\'s totals only grow');
+    final newRendered = rendered - _rendered, newShown = shown - _shown;
+    _rendered = rendered;
+    _shown = shown;
+    final now = _clock.elapsedMicroseconds;
+    for (var i = 0; i < newRendered; i++) {
+      _recentRendered.add(now);
+    }
+    final r = _recording;
+    if (r == null) return;
+    r.rendered += newRendered;
+    r.shown += newShown;
+  }
+
   /// One scene frame encoded in [encodeMs].
   void addEncode(double encodeMs) => _recording?.encodeMs.add(encodeMs);
 
@@ -106,7 +137,7 @@ class _Samples {
   _Samples(this.startUs);
   final int startUs;
   int? lastVsyncUs;
-  int steps = 0;
+  int steps = 0, rendered = 0, shown = 0;
   double tickSeconds = 0.0;
   bool viewed = false;
   Vector3? lastEye, lastForward;
@@ -124,6 +155,8 @@ class _Samples {
   FrameReport report(double seconds) => FrameReport(
     seconds: seconds,
     steps: steps,
+    rendered: rendered,
+    shown: shown,
     intervalMs: intervalMs,
     buildMs: buildMs,
     rasterMs: rasterMs,
@@ -143,6 +176,8 @@ class FrameReport {
   FrameReport({
     required this.seconds,
     required this.steps,
+    required this.rendered,
+    required this.shown,
     required this.intervalMs,
     required this.buildMs,
     required this.rasterMs,
@@ -160,6 +195,14 @@ class FrameReport {
 
   /// Fixed simulation steps run.
   final int steps;
+
+  /// Scene frames rendered. Paced, fewer than the frames presented: the
+  /// world is drawn only on the vsyncs that find the last one finished.
+  final int rendered;
+
+  /// Presented frames that showed a scene frame: paced, a finished one, the
+  /// same one again when the next is not done.
+  final int shown;
 
   /// Milliseconds between the vsyncs that started two presented frames.
   final List<double> intervalMs;
@@ -239,6 +282,9 @@ class FrameReport {
   /// Frames presented per second.
   double get fps => buildMs.length / seconds;
 
+  /// Scene frames rendered per second: the rate the world is drawn at.
+  double get sceneFps => rendered / seconds;
+
   /// Presented frames that took longer than 1.5 [periodMs]: a frame the
   /// display showed twice.
   int hitches(double periodMs) => intervalMs.where((i) => i > periodMs * 1.5).length;
@@ -266,6 +312,9 @@ class FrameReport {
     'seconds': _round(seconds),
     'frames': buildMs.length,
     'fps': _round(fps),
+    'sceneFps': _round(sceneFps),
+    'rendered': rendered,
+    'shown': shown,
     'stepsPerSecond': _round(steps / seconds),
     'hitches': hitches(periodMs),
     'intervalMs': spread(intervalMs),

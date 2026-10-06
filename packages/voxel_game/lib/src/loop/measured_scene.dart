@@ -2,6 +2,7 @@ import 'dart:collection';
 import 'dart:ui' as ui;
 
 import 'package:flutter_scene/scene.dart';
+import 'package:voxel_scene/voxel_scene.dart';
 // flutter_scene's completion tracker: every command buffer the renderer submits
 // is numbered there and marked done from its GPU completion callback. The kit
 // pins flutter_scene exactly, as voxel_scene does for its gpu shim.
@@ -24,9 +25,16 @@ import 'frame_stats.dart';
 /// queued before it: a latency, not the GPU's cost. A GPU-bound frame keeps
 /// about three frames queued (a Metal System Trace of `orbit:6` at 120 Hz: 9.8
 /// ms of GPU work a frame, 29 ms of this latency).
-final class MeasuredScene extends Scene {
-  /// A scene reporting to [stats].
-  MeasuredScene(this.stats);
+///
+/// It is a [GpuPacedScene], paced when [GraphicsSpec.paced] says so: a frame is
+/// encoded, and measured, only on the ticks that render one, and the lag counts
+/// ticks all the same. Each paint hands [stats] the scene's [rendered] and
+/// [shown] totals, so the frame rate it reports is the world's frames drawn. And so a [ResizeSafeScene]: a resize never leaves the
+/// sun's cached shadow tiles on a freed depth texture (a Vulkan driver crash,
+/// `KL-008`).
+final class MeasuredScene extends GpuPacedScene {
+  /// A scene reporting to [stats], held back on a busy GPU when [paced].
+  MeasuredScene(this.stats, {required super.paced});
 
   /// Where the samples go.
   final FrameStats stats;
@@ -43,10 +51,16 @@ final class MeasuredScene extends Scene {
     while (_inFlight.isNotEmpty && _inFlight.first.$1 <= done) {
       stats.addGpuLag(_frame - _inFlight.removeFirst().$2);
     }
+    super.renderViews(views, canvas, region: region, pixelRatio: pixelRatio);
+    stats.addScene(rendered: rendered, shown: shown);
+  }
+
+  @override
+  void renderFrame(List<RenderView> views, ui.Canvas canvas, {ui.Rect? region, double? pixelRatio}) {
     _watch
       ..reset()
       ..start();
-    super.renderViews(views, canvas, region: region, pixelRatio: pixelRatio);
+    super.renderFrame(views, canvas, region: region, pixelRatio: pixelRatio);
     _watch.stop();
     stats.addEncode(_watch.elapsedMicroseconds / 1000.0);
     _inFlight.add((rendererSubmissions.latestSubmission, _frame));

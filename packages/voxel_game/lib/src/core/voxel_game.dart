@@ -9,13 +9,18 @@ import 'package:voxel_engine/net.dart' show NetHost;
 import 'package:voxel_engine/core.dart';
 import 'package:voxel_scene/voxel_scene.dart';
 import 'package:voxel_engine/signals.dart';
+import 'package:voxel_engine/worldgen.dart' show PlacedStructure;
 
 import '../camera/first_person_view.dart';
 import '../camera/view_camera.dart';
 import '../entities/game_entity.dart';
+import 'game_event.dart';
+import 'game_system.dart';
 import '../entities/item_pickup.dart';
+import '../entities/lit_explosive.dart';
 import '../entities/projectile.dart';
 import '../entities/target.dart';
+import '../input/game_actions.dart';
 import '../input/input_map.dart';
 import '../input/voxel_action.dart';
 import '../loop/fixed_step_loop.dart';
@@ -27,10 +32,28 @@ import '../mobs/spawner.dart';
 import '../net/remote_player.dart';
 import '../net/sessions.dart';
 import '../player/player_entity.dart';
+import '../settings/game_settings.dart';
+import '../spec/dimension_sky.dart';
+import '../spec/explosive.dart';
 import '../spec/graphics_spec.dart';
 import '../spec/signal_spec.dart';
+import '../spec/sound_spec.dart';
 import '../spec/voxel_game_spec.dart';
+import '../ui/damage_numbers.dart';
+import '../ui/game_screen.dart';
+import '../ui/notices.dart';
+import '../spec/portal_spec.dart';
+import '../world/block_rules.dart';
 import '../world/game_world.dart';
+import '../world/portals.dart';
+import '../world/rails.dart';
+import '../world/travel.dart';
+import '../vehicles/boat.dart';
+import '../vehicles/minecart.dart';
+import '../vehicles/vehicle.dart';
+import '../vehicles/vehicle_spec.dart';
+import '../weather/weather.dart';
+import '../world/world_info.dart';
 import '../world/world_save.dart';
 
 /// A running game made from a [VoxelGameSpec]: the world, the player, the
@@ -41,27 +64,67 @@ import '../world/world_save.dart';
 /// Headless ([VoxelGame.startHeadless]) it has no scene, no worker isolates and no
 /// visuals, and steps as fast as it is asked: tests, bots and servers.
 class VoxelGame {
-  VoxelGame._(this.spec, this.blocks, this.items, this.world, {required this.headless, this.authority = true})
-    : random = math.Random(spec.seed),
-      input = InputMap<VoxelAction>(VoxelAction.defaultBindings),
-      recipes = RecipeBook(spec.recipes),
-      timeOfDay = spec.sky.startTime {
+  VoxelGame._(
+    this.spec,
+    this.blocks,
+    this.items,
+    this.world,
+    GameSettings settings, {
+    required this.headless,
+    this.authority = true,
+    this.worldInfo,
+    Map<String, String>? options,
+  }) : options = Map.unmodifiable(_optionsOf(worldInfo, options)),
+       random = math.Random(spec.seed),
+       systems = List.unmodifiable(spec.systems()),
+       input = InputMap<VoxelAction>(spec.bindings),
+       recipes = RecipeBook(spec.recipes),
+       timeOfDay = spec.sky.startTime,
+       weather = Weather(spec.sky.weather, spec.dimensionWorlds, seed: spec.seed),
+       _settings = ValueNotifier(settings) {
+    assert(settings.renderDistance == world.loadRadius, 'the world streams the settings\' render distance');
+    final keys = <String>{};
+    for (final s in systems.whereType<SavedSystem>()) {
+      if (!keys.add(s.saveKey)) throw ArgumentError.value(s.saveKey, 'systems', 'two systems save under one key');
+    }
+    spec.checkActions();
+    actions = GameActions(spec.actions, input);
+    spec.checkDimensions(blocks, items);
+    spec.checkMobs(items);
+    spec.checkVehicles(items);
+    spec.checkShots(items);
+    spec.checkStructureLoot(items);
+    spec.checkFishing(blocks, items);
+    spec.checkMusic();
+    spec.checkSteps();
+    spec.checkUses(blocks);
+    portals = Portals(world, spec.portals);
+    _applyLive(settings);
     pathCosts = blocks.pathCosts(avoidLiquids: const {'lava'});
     player = PlayerEntity(
       spec.player,
       Inventory(stackSize: (id) => items[id].stack, maxDurability: (id) => items[id].durability),
+      StatusEffects(spec.buildEffects()),
     );
     spawner = MobSpawner(this);
+    blockRules = BlockRules(this);
+    rails = Rails(blocks, spec.signals);
+    final s = spec.signals;
+    // A client knows the rules too, to flip a lever as an edit of its own.
+    if (s != null) {
+      _signals = _signalRules(s);
+      explosives = {for (final e in s.explosives.entries) blocks.indexOf(e.key): e.value};
+    }
     if (!authority) {
       // A client: the host runs the liquids, the circuits and the spawning.
       world.flow.enabled = false;
       spawner.enabled = false;
       return;
     }
-    final s = spec.signals;
+    blockRules.attach();
+    rails.attach(world);
     if (s != null) {
-      final net = signals = SignalNetwork(world, _signalRules(s));
-      world.addListener(net.touch);
+      world.addListener((cell, old, id) => signals!.touch(cell, old, id));
       _plates = {for (final p in s.plates) blocks.indexOf(p)};
     }
   }
@@ -85,11 +148,37 @@ class VoxelGame {
         reactions[e.value] = door;
       }
     }
-    for (final e in s.explosives.entries) {
-      reactions[id(e.key)] = SignalReactions.trigger((c) {
-        world.setBlock(c, BlockRegistry.air);
-        explode(Vector3(c.x + 0.5, c.y + 0.5, c.z + 0.5), radius: e.value, damage: e.value * 4.0);
-      });
+    if (s.pistons.isNotEmpty) {
+      final pairs = {for (final e in s.pistons.entries) id(e.key): id(e.value)};
+      final pushes = _pistonFacings(s);
+      final piston = SignalReactions.piston(
+        pairs,
+        facing: (piston) => pushes[piston]!,
+        pushable: (b) => blocks[b].hardness >= 0 && !blocks[b].isLiquid && blocks[b].storage == null && !blocks[b].tall,
+        givesWay: blocks.isReplaceable,
+        onExtend: (c) => playSound(
+          'place_${soundFamily(world.getBlock(c))}',
+          at: Vector3(c.x + 0.5, c.y + 0.5, c.z + 0.5),
+          volumeDb: -8,
+          pitch: 0.7,
+        ),
+      );
+      for (final e in pairs.entries) {
+        reactions[e.key] = piston;
+        reactions[e.value] = piston;
+      }
+    }
+    if (s.poweredRails.isNotEmpty) {
+      final pairs = {for (final e in s.poweredRails.entries) id(e.key): id(e.value)};
+      final run = SignalReactions.poweredRun(pairs, reach: s.railReach);
+      for (final e in pairs.entries) {
+        reactions[e.key] = run;
+        reactions[e.value] = run;
+      }
+    }
+    final lit = SignalReactions.trigger(ignite);
+    for (final name in s.explosives.keys) {
+      reactions[id(name)] = lit;
     }
     return SignalRules(
       wireOff: id(s.wire.$1),
@@ -108,8 +197,50 @@ class VoxelGame {
     );
   }
 
-  /// The circuits; null when the spec declares none.
-  SignalNetwork? signals;
+  /// The way each of [s]'s pistons pushes, retracted and extended, by id: the
+  /// compass side its retracted block is a variant of.
+  Map<int, IVec3> _pistonFacings(SignalSpec s) {
+    final sides = <String, IVec3>{};
+    for (final b in blocks.types) {
+      final f = b.facing;
+      if (f == null || f.north == null) continue;
+      sides[f.north!] = const IVec3(0, 0, -1);
+      sides[f.east!] = const IVec3(1, 0, 0);
+      sides[f.south!] = const IVec3(0, 0, 1);
+      sides[f.west!] = const IVec3(-1, 0, 0);
+    }
+    final out = <int, IVec3>{};
+    for (final e in s.pistons.entries) {
+      final side = sides[e.key];
+      if (side == null) throw ArgumentError('piston ${e.key} is no variant of a Facing.compass: it faces nowhere');
+      out[blocks.indexOf(e.key)] = side;
+      out[blocks.indexOf(e.value)] = side;
+    }
+    return out;
+  }
+
+  /// The circuits of the dimension streaming; null when the spec declares
+  /// none, or on a client (the host runs them). Each dimension keeps its own.
+  SignalNetwork? get signals {
+    final rules = _signals;
+    return rules == null || !authority
+        ? null
+        : _networks.putIfAbsent(world.dimension, () => SignalNetwork(world, rules));
+  }
+
+  /// The use action on [cell]: a lever flips, a button presses. False when
+  /// the block is neither, or the spec declares no circuits. A client writes
+  /// the flip as an edit of its own, which the host checks like any other and
+  /// its circuits answer.
+  bool useSignal(IVec3 cell) {
+    final net = signals;
+    if (net != null) return net.use(cell);
+    final to = _signals?.usedInto(world.getBlock(cell));
+    return to != null && world.setBlock(cell, to);
+  }
+
+  SignalRules? _signals;
+  final Map<int, SignalNetwork> _networks = {};
 
   Set<int> _plates = const {};
 
@@ -118,19 +249,39 @@ class VoxelGame {
   /// must be loaded first (`VoxelGameWidget` does both).
   ///
   /// With [save] the world is the saved one: its seed, its edits, its clock
-  /// and its player.
-  static Future<VoxelGame> start(VoxelGameSpec spec, {SavedWorld? save, bool authority = true}) async {
+  /// and its player. With [settings] the player's own ([GameSettings.of] the
+  /// spec when null). [info] is the slot's ([worldInfo]); [options] those of
+  /// a game in no slot ([VoxelGame.options]).
+  static Future<VoxelGame> start(
+    VoxelGameSpec spec, {
+    SavedWorld? save,
+    GameSettings? settings,
+    bool authority = true,
+    WorldInfo? info,
+    Map<String, String>? options,
+  }) async {
     final blocks = spec.buildBlocks();
+    final chosen = settings ?? GameSettings.of(spec);
     final world = GameWorld(
       blocks,
-      spec.world,
+      spec.dimensionWorlds,
       save?.seed ?? spec.seed,
-      loadRadius: spec.renderDistance,
+      loadRadius: chosen.renderDistance,
       liquids: spec.liquids,
     );
-    final game = VoxelGame._(spec, blocks, spec.buildItems(blocks), world, headless: false, authority: authority);
+    final game = VoxelGame._(
+      spec,
+      blocks,
+      spec.buildItems(blocks),
+      world,
+      chosen,
+      headless: false,
+      authority: authority,
+      worldInfo: info,
+      options: options,
+    );
     final g = game.graphics, shadows = g.shadows;
-    game.scene = MeasuredScene(game.stats)
+    game.scene = MeasuredScene(game.stats, paced: g.paced)
       ..antiAliasingMode = g.antiAliasing
       ..renderScale = g.renderScale;
     game.sky = DayNightSky(
@@ -142,6 +293,8 @@ class VoxelGame {
       sunStepDegrees: shadows.sunStepDegrees,
     );
     game.scene!.add(world.root!);
+    if (spec.sky.weather != null) game.scene!.add((game.weatherParticles = WeatherParticles()).node);
+    game.scene!.add(game.debris.node);
     game._begin(save);
     game.firstPerson = FirstPersonView(game);
     await world.start();
@@ -149,45 +302,251 @@ class VoxelGame {
   }
 
   /// A game with no renderer and no isolates: chunks are generated as they
-  /// are needed, on this isolate. [loadRadius] chunks around the player.
+  /// are needed, on this isolate. [loadRadius] chunks around the player: its
+  /// [settings] are the given ones ([GameSettings.of] the spec when null) at
+  /// that render distance. [info] is the slot's
+  /// ([worldInfo]); [options] those of a game in no slot
+  /// ([VoxelGame.options]).
   static Future<VoxelGame> startHeadless(
     VoxelGameSpec spec, {
     int loadRadius = 2,
     SavedWorld? save,
+    GameSettings? settings,
     bool authority = true,
+    WorldInfo? info,
+    Map<String, String>? options,
   }) async {
     final blocks = spec.buildBlocks();
     final world = GameWorld.headless(
       blocks,
-      spec.world,
+      spec.dimensionWorlds,
       save?.seed ?? spec.seed,
       loadRadius: loadRadius,
       liquids: spec.liquids,
     );
-    final game = VoxelGame._(spec, blocks, spec.buildItems(blocks), world, headless: true, authority: authority);
+    final game = VoxelGame._(
+      spec,
+      blocks,
+      spec.buildItems(blocks),
+      world,
+      (settings ?? GameSettings.of(spec)).copyWith(renderDistance: loadRadius),
+      headless: true,
+      authority: authority,
+      worldInfo: info,
+      options: options,
+    );
     game._begin(save);
     await world.start();
     return game;
   }
 
   void _begin(SavedWorld? save) {
-    if (save != null) world.replaceEdits(save.edits);
+    if (save != null) world.replaceEdits(save.editsFor(spec.dimensionIds));
     player.attach(this);
     scene?.add(player.node);
-    // The spawn: the nearest dry column to the origin along a spiral.
+    // The spawn: the game's in a new world, else the nearest dry column to the
+    // origin along a spiral. A save puts the player back where it was.
     final g = world.generator;
+    final declared = save == null ? spec.spawn?.call(options) : null;
     var spawn = (x: 0, z: 0);
-    for (var r = 0; r < 400; r += 8) {
-      final a = r * 0.7;
-      final x = (math.cos(a) * r).round(), z = (math.sin(a) * r).round();
-      if (g.surfaceHeight(x, z) > spec.world.seaLevel + 1) {
-        spawn = (x: x, z: z);
-        break;
+    if (declared != null) {
+      spawn = (x: declared.x, z: declared.z);
+      player.yaw = declared.yaw;
+    } else {
+      for (var r = 0; r < 400; r += 8) {
+        final a = r * 0.7;
+        final x = (math.cos(a) * r).round(), z = (math.sin(a) * r).round();
+        if (g.surfaceHeight(x, z) > spec.world.seaLevel + 1) {
+          spawn = (x: x, z: z);
+          break;
+        }
       }
     }
     _spawnColumn = spawn;
     player.position = Vector3(spawn.x + 0.5, g.surfaceHeight(spawn.x, spawn.z).toDouble(), spawn.z + 0.5);
     if (save != null) WorldSaves.restore(this, save);
+    // A load is no event: the dead player and the tamed creatures it brings back.
+    _events.clear();
+  }
+
+  /// The id of the dimension the player is in (`VoxelGameSpec.dimensionIds`).
+  String get dimension => spec.dimensionIds[world.dimension];
+
+  /// The portals of the spec, in this world.
+  late final Portals portals;
+
+  /// Where the player stands between dimensions: in one, in a portal, or
+  /// arriving in another.
+  Travel get travelState => _travel;
+  Travel _travel = const Staying();
+
+  /// Takes the player to [dimension]: to [at] exactly, or to the arrival of
+  /// its present column there (`GameWorld.arrivalAt`), with a return portal
+  /// when it went [through] a portal and none is near. The player gets off
+  /// what it rides first. The items and the wild creatures of the dimension
+  /// left are left behind for good; its vehicles and the creatures the save
+  /// keeps (`Mob.kept`: the tamed, a mount ridden in among them, and the
+  /// `MobSpec.persistent`) stay where they were left: parked
+  /// ([parkedVehicles], [parkedMobs]) and put back when the player comes
+  /// back, a creature with its `Mob.data`. A client's replicas of the host's
+  /// are not its own to park: the host sends them again. A store's screen shuts.
+  /// The player waits off the ground ([ready] false) until the world is
+  /// loaded around it. Throws for the dimension the player is in, one the
+  /// spec does not declare, and during another arrival.
+  void travel(String dimension, {Vector3? at, PortalSpec? through}) {
+    final d = spec.dimensionIds.indexOf(dimension);
+    if (d < 0) throw ArgumentError.value(dimension, 'dimension', 'the spec declares no such dimension');
+    if (d == world.dimension) throw ArgumentError.value(dimension, 'dimension', 'the player is there');
+    if (_travel is Arriving) throw StateError('the player is arriving already');
+    if (player.riding != null) player.dismount();
+    final left = [for (final v in _ownVehicles) v.row];
+    if (left.isNotEmpty) _parkedVehicles[this.dimension] = left;
+    final kept = [for (final m in mobs.where((m) => m.kept)) m.row];
+    if (kept.isNotEmpty) _parkedMobs[this.dimension] = kept;
+    for (final m in mobs) {
+      m.removed = true;
+    }
+    for (final e in entities) {
+      if (e is! RemotePlayer) e.removed = true;
+    }
+    _prune();
+    if (_screen.value is StorageScreen) closeScreen();
+    final from = player.position;
+    final x = (at?.x ?? from.x).floor(), z = (at?.z ?? from.z).floor();
+    raise(Travelled(this.dimension, dimension, through: through));
+    world.switchDimension(d);
+    restoreVehicles(dimension, _parkedVehicles.remove(dimension) ?? const []);
+    restoreMobs(dimension, _parkedMobs.remove(dimension) ?? const []);
+    player.hold(at ?? Vector3(x + 0.5, world.generator.surfaceHeight(x, z).toDouble(), z + 0.5));
+    _travel = Arriving(dimension, x, z, exactly: at?.clone(), portal: through);
+  }
+
+  /// The vehicles left in the dimensions the player is not in, by dimension
+  /// id: each one's save row (`Vehicle.row`), put back in the world when the
+  /// player comes back ([travel]).
+  Map<String, List<Map<String, Object?>>> get parkedVehicles => Map.unmodifiable(_parkedVehicles);
+  final Map<String, List<Map<String, Object?>>> _parkedVehicles = {};
+
+  /// Every vehicle's save row by dimension id: the vehicles in the world, in
+  /// the player's dimension, and the parked ones of the others; a client's
+  /// replicas of the host's are not among them.
+  Map<String, List<Map<String, Object?>>> get vehicleRows => {
+    ..._parkedVehicles,
+    dimension: [for (final v in _ownVehicles) v.row],
+  };
+
+  /// The kept creatures (`Mob.kept`) left in the dimensions the player is
+  /// not in, by dimension id: each one's save row (`Mob.row`), put back in
+  /// the world when the player comes back ([travel]).
+  Map<String, List<Map<String, Object?>>> get parkedMobs => Map.unmodifiable(_parkedMobs);
+  final Map<String, List<Map<String, Object?>>> _parkedMobs = {};
+
+  /// Every kept creature's save row (`Mob.row`) by dimension id: those in
+  /// the world, in the player's dimension, and the parked ones of the
+  /// others.
+  Map<String, List<Map<String, Object?>>> get mobRows => {
+    ..._parkedMobs,
+    dimension: [for (final m in mobs.where((m) => m.kept)) m.row],
+  };
+
+  /// Puts back [dimension]'s kept creatures from their save [rows]
+  /// (`Mob.row`, read back by [mobFrom]): in the world when the player is
+  /// there, else parked for when it comes. Throws for a dimension the spec
+  /// does not declare, and for a mob it does not.
+  void restoreMobs(String dimension, List<Map<String, Object?>> rows) {
+    if (!spec.dimensionIds.contains(dimension)) {
+      throw ArgumentError.value(dimension, 'dimension', 'the spec declares no such dimension');
+    }
+    if (dimension != this.dimension) {
+      if (rows.isNotEmpty) _parkedMobs[dimension] = [..._parkedMobs[dimension] ?? const [], ...rows];
+      return;
+    }
+    rows.forEach(mobFrom);
+  }
+
+  /// A creature made here from its [row] (`Mob.row`): what a load and a trip
+  /// back are made from. A tamed one is the player's. Throws for a mob the
+  /// spec does not declare.
+  Mob mobFrom(Map<String, Object?> row) {
+    Vector3 v(Object? o) {
+      final l = [for (final e in o! as List<Object?>) (e! as num).toDouble()];
+      return Vector3(l[0], l[1], l[2]);
+    }
+
+    final mob = spawnMob(row['id']! as String, v(row['pos']))
+      ..facing = (row['yaw']! as num).toDouble()
+      ..home = v(row['home']);
+    final level = (row['level']! as num).toInt();
+    if (level != 1) mob.growTo(level);
+    mob.hp = (row['hp']! as num).toDouble();
+    if (row['tamed']! as bool) mob.tame(player);
+    mob.boss = row['boss']! as bool;
+    if (row['shorn'] case final num left) mob.shornLeft = left.toDouble();
+    mob.data.addAll(row['data']! as Map<String, Object?>);
+    return mob;
+  }
+
+  Iterable<Vehicle> get _ownVehicles => vehicles.where((v) => !v.replica);
+
+  /// Puts back [dimension]'s vehicles from their save [rows] (`Vehicle.row`,
+  /// read back by `Vehicle.restoreRow`): in the world when the player is
+  /// there, else parked for when it comes.
+  /// Throws for a dimension the spec does not declare, and for an item no
+  /// vehicle is.
+  void restoreVehicles(String dimension, List<Map<String, Object?>> rows) {
+    if (!spec.dimensionIds.contains(dimension)) {
+      throw ArgumentError.value(dimension, 'dimension', 'the spec declares no such dimension');
+    }
+    if (dimension != this.dimension) {
+      if (rows.isNotEmpty) _parkedVehicles[dimension] = [..._parkedVehicles[dimension] ?? const [], ...rows];
+      return;
+    }
+    rows.forEach(vehicleFrom);
+  }
+
+  /// Stands the arriving player on the ground once the chunks around its
+  /// column are loaded, building the return portal it may need.
+  void _arrive(Arriving a) {
+    final here = ChunkStreamer.chunkOfXZ(a.x, a.z);
+    for (final o in ChunkStreamer.ring) {
+      if (!world.isLoaded(IVec3((here.x + o.x) * ChunkSize.sizeX, 0, (here.z + o.z) * ChunkSize.sizeZ))) return;
+    }
+    final at = a.exactly;
+    if (at != null) {
+      player.placeAt(at);
+    } else {
+      final feet = world.arrivalAt(a.x, a.z);
+      player.placeAt(Vector3(feet.x + 0.5, feet.y.toDouble(), feet.z + 0.5));
+      final portal = a.portal;
+      if (portal != null && portals.nearest(portal, feet, portal.search) == null) {
+        portals.build(portal, feet - const IVec3(0, 0, 2), world.generator.spec.stone);
+      }
+    }
+    _travel = const Lingering();
+  }
+
+  /// One step of the portal underfoot: standing in one long enough takes
+  /// the player to its other end.
+  void _portalStep(double dt) {
+    final feet = IVec3.floor(player.position + Vector3(0, 0.3, 0));
+    final under = player.isDead ? null : portals.at(feet);
+    final to = under?.otherEnd(dimension);
+    switch (_travel) {
+      case Arriving():
+        return;
+      case Lingering():
+        if (under == null) _travel = const Staying();
+      case Staying():
+        if (under != null && to != null) _travel = Charging(under, 0.0);
+      case Charging(:final portal, :final seconds):
+        if (under != portal || to == null) {
+          _travel = const Staying();
+        } else if (seconds + dt < portal.seconds) {
+          _travel = Charging(portal, seconds + dt);
+        } else {
+          travel(to, through: portal);
+        }
+    }
   }
 
   /// Hosts this game on [port] (0 picks a free one): other games join it with
@@ -198,20 +557,33 @@ class VoxelGame {
     return s;
   }
 
-  /// Joins the game hosted at [address]:[port]: its world, its players, its
-  /// mobs. [headless] for a test or a bot.
+  /// Joins the game hosted at [address]:[port]: its world (generated as the
+  /// host's options make it, `VoxelGameSpec.worldWith`), its players, its
+  /// mobs, seen with this player's [settings], played with the [options]
+  /// picked in the join form (its player `VoxelGameSpec.playerWith` them).
+  /// [headless] for a test or a bot.
   static Future<VoxelGame> joinGame(
     VoxelGameSpec spec,
     String address, {
     int port = 7777,
+    GameSettings? settings,
+    Map<String, String> options = const {},
     bool headless = false,
   }) async {
     final hello = await joinHost(address, port: port);
+    final played = spec.copyWith(player: spec.playerWith(options), world: spec.worldWith(hello.options));
     final game = headless
-        ? await startHeadless(spec, save: hello.world, authority: false)
-        : await start(spec, save: hello.world, authority: false);
+        ? await startHeadless(played, save: hello.world, authority: false, options: options)
+        : await start(played, save: hello.world, settings: settings, authority: false, options: options);
     game.player.restore(hello.spawn, hello.spawn);
-    game.session = ClientSession(game, hello.connection, hello.peer);
+    game.session = ClientSession(
+      game,
+      hello.connection,
+      hello.peer,
+      drops: hello.drops,
+      vehicles: hello.vehicles,
+      weather: hello.weather,
+    );
     return game;
   }
 
@@ -226,11 +598,47 @@ class VoxelGame {
   /// What was declared.
   final VoxelGameSpec spec;
 
+  /// The world's slot as it was when this game started: its name, its mode,
+  /// its options (`WorldInfo.options`, chosen in the new-world form); null
+  /// for a game in no slot (one made from code, a test's, a joined one).
+  final WorldInfo? worldInfo;
+
+  /// The game's own choices this game plays with, by option id
+  /// (`WorldOption`): its [worldInfo]'s, or a joined game's from the join
+  /// form; empty for none. Its player is `VoxelGameSpec.playerWith` them.
+  final Map<String, String> options;
+
+  static Map<String, String> _optionsOf(WorldInfo? info, Map<String, String>? options) {
+    if (info != null && options != null) throw ArgumentError('a world\'s options are its info\'s');
+    return info?.options ?? options ?? const {};
+  }
+
+  /// The game's own systems, made for this game by `VoxelGameSpec.systems`,
+  /// in its order.
+  final List<GameSystem> systems;
+
+  /// The one system of type [T] among [systems]: what a screen or a HUD of
+  /// the game's reads its state from. Throws when there is none or more than
+  /// one.
+  T system<T extends GameSystem>() => systems.whereType<T>().single;
+
+  /// Raises [event]: every system hears it (`GameSystem.onEvent`) at the
+  /// systems' next turn of a step, this step's when raised before it. The
+  /// kit raises its own; a game's code raises one for what it does in the
+  /// kit's place (a craft on a screen of its own).
+  void raise(GameEvent event) => _events.add(event);
+  final List<GameEvent> _events = [];
+
   /// The blocks, air first.
   final BlockRegistry<BlockType> blocks;
 
   /// The items: one per holdable block, plus the spec's.
   final ItemRegistry<ItemType> items;
+
+  /// What item [id] looks like: the one model every item of its look shares,
+  /// drawn in the hand, held by a body, lying on the ground and in a slot.
+  ItemModel itemModel(String id) => _itemModels[id] ??= ItemModel.of(items[id], blocks, items);
+  final Map<String, ItemModel> _itemModels = {};
 
   /// The world.
   final GameWorld world;
@@ -239,13 +647,26 @@ class VoxelGame {
   final bool headless;
 
   /// The scene; null headless.
-  Scene? scene;
+  GpuPacedScene? scene;
 
   /// The sky, sun and fog; null headless.
   DayNightSky? sky;
 
+  /// The rain, storms and snow (`SkySpec.weather`): always clear when the
+  /// spec declares none.
+  final Weather weather;
+
+  /// The rain and snow falling around the player; null headless or with no
+  /// weather declared.
+  WeatherParticles? weatherParticles;
+
   /// The player's controls. A widget feeds it; code can [InputMap.hold].
   final InputMap<VoxelAction> input;
+
+  /// The game's own actions (`VoxelGameSpec.actions`), fed by the same keys
+  /// and pad as [input] and by their touch buttons; a `GameSystem` reads them
+  /// in the step, while [gameplay].
+  late final GameActions actions;
 
   /// Crafting.
   final RecipeBook recipes;
@@ -269,11 +690,63 @@ class VoxelGame {
   /// Natural spawning.
   late final MobSpawner spawner;
 
+  /// What blocks do on their own: fall, drop off what held them, grow. It
+  /// listens to the world, and grows the crops, only where this game is the
+  /// [authority].
+  late final BlockRules blockRules;
+
+  /// The rails among the blocks, what carries a minecart: they lay
+  /// themselves, turning to meet one another, only where this game is the
+  /// [authority].
+  late final Rails rails;
+
   /// The living creatures.
   final List<Mob> mobs = [];
 
-  /// Everything else that moves: items on the ground, projectiles.
+  /// Everything else that moves: items on the ground, projectiles, vehicles.
   final List<GameEntity> entities = [];
+
+  /// The vehicles in the world (in [entities]).
+  Iterable<Vehicle> get vehicles => entities.whereType<Vehicle>().where((v) => !v.removed);
+
+  /// The vehicle [item] puts down (`VoxelGameSpec.vehicles`), or null for an
+  /// item that is none.
+  VehicleSpec? vehicleFor(String item) => _vehicleSpecs[item];
+  late final Map<String, VehicleSpec> _vehicleSpecs = {for (final v in spec.vehicles) v.item: v};
+
+  /// Puts a vehicle of [item]'s down at [at], pointing [facing] (radians, as
+  /// `PlayerEntity.yaw`); a minecart on the rail at [at], heading for its end
+  /// nearest [facing]. On a client where the host is, the host puts it down
+  /// (`GameSession.handOffVehicle`), and this returns null: the host's
+  /// vehicle comes back as a replica. Anywhere else it is put down here and
+  /// returned. Throws for an item that is no vehicle.
+  Vehicle? placeVehicle(String item, Vector3 at, {double facing = 0.0}) {
+    final v = _vehicleSpec(item);
+    if (session?.handOffVehicle(item, at, facing) ?? false) return null;
+    return _makeVehicle(v, at, facing);
+  }
+
+  /// A vehicle made here from its [row] (`Vehicle.row`, read back by
+  /// `Vehicle.restoreRow`): what a load, a trip back and a client's replica
+  /// of the host's are made from. Throws for an item that is no vehicle.
+  Vehicle vehicleFrom(Map<String, Object?> row) {
+    final p = [for (final e in row['pos']! as List<Object?>) (e! as num).toDouble()];
+    final v = _makeVehicle(
+      _vehicleSpec(row['item']! as String),
+      Vector3(p[0], p[1], p[2]),
+      (row['yaw']! as num).toDouble(),
+    );
+    v.restoreRow(row);
+    return v;
+  }
+
+  VehicleSpec _vehicleSpec(String item) =>
+      vehicleFor(item) ?? (throw ArgumentError.value(item, 'item', 'no vehicle is put down with it'));
+
+  Vehicle _makeVehicle(VehicleSpec v, Vector3 at, double facing) => add(switch (v) {
+    BoatSpec() => Boat(v, at, facing: facing),
+    CartSpec() => Minecart(v, at, facing: facing),
+  });
 
   /// The camera's rig.
   final ViewCamera view = ViewCamera();
@@ -303,11 +776,20 @@ class VoxelGame {
     return SoundFamily.stone;
   });
 
+  final Map<int, String> _steps = {};
+
+  /// The sound block [id] makes when walked on: `step_<kind>` for a block
+  /// tagged `step:<kind>`, else `step_<family>` ([soundFamily]).
+  String stepSound(int id) =>
+      _steps.putIfAbsent(id, () => 'step_${SoundSpec.stepKindOf(blocks[id]) ?? soundFamily(id)}');
+
   /// Plays [name] as heard from [at] by the player: quieter with distance,
-  /// nothing past 32 m; at the player when [at] is null.
+  /// nothing past 32 m; at the player when [at] is null. All of it under the
+  /// player's [GameSettings.volume], and nothing at 0.
   void playSound(String name, {Vector3? at, double volumeDb = 0.0, double pitch = 1.0}) {
-    if (!spec.sounds.enabled) return;
-    var db = volumeDb;
+    final volume = settings.value.volume;
+    if (!spec.sounds.enabled || volume == 0.0) return;
+    var db = volumeDb + 20.0 * math.log(volume) / math.ln10;
     if (at != null) {
       final d = at.distanceTo(player.eyePosition);
       if (d > 32.0) return;
@@ -333,10 +815,161 @@ class VoxelGame {
   /// captures the pointer.
   bool playWithoutCapture = false;
 
-  /// The screen the player asked for: null for none, `''` for the bag, a
-  /// block id for that station's crafting (a crafting table, a furnace). The
-  /// widget shows it; set it to null to close.
-  final ValueNotifier<String?> openScreen = ValueNotifier(null);
+  /// The screen open over the world, or null while the player plays: one
+  /// [GameScreen] at a time, changed only by [openScreen], [closeScreen],
+  /// [respawn] and the player's death. The widget shows it; the world keeps
+  /// stepping behind it.
+  ValueListenable<GameScreen?> get screen => _screen;
+  final ValueNotifier<GameScreen?> _screen = ValueNotifier(null);
+
+  /// Opens [next] over the world, in place of the screen open. Throws for a
+  /// [DeathScreen] (the player's death opens it), over one (only [respawn]
+  /// leaves it), for a [BagScreen] at a block no recipe names, a
+  /// [StorageScreen] on a client away from the host ([storesHere]) or at a
+  /// block that stores nothing, and a [DeclaredScreen] the spec does not
+  /// declare.
+  void openScreen(GameScreen next) {
+    if (_screen.value is DeathScreen) throw StateError('the dead leave the death screen only by a respawn');
+    switch (next) {
+      case DeathScreen():
+        throw ArgumentError.value(next, 'next', 'only the player\'s death opens the death screen');
+      case BagScreen(:final station) when station.isNotEmpty && !stations.contains(station):
+        throw ArgumentError.value(station, 'station', 'no recipe is crafted there');
+      case StorageScreen() when !storesHere:
+        throw StateError('a client opens no store where the host is not: the host keeps them');
+      case StorageScreen(:final cell) when blocks[world.getBlock(cell)].storage == null:
+        throw ArgumentError.value(cell, 'cell', 'no store there: ${world.blockNameAt(cell)}');
+      case DeclaredScreen(:final id) when !spec.screens.containsKey(id):
+        throw ArgumentError.value(id, 'id', 'the spec declares no such screen');
+      case BagScreen() || StorageScreen() || PauseScreen() || SettingsScreen() || DeclaredScreen():
+        _screen.value = next;
+        raise(ScreenOpened(next));
+    }
+  }
+
+  /// Closes the screen open. Throws when none is, and over the [DeathScreen],
+  /// which only [respawn] leaves.
+  void closeScreen() {
+    final open = _screen.value;
+    if (open == null) throw StateError('no screen is open');
+    if (open is DeathScreen) throw StateError('the dead leave the death screen only by a respawn');
+    _screen.value = null;
+  }
+
+  /// Whether the dead player may stand up again: dead for at least
+  /// `PlayerSpec.respawnDelay`.
+  bool get canRespawn => player.isDead && player.deadSeconds >= spec.player.respawnDelay;
+
+  /// Stands the dead player up at its spawn, and closes the [DeathScreen].
+  /// Throws before [canRespawn].
+  void respawn() {
+    if (!canRespawn) throw StateError('the player cannot stand up yet');
+    player.respawn();
+    _screen.value = null;
+    // The spawn is in the main world.
+    if (world.dimension != 0) travel(VoxelGameSpec.mainDimension, at: player.spawnPoint);
+  }
+
+  /// The store open beside the bag ([StorageScreen]), or null. On a client
+  /// it is the host's store as the client sees it (`GameSession.storeAt`).
+  Inventory? get openStorage => switch (_screen.value) {
+    StorageScreen(:final cell) => session?.storeAt(cell) ?? blockRules.storeAt(cell),
+    _ => null,
+  };
+
+  /// Whether the player opens the stores where it is: on the authority, and
+  /// on a client in the host's dimension (the host keeps the stores and
+  /// steps no dimension but its own).
+  bool get storesHere => authority || session!.hostHere;
+
+  /// The music's track where the player stands, by name
+  /// (`MusicSpec.tracks`), picked once a second; null for silence, with no
+  /// music or sound, and before the player first stands in the world.
+  /// `VoxelGameWidget` plays it, and a track's title is told on a change.
+  ValueListenable<String?> get musicTrack => _musicTrack;
+  final ValueNotifier<String?> _musicTrack = ValueNotifier(null);
+  double _musicIn = 0.0;
+
+  void _pickMusic(double dt) {
+    final music = spec.sounds.music;
+    if (music == null || !spec.sounds.enabled) return;
+    _musicIn -= dt;
+    if (_musicIn > 0.0) return;
+    _musicIn = 1.0;
+    final p = player.position;
+    final cell = IVec3.floor(p);
+    final track = music.trackAt(
+      dimension: dimension,
+      biome: world.generator.biomeAt(cell.x, cell.z).name,
+      underground: p.y < world.groundHeight(cell.x, cell.z) - 6 && world.lightAt(cell).sky < 4,
+      night: daylight <= 0.3,
+    );
+    if (track == _musicTrack.value) return;
+    _musicTrack.value = track;
+    final title = track == null ? null : music.tracks[track]!.title;
+    if (title != null) notify('\u266A $title');
+  }
+
+  /// What the HUD tells the player for a few seconds: [notify]'s feed and
+  /// the pickups. [frame] ages it.
+  final Notices notices = Notices();
+
+  /// Tells the player [text] for a few seconds, in the HUD's feed. Throws
+  /// for empty text.
+  void notify(String text) => notices.add(text);
+
+  /// The chips off broken blocks and the embers off burning creatures, all in
+  /// one particle system ([chip] throws a block's). Its node steps it every
+  /// frame; headless, nothing does.
+  final DebrisParticles debris = DebrisParticles();
+
+  /// How much of its sky light the world shows this frame (the sky's, 1 at
+  /// noon), for what is coloured by hand rather than lit: the [chip]s.
+  double _skyLight = 1.0;
+
+  /// Throws [count] chips of block [id]'s colour out of [cell], [speed] times
+  /// as fast as a break's: as bright as the brightest light on the cell's
+  /// faces (a solid block's own cell is dark), since the chips are not lit by
+  /// the world.
+  void chip(IVec3 cell, int id, {int count = 12, double speed = 1.0}) {
+    final t = blocks[id];
+    var k = 0.15;
+    for (final c in [cell, cell + IVec3.up, cell + IVec3.down, for (final s in IVec3.sides) cell + s]) {
+      final light = world.lightAt(c);
+      k = math.max(k, math.max(light.sky / 15.0 * _skyLight, light.block / 15.0));
+    }
+    final at = Vector3(cell.x + 0.5, cell.y + 0.5, cell.z + 0.5);
+    debris.burst(at, Vector3(t.r * k, t.g * k, t.b * k), count: count, speed: speed);
+  }
+
+  /// The damage dealt to creatures, a number over each for a second: a
+  /// creature's hit adds one where it is the [authority], and a replica's
+  /// lost health where it is not. [frame] ages it.
+  final DamageNumbers damageNumbers = DamageNumbers();
+
+  /// What the player has set: the render distance, the turn, the field of
+  /// view, the volumes, the bob, the frame rate, the weather. [applySettings]
+  /// changes it.
+  ValueListenable<GameSettings> get settings => _settings;
+  final ValueNotifier<GameSettings> _settings;
+
+  /// Puts [next] in force at once: the world streams to its render distance
+  /// (cut back now when it is nearer), the view turns at its speed and bobs
+  /// or not, the next frame's camera takes its field of view, the next sound
+  /// its volume, the HUD shows the frame rate or not, the sky clears or is
+  /// let turn. The music follows it
+  /// where it plays (`VoxelGameWidget`), listening to [settings].
+  void applySettings(GameSettings next) {
+    if (next.renderDistance != world.loadRadius) world.loadRadius = next.renderDistance;
+    _applyLive(next);
+    _settings.value = next;
+  }
+
+  void _applyLive(GameSettings s) {
+    input.lookScale = s.lookSpeed;
+    view.bob = s.viewBob;
+    weather.enabled = s.weather;
+  }
 
   /// The frames drawn so far: moves once at the end of every [frame]. A HUD
   /// listens to it to check what it shows (`HudSelector`).
@@ -352,6 +985,35 @@ class VoxelGame {
   /// Whether the player stands in a loaded world yet.
   bool get ready => player.placed;
 
+  /// Whether the player stands in the world and every chunk of the window
+  /// around it is generated, meshed and built ([GameWorld.isIdle]): what
+  /// `VoxelGameWidget` waits for before it shows the game. An edit or a step
+  /// of the window makes it false again until the world catches up.
+  bool get filled => ready && world.isIdle;
+
+  /// Whether the sun is down: before sunrise (0.25) or after sunset (0.75).
+  /// A bed sleeps only then.
+  bool get isNight => timeOfDay < 0.25 || timeOfDay > 0.75;
+
+  /// The clock a night slept through ends at ([timeOfDay]): just after
+  /// sunrise.
+  static const double morning = 0.26;
+
+  /// Seconds every player must have slept for the night to pass.
+  static const double sleepSeconds = 2.0;
+
+  double _asleepFor = 0.0;
+
+  /// The night passes once every player (the remote ones too) has slept
+  /// [sleepSeconds] in a bed; the host's clock is every side's.
+  void _passNight(double dt) {
+    final all = isNight && player.sleeping && remotePlayers.every((r) => r.sleeping);
+    _asleepFor = all ? _asleepFor + dt : 0.0;
+    if (_asleepFor < sleepSeconds) return;
+    _asleepFor = 0.0;
+    timeOfDay = morning;
+  }
+
   /// 0 at night, 1 at noon: how much the sky's light counts.
   double get daylight {
     final elevation = math.sin((timeOfDay - 0.25) * math.pi * 2);
@@ -359,7 +1021,7 @@ class VoxelGame {
   }
 
   /// Advances by [dt] seconds of real time: the look, whole fixed steps, the
-  /// chunk streaming, the sky; then draws every body between its last two
+  /// chunk streaming, the sky and its weather; then draws every body between its last two
   /// steps, [alpha] of the way.
   ///
   /// The look is drained here, once a frame and before the steps, not by a
@@ -380,12 +1042,24 @@ class VoxelGame {
     final steps = _loop.advance(dt, step);
     world.update(player.position);
     _draw(_loop.alpha);
+    _camera = view.camera(this);
     firstPerson?.update(dt);
     final s = sky;
     if (s != null) {
-      final intensity = s.update(timeOfDay, fogDistance: viewDistance);
-      world.setSkyIntensity(intensity);
+      final w = weather;
+      _skyLight = s.update(
+        timeOfDay,
+        fogDistance: viewDistance,
+        overcast: w.overcast,
+        flash: w.flash,
+        still: dimensionSky?.sky,
+        haze: haze,
+      );
+      world.setSkyIntensity(_skyLight);
+      weatherParticles?.update(player.eyePosition, rainShare: w.rainShare, snowShare: w.snowShare);
     }
+    notices.advance(dt);
+    damageNumbers.advance(dt);
     _frameWatch.stop();
     stats.addFrame(seconds: dt, simMs: _frameWatch.elapsedMicroseconds / 1000.0, steps: steps);
     _frames.value++;
@@ -441,30 +1115,63 @@ class VoxelGame {
   /// records.
   final FrameStats stats = FrameStats();
 
-  /// One fixed step of [dt]: the player, the creatures, the items, the
-  /// liquids, spawning, then the spec's systems and hook. Every body's pose
-  /// before it is kept first, for the frames to draw from.
+  /// One fixed step of [dt]: the clock and the weather, the player, the
+  /// creatures, the items, the liquids, spawning, then the game's [systems]:
+  /// each hears the events raised since their last turn, in order, then
+  /// each ticks. Every body's pose before it is kept first, for the frames to
+  /// draw from.
   void step(double dt) {
     _beginStep();
-    // One arbiter for the two buttons every surface shares: the step that
-    // drains the one-shots is the only thing that reads them, so one press
-    // cannot close a screen here and open another there.
-    if (openScreen.value != null) {
-      if (input.justPressed(VoxelAction.inventory) || input.justPressed(VoxelAction.pause)) openScreen.value = null;
-    } else if (gameplay && input.justPressed(VoxelAction.inventory)) {
-      openScreen.value = '';
-    } else if (input.justPressed(VoxelAction.pause) && input.wantCapture) {
-      input.release();
+    // One arbiter for the buttons every screen shares: the step that drains
+    // the one-shots is the only thing that reads them, so one press cannot
+    // close a screen here and open another there.
+    switch (_screen.value) {
+      case null:
+        if (gameplay && input.justPressed(VoxelAction.inventory)) {
+          openScreen(const BagScreen());
+        } else if (gameplay && input.justPressed(VoxelAction.pause)) {
+          openScreen(const PauseScreen());
+        } else if (gameplay) {
+          for (final e in spec.screens.entries) {
+            if (e.value.action case final a? when actions.justPressed(a)) {
+              openScreen(DeclaredScreen(e.key));
+              break;
+            }
+          }
+        }
+      case BagScreen() || StorageScreen():
+        if (input.justPressed(VoxelAction.inventory) || input.justPressed(VoxelAction.pause)) closeScreen();
+      case DeclaredScreen(:final id):
+        final action = spec.screens[id]!.action;
+        if (input.justPressed(VoxelAction.pause) || (action != null && actions.justPressed(action))) closeScreen();
+      case PauseScreen():
+        if (input.justPressed(VoxelAction.pause)) closeScreen();
+      case SettingsScreen():
+        if (input.justPressed(VoxelAction.pause)) openScreen(const PauseScreen());
+      case DeathScreen():
+        // Jump stands up: the respawn of a keyboard and a pad.
+        if (canRespawn && input.justPressed(VoxelAction.jump)) respawn();
     }
-    if (!player.placed) {
+    final trip = _travel;
+    if (trip is Arriving) {
+      // An arrival keeps the world going; only the player waits.
+      _arrive(trip);
+    } else if (!player.placed) {
+      // The first stand: the world waits for the player.
       player.tryPlace(_spawnColumn.x, _spawnColumn.z);
-      input.endTick();
+      _endTick();
       return;
     }
     searchesLeft = Mob.searchesPerStep;
     time += dt;
     if (spec.sky.cycle) timeOfDay = (timeOfDay + dt / spec.sky.dayLength) % 1.0;
-    player.tick(this, dt, gameplay: gameplay);
+    if (authority) _passNight(dt);
+    weather.tick(this, dt);
+    if (player.placed) {
+      player.tick(this, dt, gameplay: gameplay);
+      _portalStep(dt);
+      _pickMusic(dt);
+    }
     for (final m in List.of(mobs)) {
       m.tick(this, dt);
     }
@@ -472,6 +1179,7 @@ class VoxelGame {
       e.tick(this, dt);
     }
     world.tickFlow(dt);
+    if (authority) blockRules.tick(dt);
     final net = signals;
     if (net != null) {
       if (_plates.isNotEmpty) {
@@ -485,14 +1193,25 @@ class VoxelGame {
       net.tick(dt);
     }
     spawner.tick(this, dt);
-    for (final s in spec.systems) {
+    final events = List.of(_events);
+    _events.clear();
+    for (final e in events) {
+      for (final s in systems) {
+        s.onEvent(this, e);
+      }
+    }
+    for (final s in systems) {
       s.tick(this, dt);
     }
-    spec.onTick?.call(this, dt);
     // Last, so every edit of this step, whoever made it, leaves in this step.
     session?.tick(this, dt);
     _prune();
+    _endTick();
+  }
+
+  void _endTick() {
     input.endTick();
+    actions.endTick();
   }
 
   void _prune() {
@@ -506,29 +1225,111 @@ class VoxelGame {
     }
   }
 
-  /// The camera for this frame.
-  Camera camera() => view.camera(this);
+  /// The camera this frame draws with: built once a [frame], after the
+  /// bodies are placed, so the scene and whatever a HUD projects from the
+  /// world (`Camera.worldToScreen`) see the same view. Before the first frame,
+  /// the view as it stands.
+  Camera camera() => _camera ??= view.camera(this);
+  Camera? _camera;
+
+  /// The liquid block the [camera] is in, or null: what the default HUD
+  /// washes the screen with (`LiquidSpec.tint`). A pool's top cell holds the
+  /// eye only under its drawn surface (`ChunkMesher.liquidTop`).
+  BlockType? get eyeLiquid {
+    final eye = camera().position;
+    final cell = IVec3.floor(eye);
+    final id = world.getBlock(cell);
+    final t = blocks[id];
+    if (!t.isLiquid) return null;
+    final top = world.getBlock(cell + const IVec3(0, 1, 0)) != id;
+    return top && eye.y - cell.y > ChunkMesher.liquidTop ? null : t;
+  }
+
+  /// The structure of the dimension streaming whose reach (its
+  /// `Structure.radius` about its site, sideways) holds [cell], the nearest
+  /// when several do; null for none.
+  PlacedStructure? structureAt(IVec3 cell) {
+    final g = world.generator;
+    final chunk = ChunkStreamer.chunkOf(cell);
+    PlacedStructure? best;
+    var nearest = 1 << 30;
+    for (final s in g.structuresNear(chunk.x, chunk.z)) {
+      final d = math.max((s.x - cell.x).abs(), (s.z - cell.z).abs());
+      if (d <= g.structureNamed(s.name).structure.radius && d < nearest) {
+        best = s;
+        nearest = d;
+      }
+    }
+    return best;
+  }
+
+  /// The sky of its own of the dimension streaming (`SkySpec.dimensions`),
+  /// or null for the day's.
+  DimensionSky? get dimensionSky => spec.sky.dimensions[spec.dimensionIds[world.dimension]];
+
+  /// The fog a frame draws in place of the distance fog: the haze of the
+  /// liquid the camera is in ([eyeLiquid], `LiquidSpec.haze`), else the
+  /// dimension's ([dimensionSky]); null for neither.
+  Haze? get haze {
+    final eye = eyeLiquid;
+    return (eye == null ? null : liquid(eye.liquid!).haze) ?? dimensionSky?.haze;
+  }
+
+  /// How liquid [kind] flows and looks: the spec's, or its default.
+  LiquidSpec liquid(String kind) => spec.liquids[kind] ?? LiquidSpec.defaultFor(kind);
+
+  /// The nearest living boss (`Mob.boss`) to the player, or null.
+  Mob? get boss {
+    Mob? best;
+    var bestD = double.infinity;
+    for (final m in mobs) {
+      if (!m.boss || m.isDead) continue;
+      final d = m.position.distanceToSquared(player.position);
+      if (d < bestD) {
+        best = m;
+        bestD = d;
+      }
+    }
+    return best;
+  }
 
   /// The other players of a networked game.
   Iterable<RemotePlayer> get remotePlayers => session?.players.values ?? const <RemotePlayer>[];
 
-  /// Every living thing a projectile can hit: the players and the creatures.
+  /// The other players in the player's dimension.
+  Iterable<RemotePlayer> get playersHere => remotePlayers.where((r) => r.dimension == world.dimension);
+
+  /// Every living thing a projectile can hit: the players and the creatures
+  /// of the dimension.
   Iterable<Target> get allTargets sync* {
     yield player;
-    yield* remotePlayers;
+    yield* playersHere;
     yield* mobs;
   }
 
   /// What a hunter looks for: the players, and the creatures named in [prey].
   Iterable<Target> targetsOf(List<String> prey) sync* {
     if (!player.isDead) yield player;
-    for (final r in remotePlayers) {
+    for (final r in playersHere) {
       if (!r.isDead) yield r;
     }
     if (prey.isEmpty) return;
     for (final m in mobs) {
       if (prey.contains(m.spec.id)) yield m;
     }
+  }
+
+  /// Whether a body (the player's, a living creature's) stands in [cell]:
+  /// where no solid block may go.
+  bool bodyIn(IVec3 cell) {
+    bool overlaps(VoxelBody b) =>
+        b.position.x + b.halfWidth > cell.x &&
+        b.position.x - b.halfWidth < cell.x + 1 &&
+        b.position.z + b.halfWidth > cell.z &&
+        b.position.z - b.halfWidth < cell.z + 1 &&
+        b.position.y + b.height > cell.y &&
+        b.position.y < cell.y + 1;
+    return overlaps(player) || mobs.any((m) => !m.isDead && overlaps(m));
   }
 
   /// Adds [entity] to the world.
@@ -554,54 +1355,109 @@ class VoxelGame {
     return add(Mob(spec, at));
   }
 
-  /// [count] of [item] dropped at [at].
-  ItemPickup dropItem(String item, int count, Vector3 at, {Vector3? throwVelocity}) {
-    if (!items.has(item)) throw ArgumentError.value(item, 'item', 'no such item');
-    return add(
-      ItemPickup(
-        item,
-        count,
-        at,
-        throwVelocity: throwVelocity ?? Vector3(random.nextDouble() * 2 - 1, 3.0, random.nextDouble() * 2 - 1),
-      ),
-    );
+  /// [count] of a new [item] dropped at [at], as [dropStack].
+  ItemPickup? dropItem(String item, int count, Vector3 at, {Vector3? throwVelocity}) =>
+      dropStack(ItemStack(item, count), at, throwVelocity: throwVelocity);
+
+  /// [stack], as it left a slot (wear and bonus kept), dropped at [at]:
+  /// thrown with [throwVelocity], or tossed up at random. On a client where
+  /// the host is, the host makes it (a break, a throw, a bag's overflow, a
+  /// catch's rest: one path), and this returns null; the host's drop comes
+  /// back as a replica. Anywhere else the drop is made here and returned.
+  ItemPickup? dropStack(ItemStack stack, Vector3 at, {Vector3? throwVelocity}) {
+    if (!items.has(stack.id)) throw ArgumentError.value(stack.id, 'stack', 'no such item');
+    if (stack.count <= 0) throw ArgumentError.value(stack.count, 'stack', 'an empty stack');
+    final velocity = throwVelocity ?? Vector3(random.nextDouble() * 2 - 1, 3.0, random.nextDouble() * 2 - 1);
+    if (session?.handOffDrop(stack, at, velocity) ?? false) return null;
+    return add(ItemPickup(stack.copy(), at, throwVelocity: velocity));
   }
 
-  /// Shoots [projectile] from [from] toward [at], by [owner].
-  Projectile shoot(ProjectileSpec projectile, {required Vector3 from, required Vector3 at, Target? owner}) {
+  /// Shoots [projectile] from [from] toward [at], by [owner], its damage
+  /// multiplied by [power]: aimed over [at] by what it falls on the way
+  /// there, unless [overDrop] is false (a player's shot, which flies where
+  /// they look and falls). In a networked game every side sees it: the
+  /// host's go to its clients; a client shoots for its own player only, and
+  /// where the host is, the host lands the shot, this side's being a
+  /// `Projectile.replica` (`GameSession.fired`).
+  Projectile shoot(
+    ProjectileSpec projectile, {
+    required Vector3 from,
+    required Vector3 at,
+    Target? owner,
+    double power = 1.0,
+    bool overDrop = true,
+  }) {
     playSound('shoot', at: from, volumeDb: -4.0);
     final to = at - from;
     final d = to.length;
     final dir = d > 0 ? to / d : Vector3(0, 0, -1);
     // Aim over the target by the drop over the flight.
-    if (projectile.gravity > 0.0) {
+    if (overDrop && projectile.gravity > 0.0) {
       final t = d / projectile.speed;
       dir.y += 0.5 * projectile.gravity * t * t / math.max(d, 0.001);
       dir.normalize();
     }
-    return add(Projectile(projectile, from, dir * projectile.speed, owner));
+    final shot = Projectile(projectile, from, dir * projectile.speed, owner, power: power);
+    session?.fired(shot);
+    return add(shot);
   }
 
   /// Breaks the block at [cell]: air in its place, and its drop on the ground
-  /// when [dropFor] (the tool held, or null for the hand) earns one.
+  /// when [dropFor] (the tool held, or null for the hand) earns one: the
+  /// block itself when the tool cuts it (`MiningRules.cuts`), else its
+  /// `loot` rolled, or else its `drop`. Broken [byPlayer], it bursts into
+  /// a dozen [chip]s (a blast's blocks do not: a crater would be thousands).
   void breakBlock(IVec3 cell, {ItemType? dropFor, bool drop = true, bool byPlayer = false}) {
     final id = world.getBlock(cell);
     if (id == BlockRegistry.air || blocks[id].isLiquid) return;
     final type = blocks[id];
     if (!world.setBlock(cell, BlockRegistry.air)) return;
-    playSound('break_${soundFamily(id)}', at: Vector3(cell.x + 0.5, cell.y + 0.5, cell.z + 0.5), volumeDb: -4.0);
-    final item = blocks.dropOf(id);
-    if (drop && item.isNotEmpty && items.has(item) && spec.mining.drops(type, dropFor)) {
-      dropItem(item, 1, Vector3(cell.x + 0.5, cell.y + 0.3, cell.z + 0.5));
+    final centre = Vector3(cell.x + 0.5, cell.y + 0.3, cell.z + 0.5);
+    playSound('break_${soundFamily(id)}', at: centre, volumeDb: -4.0);
+    if (byPlayer) chip(cell, id);
+    if (drop && spec.mining.drops(type, dropFor)) {
+      final loot = type.loot;
+      if (spec.mining.cut(type, dropFor)) {
+        dropItem(type.id, 1, centre);
+      } else if (loot != null) {
+        for (final s in loot.roll(random)) {
+          dropItem(s.id, s.count, centre);
+        }
+      } else {
+        final item = blocks.dropOf(id);
+        if (item.isNotEmpty) dropItem(item, 1, centre);
+      }
     }
-    if (byPlayer) spec.onBlockBroken?.call(this, type.id, cell);
+    if (byPlayer) raise(BlockBroken(type.id, cell));
+  }
+
+  /// The explosives of `SignalSpec.explosives`, by block id.
+  Map<int, Explosive> explosives = const {};
+
+  /// Lights the explosive at [cell] (`SignalSpec.explosives`): the block goes
+  /// and a [LitExplosive] burns in its place for [fuse] seconds (its
+  /// `Explosive.fuse` by default), shown to the clients. The authority's
+  /// alone: a client sees the host's. Throws where no explosive stands.
+  LitExplosive ignite(IVec3 cell, {double? fuse}) {
+    if (!authority) throw StateError('a client lights nothing: the host runs the circuits');
+    final id = world.getBlock(cell);
+    final explosive = explosives[id];
+    if (explosive == null) throw ArgumentError.value(cell, 'cell', 'no explosive here: ${blocks[id].id}');
+    world.setBlock(cell, BlockRegistry.air);
+    final at = Vector3(cell.x + 0.5, cell.y.toDouble(), cell.z + 0.5);
+    playSound('dig', at: at, volumeDb: -6.0, pitch: 1.5);
+    final lit = add(LitExplosive(blocks[id], explosive, at, fuse: fuse ?? explosive.fuse));
+    session?.lit(lit);
+    return lit;
   }
 
   /// A blast at [centre]: up to [damage] to every target within [radius]
   /// (falling to 0 at the edge) and, with [breaksBlocks], the breakable
-  /// blocks inside it gone.
+  /// blocks inside it gone, but for an explosive, which is lit ([ignite]) on
+  /// a short fuse of its own. The host's clients hear it where it is.
   void explode(Vector3 centre, {double radius = 3.0, double damage = 12.0, bool breaksBlocks = true, Target? source}) {
     playSound('explode', at: centre);
+    session?.exploded(centre);
     for (final t in allTargets.toList()) {
       if (t.isDead) continue;
       final d = t.centre().distanceTo(centre);
@@ -619,6 +1475,11 @@ class VoxelGame {
           final cell = c + IVec3(x, y, z);
           final id = world.getBlock(cell);
           if (id == BlockRegistry.air || blocks[id].hardness < 0 || blocks[id].isLiquid) continue;
+          final explosive = explosives[id];
+          if (explosive != null) {
+            ignite(cell, fuse: explosive.chainFuse * (1.0 + 2.0 * random.nextDouble()));
+            continue;
+          }
           breakBlock(cell, drop: random.nextDouble() < 0.3);
         }
       }
@@ -626,17 +1487,25 @@ class VoxelGame {
   }
 
   /// Called by a mob as it dies.
-  void mobDied(Mob mob) => spec.onMobKilled?.call(this, mob);
+  void mobDied(Mob mob) => raise(MobKilled(mob, byPlayer: identical(mob.lastHurtBy, player)));
 
-  /// Called by the player as it dies.
-  void playerDied() {}
+  /// Called by the player as it dies, of [cause] when a blow killed it: the
+  /// [DeathScreen] replaces whatever was open.
+  void playerDied(Damage? cause) {
+    _screen.value = const DeathScreen();
+    raise(PlayerDied(cause));
+  }
 
   /// Stops the worker isolates, the input devices and the network.
   void dispose() {
     session?.close();
+    scene?.dispose();
     world.dispose();
     input.dispose();
     _frames.dispose();
+    _screen.dispose();
+    _settings.dispose();
+    _musicTrack.dispose();
   }
 
   /// The spec of mob [id].

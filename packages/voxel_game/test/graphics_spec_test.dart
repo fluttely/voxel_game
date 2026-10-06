@@ -29,6 +29,19 @@ void main() {
     expect(p.shadows.distance, lessThan(d.shadows.distance));
     expect(p.shadows.sunStepDegrees, greaterThan(d.shadows.sunStepDegrees));
     expect(p.sceneScale(3.0), 0.5);
+    expect((d.paced, p.paced), (false, false), reason: 'pacing is a game\'s choice');
+  });
+
+  test('a copy changes the fields given, the cap to none included', () {
+    final paced = GraphicsSpec.phone.copyWith(paced: true);
+    expect(paced.paced, isTrue);
+    expect(
+      (paced.renderScale, paced.maxPixelRatio, paced.antiAliasing, paced.shadows),
+      (1.0, 1.5, AntiAliasingMode.fxaa, GraphicsSpec.phone.shadows),
+      reason: "the very same shadows",
+    );
+    final free = paced.copyWith(maxPixelRatio: () => null, renderScale: 0.75, shadows: ShadowSpec.off);
+    expect((free.maxPixelRatio, free.renderScale, free.shadows, free.paced), (null, 0.75, ShadowSpec.off, true));
   });
 
   const flat = VoxelGameSpec(
@@ -56,7 +69,7 @@ void main() {
   }
 
   test('a spec with graphics keeps them, and the view distance is the loaded window', () async {
-    final game = await VoxelGame.startHeadless(flat.copyWith(graphics: GraphicsSpec.phone), loadRadius: 3);
+    final game = await VoxelGame.startHeadless(flat.copyWith(graphics: () => GraphicsSpec.phone), loadRadius: 3);
     addTearDown(game.dispose);
     expect(game.graphics, same(GraphicsSpec.phone));
     expect(game.viewDistance, 48.0);

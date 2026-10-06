@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show ValueGetter;
 import 'package:flutter_scene/scene.dart' show AntiAliasingMode;
 
 /// How the world is drawn: the settings that trade the look for frame time.
@@ -5,7 +6,7 @@ import 'package:flutter_scene/scene.dart' show AntiAliasingMode;
 /// The GPU is what a frame waits on (`docs/VOXEL_PERF_PLAN_2026-09-25.md`), and
 /// its cost is pixels times what each one does: [renderScale] and
 /// [maxPixelRatio] set the pixels, [antiAliasing] and [shadows] most of the
-/// work per pixel.
+/// work per pixel. [paced] trades the frame for readable text on a busy GPU.
 class GraphicsSpec {
   /// A look; the defaults are [desktop]'s.
   const GraphicsSpec({
@@ -13,6 +14,7 @@ class GraphicsSpec {
     this.maxPixelRatio,
     this.antiAliasing = AntiAliasingMode.msaa,
     this.shadows = const ShadowSpec(),
+    this.paced = false,
   });
 
   /// The full look: the screen's own pixels, 4× multisampling, four shadow
@@ -41,6 +43,35 @@ class GraphicsSpec {
 
   /// The sun's shadows.
   final ShadowSpec shadows;
+
+  /// Whether a frame of the world reaches the screen only once the GPU has
+  /// finished it (voxel_scene's `GpuPacedScene`), so no Flutter frame waits on it.
+  ///
+  /// On Metal (macOS, iOS) a frame held on the GPU lets the glyph uploads of
+  /// later frames overwrite the one it copies, and the text over the world
+  /// (menus, the HUD) turns to noise under load: a far view, a GPU another
+  /// process is using. Paced, it stays readable; the world shows one frame
+  /// late and is drawn only on the vsyncs that find the last frame finished,
+  /// about every other one at 120 Hz, while it ticks on behind. Off in both
+  /// presets: what it costs a frame is not measured yet. The FPS readout and
+  /// a `FrameReport`'s `sceneFps` count the frames drawn, so they show it.
+  final bool paced;
+
+  /// This look with the fields given changed; [maxPixelRatio] returns the new
+  /// cap, null included.
+  GraphicsSpec copyWith({
+    double? renderScale,
+    ValueGetter<double?>? maxPixelRatio,
+    AntiAliasingMode? antiAliasing,
+    ShadowSpec? shadows,
+    bool? paced,
+  }) => GraphicsSpec(
+    renderScale: renderScale ?? this.renderScale,
+    maxPixelRatio: maxPixelRatio == null ? this.maxPixelRatio : maxPixelRatio(),
+    antiAliasing: antiAliasing ?? this.antiAliasing,
+    shadows: shadows ?? this.shadows,
+    paced: paced ?? this.paced,
+  );
 
   /// The scale flutter_scene draws at on a screen of [devicePixelRatio]:
   /// [renderScale], lowered as far as [maxPixelRatio] asks.

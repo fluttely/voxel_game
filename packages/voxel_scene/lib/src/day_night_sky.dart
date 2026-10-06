@@ -3,15 +3,21 @@ import 'dart:math' as math;
 import 'package:flutter_scene/scene.dart';
 import 'package:vector_math/vector_math.dart';
 
+import 'haze.dart';
 import 'mirrored_camera.dart';
+import 'sky_look.dart';
+import 'still_sky.dart';
 
 /// A day and night over a voxel world: a gradient sky with a sun (a moon at
 /// night) casting cascaded shadows, a constant ambient that follows the day,
 /// ACES tone mapping, and a linear distance fog in the horizon colour that
-/// dissolves the edge of the loaded chunks into the sky.
+/// dissolves the edge of the loaded chunks into the sky; cloud greys and
+/// dims all of it and lightning flashes it white. A dimension's [StillSky]
+/// and a [Haze] (a dimension's, a liquid's) take their place when given.
 ///
-/// Call [update] once a frame with the time of day; it returns how much of
-/// the baked sky light shows, for `VoxelChunkView.setSkyIntensity`.
+/// Call [update] once a frame with the time of day and the weather; it
+/// returns how much of the baked sky light shows, for
+/// `VoxelChunkView.setSkyIntensity`. The numbers are [SkyLook]'s.
 class DayNightSky {
   /// A sky over [scene], replacing its skybox, sun, tone mapping and fog.
   ///
@@ -76,66 +82,74 @@ class DayNightSky {
   Vector3 _ambient = Vector3.all(-1);
   double _sinceAmbient = 1.0;
   double _lastTime = -1.0;
+  double _ambientWeather = 0.0;
+  StillSky? _ambientStill;
 
   /// How wide the fog band before [edge] metres is: a tenth of it, from 4 to
   /// 64 metres, as Minecraft's is.
   static double fogBand(double edge) => (edge / 10.0).clamp(4.0, 64.0);
 
-  static Vector3 _mix(Vector3 a, Vector3 b, double t) => a + (b - a) * t;
-
   /// Lights the scene for [timeOfDay] (0 midnight, 0.25 sunrise, 0.5 noon)
-  /// with the fog full at [fogDistance] metres; returns the sky light's share
-  /// (1 at noon, 0.35 at night).
+  /// with the fog full at [fogDistance] metres, under [overcast] cloud and a
+  /// lightning [flash] (both 0..1, see [SkyLook.at]); returns the sky light's
+  /// share (1 at a clear noon, 0.35 at night, less under cloud).
   ///
   /// The fog is Minecraft's: a linear band [fogBand] metres wide that ends on
   /// [fogDistance], so it hides only where the world stops and everything
-  /// nearer stays clear, whatever the render distance.
-  double update(double timeOfDay, {double fogDistance = 128.0}) {
+  /// nearer stays clear, whatever the render distance. Cloud pulls the end in
+  /// ([SkyLook.fogReach]).
+  ///
+  /// A [still] sky (a dimension's own) replaces the day's: no sun, its own
+  /// colours and ambient whatever the hour and the weather. A [haze] replaces
+  /// the distance fog (a dimension's, or a liquid's around the eye).
+  double update(
+    double timeOfDay, {
+    double fogDistance = 128.0,
+    double overcast = 0.0,
+    double flash = 0.0,
+    StillSky? still,
+    Haze? haze,
+  }) {
     final dt = _lastTime < 0 ? 1.0 : (timeOfDay - _lastTime).abs();
     _lastTime = timeOfDay;
     _sinceAmbient += dt;
-    var angle = (timeOfDay - 0.25) * math.pi * 2;
-    if (_sunStep > 0.0) angle = (angle / _sunStep).roundToDouble() * _sunStep;
-    final sunDir = Vector3(math.cos(angle) * 0.6, math.sin(angle), -0.5).normalized();
-    final elevation = sunDir.y;
-    final day = (elevation * 3.0 + 0.15).clamp(0.0, 1.0);
-    final dusk = (1.0 - elevation.abs() * 5.0).clamp(0.0, 1.0);
-    final sunColor = _mix(Vector3(1.0, 0.95, 0.85), Vector3(1.0, 0.55, 0.3), dusk);
-    final top = _mix(Vector3(0.02, 0.03, 0.08), Vector3(0.20, 0.42, 0.85), day);
-    final hor = _mix(
-      _mix(Vector3(0.06, 0.08, 0.15), Vector3(0.62, 0.78, 0.92), day),
-      Vector3(0.95, 0.55, 0.30),
-      dusk * 0.8,
-    );
+    final look = still == null
+        ? SkyLook.at(timeOfDay, sunStep: _sunStep, overcast: overcast, flash: flash)
+        : SkyLook.still(still);
     sky
-      ..zenithColor = top
-      ..horizonColor = hor
-      ..groundColor = hor * 0.9;
-    if (elevation > 0.0) {
-      sky.sunDirection = sunDir;
-      sun
-        ..color = sunColor
-        ..intensity = (3.0 * 0.6 * day + 0.02) * sunScale;
-      sky.sunColor = sunColor * (2.5 * day + 0.4);
-    } else {
-      sky.sunDirection = -sunDir;
-      sun
-        ..color = Vector3(0.55, 0.65, 0.95)
-        ..intensity = (3.0 * 0.45 * (1.0 - day) + 0.02) * sunScale;
-      sky.sunColor = Vector3(0.5, 0.6, 0.9) * 0.9;
-    }
-    final energy = 0.9 - 0.5 * day;
-    final radiance = _mix(Vector3(0.35, 0.40, 0.60), Vector3(0.80, 0.84, 0.92), day) * (energy * 1.25 * ambientScale);
-    // Rebuilding the environment is not free: only when it moved enough.
-    if ((radiance - _ambient).length > 0.02 && _sinceAmbient > 0.001) {
+      ..zenithColor = look.zenith
+      ..horizonColor = look.horizon
+      ..groundColor = look.ground
+      ..sunDirection = look.sunDirection
+      ..sunColor = look.sunDiscColor;
+    sun
+      ..color = look.sunColor
+      ..intensity = look.sunIntensity * sunScale;
+    final radiance = look.ambient * ambientScale;
+    // Rebuilding the environment is not free: only when it moved enough, and
+    // by the day no more than once in a thousandth of one. The weather moves
+    // it on a clock of its own (a bolt is over in a sixth of a second), so a
+    // change of the weather's share rebuilds it whatever the day did.
+    // A sky of its own coming or going is a change of the same kind.
+    final weather = overcast + flash;
+    if ((radiance - _ambient).length > 0.02 &&
+        (_sinceAmbient > 0.001 || weather != _ambientWeather || !identical(still, _ambientStill))) {
       _ambient = radiance;
       _sinceAmbient = 0.0;
+      _ambientWeather = weather;
+      _ambientStill = still;
       scene.environment = EnvironmentMap.constantDiffuse(radiance);
     }
-    scene.fog
-      ..color = hor
-      ..start = fogDistance - fogBand(fogDistance)
-      ..end = fogDistance;
-    return 0.35 + 0.65 * day;
+    if (haze != null) {
+      haze.applyTo(scene.fog, look.skyLight);
+    } else {
+      final edge = fogDistance * look.fogReach;
+      scene.fog
+        ..mode = FogMode.linear
+        ..color = look.horizon
+        ..start = edge - fogBand(edge)
+        ..end = edge;
+    }
+    return look.skyLight;
   }
 }

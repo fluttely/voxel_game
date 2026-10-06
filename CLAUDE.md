@@ -1,16 +1,8 @@
 # voxel_game — the voxel kit — Developer & AI Instructions
 
-> **This file governs everything under this folder**: the pub workspace at the root and
-> the four packages under `packages/`. Every path below is written from this
-> folder, so the file reads the same whether the folder is still
-> `poc_cubeworld/packages/voxel_game/` inside the Dawnforge repository or the root of a
-> repository of its own.
->
-> While it still lives inside `poc_cubeworld/`, Claude Code also loads the app's
-> `CLAUDE.md` and the 2D track's above it. **Neither governs this folder**: the app's
-> rules are about the app (the POC that the kit was extracted from and that consumes it),
-> the 2D one is another product. Where a rule below descends from the app's, its number
-> there is named in parentheses (`app 17`).
+> **This file governs the whole repository** (`github.com/fluttely/voxel_game`): the pub
+> workspace at the root and the four packages under `packages/`. Every path below is
+> written from the root.
 >
 > Chat in **Português Brasileiro**. Code, comments, commits, docs in **English**.
 
@@ -34,7 +26,7 @@ The root is **only the pub workspace**, never a package: its `pubspec.yaml`
 (`voxel_game_workspace`, `publish_to: none`) lists the four packages under `packages/` and
 their two example apps (`packages/voxel_game/example/`, `packages/voxel_scene/example/`),
 which stay `publish_to: none` for good. Beside it live only the repository's own files —
-`CLAUDE.md`, `AGENTS.md`, `PUBLISHING.md`, `README.md`, `docs/`, `tool/` — which no tarball
+`CLAUDE.md`, `AGENTS.md`, `PUBLISHING.md`, `README.md`, `docs/`, `tool/`, `.github/` — which no tarball
 ever sees, because no package sits above them. So every package publishes in place, with no
 `.pubignore`, through `tool/publish_package.sh` (`PUBLISHING.md`). Do not put a package back
 at the root: that is what forced the `.pubignore` and the git-less copy this layout removed.
@@ -51,13 +43,18 @@ Flutter 3.47.1, **but not the web** (worker isolates, TCP sockets and save files
 | The kit, what a game imports | `packages/voxel_game/lib/voxel_game.dart` · `packages/voxel_game/lib/src/{camera,core,entities,input,loop,mobs,net,player,spec,ui,world}/` |
 | The three packages under it | `packages/{voxel_engine,voxel_scene,sound_recipes}/` |
 | The smallest game built on it | `packages/voxel_game/example/lib/main.dart` |
+| The largest: a Minecraft clone on the kit, outside the workspace, with its own `CLAUDE.md` | `examples/voxel_game_minecraft/` |
 | The workspace (not a package) | `pubspec.yaml` · `pubspec.lock` |
 | Pre-publish checklist, release order, the version graph | `PUBLISHING.md` |
 | Publishing (or dry-running) one of the four | `tool/publish_package.sh <package> [--dry-run]` |
+| The CI: analyze, format and the five suites on every push and PR | `.github/workflows/ci.yml` |
 | How the packages were extracted (VP, VK) and consolidated (VC) | `docs/VOXEL_PACKAGES_PLAN_2026-09-14.md` · `docs/VOXEL_KIT_PLAN_2026-09-18.md` · `docs/VOXEL_CONSOLIDATION_PLAN_2026-09-19.md` |
-| How this folder got its shape (VR; the move of `voxel_game` under `packages/` came after it, 2026-09-23) | `docs/VOXEL_RELAYOUT_PLAN_2026-09-21.md` |
+| How this repository got its shape (VR; the move of `voxel_game` under `packages/` came after it, 2026-09-23) | `docs/VOXEL_RELAYOUT_PLAN_2026-09-21.md` |
 | Architecture ledger (rule 17) | `docs/LEDGER.md` |
 | The frame-rate plan, its method and its baseline (PF) | `docs/VOXEL_PERF_PLAN_2026-09-25.md` · `docs/perf/` |
+| The touch-controls plan (VT): the stick, buttons and tappable hotbar a phone gets | `docs/VOXEL_TOUCH_PLAN_2026-09-29.md` |
+| The absorption plan (VA): what of `examples/voxel_game_minecraft` the kit takes, and the app onto `VoxelGame` | `docs/VOXEL_ABSORB_PLAN_2026-09-30.md` |
+| The ledger-and-release plan (VL): CI, the ledger's open entries, then `0.4.0-dev` | `docs/VOXEL_LEDGER_PLAN_2026-10-04.md` |
 | Measuring the frame rate | `dart tool/run_benchmark.dart` · `packages/voxel_game/example/lib/benchmark.dart` |
 | The terrain shader, source and compiled | `packages/voxel_scene/shaders/` · `packages/voxel_scene/assets/shaders/terrain.shaderbundle` |
 
@@ -104,16 +101,16 @@ Flutter 3.47.1, **but not the web** (worker isolates, TCP sockets and save files
     reader of the buttons every surface shares. The look is not a button but a motion the
     handlers only add to: `VoxelGame.frame` drains it, once a frame, before the steps, so
     the view turns at the display's rate (PF3).
-15. **Never hand-edit a generated artifact** (app 17).
+15. **Never hand-edit a generated artifact**.
     `packages/voxel_scene/assets/shaders/terrain.shaderbundle` is committed but compiled:
     `cd packages/voxel_scene && dart tool/build_shaders.dart` after editing
     `shaders/*.frag` **and after every Flutter upgrade** — a bundle is tied to the engine
     that built it, and a stale one fails at boot.
-16. **Every automation is a script, named for the job** (app 20), runnable standalone from
+16. **Every automation is a script, named for the job**, runnable standalone from
     its package's root (the repository's own, from the root), `--dry-run`/`--check` when it writes something committed. Today
     there are three: `packages/voxel_scene/tool/build_shaders.dart`,
-    `tool/publish_package.sh` and `tool/run_benchmark.dart` (both from this folder's root).
-17. **Record an architectural observation, do not fix it mid-task** (app 21). A structural
+    `tool/publish_package.sh` and `tool/run_benchmark.dart` (both from the root).
+17. **Record an architectural observation, do not fix it mid-task**. A structural
     problem found while doing something else goes to `docs/LEDGER.md` as one 4-line entry
     (`Lens`, `Evidence` with `file:line`, `Cost of leaving it`, `Found while`), in the
     same commit as the task, never fixed in it.
@@ -126,20 +123,27 @@ Flutter 3.47.1, **but not the web** (worker isolates, TCP sockets and save files
    (another session may be in this tree), `docs/LEDGER.md`, and the Progress table of any
    live plan in `docs/`.
 2. **Implement ONE concern** — one commit, one subject.
-3. **Run the whole suite from this folder, inline.** Never in the background; wait for the
+3. **Run the whole suite from the root, inline.** Never in the background; wait for the
    exit code:
 
    ```bash
    flutter pub get                                         # once, resolves the workspace
    flutter analyze                                         # zero issues, all four packages
+   dart format --output=none --set-exit-if-changed packages examples/voxel_game_minecraft
    cd packages/voxel_game    && flutter test
    cd packages/voxel_engine  && dart test                  # pure Dart
    cd packages/voxel_scene   && flutter test
    cd packages/sound_recipes && flutter test
+   cd examples/voxel_game_minecraft && flutter pub get && flutter test   # outside the workspace
    ```
 
-   Green as of VR3 (2026-09-22): analyze clean · 32 + 168 + 10 + 4 = **214 tests**. A
-   count that drops without a deletion in the diff is a suite that stopped finding files.
+   Green as of VL1 (2026-10-05): analyze clean, nothing to format · 421 + 244 + 49 + 7
+   = **721 tests**, and the app's **99**. A count that drops without a deletion in the diff
+   is a suite that stopped finding files.
+
+   The CI (`.github/workflows/ci.yml`) runs this same list on Ubuntu, on every push to
+   `dev` and `main` and on every PR, one job per suite. It guards what lands; it does not
+   replace this run, which stays required before every commit.
 4. **See it running** for anything visual: `cd packages/voxel_game/example && flutter run -d macos` is the
    kit's own witness. A green test is not a visual result.
 5. **Validate against the rules above.**
@@ -150,6 +154,26 @@ Flutter 3.47.1, **but not the web** (worker isolates, TCP sockets and save files
 Tests ship with the code. The API is a spec, not a draft. A package test runs without a
 screen and without a world (the engine's do not even need Flutter). Never delete a test to
 make the suite green.
+
+### Benchmarks — only when the owner asks
+
+The Mac and the Galaxy S24 are the owner's working machines all day, and a benchmark takes
+both over: a Mac run needs the window in front and the Mac left alone, a phone run
+installs, launches and heats the phone. So **no benchmark runs unless the owner asked for
+one in this session**, in one of two ways:
+
+- a task the owner opened as **performance work** (a perf plan step, an A/B they
+  requested); the PF plan is done, so today there is none;
+- an **explicit request** to measure — typically numbers for a post or before a major
+  release.
+
+Without one of those, nothing that drives either device for measurement: no
+`tool/run_benchmark.dart` (Mac or `--android`), no A/B, no `FLUTTER_SCENE_PROFILE` or
+probe build, no pixel diff, no `adb install`/`am start` of a benchmark. A change that
+touches the frame (a draw cut, a cheaper step) is judged by its tests and by reading the
+code, and ships without numbers; a session that thinks numbers are needed **proposes** the
+run and waits. A hand-off never names a benchmark as the next step unless the owner asked
+for it. This does not cover step 4's `flutter run -d macos` to see a visual change once.
 
 ### Documentation obligation
 
@@ -168,9 +192,9 @@ voxel_engine: the mesher keeps light across chunk borders
 voxel_game, voxel_scene: SkySpec takes a moon
 ```
 
-The subject names the package(s) touched and says what changed; the body says why. While
-this folder still lives inside the Dawnforge repository, that repository's history
-prefixes kit commits with `poc(voxel)` and a plan step (`VR3`) — follow it there.
+The subject names the package(s) touched and says what changed; the body says why. A
+commit that touches no package's code (the ledger, a plan, these instructions) says
+`docs:`.
 
 - **Versions move only at a release**, in the order `PUBLISHING.md` gives. No bump per
   commit.
@@ -198,23 +222,5 @@ the suite green, write where the work stopped into the live plan's Progress tabl
 commit, next step by its ID, what was learned that is not in the code), and end the turn
 with that summary. The work continues from the file, not from the conversation.
 
-**Every hand-off names the model and the effort for the next session.** Whenever a turn
-ends with work left for a new session — the context budget above, or a prompt written for
-the next chat — the summary (and the Progress table row) says what to run it on, written
-`opus 5.5:<effort>` (`opus 5.5:low`, `opus 5.5:high`), and why, judged by what the next
-step needs, not by what this session ran on.
-
-**Only Opus 5.5, from `low` to `max`.** The effort is the one knob: Opus 5.5 at `low` does
-about ten times the work of Sonnet at `high` for the cost, and beats Fable 5.1 at every
-other level. Never name Sonnet, Haiku, Fable or any other model in a hand-off.
-
-| Next step needs | Run it on |
-|:---|:---|
-| Docs, a CHANGELOG, a rename, a checklist run with no judgement in it | `opus 5.5:low` |
-| A step already specified in the plan, mechanical edits across files, tests for code that exists | `opus 5.5:medium` |
-| Design, a cross-package change | `opus 5.5:high` |
-| Perf investigation, shader or rendering work | `opus 5.5:xhigh` |
-| A bug with no known cause, or a step that already failed at a lower effort | `opus 5.5:max` |
-
-When in doubt between two, name the higher effort and say what would let the next step
-drop to the lower.
+The handoff prompt and the model/effort line for the next session follow the global
+rule in `~/.claude/CLAUDE.md`.

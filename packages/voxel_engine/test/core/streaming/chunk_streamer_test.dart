@@ -230,4 +230,16 @@ void main() {
     await _settle(s);
     expect(() => s.chunks.remove((x: 0, z: 0)), throwsUnsupportedError);
   });
+
+  test('a volume put by hand is queried like a generated one, its edits written over it', () {
+    s.storeEdit(const IVec3(-3, 45, -20), _glass);
+    final blocks = Uint8List(ChunkSize.volume)..fillRange(0, ChunkSize.sizeX * ChunkSize.sizeZ * 40, _stone);
+    s.putChunk((x: -1, z: -2), blocks);
+    expect(s.chunks[(x: -1, z: -2)], same(blocks));
+    expect(s.chunkAtXZ(-3, -20), same(blocks));
+    expect(s.getBlockXYZ(-3, 10, -20), _stone);
+    expect(s.getBlockXYZ(-3, 45, -20), _glass, reason: 'the edit stored before the volume came');
+    expect(s.setBlock(const IVec3(-3, 50, -20), _glass), isTrue);
+    expect(sink.applied, isEmpty, reason: 'a volume put by hand is not meshed');
+  });
 }

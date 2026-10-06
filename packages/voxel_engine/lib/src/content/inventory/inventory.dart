@@ -140,6 +140,21 @@ class Inventory {
     return false;
   }
 
+  /// Puts [stack] in: a new one tops up stacks before opening slots, as
+  /// [add]; a worn or bonused one takes an empty slot whole, as [addStack].
+  /// Returns how many did not fit.
+  int put(ItemStack stack) {
+    if (stack.dur < 0 && stack.bonus == 0) return add(stack.id, stack.count);
+    return addStack(stack) ? 0 : stack.count;
+  }
+
+  /// How many of [stack] [put] would take right now: a new one as many as
+  /// [roomFor], a worn or bonused one all or nothing.
+  int roomForStack(ItemStack stack) {
+    if (stack.dur < 0 && stack.bonus == 0) return roomFor(stack.id, stack.count);
+    return hasEmptySlot ? stack.count : 0;
+  }
+
   /// Takes [count] of [id], from the last slots first; false (and nothing
   /// taken) when there are fewer.
   bool remove(String id, int count) {

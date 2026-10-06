@@ -41,12 +41,16 @@ class NetConnection {
           onDone: _close,
           cancelOnError: true,
         );
+    // A write to a peer that is gone fails here, after [sendEncoded] has
+    // returned: that is the peer hanging up, as the read side's end is.
+    _flushed = socket.done.then<void>((_) => _close(), onError: (Object error) => _close());
   }
 
   /// The socket.
   final Socket socket;
 
   late final StreamSubscription<String> _sub;
+  late final Future<void> _flushed;
   final Completer<void> _done = Completer<void>();
   void Function(NetMessage message)? _handler;
   final List<NetMessage> _buffer = [];
@@ -84,7 +88,8 @@ class NetConnection {
   void send(NetMessage message) => sendEncoded(EncodedMessage(message));
 
   /// Sends a message already encoded, in one write: the same [message] can go
-  /// to every connection without encoding it again.
+  /// to every connection without encoding it again. The write finishes later:
+  /// if the peer has hung up by then, the message is lost and [done] completes.
   void sendEncoded(EncodedMessage message) {
     if (isClosed) return;
     socket.add(message.bytes);
@@ -98,7 +103,9 @@ class NetConnection {
   /// Closes the connection.
   Future<void> close() async {
     await _sub.cancel();
-    await socket.close();
+    // Its future is [Socket.done], whose error the constructor handles.
+    unawaited(socket.close());
+    await _flushed;
     socket.destroy();
     _close();
   }

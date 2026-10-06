@@ -1,5 +1,63 @@
 # Changelog
 
+## 0.4.0-dev
+
+**Breaking**
+
+- None: every change here is new API.
+
+- `GpuPacedScene` (new): a `ResizeSafeScene` that, when `paced` (the default), shows a
+  frame only once the GPU has finished it, so no Flutter frame waits on the 3D render.
+  On Metal such a wait lets later frames overwrite the glyph bytes the held one copies,
+  and text over the scene turns to noise under load. The scene shows one frame late and
+  renders only when its last frame is finished; `rendered` and `shown` count both.
+  `renderFrame` is the render itself, for a subclass to measure; `warmUp` is never
+  paced. `ScenePacer` (new) is the holding back, pure: a test hands it the GPU's
+  submission ids.
+
+- A dimension's own sky and a haze (VA-Ze). `StillSky` (new): zenith, horizon, ground and
+  ambient colours (`0xRRGGBB`), its ambient's energy and its sky light, no sun;
+  `SkyLook.still` (new) is how it looks, and `SkyLook.ground` (new) the colour below the
+  horizon. `Haze` (new): an exponential fog from the eye of one colour and density, darkening
+  with the sky light when it `followsSky` (water at night); `applyTo(fog, skyLight)`.
+  `DayNightSky.update` takes `still:` and `haze:`; a still sky coming or going rebuilds the
+  ambient at once, and the fog goes back to the linear distance band when the haze goes.
+
+- `VoxelModelMesh.flash()` (new): the white a model turns for a moment when it is hit,
+  unlit, one material for every model. `VoxelModelMesh.tinted(rgba)` (new): the shared
+  material multiplied by a tint, see-through (the translucent pass, no shadow) when its
+  alpha is under 1; one material a tint, so the models in it still batch. White and whole
+  is `material()` itself. A ghost's see-through and a death's fade in voxel_game ride on it
+  (VA14, `KL-015`).
+- `DebrisParticles` (new): chips and embers, small spinning squares of a colour thrown out
+  of a point that fall and are gone in 0.6 s, all in one of flutter_scene's
+  `ParticleSystem`s, so every chip is one draw. `burst(at, color, count:, speed:)` throws
+  them from anywhere; a full pool throws what fits.
+
+- `DayNightSky.update` takes the weather (VA9): `overcast` (0..1) greys the sky, dims the
+  sun, the ambient and the sky light it returns, and pulls the fog's end in; `flash` (0..1)
+  lights all of it white for a lightning bolt. The numbers are `SkyLook.at` (new), pure, so
+  they are checked with no GPU. A change of the weather rebuilds the ambient whatever the
+  clock did.
+- `WeatherParticles` (new): rain and snow on flutter_scene's `ParticleSystem`, falling
+  through a box around a point; `update(around, rainShare:, snowShare:)` once a frame.
+
+- `ItemMesh` (new): the mesh of an `ItemModel` (voxel_engine 0.4.0-dev), built the
+  first time it is drawn, one per model (`ItemMesh.of`). Everything drawing the item hangs
+  its own `node()` on the one geometry and the shared `VoxelModelMesh.material`, so
+  flutter_scene instances them (VA5, the rule `KL-007` set for drops and shots).
+- `ResizeSafeScene` (new): a `Scene` whose sun turns `cacheStaticShadows` off for the one
+  frame rendered at a new size (region, pixel ratio, render scale or a view's viewport or
+  scale, told by `RenderSizeWatch`, new). flutter_scene pairs each cached shadow tile with
+  a depth texture from the view's transient pool, which a resize clears, and Impeller's
+  Vulkan backend caches the tile's framebuffer keyed by the tile alone
+  (flutter/flutter#192538): the next refresh of the tile began a render pass on the freed
+  depth, a `SIGSEGV` in the Adreno driver's `vkCmdBeginRenderPass` within the first
+  seconds of a game that turns to landscape (the kit's `KL-008`). With the cache off for
+  that frame flutter_scene discards the tiles and builds new ones on the next. The
+  example renders with it. To remove once Flutter keys that cache on every attachment
+  (flutter/flutter#192539).
+
 ## 0.3.0-dev
 
 - **Breaking: `VoxelChunkView` draws what changed in `rebuild`, once a frame, within a

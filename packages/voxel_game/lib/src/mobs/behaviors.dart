@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:vector_math/vector_math.dart';
+import 'package:voxel_engine/core.dart';
 
 import '../core/voxel_game.dart';
 import '../entities/projectile.dart';
@@ -67,6 +68,10 @@ class Wander extends Behavior {
   /// Its pace, as a share of the mob's speed.
   final double speed;
 
+  /// This behaviour with the given fields replaced.
+  Wander copyWith({int? priority, double? radius, double? speed}) =>
+      Wander(priority: priority ?? this.priority, radius: radius ?? this.radius, speed: speed ?? this.speed);
+
   @override
   bool canStart(Mob mob, VoxelGame game) => true;
 
@@ -119,6 +124,15 @@ class Hunt extends Behavior {
   /// Mob ids it hunts besides the player (a wolf hunts sheep).
   final List<String> prey;
 
+  /// This behaviour with the given fields replaced.
+  Hunt copyWith({int? priority, double? range, double? giveUpRange, bool? whenProvoked, List<String>? prey}) => Hunt(
+    priority: priority ?? this.priority,
+    range: range ?? this.range,
+    giveUpRange: giveUpRange ?? this.giveUpRange,
+    whenProvoked: whenProvoked ?? this.whenProvoked,
+    prey: prey ?? this.prey,
+  );
+
   @override
   bool canStart(Mob mob, VoxelGame game) {
     Target? best;
@@ -164,8 +178,9 @@ class Hunt extends Behavior {
   static double _dist(Mob mob, Target t) => mob.position.distanceTo(t.position);
 }
 
-/// Strikes its [Mob.target] for [damage] when it is within [reach] and in
-/// sight, once per [cooldown].
+/// Strikes its [Mob.target] for [damage] (grown by the mob's level) when it
+/// is within [reach] and in sight, once per [cooldown]; the strike leaves the
+/// spec's `onHit` effect on the player.
 class MeleeAttack extends Behavior {
   /// A bite, a punch, a kick.
   const MeleeAttack({
@@ -188,6 +203,16 @@ class MeleeAttack extends Behavior {
   /// The shove a strike gives.
   final double knockback;
 
+  /// This behaviour with the given fields replaced.
+  MeleeAttack copyWith({int? priority, double? damage, double? reach, double? cooldown, double? knockback}) =>
+      MeleeAttack(
+        priority: priority ?? this.priority,
+        damage: damage ?? this.damage,
+        reach: reach ?? this.reach,
+        cooldown: cooldown ?? this.cooldown,
+        knockback: knockback ?? this.knockback,
+      );
+
   @override
   Set<BehaviorSlot> get slots => const {BehaviorSlot.attack, BehaviorSlot.look};
 
@@ -206,7 +231,7 @@ class MeleeAttack extends Behavior {
     mob.lookAt(t.centre());
     if (mob.cooldown(this, dt, cooldown)) {
       mob.rig?.swing();
-      t.takeDamage(Damage(damage, from: mob.position, knockback: knockback, attacker: mob));
+      mob.strike(t, Damage(damage * mob.damageScale, from: mob.position, knockback: knockback, attacker: mob));
     }
   }
 }
@@ -239,6 +264,23 @@ class RangedAttack extends Behavior {
   /// Seconds between shots.
   final double cooldown;
 
+  /// This behaviour with the given fields replaced.
+  RangedAttack copyWith({
+    int? priority,
+    ProjectileSpec? projectile,
+    double? range,
+    double? keepAway,
+    double? holdRange,
+    double? cooldown,
+  }) => RangedAttack(
+    priority: priority ?? this.priority,
+    projectile: projectile ?? this.projectile,
+    range: range ?? this.range,
+    keepAway: keepAway ?? this.keepAway,
+    holdRange: holdRange ?? this.holdRange,
+    cooldown: cooldown ?? this.cooldown,
+  );
+
   @override
   Set<BehaviorSlot> get slots => const {BehaviorSlot.move, BehaviorSlot.attack, BehaviorSlot.look};
 
@@ -265,7 +307,7 @@ class RangedAttack extends Behavior {
     if (mob.cooldown(this, dt, cooldown)) {
       mob.rig?.swing();
       final from = mob.eye();
-      game.shoot(projectile, from: from, at: t.centre(), owner: mob);
+      game.shoot(projectile, from: from, at: t.centre(), owner: mob, power: mob.damageScale);
     }
   }
 }
@@ -285,6 +327,10 @@ class FleeWhenHurt extends Behavior {
 
   /// Its pace, as a share of the mob's speed.
   final double speed;
+
+  /// This behaviour with the given fields replaced.
+  FleeWhenHurt copyWith({int? priority, double? seconds, double? speed}) =>
+      FleeWhenHurt(priority: priority ?? this.priority, seconds: seconds ?? this.seconds, speed: speed ?? this.speed);
 
   @override
   bool canStart(Mob mob, VoxelGame game) => mob.sinceHurt < 0.2 && mob.lastHurtFrom != null;
@@ -347,6 +393,23 @@ class Explode extends Behavior {
   /// Whether the blast breaks blocks.
   final bool breaksBlocks;
 
+  /// This behaviour with the given fields replaced.
+  Explode copyWith({
+    int? priority,
+    double? trigger,
+    double? fuse,
+    double? radius,
+    double? damage,
+    bool? breaksBlocks,
+  }) => Explode(
+    priority: priority ?? this.priority,
+    trigger: trigger ?? this.trigger,
+    fuse: fuse ?? this.fuse,
+    radius: radius ?? this.radius,
+    damage: damage ?? this.damage,
+    breaksBlocks: breaksBlocks ?? this.breaksBlocks,
+  );
+
   @override
   Set<BehaviorSlot> get slots => const {BehaviorSlot.move, BehaviorSlot.attack};
 
@@ -369,7 +432,13 @@ class Explode extends Behavior {
     s.fuse += dt;
     mob.swell = s.fuse / fuse;
     if (s.fuse >= fuse) {
-      game.explode(mob.centre(), radius: radius, damage: damage, breaksBlocks: breaksBlocks, source: mob);
+      game.explode(
+        mob.centre(),
+        radius: radius,
+        damage: damage * mob.damageScale,
+        breaksBlocks: breaksBlocks,
+        source: mob,
+      );
       mob.kill(dropLoot: false);
     }
   }
@@ -389,6 +458,10 @@ class LookAtPlayer extends Behavior {
   /// How near the player must be.
   final double range;
 
+  /// This behaviour with the given fields replaced.
+  LookAtPlayer copyWith({int? priority, double? range}) =>
+      LookAtPlayer(priority: priority ?? this.priority, range: range ?? this.range);
+
   @override
   Set<BehaviorSlot> get slots => const {BehaviorSlot.look};
 
@@ -398,4 +471,168 @@ class LookAtPlayer extends Behavior {
 
   @override
   void tick(Mob mob, VoxelGame game, double dt) => mob.lookAt(game.player.centre());
+}
+
+/// A companion fights what its owner fights: the nearest wild creature
+/// within [range] that hunts the owner or that the owner hurt in the last
+/// ten seconds, chased until it dies or gets [giveUpRange] away. It sets
+/// [Mob.target], which the attacks read: a pet's brain strikes with a
+/// [MeleeAttack] beside it.
+class PetFight extends Behavior {
+  /// A companion's fight.
+  const PetFight({super.priority = 20, this.range = 12.0, this.giveUpRange = 24.0});
+
+  /// How far from it a foe is noticed.
+  final double range;
+
+  /// How far it chases before giving up.
+  final double giveUpRange;
+
+  /// This behaviour with the given fields replaced.
+  PetFight copyWith({int? priority, double? range, double? giveUpRange}) => PetFight(
+    priority: priority ?? this.priority,
+    range: range ?? this.range,
+    giveUpRange: giveUpRange ?? this.giveUpRange,
+  );
+
+  @override
+  bool canStart(Mob mob, VoxelGame game) {
+    final owner = mob.owner;
+    if (owner == null) return false;
+    Mob? best;
+    var bestD = range;
+    for (final m in game.mobs) {
+      if (m == mob || m.isDead || m.tamed) continue;
+      final foe = identical(m.target, owner) || identical(m.lastHurtBy, owner) && m.sinceHurt < 10.0;
+      if (!foe) continue;
+      final d = m.position.distanceTo(mob.position);
+      if (d < bestD) {
+        bestD = d;
+        best = m;
+      }
+    }
+    if (best == null) return false;
+    mob.target = best;
+    return true;
+  }
+
+  @override
+  bool canContinue(Mob mob, VoxelGame game) {
+    final t = mob.target;
+    return t != null && !t.isDead && mob.position.distanceTo(t.position) < giveUpRange;
+  }
+
+  @override
+  void tick(Mob mob, VoxelGame game, double dt) => mob.walkTo(mob.target!.position);
+
+  @override
+  void stop(Mob mob, VoxelGame game) => mob.target = null;
+}
+
+class _HeelState {
+  bool walking = false;
+}
+
+/// A companion heels: it walks after its owner once they are [follow]
+/// away, stops within [stay], and is carried beside them past [teleport]
+/// (the first of the four sides of their feet where it stands clear, or
+/// their own spot).
+class Heel extends Behavior {
+  /// A companion's heel.
+  const Heel({super.priority = 90, this.follow = 4.0, this.stay = 2.0, this.teleport = 30.0, this.speed = 1.0});
+
+  /// How far the owner goes before it follows.
+  final double follow;
+
+  /// How near it stops.
+  final double stay;
+
+  /// How far the owner goes before it is carried to them.
+  final double teleport;
+
+  /// Its pace, as a share of the mob's speed.
+  final double speed;
+
+  /// This behaviour with the given fields replaced.
+  Heel copyWith({int? priority, double? follow, double? stay, double? teleport, double? speed}) => Heel(
+    priority: priority ?? this.priority,
+    follow: follow ?? this.follow,
+    stay: stay ?? this.stay,
+    teleport: teleport ?? this.teleport,
+    speed: speed ?? this.speed,
+  );
+
+  @override
+  bool canStart(Mob mob, VoxelGame game) {
+    final owner = mob.owner;
+    return owner != null && !owner.isDead;
+  }
+
+  @override
+  void tick(Mob mob, VoxelGame game, double dt) {
+    final owner = mob.owner!;
+    final s = mob.memory(this, _HeelState.new);
+    final d = mob.position.distanceTo(owner.position);
+    if (d > teleport) {
+      mob.teleport(_besideOf(game, owner.position));
+      s.walking = false;
+      return;
+    }
+    if (d > follow) s.walking = true;
+    if (d < stay) s.walking = false;
+    if (s.walking) {
+      mob.walkTo(owner.position, speed: speed);
+    } else {
+      mob.halt();
+    }
+  }
+
+  static Vector3 _besideOf(VoxelGame game, Vector3 feet) {
+    final w = game.world;
+    for (final side in const [IVec3(1, 0, 0), IVec3(-1, 0, 0), IVec3(0, 0, 1), IVec3(0, 0, -1)]) {
+      final cell = IVec3.floor(feet + Vector3(0, 0.1, 0)) + side;
+      if (!w.isSolid(cell) && !w.isSolid(cell + IVec3.up) && w.isSolid(cell + IVec3.down)) {
+        return Vector3(cell.x + 0.5, cell.y.toDouble(), cell.z + 0.5);
+      }
+    }
+    return feet.clone();
+  }
+}
+
+/// A tamed mount waits for its owner: it trots after them while they are
+/// [follow]..[leash] away and stands otherwise; it never fights.
+class MountWait extends Behavior {
+  /// A mount's wait.
+  const MountWait({super.priority = 90, this.follow = 4.0, this.stay = 2.5, this.leash = 20.0});
+
+  /// How far the owner goes before it trots after them.
+  final double follow;
+
+  /// How near it stops.
+  final double stay;
+
+  /// How far the owner goes before it stays where it is.
+  final double leash;
+
+  /// This behaviour with the given fields replaced.
+  MountWait copyWith({int? priority, double? follow, double? stay, double? leash}) => MountWait(
+    priority: priority ?? this.priority,
+    follow: follow ?? this.follow,
+    stay: stay ?? this.stay,
+    leash: leash ?? this.leash,
+  );
+
+  @override
+  bool canStart(Mob mob, VoxelGame game) => mob.owner != null;
+
+  @override
+  void tick(Mob mob, VoxelGame game, double dt) {
+    final owner = mob.owner!;
+    final d = mob.position.distanceTo(owner.position);
+    if (d > leash || d < stay || owner.isDead) {
+      mob.halt();
+    } else if (d > follow) {
+      mob.walkTo(owner.position);
+    }
+  }
 }

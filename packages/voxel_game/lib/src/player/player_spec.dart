@@ -1,4 +1,6 @@
 import '../mobs/rig.dart';
+import 'hunger_spec.dart';
+import 'xp_spec.dart';
 
 /// First person or behind the shoulder.
 enum CameraMode {
@@ -21,6 +23,7 @@ class PlayerSpec {
     this.sprintSpeed = 7.6,
     this.sneakSpeed = 2.0,
     this.swimSpeed = 3.0,
+    this.flySpeed = 11.5,
     this.jumpVelocity = 8.6,
     this.eyeHeight = 1.62,
     this.halfWidth = 0.3,
@@ -31,8 +34,18 @@ class PlayerSpec {
     this.creative = false,
     this.fallDamage = true,
     this.rig = const Rig.humanoid(),
-    this.respawnSeconds = 3.0,
-  });
+    this.respawnDelay = 1.0,
+    this.hunger,
+    this.xp,
+    this.armorSlots = const ['head', 'chest', 'legs', 'feet'],
+    this.armorPerPoint = 0.4,
+    this.armorFloor = 0.35,
+    this.critChance = 0.0,
+    this.critMultiplier = 1.5,
+    this.grace = 0.4,
+  }) : assert(armorPerPoint >= 0.0 && armorFloor >= 0.0 && armorFloor <= 1.0),
+       assert(grace >= 0.0),
+       assert(critChance >= 0.0 && critChance <= 1.0 && critMultiplier >= 1.0);
 
   /// Health.
   final double hp;
@@ -58,6 +71,10 @@ class PlayerSpec {
   /// Swimming speed.
   final double swimSpeed;
 
+  /// Flying speed, in creative (`VoxelAction.fly`); a run flies faster by as
+  /// much as it walks faster ([sprintSpeed] over [walkSpeed]).
+  final double flySpeed;
+
   /// Jump launch speed.
   final double jumpVelocity;
 
@@ -73,13 +90,15 @@ class PlayerSpec {
   /// The starting view.
   final CameraMode camera;
 
-  /// Vertical field of view, degrees.
+  /// Vertical field of view, degrees: the default of the player's
+  /// `GameSettings.fov`, which the camera reads.
   final double fov;
 
   /// What the player starts with: item id to count.
   final Map<String, int> startingItems;
 
-  /// Blocks break at once and placing uses nothing up; no damage.
+  /// Blocks break at once and placing uses nothing up; no damage; a press of
+  /// `VoxelAction.fly` takes off and lands.
   final bool creative;
 
   /// Whether falls of more than 4 blocks hurt.
@@ -88,6 +107,101 @@ class PlayerSpec {
   /// How the player looks in third person.
   final Rig rig;
 
-  /// Seconds between dying and standing again at the spawn.
-  final double respawnSeconds;
+  /// Seconds after dying before the player may stand up again at the spawn
+  /// (`VoxelGame.respawn`, from the death screen): a press meant for the
+  /// fight does not skip it.
+  final double respawnDelay;
+
+  /// Hunger, or null for a player who never gets hungry (food then only
+  /// heals and starts effects).
+  final HungerSpec? hunger;
+
+  /// Experience, or null for a player who gains none.
+  final XpSpec? xp;
+
+  /// Where armour is worn: every `Armor.slot` an item declares is one of
+  /// these.
+  final List<String> armorSlots;
+
+  /// Damage each point of armour turns aside.
+  final double armorPerPoint;
+
+  /// The share of a blow that always lands, however much armour is worn.
+  final double armorFloor;
+
+  /// The chance, 0..1, that a blow of the player's (a swing, a shot) is
+  /// critical: [critMultiplier] times the damage, rounded, its number marked.
+  /// 0, the default, never rolls.
+  final double critChance;
+
+  /// What a critical blow multiplies the damage by.
+  final double critMultiplier;
+
+  /// Seconds after a blow in which no other blow lands
+  /// (`PlayerEntity.graceLeft`; a game grants more with
+  /// `PlayerEntity.grantGrace`).
+  final double grace;
+
+  /// This player with the given fields replaced: a world's mode, say
+  /// (`WorldInfo.applyTo`). A field that may be null is given as a getter of
+  /// its new value, so null can be asked for, as in `VoxelGameSpec.copyWith`.
+  PlayerSpec copyWith({
+    double? hp,
+    double? reach,
+    double? meleeReach,
+    double? handDamage,
+    double? walkSpeed,
+    double? sprintSpeed,
+    double? sneakSpeed,
+    double? swimSpeed,
+    double? flySpeed,
+    double? jumpVelocity,
+    double? eyeHeight,
+    double? halfWidth,
+    double? height,
+    CameraMode? camera,
+    double? fov,
+    Map<String, int>? startingItems,
+    bool? creative,
+    bool? fallDamage,
+    Rig? rig,
+    double? respawnDelay,
+    HungerSpec? Function()? hunger,
+    XpSpec? Function()? xp,
+    List<String>? armorSlots,
+    double? armorPerPoint,
+    double? armorFloor,
+    double? critChance,
+    double? critMultiplier,
+    double? grace,
+  }) => PlayerSpec(
+    hp: hp ?? this.hp,
+    reach: reach ?? this.reach,
+    meleeReach: meleeReach ?? this.meleeReach,
+    handDamage: handDamage ?? this.handDamage,
+    walkSpeed: walkSpeed ?? this.walkSpeed,
+    sprintSpeed: sprintSpeed ?? this.sprintSpeed,
+    sneakSpeed: sneakSpeed ?? this.sneakSpeed,
+    swimSpeed: swimSpeed ?? this.swimSpeed,
+    flySpeed: flySpeed ?? this.flySpeed,
+    jumpVelocity: jumpVelocity ?? this.jumpVelocity,
+    eyeHeight: eyeHeight ?? this.eyeHeight,
+    halfWidth: halfWidth ?? this.halfWidth,
+    height: height ?? this.height,
+    camera: camera ?? this.camera,
+    fov: fov ?? this.fov,
+    startingItems: startingItems ?? this.startingItems,
+    creative: creative ?? this.creative,
+    fallDamage: fallDamage ?? this.fallDamage,
+    rig: rig ?? this.rig,
+    respawnDelay: respawnDelay ?? this.respawnDelay,
+    hunger: hunger == null ? this.hunger : hunger(),
+    xp: xp == null ? this.xp : xp(),
+    armorSlots: armorSlots ?? this.armorSlots,
+    armorPerPoint: armorPerPoint ?? this.armorPerPoint,
+    armorFloor: armorFloor ?? this.armorFloor,
+    critChance: critChance ?? this.critChance,
+    critMultiplier: critMultiplier ?? this.critMultiplier,
+    grace: grace ?? this.grace,
+  );
 }

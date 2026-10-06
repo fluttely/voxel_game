@@ -11,9 +11,21 @@ export 'src/worldgen/features/scatter_grid.dart';
 export 'src/worldgen/features/structure_grid.dart';
 export 'src/worldgen/features/tree_canvas.dart';
 export 'src/worldgen/features/trees.dart';
+export 'src/worldgen/spec/dimension_generator.dart';
 export 'src/worldgen/spec/spec_generator.dart';
+export 'src/worldgen/spec/structure.dart';
 export 'src/worldgen/spec/structure_site.dart';
 export 'src/worldgen/spec/world_gen_spec.dart';
+export 'src/worldgen/structures/camp.dart';
+export 'src/worldgen/structures/dungeon.dart';
+export 'src/worldgen/structures/dungeon_plan.dart';
+export 'src/worldgen/structures/mine.dart';
+export 'src/worldgen/structures/mine_plan.dart';
+export 'src/worldgen/structures/ruins.dart';
+export 'src/worldgen/structures/temple.dart';
+export 'src/worldgen/structures/tower.dart';
+export 'src/worldgen/structures/village.dart';
+export 'src/worldgen/structures/well.dart';
 export 'src/worldgen/noise/fast_noise_lite.dart'
     show
         CellularDistanceFunction,

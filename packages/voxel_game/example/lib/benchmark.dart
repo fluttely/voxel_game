@@ -171,14 +171,21 @@ class Bench {
 
   late final VoxelGameSpec spec = example.game.copyWith(
     renderDistance: radius,
-    graphics: graphics,
+    graphics: () => graphics,
     // Creative: the hunters of the mobs run cannot end it by killing the player.
     player: PlayerSpec(
       creative: true,
       startingItems: example.game.player.startingItems,
       reach: aim ? aimReach : example.game.player.reach,
     ),
-    onTick: _tick,
+    systems: () => [...example.game.systems(), _Driver(_tick)],
+    // The example's day with no weather: a storm rolled mid-run would be
+    // measured as a regression of whatever the run compares.
+    sky: SkySpec(
+      dayLength: example.game.sky.dayLength,
+      startTime: example.game.sky.startTime,
+      cycle: example.game.sky.cycle,
+    ),
   );
 
   final Stopwatch _clock = Stopwatch();
@@ -386,3 +393,13 @@ Future<void> _runPeers((int, int) args) async {
 /// only `print` reaches.
 void _report(String line) =>
     Platform.isMacOS || Platform.isLinux || Platform.isWindows ? stdout.writeln(line) : debugPrint(line);
+
+// Runs the bench's script every step, after the game's own systems.
+class _Driver extends GameSystem {
+  _Driver(this.step);
+
+  final void Function(VoxelGame game, double dt) step;
+
+  @override
+  void tick(VoxelGame game, double dt) => step(game, dt);
+}

@@ -57,6 +57,10 @@ class SignalRules {
   /// The most wire cells one rebuild floods.
   final int networkCap;
 
+  /// What a use turns [id] into (a lever flipped, a button pressed); null
+  /// when it is neither.
+  int? usedInto(int id) => toggles[id] ?? buttons[id]?.pressed;
+
   /// Whether [id] is a wire.
   bool isWire(int id) => id == wireOff || id == wireOn;
 
@@ -114,12 +118,8 @@ class SignalNetwork {
   /// The use action on [cell]: a toggle flips, a button presses. False when
   /// the block is neither.
   bool use(IVec3 cell) {
-    final id = _get(cell);
-    final t = rules.toggles[id];
-    if (t != null) return world.setBlock(cell, t);
-    final b = rules.buttons[id];
-    if (b != null) return world.setBlock(cell, b.pressed);
-    return false;
+    final to = rules.usedInto(_get(cell));
+    return to != null && world.setBlock(cell, to);
   }
 
   /// Every block edit passes here: a circuit block appearing or going, or any
