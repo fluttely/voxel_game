@@ -319,7 +319,9 @@ Dart SDK `^3.13.0`.
   macOS and Android are measured (`example/`); the example's iOS, Windows and Linux
   runners are set up but have not been run yet. On Windows and Linux the mouse look is a
   drag, not a locked cursor: `pointer_lock` locks it only on macOS
-  (`InputMap.pointerLockSupported`).
+  (`InputMap.pointerLockSupported`). pub.dev lists this package for macOS only for the
+  same reason: `pointer_lock` declares no other platform, though the kit runs on all five
+  ([pleiondev/flutter3d#80](https://github.com/pleiondev/flutter3d/issues/80) asks it to).
 - **Not the web.** Chunks are generated on worker isolates, multiplayer is TCP sockets and
   saves are files, through `dart:isolate` and `dart:io`, which a browser does not have.
   (`flutter_scene` itself runs on the web; the kit does not.)

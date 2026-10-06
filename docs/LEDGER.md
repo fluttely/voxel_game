@@ -57,6 +57,7 @@
 - **Evidence:** `packages/voxel_game/pubspec.yaml:30`: `pointer_lock: ^0.4.1`, which declares the `macos` platform alone (`KL-004`). pub.dev's report for `voxel_game` 0.4.0-dev: Android, iOS, Windows, Linux "blocked by the `pointer_lock` package", and the package's tags hold `platform:macos` only; `voxel_scene`, under it, holds all five. The dependency is there since `0.1.0-dev`, so every version so far was listed the same way.
 - **Cost of leaving it:** a reader who filters pub.dev by Android or iOS never finds the kit, which runs there and draws touch controls for it (VT); its README says five platforms and its listing says one. What lifts it is the kit not depending on a plugin that declares one platform: `pointer_lock` declaring the others (upstream), or the lock reached through a plugin that does.
 - **Found while:** 2026-10-05 — VL13, reading the four scores after the owner published `0.4.0-dev`.
+- **Waiting:** 2026-10-06 — asked upstream ([pleiondev/flutter3d#80](https://github.com/pleiondev/flutter3d/issues/80)): declare `android`, `ios`, `windows` and `linux` with a Dart-only class whose `isSupported` is false (VD1, VDD3). A `pointer_lock` that does lets the kit raise its constraint and close this.
 
 ### KL-029 · Every opaque block pays for the terrain's alpha test
 
