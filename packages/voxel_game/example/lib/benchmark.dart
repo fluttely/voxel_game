@@ -177,6 +177,8 @@ class Bench {
       creative: true,
       startingItems: example.game.player.startingItems,
       reach: aim ? aimReach : example.game.player.reach,
+      // The example's creatures are worth experience, which a spec checks the player gains.
+      xp: example.game.player.xp,
     ),
     systems: () => [...example.game.systems(), _Driver(_tick)],
     // The example's day with no weather: a storm rolled mid-run would be

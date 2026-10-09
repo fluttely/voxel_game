@@ -39,6 +39,13 @@
 - **Found while:** 2026-10-05 — VL13, reading the four scores after the owner published `0.4.0-dev`.
 - **Waiting:** 2026-10-06 — asked upstream ([pleiondev/flutter3d#80](https://github.com/pleiondev/flutter3d/issues/80)): declare `android`, `ios`, `windows` and `linux` with a Dart-only class whose `isSupported` is false (VD1, VDD3). A `pointer_lock` that does lets the kit raise its constraint and close this.
 
+### KL-030 · Nothing runs the benchmark entry, so it broke unseen for nine days
+
+- **Lens:** testing / measurement
+- **Evidence:** `packages/voxel_game/example/lib/benchmark.dart:176`: the benchmark swaps in a creative `PlayerSpec` of its own, which VA1 (`3999169`, 2026-09-30) gave an `xp` field and VA13a (`69bca92`) made the spec check against the creatures' (`packages/voxel_game/lib/src/spec/voxel_game_spec.dart:475`, "the mob is worth experience and the player gains none"). Every run of `tool/run_benchmark.dart` since threw at `VoxelGame.start`, and the app sat on the error screen until the runner's 3-minute limit: no suite builds or starts the entry, and the CI cannot (it needs a display and Flutter GPU).
+- **Cost of leaving it:** the next field a spec checks breaks it again, found only when the owner asks for numbers, which is when they are wanted (a post, a release). A widget test that builds `Bench.spec` for each scenario and runs the spec's checks, with no world and no GPU, would catch it in the suite.
+- **Found while:** 2026-10-09 — PFD1, the first real run of the machine-load meter.
+
 ## Closed
 
 ### KL-029 · Every opaque block pays for the terrain's alpha test
