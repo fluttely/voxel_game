@@ -263,6 +263,7 @@ Outline, to be turned into a design section here before any code:
   Merging only regions whose 16 chunks have all arrived and stayed unchanged would keep
   the encode cut and drop the hitch. Where the 4 × 4 merge's time goes (word copy against
   GPU upload) is the open question. If OC0's count clears 25%, this gets its own plan.
+  It cleared it: `docs/VOXEL_REGIONS_PLAN_2026-10-09.md` (SR).
 - **Splitting meshes per section.** It adds draws (OCD2).
 - **GPU occlusion queries or a hierarchical depth buffer.** Flutter GPU has no queries, no
   compute and no indirect draws (PF plan, "What was known before measuring").
