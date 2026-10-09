@@ -44,6 +44,11 @@ enum Scenario {
   /// As [orbit], lower, with [Bench.mobCount] creatures around the player,
   /// half of them hunting it: the cost of brains, paths, rigs and their shadows.
   mobs,
+
+  /// As [orbit], with the eye in the cave at [Bench.caveEye], level: the cost
+  /// of the terrain underground, where the view hides the regions sight cannot
+  /// reach through open cells (OC3).
+  cave,
 }
 
 Future<void> main(List<String> args) async {
@@ -156,6 +161,12 @@ class Bench {
   /// Metres per second east in [Scenario.fly]: a chunk a second.
   static const double flySpeed = 16.0;
 
+  /// The cell [Scenario.cave]'s eye sits in, at its centre: in the example
+  /// world (seed 2024) the largest cave within 32 m of the spawn whose air
+  /// the sky does not light, from which the view hides 96% of the region
+  /// draws in sight (OC0's "under2").
+  static const IVec3 caveEye = IVec3(16, 10, 14);
+
   /// Creatures placed in [Scenario.mobs].
   static const int mobCount = 40;
 
@@ -255,8 +266,12 @@ class Bench {
     _phaseStart = _now;
   }
 
-  /// Where the camera hovers: over the spawn, high enough to see the window.
+  /// Where the camera hovers: over the spawn, high enough to see the window;
+  /// in [Scenario.cave], the feet under [caveEye]'s centre.
   Vector3 _start(VoxelGame game) {
+    if (scenario == Scenario.cave) {
+      return Vector3(caveEye.x + 0.5, caveEye.y + 0.5 - game.player.spec.eyeHeight, caveEye.z + 0.5);
+    }
     final p = game.player.position;
     final ground = game.world.groundHeight(p.x.floor(), p.z.floor()).toDouble();
     return Vector3(p.x, scenario == Scenario.mobs ? ground + 1.0 : ground + 16.0, p.z);
@@ -268,10 +283,14 @@ class Bench {
     final player = game.player;
     player.velocity = Vector3.zero();
     switch (scenario) {
-      case Scenario.orbit || Scenario.mobs:
+      case Scenario.orbit || Scenario.mobs || Scenario.cave:
         player.position.setFrom(origin);
         if (_phase != _Phase.measuring) player.yaw = 0.0;
-        player.pitch = scenario == Scenario.mobs ? -0.15 : -0.35;
+        player.pitch = switch (scenario) {
+          Scenario.mobs => -0.15,
+          Scenario.cave => 0.0, // level, as OC0 counted it
+          _ => -0.35,
+        };
       case Scenario.fly:
         player.position.setValues(origin.x + flySpeed * t, origin.y, origin.z);
         player.yaw = -math.pi / 2; // east
