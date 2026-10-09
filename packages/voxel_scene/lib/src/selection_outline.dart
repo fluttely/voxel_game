@@ -44,7 +44,7 @@ class SelectionOutline {
   /// The skeleton; it sits at the box's minimum corner while shown.
   final Node node = Node()
     ..visible = false
-    ..castsShadows = false;
+    ..shadowCastingMode = ShadowCastingMode.off;
   final UnlitMaterial _stick;
 
   /// The skeleton of each box size shown so far.

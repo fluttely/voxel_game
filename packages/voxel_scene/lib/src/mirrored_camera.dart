@@ -41,14 +41,14 @@ class MirroredCamera extends PerspectiveCamera {
   /// [mesh] (an engine primitive, symmetric about its local x = 0) as a node
   /// mirrored in x, so its faces cull the right way under this camera. Move
   /// the returned node's parent, never its scale; [primitiveNode] builds one.
-  static Node primitive(Mesh mesh, {bool castsShadows = true}) => Node(mesh: mesh)
+  static Node primitive(Mesh mesh, {ShadowCastingMode shadowCastingMode = ShadowCastingMode.on}) => Node(mesh: mesh)
     ..scale = Vector3(-1, 1, 1)
-    ..castsShadows = castsShadows;
+    ..shadowCastingMode = shadowCastingMode;
 
   /// A node holding [primitive] of [mesh], free to move, scale and rotate.
-  static Node primitiveNode(Mesh mesh, {bool castsShadows = true}) => Node()
-    ..add(primitive(mesh, castsShadows: castsShadows))
-    ..castsShadows = castsShadows;
+  static Node primitiveNode(Mesh mesh, {ShadowCastingMode shadowCastingMode = ShadowCastingMode.on}) => Node()
+    ..add(primitive(mesh, shadowCastingMode: shadowCastingMode))
+    ..shadowCastingMode = shadowCastingMode;
 }
 
 /// flutter_scene's perspective lens with clip-space x negated. A

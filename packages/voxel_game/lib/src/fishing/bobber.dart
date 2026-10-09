@@ -89,7 +89,7 @@ class Bobber extends GameEntity {
     node
       ..add(MirroredCamera.primitiveNode(Mesh(_float, _red)))
       ..add(MirroredCamera.primitiveNode(Mesh(_cap, _white))..position = Vector3(0, 0.12, 0));
-    final line = MirroredCamera.primitiveNode(Mesh(_thread, _dark), castsShadows: false);
+    final line = MirroredCamera.primitiveNode(Mesh(_thread, _dark), shadowCastingMode: ShadowCastingMode.off);
     node.add(line);
     _line = line;
   }

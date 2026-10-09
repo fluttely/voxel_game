@@ -1,6 +1,6 @@
 // Stage 31: the terrain's lit surface, Godot's terrain.gdshader + terrain_light.gdshaderinc.
 //
-// This is flutter_scene 0.23's `flutter_scene_standard.frag` with one change in Surface():
+// This is flutter_scene 0.24.3's `flutter_scene_standard.frag` with one change in Surface():
 // the mesher writes block tint x face tint x AO into the vertex colour and the two light
 // levels into texture_coords_1 (x = sky / 15, y = block / 15), and the shader multiplies in
 // the per-block colour variation (VoxelTint) the mesher leaves out; the sky half is scaled by
@@ -14,13 +14,27 @@
 // read of the standard shader (a sampler the compiler strips but the material still binds
 // by name would crash the draw).
 //
+// The base is the full lighting tier, not the lean twin: TerrainMaterial sets its own
+// fragment shader, which drops the material's lean twins, and those resolve by name from
+// the engine's bundle only. The MASK branch keeps its discard, where 0.24 moved the
+// stock shader's cutout into a coverage pre-draw (KL-029).
+//
 // Compiled by `dart tool/build_shaders.dart` into assets/shaders/terrain.shaderbundle.
+
+// Fragment math defaults to mediump; positions, coordinates, depth, and the
+// HDR accumulators opt back into highp (see PRECISION.md in this directory).
+// The define lets an include that runs in highp restore the default.
+#define FLUTTER_SCENE_DEFAULT_FLOAT_PRECISION mediump
+precision mediump float;
+precision highp int;
+
 #include <material_varyings.glsl>
 #include <normals.glsl>
 #include <pbr.glsl>
 #include <texture.glsl>
 #include <material_engine_lighting.glsl>
 #include <material_inputs.glsl>
+#include <material_debug.glsl>
 #include <material_lighting.glsl>
 #include <lod_fade.glsl>
 
@@ -31,16 +45,16 @@ uniform sampler2D normal_texture;
 uniform sampler2D occlusion_texture;
 
 uniform TextureTransforms {
-  vec4 base_color_transform;
-  vec4 base_color_rotation;
-  vec4 metallic_roughness_transform;
-  vec4 metallic_roughness_rotation;
-  vec4 normal_transform;
-  vec4 normal_rotation;
-  vec4 emissive_transform;
-  vec4 emissive_rotation;
-  vec4 occlusion_transform;
-  vec4 occlusion_rotation;
+  highp vec4 base_color_transform;
+  highp vec4 base_color_rotation;
+  highp vec4 metallic_roughness_transform;
+  highp vec4 metallic_roughness_rotation;
+  highp vec4 normal_transform;
+  highp vec4 normal_rotation;
+  highp vec4 emissive_transform;
+  highp vec4 emissive_rotation;
+  highp vec4 occlusion_transform;
+  highp vec4 occlusion_rotation;
 }
 texture_transforms;
 
@@ -81,6 +95,7 @@ float TerrainLight(vec2 uv1) {
 // same hash of the world cell in 32-bit unsigned arithmetic. The mesher no longer bakes it,
 // so faces of one block merge into one quad; the cell is the one a tenth of a block behind
 // the face, along the normal the mesher gave it (v_normal, not flipped for a back face).
+// The cell is found in highp, which v_position carries into the expression.
 float VoxelTint() {
   ivec3 c = ivec3(floor(v_position - v_normal * 0.1));
   uint h = (uint(c.x) * 73856093u) ^ (uint(c.y) * 19349663u) ^ (uint(c.z) * 83492791u);
@@ -93,7 +108,7 @@ float VoxelTint() {
 void Surface(inout MaterialInputs material) {
   vec4 vertex_color = mix(vec4(1), v_color, frag_info.vertex_color_weight);
   bool transformed_uvs = texture_transforms.base_color_rotation.w > 0.5;
-  vec2 base_color_uv = transformed_uvs
+  highp vec2 base_color_uv = transformed_uvs
       ? MaterialTextureUv(
             texture_transforms.base_color_transform,
             texture_transforms.base_color_rotation)
@@ -113,7 +128,7 @@ void Surface(inout MaterialInputs material) {
 
   vec3 normal = GetWorldNormal();
   if (frag_info.has_normal_map > 0.5) {
-    vec2 normal_uv = transformed_uvs
+    highp vec2 normal_uv = transformed_uvs
         ? MaterialTextureUv(
               texture_transforms.normal_transform,
               texture_transforms.normal_rotation)
@@ -123,7 +138,7 @@ void Surface(inout MaterialInputs material) {
   }
   material.normal = normal;
 
-  vec2 metallic_roughness_uv = transformed_uvs
+  highp vec2 metallic_roughness_uv = transformed_uvs
       ? MaterialTextureUv(
             texture_transforms.metallic_roughness_transform,
             texture_transforms.metallic_roughness_rotation)
@@ -136,7 +151,7 @@ void Surface(inout MaterialInputs material) {
       clamp(metallic_roughness.g * frag_info.roughness_factor, kMinRoughness,
             1.0);
 
-  vec2 occlusion_uv = transformed_uvs
+  highp vec2 occlusion_uv = transformed_uvs
       ? MaterialTextureUv(
             texture_transforms.occlusion_transform,
             texture_transforms.occlusion_rotation)
@@ -144,7 +159,7 @@ void Surface(inout MaterialInputs material) {
   float occlusion = texture(occlusion_texture, occlusion_uv).r;
   material.occlusion = 1.0 - (1.0 - occlusion) * frag_info.occlusion_strength;
 
-  vec2 emissive_uv = transformed_uvs
+  highp vec2 emissive_uv = transformed_uvs
       ? MaterialTextureUv(
             texture_transforms.emissive_transform,
             texture_transforms.emissive_rotation)
@@ -158,8 +173,17 @@ void Surface(inout MaterialInputs material) {
 }
 
 void main() {
-  ApplyLodFade(frag_info.fade);
   MaterialInputs material = InitMaterialInputs();
   Surface(material);
-  frag_color = EvaluateLighting(material);
+  // The surface debug view when one is active, the lit result otherwise, or
+  // both selected per pixel for a split. The lighting runs under a uniform
+  // branch. EvaluateLighting has one call site on purpose. Every call is
+  // inlined, and a second copy of the lighting pushes the shadowed variant past
+  // what Apple's M3 and newer GPU compilers can build under fast math.
+  vec4 lit = vec4(0.0);
+  if (DebugViewNeedsShaded()) {
+    lit = EvaluateLighting(material);
+  }
+  frag_color = DebugViewOutput(material, lit);
+  frag_color *= LodFadeOpacity(frag_info.fade);
 }

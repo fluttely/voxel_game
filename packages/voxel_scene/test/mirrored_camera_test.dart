@@ -33,11 +33,14 @@ void main() {
 
   test('a primitive is mirrored in x; its holder is not', () {
     // A mesh without primitives: no geometry reaches the GPU, which tests lack.
-    final holder = MirroredCamera.primitiveNode(Mesh.primitives(primitives: []), castsShadows: false);
+    final holder = MirroredCamera.primitiveNode(
+      Mesh.primitives(primitives: []),
+      shadowCastingMode: ShadowCastingMode.off,
+    );
     expect(holder.scale, Vector3(1, 1, 1));
-    expect(holder.castsShadows, isFalse);
+    expect(holder.shadowCastingMode, ShadowCastingMode.off);
     final child = holder.children.single;
     expect(child.scale, Vector3(-1, 1, 1));
-    expect(child.castsShadows, isFalse);
+    expect(child.shadowCastingMode, ShadowCastingMode.off);
   });
 }

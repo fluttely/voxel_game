@@ -29,9 +29,21 @@ import 'scene_pacer.dart';
 /// A subclass measures a frame in [renderFrame], which is the render itself
 /// whether paced or not. [warmUp] is never paced: its frame is offscreen and
 /// thrown away, not the first one shown.
+///
+/// flutter_scene's own pacing ([maxGpuFramesInFlight], on by default since
+/// 0.24) is off: it would re-present the last image on a frame this class
+/// renders and counts, and the frame the kit measured is [ScenePacer]'s.
 base class GpuPacedScene extends ResizeSafeScene {
   /// A scene, held back on a busy GPU when [paced].
-  GpuPacedScene({this.paced = true});
+  GpuPacedScene({this.paced = true}) {
+    maxGpuFramesInFlight = gpuFramesInFlight;
+  }
+
+  /// The [maxGpuFramesInFlight] this scene sets: 0, flutter_scene's own
+  /// pacing off. A constant, so a test without a GPU (which a [Scene] needs to
+  /// be built) can read it.
+  @visibleForTesting
+  static const int gpuFramesInFlight = 0;
 
   /// Whether each frame waits for the GPU before it is shown.
   final bool paced;
@@ -78,19 +90,36 @@ base class GpuPacedScene extends ResizeSafeScene {
   void renderFrame(List<RenderView> views, ui.Canvas canvas, {ui.Rect? region, double? pixelRatio}) =>
       super.renderViews(views, canvas, region: region, pixelRatio: pixelRatio);
 
+  /// The flag is up for the whole warm-up, its waits included: flutter_scene
+  /// waits for its shaders and for the raster thread before it renders, and
+  /// with [sliceBudget] between its frames. So no frame of this scene may be
+  /// shown while it warms up, which is how the kit's loading stage and a
+  /// `SceneView`'s own warm-up both call it.
   @override
-  Future<void> warmUp(List<RenderView> views, {bool includeOffscreen = false}) async {
-    // Loaded first, so the flag is up only for the synchronous render the
-    // warm-up does once its own await of the same future resumes.
-    await Scene.initializeStaticResources();
+  Future<void> warmUp(
+    List<RenderView> views, {
+    bool includeOffscreen = false,
+    Duration? sliceBudget,
+    bool allShadingTiers = false,
+  }) async {
     _warming = true;
     try {
-      await super.warmUp(views, includeOffscreen: includeOffscreen);
+      await super.warmUp(
+        views,
+        includeOffscreen: includeOffscreen,
+        sliceBudget: sliceBudget,
+        allShadingTiers: allShadingTiers,
+      );
     } finally {
       _warming = false;
     }
   }
 
-  /// Lets go of the pictures held back. The scene is not drawn after this.
-  void dispose() => _pacer.dispose();
+  /// Lets go of the pictures held back, then of the scene's render targets
+  /// ([Scene.dispose]). The scene is not drawn after this: a render throws.
+  @override
+  void dispose() {
+    _pacer.dispose();
+    super.dispose();
+  }
 }

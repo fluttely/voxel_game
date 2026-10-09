@@ -23,7 +23,7 @@ dependencies:
   flutter:
     sdk: flutter
   # Exact pin: the terrain material imports flutter_scene's private gpu shim.
-  flutter_scene: 0.23.0
+  flutter_scene: 0.24.3
   vector_math: ^2.1.4
   voxel_engine: ^0.4.0-dev
 

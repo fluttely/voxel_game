@@ -30,13 +30,6 @@
 - **Cost of leaving it:** the score stays at 150 for every version until the constraint moves, and a game that wants `flutter_soloud` 5 for itself cannot resolve next to the kit. 5.0 is a major version, so the move is a read of its changes against `SoundBank` (`packages/sound_recipes/lib/src/sound_bank.dart`), not a constraint edit; until then the kit keeps the API it was tested on.
 - **Found while:** 2026-10-05 — VL13, reading the four scores after the owner published `0.4.0-dev`.
 
-### KL-027 · The kit pins a `flutter_scene` that is no longer the latest
-
-- **Lens:** dependencies / release
-- **Evidence:** `packages/voxel_scene/pubspec.yaml:26` and `packages/voxel_game/pubspec.yaml:27`: `flutter_scene: 0.23.0`, an exact pin (the terrain material imports `flutter_scene`'s private gpu shim, `:25`); the app asks `^0.23.0` (`examples/voxel_game_minecraft/pubspec.yaml:13`). `flutter_scene` 0.24.0 came out 2026-10-05 22:48Z, hours before `voxel_scene` 0.4.0-dev. Both reports score 40/40 today and warn: "When flutter_scene is 30 days old, this package will no longer be awarded points in this category."
-- **Cost of leaving it:** on 2026-11-04 `voxel_scene` and `voxel_game` drop to 150, as `sound_recipes` did (`KL-026`). The move is not a constraint edit either: the private shim may have moved, and rule 15's shader bundle is rebuilt against the new package, then seen on the Mac.
-- **Found while:** 2026-10-05 — VL13, reading the four scores after the owner published `0.4.0-dev`.
-
 ### KL-028 · pub.dev lists `voxel_game` for macOS only
 
 - **Lens:** platform parity / release
@@ -53,6 +46,14 @@
 - **Found while:** 2026-10-06 — planning VD, reading what `flutter_scene` 0.24 changes in the shaders the terrain copies (VDD7).
 
 ## Closed
+
+### KL-027 · The kit pins a `flutter_scene` that is no longer the latest
+
+- **Lens:** dependencies / release
+- **Evidence:** `packages/voxel_scene/pubspec.yaml:26` and `packages/voxel_game/pubspec.yaml:27`: `flutter_scene: 0.23.0`, an exact pin (the terrain material imports `flutter_scene`'s private gpu shim, `:25`); the app asks `^0.23.0` (`examples/voxel_game_minecraft/pubspec.yaml:13`). `flutter_scene` 0.24.0 came out 2026-10-05 22:48Z, hours before `voxel_scene` 0.4.0-dev. Both reports score 40/40 today and warn: "When flutter_scene is 30 days old, this package will no longer be awarded points in this category."
+- **Cost of leaving it:** on 2026-11-04 `voxel_scene` and `voxel_game` drop to 150, as `sound_recipes` did (`KL-026`). The move is not a constraint edit either: the private shim may have moved, and rule 15's shader bundle is rebuilt against the new package, then seen on the Mac.
+- **Found while:** 2026-10-05 — VL13, reading the four scores after the owner published `0.4.0-dev`.
+- **Closed by:** 2026-10-09 — `voxel_scene, voxel_game: on flutter_scene 0.24.3 (VD4)`. The three packages pin `0.24.3` exactly and the app asks `^0.24.3`. The terrain's three shaders are re-derived from 0.24.3's stock ones and the bundle rebuilt; `TerrainGeometry` is an `UnskinnedGeometry` on the public packed-vertex path and imports nothing under `flutter_scene/src/` (FS1). The pin stays exact because of four `src/` imports, which FS2 asks upstream about: `packages/voxel_scene/lib/src/terrain_material.dart:9` (the gpu shim, for `gpu.RenderPass` in `Material.bind`, which the public `gpu.dart` does not export); `packages/voxel_scene/lib/src/gpu_paced_scene.dart:9` and `packages/voxel_game/lib/src/loop/measured_scene.dart:10` (`rendererSubmissions`, in `src/render/frame_transients.dart`); and `measured_scene.dart:13` (the gpu shim, for `gpuContext`).
 
 ### KL-024 · Two owners of the audio device do not wait for each other
 

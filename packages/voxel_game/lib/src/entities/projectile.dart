@@ -315,12 +315,14 @@ class Projectile extends GameEntity {
     setup(game.world, spec.radius, spec.radius * 2);
     if (game.headless) return;
     final model = ProjectileModel.of(spec);
-    node.add(MirroredCamera.primitiveNode(Mesh(model.geometry, model.material), castsShadows: false));
+    node.add(
+      MirroredCamera.primitiveNode(Mesh(model.geometry, model.material), shadowCastingMode: ShadowCastingMode.off),
+    );
     final trail = model.trailGeometry;
     if (trail != null) {
       // Behind it: the box's length runs along -z, the way it flies.
       node.add(
-        MirroredCamera.primitiveNode(Mesh(trail, model.trailMaterial!), castsShadows: false)
+        MirroredCamera.primitiveNode(Mesh(trail, model.trailMaterial!), shadowCastingMode: ShadowCastingMode.off)
           ..position = Vector3(0, 0, spec.trail * 0.5),
       );
     }

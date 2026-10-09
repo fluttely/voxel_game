@@ -30,7 +30,7 @@ class FirstPersonView {
     // the elbow runs away behind the near plane, as an arm held in front of
     // the eye leaves it.
     VoxelModel.box(arm, const IVec3(-2, -2, 0), const IVec3(1, 1, 14), _rgb(game.player.spec.rig.skinColor), 0.03);
-    _arm.add(VoxelModelMesh.node(arm, 0.055)..castsShadows = false);
+    _arm.add(VoxelModelMesh.node(arm, 0.055)..shadowCastingMode = ShadowCastingMode.off);
     _hand
       ..add(_arm)
       ..add(_wrist);
@@ -68,13 +68,13 @@ class FirstPersonView {
   /// The game shown.
   final VoxelGame game;
 
-  final Node _hand = Node()..castsShadows = false;
-  final Node _arm = Node()..castsShadows = false;
-  final Node _wrist = Node()..castsShadows = false;
+  final Node _hand = Node()..shadowCastingMode = ShadowCastingMode.off;
+  final Node _arm = Node()..shadowCastingMode = ShadowCastingMode.off;
+  final Node _wrist = Node()..shadowCastingMode = ShadowCastingMode.off;
   ({ItemModel model, Node node})? _held;
   final Node _crack = Node()
     ..visible = false
-    ..castsShadows = false;
+    ..shadowCastingMode = ShadowCastingMode.off;
   final List<Mesh> _cracks = [];
   int _crackStage = -1;
 
@@ -127,7 +127,7 @@ class FirstPersonView {
     if (_held case (:final node, model: _)) _wrist.remove(node);
     _held = null;
     if (model == null) return;
-    final node = ItemMesh.of(model).node()..castsShadows = false;
+    final node = ItemMesh.of(model).node()..shadowCastingMode = ShadowCastingMode.off;
     if (model.grip == ItemGrip.block) {
       node
         ..rotation = blockPose

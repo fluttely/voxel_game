@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+**Breaking**
+
+- **On `flutter_scene` 0.24.3, pinned exactly, as `voxel_scene` is** (KL-027): a game
+  that names `flutter_scene` itself moves with it. `VoxelGame.dispose` now disposes the
+  scene's render targets too.
+
 - **A world entered while the title is still opening the audio device keeps its sound
   and music (KL-024).** The title and the world each hold `sound_recipes`'
   `AudioDevice`, which closes after the last of them, so the title leaving can no longer

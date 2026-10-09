@@ -22,7 +22,7 @@ Every fact below was read on 2026-10-09: the issue's full thread and timeline, P
 | Step | State | Gate |
 |:---|:---|:---|
 | FS0 #435's outcome on record | **done** 2026-10-09: this plan; the proposal's status block says what came back | the proposal doc links #439 and #458 |
-| FS1 The terrain on the public geometry path | pending; **runs as part of VD4** (`docs/VOXEL_DEPS_PLAN_2026-10-06.md`) | VD4's gates; `terrain_geometry.dart` imports nothing under `flutter_scene/src/` |
+| FS1 The terrain on the public geometry path | **done** 2026-10-09 with VD4's commit: `TerrainGeometry` extends `UnskinnedGeometry` and uses `setVertexLayout`, `setVertexShader`, `uploadVertexStreams` and `setDepthOnlyVertex`. There is no `bind`, `depthOnlyVertex` or `materialVertexVariant` override, and the file imports nothing under `flutter_scene/src/`. The public path had no gap. VD4's in-game walk-through is still open (its row) | VD4's gates; `terrain_geometry.dart` imports nothing under `flutter_scene/src/` |
 | FS2 The `src/` imports that remain, asked upstream | pending; after VD4; **the owner posts or gives the word** | an issue open on `bdero/flutter_scene`, linked from `KL-027`'s closing line or a new ledger entry |
 | FS3 The UI isolate's allocation on 0.24.3, measured | pending; **only if the owner asks for numbers** (CLAUDE.md §Benchmarks) | one Mac and one S24 trace on 0.24.3 against the 0.23 traces of #435 §2, filed under `docs/perf/` |
 | FS4 A PR, if FS3 finds a flutter_scene site worth one | pending; gated on FS3 and on the owner's word | an issue with the numbers, then one PR per change from a fork |

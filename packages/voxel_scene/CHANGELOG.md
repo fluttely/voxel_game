@@ -1,5 +1,31 @@
 # Changelog
 
+## Unreleased
+
+**Breaking**
+
+- **On `flutter_scene` 0.24.3, pinned exactly** (KL-027): a game that names
+  `flutter_scene` itself moves with it. The terrain bundle is rebuilt against 0.24.3's
+  shaders; a bundle from 0.4.0-dev reads the engine's uniforms wrong under 0.24.
+- `MirroredCamera.primitive` and `primitiveNode` take `shadowCastingMode:` (a
+  `ShadowCastingMode`, `on` by default) in place of `castsShadows:`, which flutter_scene
+  deprecated.
+- `GpuPacedScene.dispose` also disposes the scene (`Scene.dispose`, new in
+  flutter_scene 0.24.2), so its render targets go with it; a render after it throws.
+
+- **`TerrainGeometry` is an `UnskinnedGeometry`** on flutter_scene's public path for a
+  packed vertex: `setVertexLayout`, `uploadVertexStreams` and `setDepthOnlyVertex`. The
+  engine binds its own `FrameInfo` once per shader, where the terrain bound one a draw,
+  and the file imports nothing under `flutter_scene/src/`.
+- The terrain's three shaders are re-derived from 0.24.3's stock ones, each with its one
+  change reapplied: the engine's 112-byte `FrameInfo` (depth bias toward the viewer,
+  layer and slope offsets), unit normals, mediump by default, the debug-view hook (inert
+  unless flutter_scene's `debug_views` is on). The terrain draws with the full lighting
+  tier, not 0.24.3's lean one, and keeps its `discard` for a masked material (KL-029).
+- `GpuPacedScene` turns flutter_scene's own GPU pacing off (`maxGpuFramesInFlight` 0,
+  `gpuFramesInFlight`): `ScenePacer` paces, and every frame it renders is counted.
+  `warmUp` takes and forwards `sliceBudget` and `allShadingTiers`.
+
 ## 0.4.0-dev
 
 **Breaking**
