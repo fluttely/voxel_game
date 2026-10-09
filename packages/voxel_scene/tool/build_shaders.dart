@@ -37,6 +37,12 @@ Future<void> main() async {
   final manifest = jsonEncode({
     'TerrainFragment': {'type': 'fragment', 'file': 'shaders/terrain.frag'},
     'TerrainCubeFragment': {'type': 'fragment', 'file': 'shaders/terrain_cube.frag'},
+    'TerrainNoShadowFragment': {'type': 'fragment', 'file': 'shaders/terrain_no_shadow.frag'},
+    'TerrainNoShadowCubeFragment': {'type': 'fragment', 'file': 'shaders/terrain_no_shadow_cube.frag'},
+    'TerrainLeanFragment': {'type': 'fragment', 'file': 'shaders/terrain_lean.frag'},
+    'TerrainLeanCubeFragment': {'type': 'fragment', 'file': 'shaders/terrain_lean_cube.frag'},
+    'TerrainLeanNoShadowFragment': {'type': 'fragment', 'file': 'shaders/terrain_lean_no_shadow.frag'},
+    'TerrainLeanNoShadowCubeFragment': {'type': 'fragment', 'file': 'shaders/terrain_lean_no_shadow_cube.frag'},
     'TerrainVertex': {'type': 'vertex', 'file': 'shaders/terrain.vert'},
     'TerrainDepthVertex': {'type': 'vertex', 'file': 'shaders/terrain_depth.vert'},
   });

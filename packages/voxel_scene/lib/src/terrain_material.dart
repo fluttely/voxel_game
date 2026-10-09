@@ -25,15 +25,31 @@ class TerrainMaterial extends PhysicallyBasedMaterial {
   TerrainMaterial({this.emissionMix = 0.5}) {
     final lib = _library;
     if (lib == null) return;
-    _shader = lib['TerrainFragment']!;
-    _cubeShader = lib['TerrainCubeFragment'];
-    setFragmentShader(_shader!);
-    setRadianceCubeFragmentShader(_cubeShader);
+    _full = _TerrainTier(lib, 'Terrain');
+    _lean = _TerrainTier(lib, 'TerrainLean');
+    setFragmentShader(_full!.base);
+    setRadianceCubeFragmentShader(_full!.cube);
   }
 
   /// A package asset, so its key carries the package name.
   static const String asset = 'packages/voxel_scene/assets/shaders/terrain.shaderbundle';
   static gpu.ShaderLibrary? _library;
+
+  /// The bundle entries a terrain material draws with: the lit fragment shader
+  /// in two lighting tiers (full, lean) by two radiance layouts (2D, cube) by
+  /// shadows (bound, none), and the packed vertex's colour and depth shaders.
+  static const List<String> entries = [
+    'TerrainFragment',
+    'TerrainCubeFragment',
+    'TerrainNoShadowFragment',
+    'TerrainNoShadowCubeFragment',
+    'TerrainLeanFragment',
+    'TerrainLeanCubeFragment',
+    'TerrainLeanNoShadowFragment',
+    'TerrainLeanNoShadowCubeFragment',
+    'TerrainVertex',
+    'TerrainDepthVertex',
+  ];
 
   /// [loadLibrary] has finished.
   static bool get loaded => _library != null;
@@ -51,7 +67,7 @@ class TerrainMaterial extends PhysicallyBasedMaterial {
   static Future<void> loadLibrary() async {
     if (_library != null) return;
     final lib = await gpu.loadShaderLibraryAsync(asset);
-    for (final name in const ['TerrainFragment', 'TerrainVertex', 'TerrainDepthVertex']) {
+    for (final name in entries) {
       if (lib == null || lib[name] == null) {
         throw Exception(
           '$asset holds no $name this engine can read; recompile it with '
@@ -69,21 +85,66 @@ class TerrainMaterial extends PhysicallyBasedMaterial {
   /// reads at night when the sun and the ambient are almost off.
   double emissionMix;
 
-  gpu.Shader? _shader;
-  gpu.Shader? _cubeShader;
+  // The full lighting tier and its lean twin, each in four entries: the
+  // radiance layouts (2D, cube) by shadows (bound, none). Null without the bundle.
+  _TerrainTier? _full;
+  _TerrainTier? _lean;
   final Float32List _info = Float32List(4);
+
+  // The engine resolves its own materials' no-shadow and lean twins by name from
+  // its bundle only, so the terrain hands its own in through the members the
+  // encoder asks: the no-shadow twins here, which also decide whether the
+  // shadow_map sampler is bound, and the lean ones in fragmentShaderForLighting.
+  @override
+  gpu.Shader? get noShadowFragmentShader => _full?.noShadow;
+
+  @override
+  gpu.Shader? get noShadowRadianceCubeFragmentShader => _full?.noShadowCube;
+
+  /// The lean twin is picked as `Material.usesLeanVariant` picks the engine's:
+  /// every lighting feature it compiles out is off for the frame (a warm-up's
+  /// forced tier included), and the environment has no parallax box. The lean
+  /// entries keep the full ones' binding interface, so nothing else changes.
+  @override
+  gpu.Shader fragmentShaderForLighting(Lighting lighting) {
+    final lean = _lean;
+    // ignore: invalid_use_of_internal_member
+    if (lean == null || !lighting.allowsLeanShading) return super.fragmentShaderForLighting(lighting);
+    final env = drawEnvironment(lighting);
+    if (env.parallaxBoxCenter != null && env.parallaxBoxHalfExtents != null) {
+      return super.fragmentShaderForLighting(lighting);
+    }
+    // ignore: invalid_use_of_internal_member
+    final cube = usesRadianceCubeVariant(lighting);
+    // ignore: invalid_use_of_internal_member
+    final noShadow = usesNoShadowVariant(lighting);
+    return cube ? (noShadow ? lean.noShadowCube : lean.cube) : (noShadow ? lean.noShadow : lean.base);
+  }
 
   @override
   void bind(gpu.RenderPass pass, TransientWriter transientsBuffer, Lighting lighting) {
     super.bind(pass, transientsBuffer, lighting);
-    final shader = _shader;
-    if (shader == null) return;
-    // The same choice Material.fragmentShaderForLighting made for the pipeline:
-    // the cube twin when the bound environment uses the cube radiance layout.
-    final cube = _cubeShader;
-    final drawn = lighting.environmentMap.usesCubeRadianceLayout && cube != null ? cube : shader;
+    if (_full == null) return;
     _info[0] = skyIntensity;
     _info[1] = emissionMix;
+    // The block on the shader the pipeline was built with: every twin declares it.
+    final drawn = fragmentShaderForLighting(lighting);
     pass.bindUniform(drawn.getUniformSlot('TerrainInfo'), transientsBuffer.emplace(ByteData.sublistView(_info)));
   }
+}
+
+/// One lighting tier of the terrain's fragment shader, as four bundle entries:
+/// `<prefix>Fragment`, `<prefix>CubeFragment`, `<prefix>NoShadowFragment` and
+/// `<prefix>NoShadowCubeFragment`.
+class _TerrainTier {
+  _TerrainTier(gpu.ShaderLibrary lib, String prefix)
+    : base = lib['${prefix}Fragment']!,
+      cube = lib['${prefix}CubeFragment']!,
+      noShadow = lib['${prefix}NoShadowFragment']!,
+      noShadowCube = lib['${prefix}NoShadowCubeFragment']!;
+
+  final gpu.Shader base;
+  final gpu.Shader cube;
+  final gpu.Shader noShadow;
+  final gpu.Shader noShadowCube;
 }

@@ -20,8 +20,16 @@
 - The terrain's three shaders are re-derived from 0.24.3's stock ones, each with its one
   change reapplied: the engine's 112-byte `FrameInfo` (depth bias toward the viewer,
   layer and slope offsets), unit normals, mediump by default, the debug-view hook (inert
-  unless flutter_scene's `debug_views` is on). The terrain draws with the full lighting
-  tier, not 0.24.3's lean one.
+  unless flutter_scene's `debug_views` is on).
+- The terrain draws with 0.24's lean lighting tier whenever the engine's own materials
+  would: `terrain.frag` is compiled eight times, full and lean, 2D and cube radiance,
+  with and without shadows (`TerrainMaterial.entries`), and `TerrainMaterial` picks the
+  one for the draw. The lean twin compiles out the irradiance field, rect area lights,
+  environment cross-fade, parallax box and screen-space occlusion, which size the
+  register allocation even unused: on mobile GPUs the full program spills (flutter_scene
+  measured 1.5–1.8× faster frames on a Mali-G57). With shadows off (`ShadowSpec.off`)
+  the twin without the shadow sampling draws, roughly half the program. The bundle grows
+  from 0.33 to 0.82 MB compressed.
 - The terrain's fragment shader no longer discards (KL-029). A `discard` anywhere in a
   shader can turn off early depth testing and hidden-surface removal on a tiled GPU
   (Apple's, Adreno, Mali), so every solid block paid for the masked branch whether it

@@ -14,10 +14,11 @@
 // read of the standard shader (a sampler the compiler strips but the material still binds
 // by name would crash the draw).
 //
-// The base is the full lighting tier, not the lean twin: TerrainMaterial sets its own
-// fragment shader, which drops the material's lean twins, and those resolve by name from
-// the engine's bundle only. Like the stock shader it never discards: 0.24 cuts a MASK
-// surface out in a coverage pre-draw (KL-029).
+// The bundle compiles this body eight times, as the engine compiles its own: the full and
+// the lean lighting tier (FLUTTER_SCENE_LEAN_LIGHTING), by radiance layout
+// (FLUTTER_SCENE_RADIANCE_CUBE), by shadows (FLUTTER_SCENE_SKIP_SHADOWS); TerrainMaterial
+// picks one per draw. Like the stock shader it never discards: 0.24 cuts a MASK surface
+// out in a coverage pre-draw (KL-029).
 //
 // Compiled by `dart tool/build_shaders.dart` into assets/shaders/terrain.shaderbundle.
 
