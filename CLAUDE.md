@@ -57,6 +57,7 @@ Flutter 3.47.1, **but not the web** (worker isolates, TCP sockets and save files
 | The ledger-and-release plan (VL): CI, the ledger's open entries, then `0.4.0-dev` | `docs/VOXEL_LEDGER_PLAN_2026-10-04.md` |
 | The dependencies-and-debts plan (VD): `flutter_scene` 0.24.3, `flutter_soloud` 5, the audio device's owner, the dungeon's doorways, then `0.5.0-dev` before 2026-11-04 | `docs/VOXEL_DEPS_PLAN_2026-10-06.md` |
 | The flutter_scene follow-up plan (FS): what came back from bdero/flutter_scene#435, the terrain on 0.24's public geometry path, what may still go upstream | `docs/FLUTTER_SCENE_FOLLOWUP_PLAN_2026-10-09.md` |
+| The occlusion plan (OC): hiding the terrain draws the camera cannot see (cave culling underground, horizon occlusion above), gated on an offline count | `docs/VOXEL_OCCLUSION_PLAN_2026-10-09.md` |
 | Measuring the frame rate | `dart tool/run_benchmark.dart` · `packages/voxel_game/example/lib/benchmark.dart` |
 | The terrain shader, source and compiled | `packages/voxel_scene/shaders/` · `packages/voxel_scene/assets/shaders/terrain.shaderbundle` |
 
