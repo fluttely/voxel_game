@@ -16,6 +16,7 @@ ChunkMeshResult _empty() {
     surface(),
     sky: Uint8List(ChunkSize.volume),
     block: Uint8List(ChunkSize.volume),
+    visibility: ChunkVisibility.open,
   );
 }
 

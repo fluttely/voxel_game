@@ -70,6 +70,7 @@ void main() {
     expect(remote.solid.positions, local.solid.positions);
     expect(remote.solid.indices, local.solid.indices);
     expect(remote.sky, local.sky);
+    expect(remote.visibility.masks, local.visibility.masks);
     expect(remote.aoVerts, local.aoVerts);
   });
 

@@ -6,6 +6,7 @@ import 'dart:typed_data';
 
 import '../grid/voxel_block_table.dart';
 import '../mesh/chunk_mesher.dart';
+import '../occlusion/chunk_visibility.dart';
 import 'chunk_streamer.dart';
 
 /// Fills one chunk volume ([ChunkSize.volume] bytes of block ids) for chunk
@@ -185,8 +186,9 @@ class ChunkWorkerPool implements ChunkJobs {
       surface(15),
       sky: bytes(20).asUint8List(),
       block: bytes(21).asUint8List(),
-      aoVerts: reply[22] as int,
-      ms: reply[23] as double,
+      visibility: ChunkVisibility(reply[22] as Uint16List),
+      aoVerts: reply[23] as int,
+      ms: reply[24] as double,
     );
   }
 
@@ -257,6 +259,7 @@ Object? _run(ChunkGenerator generator, ChunkMesher mesher, List<Object?> list) {
       ...pack(r.glow),
       TransferableTypedData.fromList([r.sky]),
       TransferableTypedData.fromList([r.block]),
+      Uint16List.fromList(r.visibility.masks),
       r.aoVerts,
       r.ms,
     ],

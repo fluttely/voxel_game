@@ -14,6 +14,7 @@ export 'src/core/math/ivec3.dart';
 export 'src/core/mesh/chunk_mesher.dart';
 export 'src/core/model/voxel_model.dart';
 export 'src/core/navigation/pathfinder.dart';
+export 'src/core/occlusion/chunk_visibility.dart';
 export 'src/core/persistence/edit_delta_codec.dart';
 export 'src/core/physics/reach.dart';
 export 'src/core/physics/voxel_body.dart';

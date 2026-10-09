@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:meta/meta.dart';
 
 import '../grid/chunk_size.dart';
+import '../occlusion/chunk_visibility.dart';
 
 /// One vertex-coloured, indexed triangle list, in chunk-local coordinates
 /// (x and z 0..16, y 0..128). Every face is a quad of four vertices and six
@@ -53,6 +54,7 @@ class ChunkMeshResult {
     this.glow, {
     required this.sky,
     required this.block,
+    required this.visibility,
     this.aoVerts = 0,
     this.ms = 0.0,
   });
@@ -76,10 +78,13 @@ class ChunkMeshResult {
   /// The chunk's block light volume, 0..15 per cell, indexed like the block volume.
   final Uint8List block;
 
+  /// Which faces of each section the chunk's open cells join.
+  final ChunkVisibility visibility;
+
   /// Vertices of lit faces whose ambient occlusion is below 1.
   final int aoVerts;
 
-  /// Milliseconds the job took: fill, light, mesh and volume copy.
+  /// Milliseconds the job took: fill, connectivity, light, mesh and volume copy.
   final double ms;
 
   /// Faces over the four surfaces.
@@ -344,10 +349,14 @@ class ChunkMesher {
   /// every job; Dart statics are per isolate).
   static Uint8List? _tBlocks, _tSky, _tGlow;
   static Int32List? _tQueue;
+  static Uint8List? _tSeen;
+  static Uint16List? _tCells;
   Uint8List _blocks = Uint8List(0);
   Uint8List _sky = Uint8List(0);
   Uint8List _glow = Uint8List(0);
   Int32List _queue = Int32List(0);
+  Uint8List _seen = Uint8List(0);
+  Uint16List _cells = Uint16List(0);
   final List<int> _emitters = [];
 
   /// Tests only: seed the sky flood from every lit cell instead of only the
@@ -361,6 +370,8 @@ class ChunkMesher {
     _sky = _tSky ??= Uint8List(_padVolume);
     _glow = _tGlow ??= Uint8List(_padVolume);
     _queue = _tQueue ??= Int32List(_padVolume * 2);
+    _seen = _tSeen ??= Uint8List(_sectionVolume);
+    _cells = _tCells ??= Uint16List(_sectionVolume);
     _faces = _tFaces ??= [for (var f = 0; f < 6; f++) Int32List(_chunkVolume)];
   }
 
@@ -457,6 +468,57 @@ class ChunkMesher {
         _blocks.setRange(dst, dst + _sizeX, vol, ChunkSize.index(0, y, z));
       }
     }
+  }
+
+  static const int _sectionHeight = ChunkVisibility.sectionHeight;
+  static const int _sectionVolume = _sizeX * _sizeZ * _sectionHeight;
+
+  /// Floods each section's open cells, the chunk's own and not the padding,
+  /// one connected group at a time, and joins every pair of faces a group
+  /// touches. A section cell is `x | z << 4 | y << 8`.
+  ChunkVisibility _connectivity() {
+    final masks = Uint16List(ChunkVisibility.sections);
+    for (var s = 0; s < ChunkVisibility.sections; s++) {
+      final y0 = s * _sectionHeight;
+      _seen.fillRange(0, _sectionVolume, 0);
+      var mask = 0;
+      for (var start = 0; start < _sectionVolume; start++) {
+        if (_seen[start] != 0) continue;
+        if (_opaque[_blocks[_p(start & 15, y0 + (start >> 8), (start >> 4) & 15)]]) continue;
+        _seen[start] = 1;
+        _cells[0] = start;
+        var head = 0, tail = 1, faces = 0;
+        while (head < tail) {
+          final i = _cells[head++];
+          final x = i & 15, z = (i >> 4) & 15, y = i >> 8;
+          if (x == 0) faces |= 1 << ChunkVisibility.negX;
+          if (x == 15) faces |= 1 << ChunkVisibility.posX;
+          if (y == 0) faces |= 1 << ChunkVisibility.negY;
+          if (y == _sectionHeight - 1) faces |= 1 << ChunkVisibility.posY;
+          if (z == 0) faces |= 1 << ChunkVisibility.negZ;
+          if (z == 15) faces |= 1 << ChunkVisibility.posZ;
+          if (x > 0) tail = _reach(i - 1, x - 1, y0 + y, z, tail);
+          if (x < 15) tail = _reach(i + 1, x + 1, y0 + y, z, tail);
+          if (y > 0) tail = _reach(i - 256, x, y0 + y - 1, z, tail);
+          if (y < _sectionHeight - 1) tail = _reach(i + 256, x, y0 + y + 1, z, tail);
+          if (z > 0) tail = _reach(i - 16, x, y0 + y, z - 1, tail);
+          if (z < 15) tail = _reach(i + 16, x, y0 + y, z + 1, tail);
+        }
+        mask |= ChunkVisibility.pairsOf(faces);
+        if (mask == ChunkVisibility.allPairs) break;
+      }
+      masks[s] = mask;
+    }
+    return ChunkVisibility(masks);
+  }
+
+  // Queues section cell [i], at chunk cell ([x], [y], [z]), when it is open
+  // and not yet seen; the queue's new tail.
+  int _reach(int i, int x, int y, int z, int tail) {
+    if (_seen[i] != 0 || _opaque[_blocks[_p(x, y, z)]]) return tail;
+    _seen[i] = 1;
+    _cells[tail] = i;
+    return tail + 1;
   }
 
   /// Skylight floods each column from the top (a liquid takes 2), then both
@@ -1053,6 +1115,7 @@ class ChunkMesher {
     _bindBuffers();
     _aoVerts = 0;
     _fill(c, ring[1], ring[2], ring[3], ring[4], ring[5], ring[6], ring[7], ring[8]);
+    final visibility = _connectivity();
     _computeLight();
 
     final solid = _solidOut..clear();
@@ -1474,6 +1537,7 @@ class ChunkMesher {
       glow.toSurface(copy: copy),
       sky: skyOut,
       block: blockOut,
+      visibility: visibility,
       aoVerts: _aoVerts,
       ms: watch.elapsedMicroseconds / 1000.0,
     );

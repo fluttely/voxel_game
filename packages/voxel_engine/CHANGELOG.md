@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **A chunk says which faces of each section its open cells join (OC1).**
+  `ChunkVisibility` (new, in `core`): eight 16-tall sections, one 15-bit mask each of
+  the face pairs (`negX`…`posZ`, opposite = `face ^ 1`) that one connected group of
+  non-opaque cells touches; `connects(section, faceIn, faceOut)`, `pairBit`, `pairsOf`,
+  and `ChunkVisibility.open` for a chunk with nothing to occlude. `ChunkMesher` floods
+  each section of the chunk's own cells after the fill, on per-isolate scratch, and
+  `ChunkMeshResult.visibility` carries it, from a worker too. **Breaking**: a
+  `ChunkMeshResult` built by hand passes `visibility:`.
+
 - **A dungeon's rooms are joined (KL-025).** Each room's box used to brick over the
   doorway of the corridor that led into it, so the shaft reached the first room only.
   `Dungeon` now opens a two-high doorway in the west wall of the second and last rooms.
