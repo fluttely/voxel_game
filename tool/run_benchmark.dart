@@ -33,7 +33,7 @@
 //
 // Every line records what else the machine ran beside the run and the state
 // of its CPU, GPU and memory (`machineLoad`, tool/machine_load.dart, PFD1);
-// on a phone, the Mac's that drives adb (the phone's own is not read yet). A
+// on a phone, the Mac's that drives adb, and the phone's own (`deviceLoad`). A
 // busy machine is never refused: the summary says in how many runs the run was
 // alone, and what ran beside the others.
 import 'dart:convert';
@@ -103,6 +103,13 @@ Future<void> main(List<String> argv) async {
       if (android != null) await adb(android, ['install', '-r', apk]);
     }
   }
+  // The app's uid keeps its GPU time after the app exits: the device meter reads the run's by it.
+  final appUid = android == null || dryRun
+      ? null
+      : parsePackageUids(await adb(android, ['shell', 'cmd', 'package', 'list', 'packages', '-U', '--user', '0', androidPackage]))
+          .entries
+          .singleWhere((e) => e.value == androidPackage)
+          .key;
 
   final lines = <Map<String, Object?>>[];
   final sink = out == null || dryRun ? null : File(out).openWrite(mode: FileMode.append);
@@ -120,12 +127,13 @@ Future<void> main(List<String> argv) async {
       final tempC = android == null ? null : await coolDown(android, maxTempC);
       // Started just before the launch, so all of the app's time falls within its samples.
       final meter = await LoadMeter.start(MacProbe(), runExecutable: android == null ? File(macApp(mode)).resolveSymbolicLinksSync() : null);
-      final (output, gpuTrace, machineLoad) = android != null
-          // On a phone the meter reads the Mac that drives adb.
-          ? (await runAndroid(android, flags), null, await meter.stop())
+      // On a phone [meter] reads the Mac that drives adb, and the device meter the phone.
+      final device = android == null ? null : await DeviceMeter.start(AdbProbe(android), runUid: appUid!);
+      final (output, gpuTrace, machineLoad, deviceLoad) = android != null
+          ? await runAndroid(android, flags, meter, device!).then((r) => (r.$1, null, r.$2, r.$3))
           : trace
-              ? await runTraced(macApp(mode), flags, double.parse(seconds), meter)
-              : await runMac(macApp(mode), flags, meter).then((r) => (r.$1, null, r.$2));
+              ? await runTraced(macApp(mode), flags, double.parse(seconds), meter).then((r) => (r.$1, r.$2, r.$3, null))
+              : await runMac(macApp(mode), flags, meter).then((r) => (r.$1, null, r.$2, null));
       final found = const LineSplitter().convert(output).where((l) => l.startsWith('[bench] {'));
       if (found.isEmpty) {
         stderr.writeln('run failed, no result line:\n$output');
@@ -137,6 +145,7 @@ Future<void> main(List<String> argv) async {
         if (tempC != null) 'deviceTempC': tempC,
         if (gpuTrace != null) 'gpuTrace': gpuTrace,
         'machineLoad': machineLoad,
+        if (deviceLoad != null) 'deviceLoad': deviceLoad,
         'commit': dirty ? '$commit+dirty' : commit,
         'machine': machine,
         'extra': extra.join(' '),
@@ -151,6 +160,7 @@ Future<void> main(List<String> argv) async {
       sink?.writeln(jsonEncode(line));
       stderr.writeln('  fps ${line['fps']}  gpu latency p50 ${(line['gpuLatencyMs'] as Map)['p50']} ms  build p50 ${(line['buildMs'] as Map)['p50']} ms');
       stderr.writeln('  machine: ${describeLoad(machineLoad)}');
+      if (deviceLoad != null) stderr.writeln('  device: ${describeLoad(deviceLoad)}');
     }
   }
   await sink?.close();
@@ -197,7 +207,10 @@ Future<(ProcessResult, Map<String, Object?>)> timed(String executable, List<Stri
 /// that ends without its line died: the reason Android recorded for its exit
 /// and the crash log (signal, backtrace) follow, since the `flutter` tag holds
 /// neither.
-Future<String> runAndroid(String serial, List<String> flags) async {
+///
+/// [meter] and [device] stop as soon as the process is gone, before logcat is
+/// read back: the read is the script's work, not the run's.
+Future<(String, Map<String, Object?>, Map<String, Object?>)> runAndroid(String serial, List<String> flags, LoadMeter meter, DeviceMeter device) async {
   await adb(serial, ['logcat', '-c']);
   await adb(serial, ['shell', 'am', 'start', '-S', '-W', '-n', '$androidPackage/.MainActivity', '--esal', 'dart_entrypoint_args', flags.join(',')]);
   final pid = (await Process.run('adb', ['-s', serial, 'shell', 'pidof', androidPackage])).stdout.toString().trim();
@@ -206,15 +219,17 @@ Future<String> runAndroid(String serial, List<String> flags) async {
     if (DateTime.now().isAfter(deadline)) throw StateError('the run on $serial did not end in 3 minutes');
     await Future<void>.delayed(const Duration(seconds: 1));
   }
+  final deviceLoad = await device.stop();
+  final machineLoad = await meter.stop();
   final output = await adb(serial, ['logcat', '-d', '-v', 'raw', '-s', 'flutter:I']);
-  if (output.contains('[bench] {')) return output;
+  if (output.contains('[bench] {')) return (output, machineLoad, deviceLoad);
   // `dumpsys activity exit-info` lists the package's last exits, newest first,
   // each as a `timestamp=... pid=N` line and a `process=... reason=...` one.
   final exits = const LineSplitter().convert(await adb(serial, ['shell', 'dumpsys', 'activity', 'exit-info', androidPackage]));
   final at = exits.indexWhere((l) => l.contains(' pid=$pid '));
   final exit = pid.isEmpty ? 'the process was gone when `am start` returned' : at < 0 ? 'no exit recorded for pid $pid' : exits[at + 1].trim();
   final crash = await adb(serial, ['logcat', '-d', '-v', 'raw', '-b', 'crash']);
-  return '$output\n\nexit: $exit\n\ncrash log:\n${crash.isEmpty ? '(empty)' : crash}';
+  return ('$output\n\nexit: $exit\n\ncrash log:\n${crash.isEmpty ? '(empty)' : crash}', machineLoad, deviceLoad);
 }
 
 /// One run on this Mac under a Metal System Trace: the app's stdout, and the
@@ -504,6 +519,7 @@ String table(List<Map<String, Object?>> lines) {
     b.writeln('\n**Screen locked during $locked of ${lines.length} runs**: their GPU and fps columns are not what a player sees.');
   }
   if (lines.isNotEmpty) b.write('\n${isolationReport(lines, '**Machine load**')}');
+  if (lines.any((l) => l.containsKey('deviceLoad'))) b.write('\n${isolationReport(lines, '**Device load**', key: 'deviceLoad')}');
   final first = lines.isEmpty ? null : lines.first;
   if (first != null) {
     b.writeln('\n${first['machine']} · ${first['platform']} · ${first['window']} @${first['dpr']}x · '
@@ -545,5 +561,10 @@ String comparison(List<Map<String, Object?>> before, List<Map<String, Object?>> 
   b
     ..write('\n${isolationReport(before, '**Machine load, before**')}')
     ..write('\n${isolationReport(after, '**Machine load, after**')}');
+  if ([...before, ...after].any((l) => l.containsKey('deviceLoad'))) {
+    b
+      ..write('\n${isolationReport(before, '**Device load, before**', key: 'deviceLoad')}')
+      ..write('\n${isolationReport(after, '**Device load, after**', key: 'deviceLoad')}');
+  }
   return b.toString();
 }

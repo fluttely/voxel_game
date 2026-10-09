@@ -1,5 +1,6 @@
 // Tests for machine_load.dart (PFD1), from the repository's root:
 //   dart test tool/
+// The phone's tests read adb output cut from the Galaxy S24's.
 // `package:test` resolves through the workspace (voxel_engine's dev dependency).
 @TestOn('vm')
 library;
@@ -70,6 +71,85 @@ Future<Map<String, Object?>> read(
 Map<int, Map<String, Object?>> besideByPid(Map<String, Object?> load) => {
   for (final row in (load['beside'] as List).cast<Map<String, Object?>>()) row['pid'] as int: row,
 };
+
+/// The device's cumulative counters as [AdbProbe.counters] prints them, on 2 cores and 2 GPU clock levels.
+String counters({
+  required double uptimeS,
+  required int busyTicks,
+  required List<int> gpuBusyUs,
+  required Map<int, int> gpuActiveNs,
+  int cpuSome = 0,
+  (int, int) swapPages = (0, 0),
+}) =>
+    '@@ uptime\n$uptimeS 700.00\n'
+    // user nice system idle iowait irq softirq steal guest guest_nice: busy is all but idle and iowait.
+    '@@ stat\ncpu  ${busyTicks - 100} 50 50 9000 300 0 0 0 7 0\ncpu0 1 0 0 1 0 0 0 0 0 0\ncpu1 1 0 0 1 0 0 0 0 0 0\nintr 1 2 3\n'
+    '@@ gpuclock\n${gpuBusyUs.join(' ')} \n'
+    '@@ gpulevels\n1000000000 500000000 \n'
+    '@@ cpupressure\nsome avg10=10.21 avg60=8.23 avg300=6.76 total=$cpuSome\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=0\n'
+    '@@ memorypressure\nsome avg10=0.33 avg60=0.34 avg300=0.19 total=0\nfull avg10=0.18 avg60=0.15 avg300=0.08 total=0\n'
+    '@@ vmstat\npswpin ${swapPages.$1}\npswpout ${swapPages.$2}\n'
+    '@@ gpuwork\nGPU work information.\ngpu_id uid total_active_duration_ns total_inactive_duration_ns\n'
+    '${[for (final MapEntry(:key, :value) in gpuActiveNs.entries) '1 $key $value 99999'].join('\n')}\n';
+
+/// One row of `ps -A -o PID,PPID,UID,TIME+,RSS,NAME,ARGS`, 10 MB resident.
+String psRow(int pid, int ppid, int uid, String name, double cpuS) {
+  final minutes = cpuS ~/ 60, seconds = (cpuS - minutes * 60).toStringAsFixed(2).padLeft(5, '0');
+  return '${'$pid'.padLeft(5)} ${'$ppid'.padLeft(5)} ${'$uid'.padLeft(5)} ${'$minutes:$seconds'.padLeft(9)} '
+      '${ppid == 2 ? '    0' : '10240'} ${name.padRight(27)} $name';
+}
+
+/// The device's state as [AdbProbe.state] prints it, cut from the S24's.
+String state(List<String> ps) =>
+    '@@ ps\n  PID  PPID   UID     TIME+    RSS NAME                        ARGS\n${ps.join('\n')}\n'
+    '@@ meminfo\nMemTotal:       11350704 kB\nMemFree:          750960 kB\nMemAvailable:    3295536 kB\n'
+    'SwapTotal:       8388604 kB\nSwapFree:        4292604 kB\n'
+    '@@ gpumem\nMemory snapshot for GPU 0:\nGlobal total: 545112064\nProc 684 total: 11747328\n'
+    '@@ gpubusy\n13 %\n'
+    '@@ thermal\nThermal Status: 0\nCached temperatures:\n'
+    '\tTemperature{mValue=45.0, mType=0, mName=AP, mStatus=0}\n'
+    'HAL Ready: true\nCurrent temperatures from HAL:\n'
+    '\tTemperature{mValue=40.7, mType=0, mName=AP, mStatus=0}\n'
+    '\tTemperature{mValue=32.2, mType=2, mName=BAT, mStatus=0}\n'
+    '\tTemperature{mValue=34.6, mType=3, mName=SKIN, mStatus=0}\n'
+    '\tTemperature{mValue=0.0, mType=2, mName=SUBBAT, mStatus=0}\n'
+    'Current cooling devices from HAL:\n'
+    '@@ battery\nCurrent Battery Service state:\n  AC powered: true\n  USB powered: false\n  Wireless powered: false\n'
+    '  Dock powered: false\n  status: 2\n  level: 53\n  scale: 100\n  temperature: 326\n  technology: Li-ion\n'
+    '@@ lowpower\n0\n';
+
+DeviceReading readingOf(String countersText, String stateText) {
+  final sections = parseSections(stateText);
+  final (table, uids) = parseDeviceProcesses(sections['ps']!);
+  return (table, uids, parseCounters(parseSections(countersText)), deviceState(sections));
+}
+
+/// A phone that answers from fixed text, in the order the meter asks.
+final class FakeDeviceProbe implements DeviceProbe {
+  FakeDeviceProbe(this._counters, this._states, this._packages);
+
+  final List<String> _counters, _states;
+  final String _packages;
+  final calls = <String>[];
+
+  @override
+  Future<String> counters() async {
+    calls.add('counters');
+    return _counters.removeAt(0);
+  }
+
+  @override
+  Future<String> state() async {
+    calls.add('state');
+    return _states.removeAt(0);
+  }
+
+  @override
+  Future<String> packages() async {
+    calls.add('packages');
+    return _packages;
+  }
+}
 
 void main() {
   group('a reading', () {
@@ -281,6 +361,181 @@ void main() {
       );
       expect(parseLowPowerMode(' standby              1\n lowpowermode         0\n'), isFalse);
       expect(() => parseLowPowerMode(' standby 1\n'), throwsStateError);
+    });
+  });
+
+  group('a phone\'s reading', () {
+    const app = 10528;
+    final start = readingOf(
+      counters(uptimeS: 100.0, busyTicks: 1000, gpuBusyUs: [0, 100], gpuActiveNs: {1000: 0, app: 50, 10049: 0}),
+      state([
+        psRow(2680, 1635, 1000, 'system_server', 100.0),
+        psRow(1184, 2, 0, '[crtc_commit:201]', 50.0),
+        psRow(4840, 2, 0, '[kworker/u16:12-adb]', 10.0),
+        psRow(21953, 1635, 10218, 'com.whatsapp', 20.0),
+        psRow(700, 1635, 10300, 'com.example.quiet', 5.0),
+      ]),
+    );
+
+    test('reads the counters and the state adb printed', () {
+      final (table, uids, before, state) = start;
+      expect((before.uptimeS, before.busyTicks, before.processors), (100.0, 1000, 2));
+      expect(
+        [before.gpuBusyUs, before.gpuLevelsHz],
+        [
+          [0, 100],
+          [1000000000, 500000000],
+        ],
+      );
+      expect(before.pressureUs, {'cpuSome': 0, 'memorySome': 0, 'memoryFull': 0});
+      expect(before.swapPages, (0, 0));
+      expect(before.gpuActiveNs, {1000: 0, app: 50, 10049: 0});
+      final server = table[(pid: 2680, ppid: 1635, uid: 1000)]!;
+      expect(
+        (server.ppid, server.executable, server.command, server.rssMb),
+        (1635, 'system_server', 'system_server', 10.0),
+      );
+      expect(uids[(pid: 21953, ppid: 1635, uid: 10218)], 10218);
+      expect(state, {
+        'memoryTotalMb': 11085,
+        'memoryAvailableMb': 3218,
+        'memoryFreeMb': 733,
+        'swapUsedMb': 4000,
+        'gpuMemoryMb': 520,
+        'gpuBusyPercent': 13,
+        'thermalStatus': 0,
+        'temperaturesC': {'AP': 40.7, 'BAT': 32.2, 'SKIN': 34.6},
+        'battery': {'levelPercent': 53, 'power': 'AC', 'temperatureC': 32.6},
+        'lowPowerMode': false,
+      });
+    });
+
+    test('a quiet phone is isolated: its servers and kernel threads are listed, the app\'s GPU is the run\'s', () {
+      final end = readingOf(
+        counters(
+          uptimeS: 110.0,
+          busyTicks: 3000,
+          gpuBusyUs: [2000000, 4000100],
+          gpuActiveNs: {1000: 1000000000, app: 5000000050, 10049: 1000000},
+          cpuSome: 500000,
+          swapPages: (51, 1303),
+        ),
+        state([
+          psRow(2680, 1635, 1000, 'system_server', 103.0),
+          psRow(1184, 2, 0, '[crtc_commit:201]', 52.0),
+          // The same kernel worker, renamed by the work it took: the same process.
+          psRow(4840, 2, 0, '[kworker/u16:12-memlat_wq]', 10.5),
+          psRow(21953, 1635, 10218, 'com.whatsapp', 20.5),
+          psRow(700, 1635, 10300, 'com.example.quiet', 5.05),
+        ]),
+      );
+      final load = deviceLoad(start, end, runUid: app);
+      expect(load['isolated'], isTrue, reason: '$load');
+      // 2 cores busy over 10 s; the named processes 0.30 + 0.20 + 0.05 + 0.05 + 0.005.
+      expect((load['wallS'], load['busyCores'], load['appAndUnnamedCores']), (10.0, 2.0, 1.4));
+      expect((load['runGpuShare'], load['gpuBusyShare'], load['gpuMeanBusyMhz']), (0.5, 0.6, 667));
+      expect((load['cpuPressureSomeShare'], load['pagesSwappedIn'], load['pagesSwappedOut']), (0.05, 51, 1303));
+      final rows = [
+        for (final row in (load['beside'] as List).cast<Map<String, Object?>>()) (row['command'], row['counted']),
+      ];
+      expect(rows, [
+        ('system_server', false),
+        ('system_server', false),
+        ('[crtc_commit:201]', false),
+        ('[kworker/u16:12-memlat_wq]', false),
+        ('com.whatsapp', false),
+      ]);
+      expect((load['beside'] as List).first, {
+        'uid': 1000,
+        'command': 'system_server',
+        'gpuShare': 0.1,
+        'counted': false,
+      });
+      expect(describeLoad(load), 'isolated');
+    });
+
+    test('another app counts by its CPU, by its uid\'s GPU, and a process born or reborn during the run by all its time', () {
+      final end = readingOf(
+        counters(
+          uptimeS: 110.0,
+          busyTicks: 1500,
+          gpuBusyUs: [0, 100],
+          gpuActiveNs: {1000: 0, app: 50, 10049: 200000000, 10777: 300000000},
+        ),
+        state([
+          psRow(2680, 1635, 1000, 'system_server', 100.0),
+          psRow(21953, 1635, 10218, 'com.whatsapp', 22.0),
+          psRow(800, 1635, 10301, 'com.example.updater', 1.5),
+          // The quiet app's pid, parent and uid, with less CPU time than it had: another process.
+          psRow(700, 1635, 10300, 'com.example.reborn', 1.2),
+        ]),
+      );
+      final load = deviceLoad(start, end, runUid: app, packages: {10777: 'com.example.gone'});
+      expect(load['isolated'], isFalse);
+      expect(
+        describeLoad(load),
+        'beside: 3.0% gpu com.example.gone; 2.0% gpu uid 10049; 0.20 core com.whatsapp; 0.15 core com.example.updater; '
+        '0.12 core com.example.reborn',
+      );
+    });
+
+    test('the meter reads the state before the counters at the start, after them at the stop, and names a uid by its packages', () async {
+      final probe = FakeDeviceProbe(
+        [
+          counters(uptimeS: 100.0, busyTicks: 1000, gpuBusyUs: [0, 0], gpuActiveNs: {app: 0}),
+          counters(uptimeS: 110.0, busyTicks: 1000, gpuBusyUs: [0, 0], gpuActiveNs: {app: 0, 10777: 500000000}),
+        ],
+        [state([]), state([])],
+        'package:com.example.b uid:10777\npackage:com.example.a uid:10777\npackage:other uid:10001\n',
+      );
+      final meter = await DeviceMeter.start(probe, runUid: app);
+      expect(probe.calls, ['state', 'counters']);
+      final load = await meter.stop();
+      expect(probe.calls, ['state', 'counters', 'counters', 'state', 'packages']);
+      expect(describeLoad(load), 'beside: 5.0% gpu com.example.a, com.example.b');
+    });
+
+    test('the report names each phone run that was not alone', () {
+      final end = readingOf(
+        counters(uptimeS: 110.0, busyTicks: 1000, gpuBusyUs: [0, 100], gpuActiveNs: {1000: 0, app: 50, 10049: 0}),
+        state([psRow(21953, 1635, 10218, 'com.whatsapp', 22.0)]),
+      );
+      final lines = [
+        {
+          'scenario': 'orbit',
+          'radius': 6,
+          'round': 0,
+          'machineLoad': null,
+          'deviceLoad': deviceLoad(start, end, runUid: app),
+        },
+      ];
+      expect(
+        isolationReport(lines, 'device', key: 'deviceLoad'),
+        'device: isolated in 0 of 1 runs\n'
+        '- run 1 (orbit:6, round 0): beside: 0.20 core com.whatsapp\n',
+      );
+    });
+
+    test('a uid running many processes is named by three', () {
+      final end = readingOf(
+        counters(
+          uptimeS: 110.0,
+          busyTicks: 1000,
+          gpuBusyUs: [0, 100],
+          gpuActiveNs: {1000: 0, app: 50, 10049: 500000000},
+        ),
+        state([
+          for (final (i, name) in ['d', 'c', 'b', 'a'].indexed) psRow(900 + i, 1, 10049, name, 0.0),
+        ]),
+      );
+      expect(describeLoad(deviceLoad(start, end, runUid: app)), 'beside: 5.0% gpu a, b, c +1');
+    });
+
+    test('a GPU work table missing from dumpsys fails', () {
+      expect(
+        () => parseCounters(parseSections('@@ uptime\n1.0 2.0\n@@ gpuwork\nGPU work information.\n')),
+        throwsStateError,
+      );
     });
   });
 

@@ -30,8 +30,8 @@
 // GPU share misses up to [pollInterval] of its end. macOS only; every failure
 // is fatal.
 //
-// On a phone (`--android`) the meter reads the Mac that drives adb; the
-// phone's own load is not read yet (PFD1).
+// On a phone (`--android`) this meter reads the Mac that drives adb, and
+// [DeviceMeter] the phone's own load (`deviceLoad`), from two reads over adb.
 import 'dart:async';
 import 'dart:convert';
 import 'dart:ffi';
@@ -251,14 +251,19 @@ num _median(List<int> sorted) {
 String describeLoad(Map<String, Object?>? load) {
   if (load == null) return notRecorded;
   if (load['isolated'] == true) return 'isolated';
+  // A device's rows hold a process's CPU or a uid's GPU, never both, and its
+  // unnamed CPU and swapping are not counted (DeviceMeter): it has neither key.
   final parts = [
     for (final row in (load['beside'] as List).cast<Map<String, Object?>>())
       if (row['counted'] == true)
-        '${(row['coreShare'] as num).toStringAsFixed(2)} core ${((row['gpuShare'] as num) * 100).toStringAsFixed(1)}% gpu '
-            '${_shorten(row['command'] as String, 100)}',
-    if ((load['unnamedCores'] as num) >= unnamedMax)
-      '${(load['unnamedCores'] as num).toStringAsFixed(2)} core unnamed (short-lived processes)',
-    if (load['swappedPages'] != 0) '${load['swappedPages']} pages swapped',
+        [
+          if (row['coreShare'] case final num core) '${core.toStringAsFixed(2)} core',
+          if (row['gpuShare'] case final num gpu) '${(gpu * 100).toStringAsFixed(1)}% gpu',
+          _shorten(row['command'] as String, 100),
+        ].join(' '),
+    if (load['unnamedCores'] case final num unnamed when unnamed >= unnamedMax)
+      '${unnamed.toStringAsFixed(2)} core unnamed (short-lived processes)',
+    if (load['swappedPages'] case final int swapped when swapped != 0) '$swapped pages swapped',
   ];
   return 'beside: ${parts.join('; ')}';
 }
@@ -266,9 +271,10 @@ String describeLoad(Map<String, Object?>? load) {
 String _shorten(String text, int chars) => text.length <= chars ? text : '${text.substring(0, chars)}…';
 
 /// How many of [lines] ran alone, and each other run with the work beside it:
-/// the line a report quotes. [name] says whose lines they are.
-String isolationReport(List<Map<String, Object?>> lines, String name) {
-  final loads = [for (final l in lines) l['machineLoad'] as Map<String, Object?>?];
+/// the line a report quotes. [name] says whose lines they are, [key] which
+/// load: the machine's that ran the benchmark, or a phone's (`deviceLoad`).
+String isolationReport(List<Map<String, Object?>> lines, String name, {String key = 'machineLoad'}) {
+  final loads = [for (final l in lines) l[key] as Map<String, Object?>?];
   final recorded = loads.whereType<Map<String, Object?>>().length;
   final isolated = loads.where((l) => l != null && l['isolated'] == true).length;
   final b = StringBuffer(
@@ -539,4 +545,420 @@ final class _HostStatistics {
       _free(buffer);
     }
   }
+}
+
+// ---------------------------------------------------------------- Android
+
+/// The servers that work for whoever draws, plays sound or answers adb on an
+/// Android device, the run included (the S24's names): listed, never counted.
+/// So are the kernel's threads (`kthreadd` and its children), and `gpuservice`,
+/// which answers the meter's own `dumpsys gpu`.
+const deviceOnBehalf = {
+  'surfaceflinger',
+  'system_server',
+  'vendor.qti.hardware.display.composer-service',
+  'audioserver',
+  'android.hardware.audio.service_64',
+  'gpuservice',
+  'adbd',
+  'logd',
+};
+
+/// The uid whose GPU time is the compositor's: surfaceflinger and the composer
+/// run as `system`, and so do system_server and the Settings app.
+const systemUid = 1000;
+
+/// `/proc/stat`'s and `ps`'s clock: Android's ABI fixes USER_HZ at 100.
+const ticksPerSecond = 100;
+
+/// What [DeviceMeter] reads from a device: [AdbProbe] over adb, fixed text in
+/// the tests. Each read is one `adb shell` whose sections [parseSections]
+/// splits.
+abstract interface class DeviceProbe {
+  /// The cumulative counters: uptime, `/proc/stat`, the GPU's busy time per
+  /// clock level, pressure stall, swap, and each uid's GPU time.
+  Future<String> counters();
+
+  /// The process table and the device's state at one moment.
+  Future<String> state();
+
+  /// The packages each uid holds, `cmd package list packages -U`.
+  Future<String> packages();
+}
+
+/// One reading's cumulative counters.
+class DeviceCounters {
+  const DeviceCounters(
+    this.uptimeS,
+    this.busyTicks,
+    this.processors,
+    this.gpuBusyUs,
+    this.gpuLevelsHz,
+    this.pressureUs,
+    this.swapPages,
+    this.gpuActiveNs,
+  );
+
+  final double uptimeS;
+  final int busyTicks, processors;
+
+  /// The GPU's busy time at each clock level, [gpuLevelsHz]'s order.
+  final List<int> gpuBusyUs, gpuLevelsHz;
+
+  /// `/proc/pressure`'s totals: `cpuSome`, `memorySome`, `memoryFull`.
+  final Map<String, int> pressureUs;
+
+  /// `pswpin` and `pswpout`.
+  final (int, int) swapPages;
+
+  /// Each uid's GPU time since boot, `dumpsys gpu --gpuwork`.
+  final Map<int, int> gpuActiveNs;
+}
+
+/// What an Android device ran beside a run, read before the launch and after
+/// the app exits (`deviceLoad`). Two reads, never a poll: a poll is an `adb
+/// shell` on the phone every interval, itself load. So the app is gone by the
+/// second read, and its CPU time with it: the device's busy cores minus every
+/// named process's is the app's and the short-lived processes' together
+/// (`appAndUnnamedCores`, the meter's own `adb shell`s included), never
+/// counted. The app's uid keeps its GPU time after it exits: the run's GPU
+/// share is its uid's.
+class DeviceMeter {
+  DeviceMeter._(this._probe, this._runUid, this._table, this._uids, this._counters, this._state);
+
+  /// Reads the process table and state first and the counters last, so the
+  /// reading's own cost falls before the run's window.
+  static Future<DeviceMeter> start(DeviceProbe probe, {required int runUid}) async {
+    final state = parseSections(await probe.state());
+    final (table, uids) = parseDeviceProcesses(state['ps']!);
+    final counters = parseCounters(parseSections(await probe.counters()));
+    return DeviceMeter._(probe, runUid, table, uids, counters, deviceState(state));
+  }
+
+  final DeviceProbe _probe;
+  final int _runUid;
+  final Map<DeviceProcess, ProcessSample> _table;
+  final Map<DeviceProcess, int> _uids;
+  final DeviceCounters _counters;
+  final Map<String, Object?> _state;
+
+  /// Reads the counters first, then the process table and state, and returns
+  /// what ran beside the run and the device's state, as its line records them.
+  Future<Map<String, Object?>> stop() async {
+    final counters = parseCounters(parseSections(await _probe.counters()));
+    final state = parseSections(await _probe.state());
+    final (table, uids) = parseDeviceProcesses(state['ps']!);
+    final gpuNames = <int, String>{};
+    final unnamedUids = {
+      for (final uid in counters.gpuActiveNs.keys)
+        if (!uids.values.contains(uid) && !_uids.values.contains(uid)) uid,
+    };
+    if (unnamedUids.isNotEmpty) gpuNames.addAll(parsePackageUids(await _probe.packages()));
+    return deviceLoad(
+      (_table, _uids, _counters, _state),
+      (table, uids, counters, deviceState(state)),
+      runUid: _runUid,
+      packages: gpuNames,
+    );
+  }
+}
+
+typedef DeviceReading = (
+  Map<DeviceProcess, ProcessSample> table,
+  Map<DeviceProcess, int> uids,
+  DeviceCounters counters,
+  Map<String, Object?> state,
+);
+
+/// What ran beside a run between two readings of a device ([DeviceMeter]).
+/// [packages] names the uids no process in either table runs as.
+Map<String, Object?> deviceLoad(
+  DeviceReading start,
+  DeviceReading end, {
+  required int runUid,
+  Map<int, String> packages = const {},
+}) {
+  final (startTable, startUids, before, _) = start;
+  final (endTable, endUids, after, _) = end;
+  final wallS = after.uptimeS - before.uptimeS;
+  if (wallS <= 0) throw StateError('machine_load: the device\'s uptime did not advance');
+  final busyCores = (after.busyTicks - before.busyTicks) / ticksPerSecond / wallS;
+
+  var named = 0.0;
+  final beside = <Map<String, Object?>>[];
+  for (final MapEntry(:key, value: process) in endTable.entries) {
+    if (endUids[key] == runUid) continue;
+    // A process first seen at the end, or whose pid was reused, started during the run: all its time counts.
+    final since = startTable[key]?.cpuS ?? 0.0;
+    final cpuShare = (process.cpuS - (since <= process.cpuS ? since : 0.0)) / wallS;
+    named += cpuShare;
+    if (cpuShare >= listedCpu) {
+      beside.add({
+        'pid': process.pid,
+        'command': _truncate(process.command),
+        'coreShare': _round(cpuShare, 3),
+        'rssMb': _round(process.rssMb, 1),
+        'counted': !_deviceOnBehalf(process) && cpuShare >= countedCpu,
+      });
+    }
+  }
+
+  String uidName(int uid) {
+    final names = {
+      for (final table in [(endTable, endUids), (startTable, startUids)])
+        for (final MapEntry(:key, value: uidOf) in table.$2.entries)
+          if (uidOf == uid) table.$1[key]!.executable,
+    };
+    if (names.isEmpty) return packages[uid] ?? 'uid $uid';
+    // A system uid runs dozens of processes: three name it.
+    final sorted = names.toList()..sort();
+    return sorted.length <= 3 ? sorted.join(', ') : '${sorted.take(3).join(', ')} +${sorted.length - 3}';
+  }
+
+  var runGpu = 0.0;
+  for (final MapEntry(key: uid, value: ns) in after.gpuActiveNs.entries) {
+    final gpuShare = (ns - (before.gpuActiveNs[uid] ?? 0)) / 1e9 / wallS;
+    if (uid == runUid) {
+      runGpu = gpuShare;
+    } else if (gpuShare >= listedGpu) {
+      beside.add({
+        'uid': uid,
+        'command': _truncate(uidName(uid)),
+        'gpuShare': _round(gpuShare, 4),
+        'counted': uid != systemUid && gpuShare >= countedGpu,
+      });
+    }
+  }
+  int rank(Map<String, Object?> row) => row['counted'] == true ? 1 : 0;
+  double share(Map<String, Object?> row, String key) => (row[key] as double?) ?? 0.0;
+  beside.sort(
+    (a, b) => [
+      rank(b).compareTo(rank(a)),
+      share(b, 'gpuShare').compareTo(share(a, 'gpuShare')),
+      share(b, 'coreShare').compareTo(share(a, 'coreShare')),
+    ].firstWhere((c) => c != 0, orElse: () => 0),
+  );
+
+  final gpuBusy = [for (final (i, us) in after.gpuBusyUs.indexed) us - before.gpuBusyUs[i]];
+  final gpuBusyUs = gpuBusy.fold(0, (a, b) => a + b);
+  double pressure(String name) => _round((after.pressureUs[name]! - before.pressureUs[name]!) / 1e6 / wallS, 4);
+  return {
+    'cores': after.processors,
+    'isolated': !beside.any((row) => row['counted'] == true),
+    'wallS': _round(wallS, 1),
+    'busyCores': _round(busyCores, 2),
+    'appAndUnnamedCores': _round(math.max(0.0, busyCores - named), 2),
+    'runGpuShare': _round(runGpu, 3),
+    'gpuBusyShare': _round(gpuBusyUs / 1e6 / wallS, 3),
+    'gpuMeanBusyMhz': gpuBusyUs == 0
+        ? 0
+        : (gpuBusy.indexed.fold(0.0, (sum, e) => sum + e.$2 * after.gpuLevelsHz[e.$1]) / gpuBusyUs / 1e6).round(),
+    'cpuPressureSomeShare': pressure('cpuSome'),
+    'memoryPressureSomeShare': pressure('memorySome'),
+    'memoryPressureFullShare': pressure('memoryFull'),
+    'pagesSwappedIn': after.swapPages.$1 - before.swapPages.$1,
+    'pagesSwappedOut': after.swapPages.$2 - before.swapPages.$2,
+    'beside': beside,
+    'start': start.$4,
+    'end': end.$4,
+  };
+}
+
+bool _deviceOnBehalf(ProcessSample process) =>
+    process.pid == 2 || process.ppid == 2 || deviceOnBehalf.contains(process.executable);
+
+/// [AdbProbe]'s output, cut at its `@@ name` lines.
+Map<String, String> parseSections(String text) {
+  final sections = <String, String>{};
+  for (final part in text.split(RegExp(r'^@@ ', multiLine: true)).skip(1)) {
+    final newline = part.indexOf('\n');
+    sections[(newline < 0 ? part : part.substring(0, newline)).trim()] = newline < 0 ? '' : part.substring(newline + 1);
+  }
+  return sections;
+}
+
+/// A device's process, as two reads tell it from another: a kernel worker's
+/// name changes with the work it takes, and `ps`'s start time (`STIME`) is
+/// worked out from the clock at each read and moves by a second between two.
+/// A pid reused during the run by the same parent and uid is told by its CPU
+/// time going down ([deviceLoad]).
+typedef DeviceProcess = ({int pid, int ppid, int uid});
+
+/// The process table from `ps -A -o PID,PPID,UID,TIME+,RSS,NAME,ARGS`, and
+/// each process's uid.
+(Map<DeviceProcess, ProcessSample>, Map<DeviceProcess, int>) parseDeviceProcesses(String ps) {
+  final table = <DeviceProcess, ProcessSample>{}, uids = <DeviceProcess, int>{};
+  for (final row in const LineSplitter().convert(ps).skip(1)) {
+    if (row.trim().isEmpty) continue;
+    final [pid, ppid, uid, time, rss, name, args] = _columns(row, 7);
+    final key = (pid: int.parse(pid), ppid: int.parse(ppid), uid: int.parse(uid));
+    table[key] = ProcessSample(key.pid, key.ppid, cpuSeconds(time), 0.0, int.parse(rss) / 1024.0, name, args);
+    uids[key] = int.parse(uid);
+  }
+  return (table, uids);
+}
+
+/// The counters' sections ([AdbProbe.counters]).
+DeviceCounters parseCounters(Map<String, String> sections) {
+  String section(String name) => sections[name] ?? (throw StateError('machine_load: the device gave no $name'));
+  final stat = const LineSplitter().convert(section('stat'));
+  // cpu  user nice system idle iowait irq softirq steal guest guest_nice: guest is inside user.
+  final cpu = stat.first.split(RegExp(r'\s+')).skip(1).take(8).map(int.parse).toList();
+  final busy = cpu.fold(0, (a, b) => a + b) - cpu[3] - cpu[4];
+  int pressureTotal(String text, String kind) {
+    final m = RegExp('^$kind .*total=(\\d+)', multiLine: true).firstMatch(text);
+    if (m == null) throw StateError('machine_load: no "$kind" pressure in $text');
+    return int.parse(m[1]!);
+  }
+
+  final vmstat = {
+    for (final line in const LineSplitter().convert(section('vmstat')))
+      if (line.contains(' ')) line.split(' ').first: int.parse(line.split(' ').last),
+  };
+  final gpuwork = const LineSplitter().convert(section('gpuwork'));
+  if (!gpuwork.any((l) => l.startsWith('gpu_id uid total_active_duration_ns')))
+    throw StateError('machine_load: dumpsys gpu --gpuwork has no table: ${section('gpuwork')}');
+  final gpuActiveNs = <int, int>{};
+  for (final line in gpuwork) {
+    final m = RegExp(r'^\d+ (\d+) (\d+) \d+$').firstMatch(line.trim());
+    if (m != null) gpuActiveNs[int.parse(m[1]!)] = (gpuActiveNs[int.parse(m[1]!)] ?? 0) + int.parse(m[2]!);
+  }
+  List<int> numbers(String text) => text.trim().split(RegExp(r'\s+')).map(int.parse).toList();
+  final gpuBusyUs = numbers(section('gpuclock')), gpuLevelsHz = numbers(section('gpulevels'));
+  if (gpuBusyUs.length != gpuLevelsHz.length)
+    throw StateError('machine_load: the GPU\'s clock levels do not match its busy times');
+  return DeviceCounters(
+    double.parse(section('uptime').trim().split(' ').first),
+    busy,
+    stat.where((l) => RegExp(r'^cpu\d').hasMatch(l)).length,
+    gpuBusyUs,
+    gpuLevelsHz,
+    {
+      'cpuSome': pressureTotal(section('cpupressure'), 'some'),
+      'memorySome': pressureTotal(section('memorypressure'), 'some'),
+      'memoryFull': pressureTotal(section('memorypressure'), 'full'),
+    },
+    (vmstat['pswpin']!, vmstat['pswpout']!),
+    gpuActiveNs,
+  );
+}
+
+/// The device's memory, GPU, thermal state and power at one moment, from
+/// [AdbProbe.state]'s sections.
+Map<String, Object?> deviceState(Map<String, String> sections) {
+  String section(String name) => sections[name] ?? (throw StateError('machine_load: the device gave no $name'));
+  final meminfo = {
+    for (final line in const LineSplitter().convert(section('meminfo')))
+      if (line.contains(':'))
+        line.substring(0, line.indexOf(':')): int.parse(line.substring(line.indexOf(':') + 1).trim().split(' ').first),
+  };
+  int mb(String name) => (meminfo[name]! / 1024).round();
+  final gpuMemory = RegExp(r'Global total: (\d+)').firstMatch(section('gpumem'));
+  if (gpuMemory == null) throw StateError('machine_load: dumpsys gpu --gpumem has no global total');
+  final busy = RegExp(r'^(\d+) %').firstMatch(section('gpubusy').trim());
+  if (busy == null) throw StateError('machine_load: gpu_busy_percentage reads ${section('gpubusy')}');
+  final lowPower = section('lowpower').trim();
+  if (lowPower != '0' && lowPower != '1') throw StateError('machine_load: settings low_power reads $lowPower');
+  return {
+    'memoryTotalMb': mb('MemTotal'),
+    'memoryAvailableMb': mb('MemAvailable'),
+    'memoryFreeMb': mb('MemFree'),
+    'swapUsedMb': mb('SwapTotal') - mb('SwapFree'),
+    'gpuMemoryMb': (int.parse(gpuMemory[1]!) / _mb).round(),
+    // The driver's own busy percentage over its last short window: what the GPU was doing at this moment.
+    'gpuBusyPercent': int.parse(busy[1]!),
+    ...parseThermalService(section('thermal')),
+    'battery': parseBattery(section('battery')),
+    'lowPowerMode': lowPower == '1',
+  };
+}
+
+/// `dumpsys thermalservice`'s status (0 none … 6 shutdown) and the HAL's
+/// current temperatures by sensor.
+Map<String, Object?> parseThermalService(String text) {
+  final status = RegExp(r'^Thermal Status: (\d+)', multiLine: true).firstMatch(text);
+  final current = text.indexOf('Current temperatures from HAL:');
+  if (status == null || current < 0)
+    throw StateError('machine_load: dumpsys thermalservice has no status or temperatures');
+  final block = text.substring(current).split(RegExp(r'\n(?=\S)')).first;
+  return {
+    'thermalStatus': int.parse(status[1]!),
+    'temperaturesC': {
+      for (final m in RegExp(r'mValue=([\d.-]+), mType=\d+, mName=(\w+)').allMatches(block))
+        if (double.parse(m[1]!) != 0.0) m[2]!: double.parse(m[1]!),
+    },
+  };
+}
+
+/// `dumpsys battery`'s level, power source and temperature.
+Map<String, Object?> parseBattery(String text) {
+  String field(String name) {
+    final m = RegExp('^  $name: (.+)\$', multiLine: true).firstMatch(text);
+    if (m == null) throw StateError('machine_load: dumpsys battery has no "$name"');
+    return m[1]!.trim();
+  }
+
+  final sources = [
+    for (final source in ['AC', 'USB', 'Wireless', 'Dock'])
+      if (field('$source powered') == 'true') source,
+  ];
+  return {
+    'levelPercent': int.parse(field('level')),
+    'power': sources.isEmpty ? 'battery' : sources.join(', '),
+    'temperatureC': int.parse(field('temperature')) / 10,
+  };
+}
+
+/// Each uid's packages from `cmd package list packages -U`.
+Map<int, String> parsePackageUids(String text) {
+  final names = <int, List<String>>{};
+  for (final m in RegExp(r'^package:(\S+) uid:(\d+)', multiLine: true).allMatches(text)) {
+    names.putIfAbsent(int.parse(m[2]!), () => []).add(m[1]!);
+  }
+  return {for (final MapEntry(:key, :value) in names.entries) key: (value..sort()).join(', ')};
+}
+
+/// [DeviceProbe] over `adb -s [serial] shell`, with no root.
+final class AdbProbe implements DeviceProbe {
+  AdbProbe(this.serial);
+
+  final String serial;
+  static const _kgsl = '/sys/class/kgsl/kgsl-3d0';
+
+  @override
+  Future<String> counters() => _adbShell(serial, {
+    '@@ uptime': 'cat /proc/uptime',
+    '@@ stat': 'cat /proc/stat',
+    '@@ gpuclock': 'cat $_kgsl/gpu_clock_stats',
+    '@@ gpulevels': 'cat $_kgsl/gpu_available_frequencies',
+    '@@ cpupressure': 'cat /proc/pressure/cpu',
+    '@@ memorypressure': 'cat /proc/pressure/memory',
+    '@@ vmstat': 'grep -E "^pswp(in|out) " /proc/vmstat',
+    '@@ gpuwork': 'dumpsys gpu --gpuwork',
+  });
+
+  @override
+  Future<String> state() => _adbShell(serial, {
+    '@@ ps': 'ps -A -o PID,PPID,UID,TIME+,RSS,NAME,ARGS',
+    '@@ meminfo': 'cat /proc/meminfo',
+    '@@ gpumem': 'dumpsys gpu --gpumem',
+    '@@ gpubusy': 'cat $_kgsl/gpu_busy_percentage',
+    '@@ thermal': 'dumpsys thermalservice',
+    '@@ battery': 'dumpsys battery',
+    '@@ lowpower': 'settings get global low_power',
+  });
+
+  @override
+  Future<String> packages() => _adbShell(serial, {'': 'cmd package list packages -U --user 0'});
+}
+
+/// One `adb shell` running each command after its marker line, failing on the
+/// first that fails.
+Future<String> _adbShell(String serial, Map<String, String> commands) async {
+  final script = [
+    for (final MapEntry(:key, :value) in commands.entries) "${key.isEmpty ? '' : "echo '$key' && "}$value",
+  ].join(' && ');
+  final r = await Process.run('adb', ['-s', serial, 'shell', script]);
+  if (r.exitCode != 0) throw StateError('machine_load: adb shell failed (${r.exitCode}): ${r.stdout}${r.stderr}');
+  return '${r.stdout}';
 }
