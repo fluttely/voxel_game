@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter_scene/scene.dart';
 import 'package:vector_math/vector_math.dart';
 import 'package:voxel_engine/core.dart';
@@ -26,6 +28,13 @@ import 'terrain_material.dart';
 /// together are drawn over a few frames instead of in one long one, and a
 /// region is built once however many of its chunks changed. Nothing is drawn
 /// before [rebuild] runs.
+///
+/// [cull] hides the regions sight cannot reach from the camera through open
+/// cells, by the [ChunkVisibility] each chunk's mesh carries
+/// ([SectionOcclusion]). A hidden region's surfaces take [Node.layers] 0: the
+/// colour and depth passes skip them, while they still cast into the shadow
+/// map and leave its static cache alone, so a hill hidden behind the camera
+/// still shades what is in view.
 class VoxelChunkView implements ChunkMeshSink {
   /// A view with an empty [root] named [rootName]. Add [root] to a scene.
   VoxelChunkView({String rootName = 'World', this.regionChunks = 2})
@@ -87,6 +96,17 @@ class VoxelChunkView implements ChunkMeshSink {
   /// Regions whose chunks changed since they were last built.
   final Set<ChunkPos> _dirty = {};
 
+  /// The search [cull] runs, over the visibility of the chunks kept here; a
+  /// chunk with no mesh is crossed as open.
+  late final SectionOcclusion _occlusion = SectionOcclusion((pos) => _chunks[pos]?.visibility);
+
+  /// Whether [cull] has run: before it, every region draws.
+  bool _culled = false;
+
+  /// The corners of the chunks kept here, inclusive; null when a chunk came or
+  /// left since they were last found.
+  (ChunkPos, ChunkPos)? _span;
+
   /// What packing and building cost, in microseconds a vertex, as measured on
   /// the rebuilds so far; null before the first.
   double? _packUsPerVertex, _buildUsPerVertex;
@@ -115,14 +135,73 @@ class VoxelChunkView implements ChunkMeshSink {
   /// Keeps [surface] for chunk [pos] and marks its region to rebuild.
   @override
   void apply(ChunkPos pos, ChunkMeshResult surface) {
+    if (_chunks[pos] == null) _span = null;
     _chunks[pos] = _ViewChunk(surface);
     _dirty.add(regionOf(pos));
+    _occlusion.markChanged(pos);
   }
 
   /// Drops chunk [pos] and marks its region to rebuild.
   @override
   void remove(ChunkPos pos) {
-    if (_chunks.remove(pos) != null) _dirty.add(regionOf(pos));
+    if (_chunks.remove(pos) == null) return;
+    _dirty.add(regionOf(pos));
+    _occlusion.markChanged(pos);
+    _span = null;
+  }
+
+  /// Hides the regions sight cannot reach from [eye] through open cells, and
+  /// shows the ones it can: a region draws when any of its chunks was reached.
+  /// The search runs again only when [eye] entered another 16-tall section, or
+  /// a chunk came, changed or left since the last one; otherwise this costs
+  /// nothing. A region [rebuild] builds later takes the last search's result.
+  /// Once a frame, after [rebuild]. True when the search ran.
+  bool cull(Vector3 eye) {
+    final camera = ChunkStreamer.chunkOfXZ(eye.x.floor(), eye.z.floor());
+    final (lo, hi) = _span ??= _spanOfChunks();
+    final min = (x: math.min(lo.x, camera.x), z: math.min(lo.z, camera.z));
+    final max = (x: math.max(hi.x, camera.x), z: math.max(hi.z, camera.z));
+    if (!_occlusion.update(camera, SectionOcclusion.sectionAt(eye.y), min: min, max: max)) return false;
+    _culled = true;
+    for (final MapEntry(key: region, value: node) in _regions.entries) {
+      _show(node, _reached(region));
+    }
+    return true;
+  }
+
+  /// The corners of the chunks kept here; an empty view spans nothing, which
+  /// [cull]'s window around the camera's chunk then covers.
+  (ChunkPos, ChunkPos) _spanOfChunks() {
+    var minX = 1 << 30, minZ = 1 << 30, maxX = -(1 << 30), maxZ = -(1 << 30);
+    for (final pos in _chunks.keys) {
+      minX = math.min(minX, pos.x);
+      minZ = math.min(minZ, pos.z);
+      maxX = math.max(maxX, pos.x);
+      maxZ = math.max(maxZ, pos.z);
+    }
+    return ((x: minX, z: minZ), (x: maxX, z: maxZ));
+  }
+
+  /// Whether the last search reached a chunk of [region] that has a mesh.
+  bool _reached(ChunkPos region) {
+    final reached = _occlusion.reached;
+    for (var dx = 0; dx < regionChunks; dx++) {
+      for (var dz = 0; dz < regionChunks; dz++) {
+        final pos = (x: region.x * regionChunks + dx, z: region.z * regionChunks + dz);
+        if (_chunks.containsKey(pos) && reached.contains(pos)) return true;
+      }
+    }
+    return false;
+  }
+
+  /// Puts a region's node and its surfaces on the default layer when [shown],
+  /// on none when not. Their [Node.visible] and shadow settings stay as built.
+  static void _show(Node region, bool shown) {
+    final layers = shown ? kRenderLayerDefault : 0;
+    region.layers = layers;
+    for (final surface in region.children) {
+      surface.layers = layers;
+    }
   }
 
   /// Builds the regions whose chunks changed, the nearest to chunk [near] first,
@@ -202,6 +281,7 @@ class VoxelChunkView implements ChunkMeshSink {
     ]) {
       if (surface != null) node.add(surface);
     }
+    _show(node, !_culled || _reached(region));
     root.add(node);
     _regions[region] = node;
     var vertices = 0;
@@ -252,6 +332,7 @@ class _ViewChunk {
   _ViewChunk(ChunkMeshResult mesh)
     : _mesh = mesh,
       glow = mesh.glow,
+      visibility = mesh.visibility,
       litVertexCount = mesh.solid.vertexCount + mesh.cutout.vertexCount + mesh.liquid.vertexCount,
       vertexCount = mesh.solid.vertexCount + mesh.cutout.vertexCount + mesh.liquid.vertexCount + mesh.glow.vertexCount;
 
@@ -260,6 +341,9 @@ class _ViewChunk {
 
   /// Drawn in the engine's vertex, never packed.
   final MeshSurface glow;
+
+  /// Which faces of each section its open cells join, for [VoxelChunkView.cull].
+  final ChunkVisibility visibility;
 
   /// Vertices of the solid, cutout and liquid surfaces.
   final int litVertexCount;

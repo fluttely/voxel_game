@@ -849,6 +849,22 @@ void main() {
     game.dispose();
   });
 
+  test(
+    "the frame culls by the camera's eye, which in third person is not the player's, and not before warm-up",
+    () async {
+      final game = await _start(_flat());
+      game.player.cameraMode = CameraMode.thirdPerson;
+      await _run(game, 0.5);
+      expect(game.warmedUp, isFalse);
+      expect(game.cullEye, isNull, reason: 'the warm-up must see every terrain pipeline');
+      game.warmedUp = true;
+      game.frame(1 / 60);
+      expect(game.cullEye, game.camera().position);
+      expect(game.cullEye!.distanceTo(game.player.eyePosition), greaterThan(1.0), reason: 'the orbit sits behind');
+      game.dispose();
+    },
+  );
+
   test('a hit on a creature shows what it took', () async {
     const cow = MobSpec('cow', hp: 5, brain: []);
     final game = await _start(_flat(mobs: const [cow]));

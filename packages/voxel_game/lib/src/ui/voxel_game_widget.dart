@@ -372,6 +372,7 @@ class _VoxelGameWidgetState extends State<VoxelGameWidget> with SingleTickerProv
     if (_disposed) return;
     await game.scene!.warmUp([RenderView(camera: game.camera())], includeOffscreen: true);
     if (_disposed) return;
+    game.warmedUp = true;
     _loadingTicker.stop();
     setState(() => _stage = LoadingStage.playing);
   }

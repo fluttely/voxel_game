@@ -8,6 +8,12 @@
   that names `flutter_scene` itself moves with it. `VoxelGame.dispose` now disposes the
   scene's render targets too.
 
+- **The terrain the camera cannot see underground is not drawn (OC3).** `VoxelGame.frame`
+  calls `GameWorld.cull` (new) with the camera's eye, not the player's, once
+  `VoxelGame.warmedUp` (new) is set; `VoxelGame.cullEye` says which eye that is.
+  `VoxelGameWidget` sets `warmedUp` after its `Scene.warmUp`, which must see every
+  terrain pipeline.
+
 - **A world entered while the title is still opening the audio device keeps its sound
   and music (KL-024).** The title and the world each hold `sound_recipes`'
   `AudioDevice`, which closes after the last of them, so the title leaving can no longer

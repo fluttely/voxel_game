@@ -1043,6 +1043,7 @@ class VoxelGame {
     world.update(player.position);
     _draw(_loop.alpha);
     _camera = view.camera(this);
+    if (cullEye case final eye?) world.cull(eye);
     firstPerson?.update(dt);
     final s = sky;
     if (s != null) {
@@ -1224,6 +1225,16 @@ class VoxelGame {
       scene?.remove(e.node);
     }
   }
+
+  /// Whether the renderer's pipelines are compiled: `VoxelGameWidget` sets it
+  /// once its warm-up has drawn every render item. Until then [frame] hides no
+  /// terrain, so the warm-up sees every pipeline the terrain draws with.
+  bool warmedUp = false;
+
+  /// The eye [frame] hides the terrain from that sight cannot reach: the
+  /// [camera]'s, which in third person is not the player's; null before
+  /// [warmedUp].
+  Vector3? get cullEye => warmedUp ? camera().position : null;
 
   /// The camera this frame draws with: built once a [frame], after the
   /// bodies are placed, so the scene and whatever a HUD projects from the

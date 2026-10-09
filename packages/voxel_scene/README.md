@@ -13,6 +13,8 @@ and night sky, block models and the selection outline.
   its lit surfaces in a packed 16-byte vertex (the engine's is 72) with a vertex
   shader of its own. It rebuilds the regions that changed once a frame, nearest
   first, within a time budget, so a burst of chunks is drawn over a few frames.
+  `cull(eye)` hides the regions sight cannot reach from the camera through open cells,
+  which underground is most of them; above ground it hides nothing.
 - `TerrainMaterial`: the terrain shader (lit, fogged, shadowed).
 - `MirroredCamera`: the camera that shows `voxel_engine`'s winding the right way round.
 - `SelectionOutline`: the edges of the aimed box, one mesh, one draw; `BoxMesh`, boxes as
@@ -82,9 +84,11 @@ Dart SDK `^3.13.0`.
    streamer.updateAround(ChunkStreamer.chunkOfXZ(0, 0));
    ```
 
-4. **Show it** with a `MirroredCamera`, calling `streamer.update()` and then
-   `view.rebuild(centre)` every tick: the streamer hands the view its meshes, and the
-   view draws the regions they changed, nearest `centre` first, within its budget.
+4. **Show it** with a `MirroredCamera`, calling `streamer.update()`,
+   `view.rebuild(centre)` and `view.cull(eye)` every tick: the streamer hands the view
+   its meshes, the view draws the regions they changed, nearest `centre` first, within
+   its budget, and hides the ones the camera cannot see into. Start culling only after
+   any `Scene.warmUp`, which must see every region to compile its pipelines.
 
    ```dart
    SceneView(scene,
@@ -92,6 +96,7 @@ Dart SDK `^3.13.0`.
        onTick: (elapsed, dt) {
          streamer.update();
          view.rebuild(ChunkStreamer.chunkOfXZ(0, 0));
+         view.cull(eye);
        });
    ```
 

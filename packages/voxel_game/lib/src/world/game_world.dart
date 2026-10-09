@@ -199,6 +199,10 @@ class GameWorld implements VoxelEditor {
     _view?.rebuild(centre);
   }
 
+  /// Hides the terrain sight cannot reach from [eye] through open cells
+  /// (`VoxelChunkView.cull`); once a frame, after [update].
+  void cull(Vector3 eye) => _view?.cull(eye);
+
   /// Advances the liquids by [dt]; once a simulation step.
   void tickFlow(double dt) => flow.tick(this, dt);
 

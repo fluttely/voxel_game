@@ -36,6 +36,16 @@
   ran or not. A material in `AlphaMode.mask` renders opaque, as flutter_scene 0.24's own
   shader does: the engine cuts it out in the main pass's coverage pre-draw and its
   shadows through the masked depth shaders.
+- **The view hides the terrain sight cannot reach (OC3).** `VoxelChunkView` keeps each
+  chunk's `ChunkVisibility` and adds `cull(eye)`: it runs `voxel_engine`'s
+  `SectionOcclusion` from the eye's section when the eye entered another section or a
+  chunk came, changed or left, and puts each region whose chunks were all out of reach
+  on no layer (`Node.layers` 0, the region node and its surfaces), the others on
+  `kRenderLayerDefault`. A hidden region skips the colour and depth passes but still
+  casts its shadow, and the static shadow cache never notices: `visible`,
+  `shadowCastingMode` and `shadowStatic` are never touched. A region built after a cull
+  takes its result; before the first cull every region draws. Above ground the sky's air
+  reaches every column, so only a camera underground hides anything.
 - `GpuPacedScene` turns flutter_scene's own GPU pacing off (`maxGpuFramesInFlight` 0,
   `gpuFramesInFlight`): `ScenePacer` paces, and every frame it renders is counted.
   `warmUp` takes and forwards `sliceBudget` and `allShadingTiers`.

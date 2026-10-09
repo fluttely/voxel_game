@@ -282,6 +282,10 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
 - `VoxelGame.stats`: an FPS readout of the world's frames drawn (paced, fewer than the
   ticks, which `ticksPerSecond` gives), and per-frame samples (UI, raster, simulation,
   scene encoding, GPU latency, scene frames rendered and shown) for a benchmark.
+- Underground, the terrain the camera cannot see through caves is not drawn, from the
+  camera's eye, third person too. `VoxelGameWidget` turns it on once its warm-up has
+  compiled every pipeline (`VoxelGame.warmedUp`); a game driving `VoxelGame` itself sets
+  that after its own.
 
 ## Install
 
