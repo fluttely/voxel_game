@@ -60,6 +60,9 @@ jobs:
           - suite: sound_recipes
             dir: packages/sound_recipes
             run: flutter test
+          - suite: voxel_game_example
+            dir: packages/voxel_game/example
+            run: flutter test
           - suite: voxel_game_minecraft
             dir: examples/voxel_game_minecraft
             run: flutter pub get && flutter test

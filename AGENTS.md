@@ -133,12 +133,13 @@ Flutter 3.47.1, **but not the web** (worker isolates, TCP sockets and save files
    cd packages/voxel_engine  && dart test                  # pure Dart
    cd packages/voxel_scene   && flutter test
    cd packages/sound_recipes && flutter test
+   cd packages/voxel_game/example && flutter test       # builds the benchmark's spec (KL-030)
    cd examples/voxel_game_minecraft && flutter pub get && flutter test   # outside the workspace
    dart test tool/                                         # from the root: the benchmark's machine meter
    ```
 
    Green as of VL1 (2026-10-05): analyze clean, nothing to format · 421 + 244 + 49 + 7
-   = **721 tests**, and the app's **99**. A count that drops without a deletion in the diff
+   = **721 tests**, and the app's **99**; the example's 5 since KL-030 (2026-10-09). A count that drops without a deletion in the diff
    is a suite that stopped finding files.
 
    The CI (`.github/workflows/ci.yml`) runs this same list on Ubuntu, on every push to
