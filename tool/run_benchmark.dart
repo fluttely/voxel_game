@@ -156,6 +156,11 @@ Future<void> main(List<String> argv) async {
         stderr.writeln('the run was a ${line['mode']} build, not the $mode build this script made');
         exit(1);
       }
+      // A Mac window the runner did not size draws other pixels than every line it compares with (KL-031).
+      if (android == null && line['window'] != window) {
+        stderr.writeln('the window was ${line['window']}, not the --window=$window this script asked for');
+        exit(1);
+      }
       lines.add(line);
       sink?.writeln(jsonEncode(line));
       stderr.writeln('  fps ${line['fps']}  gpu latency p50 ${(line['gpuLatencyMs'] as Map)['p50']} ms  build p50 ${(line['buildMs'] as Map)['p50']} ms');

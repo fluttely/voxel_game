@@ -39,14 +39,15 @@
 - **Found while:** 2026-10-05 — VL13, reading the four scores after the owner published `0.4.0-dev`.
 - **Waiting:** 2026-10-06 — asked upstream ([pleiondev/flutter3d#80](https://github.com/pleiondev/flutter3d/issues/80)): declare `android`, `ios`, `windows` and `linux` with a Dart-only class whose `isSupported` is false (VD1, VDD3). A `pointer_lock` that does lets the kit raise its constraint and close this.
 
+## Closed
+
 ### KL-031 · A Mac run's window reads 800×600, not the `--window` it was given
 
 - **Lens:** measurement / validity
 - **Evidence:** the three `orbit:6` lines of 2026-10-09 (commit `82466a2`, PFD1's verification, not committed) record `window` `800x600` at `dpr` 2.0, launched with `--window=1600x900`; the lead 1 lines (`docs/perf/lead1_mac120_ab_stock.jsonl`, `65eb713`) and every Mac line before them record `1600x900`. The runner's resize (`packages/voxel_game/example/macos/Runner/MainFlutterWindow.swift:17-22`) has not changed since `67da3ac`; the line's size is the view's (`packages/voxel_game/example/lib/benchmark.dart:336`). The direct launch, without the runner, reads the same 800×600. Cause not looked into.
 - **Cost of leaving it:** a Mac line taken today draws a quarter of the pixels a committed one did, so it compares with none of `docs/perf/` (§Method: "same window"); `--compare` warns on a different `dpr` or refresh rate, not on a different window.
 - **Found while:** 2026-10-09 — PFD1, the first real run of the machine-load meter.
-
-## Closed
+- **Closed by:** 2026-10-09 — `tool: a Mac line whose window is not the --window asked for stops the run (KL-031)`. The cause is narrowed, not found. Since `65eb713` nothing moved that sizes the window: Flutter 3.47.5 since 2026-09-25, macOS 26.1, `MainFlutterWindow.swift`, and the built app carries the resize (`setContentSize:`). 800×600 is the content size `MainMenu.xib:335` gives the window before the resize. One launch of the example (debug, `main.dart`, `--window=1600x900`, not a benchmark) opened at 1600×932 (1600×900 content and the title bar) with the screens at scale 1.0, the built-in at 1920×1200 under SwitchResX. The 800×600 lines read dpr 2.0, a display mode this launch did not have, so the resize fails under some display modes and works under others; which one, and why, is not known. What stays fixed is the cost: `tool/run_benchmark.dart` now stops a Mac run whose line's `window` is not the `--window` it asked for, as it stops a build of the wrong mode, so no such line reaches `docs/perf/` or `--compare`. A Mac run that stops there points at the display mode: note it and reopen this.
 
 ### KL-030 · Nothing runs the benchmark entry, so it broke unseen for nine days
 
