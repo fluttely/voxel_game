@@ -29,6 +29,7 @@
 - **Evidence:** `packages/sound_recipes/pubspec.yaml:25`: `flutter_soloud: ^4.1.7`, the last 4.x (2026-08-08). `flutter_soloud` 5.0.0 came out 2026-09-03 and stands at 5.1.6 (2026-10-02). pub.dev's report for `sound_recipes` 0.4.0-dev (pana 0.23.19): up-to-date dependencies 30/40, "`^4.1.7` does not support the stable version 5.0.0", so 150 of 160, the one package of the four below 160.
 - **Cost of leaving it:** the score stays at 150 for every version until the constraint moves, and a game that wants `flutter_soloud` 5 for itself cannot resolve next to the kit. 5.0 is a major version, so the move is a read of its changes against `SoundBank` (`packages/sound_recipes/lib/src/sound_bank.dart`), not a constraint edit; until then the kit keeps the API it was tested on.
 - **Found while:** 2026-10-05 — VL13, reading the four scores after the owner published `0.4.0-dev`.
+- **Closed by:** 2026-10-09 — `sound_recipes: on flutter_soloud 5 (VD5)`. `flutter_soloud: ^5.1.6`, resolved once VD4 moved `flutter_scene` to 0.24.3 (`code_assets` 2.x). The calls `SoundBank` makes are source-compatible; the change is behaviour: 5.1.6's `play` returns a zeroed handle on a full voice pool (`soloud.dart` `_checkPlaybackResult`) instead of throwing, and `SoundBank.play` and `MusicDirector.setMood` lose their catch-alls for that check and one `on SoLoudNotInitializedException`.
 
 ### KL-028 · pub.dev lists `voxel_game` for macOS only
 

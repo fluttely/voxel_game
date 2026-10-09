@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:isolate';
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_soloud/flutter_soloud.dart';
 
@@ -82,13 +81,10 @@ class SoundBank implements SoundPlayer {
     final takes = _sources[name];
     if (takes == null || takes.isEmpty) return;
     final volume = math.pow(10.0, volumeDb / 20.0).toDouble().clamp(0.0, 1.0);
-    try {
-      final handle = SoLoud.instance.play(takes[_rng.nextInt(takes.length)], volume: volume, paused: true);
-      SoLoud.instance.setRelativePlaySpeed(handle, pitch * (0.92 + _rng.nextDouble() * 0.16));
-      SoLoud.instance.setPause(handle, false);
-    } catch (e) {
-      debugPrint('[sound_recipes] $e');
-    }
+    final handle = SoLoud.instance.play(takes[_rng.nextInt(takes.length)], volume: volume, paused: true);
+    if (handle.id == 0) return; // every voice is busy: SoLoud drops the sound
+    SoLoud.instance.setRelativePlaySpeed(handle, pitch * (0.92 + _rng.nextDouble() * 0.16));
+    SoLoud.instance.setPause(handle, false);
   }
 
   /// Frees the bank's sounds and lets go of the audio device, which closes
@@ -201,22 +197,26 @@ class MusicDirector {
     } else {
       throw StateError('music for $mood: $path is not bundled and there is no recipe for it');
     }
-    try {
-      final key = origin == MusicOrigin.asset ? path! : 'recipe:$mood';
-      var source = _loaded[key];
-      if (source == null) {
+    final key = origin == MusicOrigin.asset ? path! : 'recipe:$mood';
+    var source = _loaded[key];
+    if (source == null) {
+      try {
         source = origin == MusicOrigin.asset
             ? await soloud.loadAsset(key, mode: LoadMode.disk)
             : await soloud.loadMem('$mood.wav', await Isolate.run(() => renderWav(recipe!)));
-        _loaded[key] = source;
+      } on SoLoudNotInitializedException {
+        // The device closed under the load, which its owner does only after
+        // silencing the music: a newer mood has won.
+        if (gen == _generation) rethrow;
+        return;
       }
-      if (gen != _generation) return; // a newer mood won while this one loaded
-      final h = soloud.play(source, volume: 0.0, looping: true);
-      soloud.fadeVolume(h, gain, fade);
-      _active = h;
-      _origin = origin;
-    } catch (e) {
-      debugPrint('[sound_recipes] music: $e');
+      _loaded[key] = source;
     }
+    if (gen != _generation) return; // a newer mood won while this one loaded
+    final h = soloud.play(source, volume: 0.0, looping: true);
+    if (h.id == 0) return; // every voice is busy: SoLoud drops the track
+    soloud.fadeVolume(h, gain, fade);
+    _active = h;
+    _origin = origin;
   }
 }

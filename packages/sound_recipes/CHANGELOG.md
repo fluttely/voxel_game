@@ -4,6 +4,9 @@
 
 **Breaking**
 
+- Needs `flutter_soloud` 5 (`^5.1.6`), whose native build moved to build hooks: building
+  or testing an app that depends on `sound_recipes` now compiles C and downloads the
+  prebuilt Xiph libraries from GitHub, so it needs a C compiler and the network.
 - `SoundBank.dispose` no longer closes the audio device: it frees the bank's own sounds
   and lets go of its hold, and the device closes when no one holds it.
 - `SoundBank.init` returns false, silently, only when the device does not open. A sound
@@ -14,6 +17,10 @@
   and close runs in one queue, so a bank let go while another is opening never closes the
   device under it. `AudioDevice.instance` is SoLoud's `init` and `deinit`. A test sets
   `AudioDevice(open:, close:)` there and so never touches SoLoud.
+- `SoundBank.play` and `MusicDirector.setMood` no longer swallow every error. A full voice
+  pool, which `flutter_soloud` 5 reports with a zeroed handle instead of an exception, drops
+  the sound or the track; the device closing under a track's load ends a mood a newer one
+  replaced. Anything else throws.
 - `MusicDirector.setMood` reads `AudioDevice.instance.isOpen` before `SoLoud.instance`, so
   a platform without SoLoud's native library (a test on Linux) never loads it.
 
