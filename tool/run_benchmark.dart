@@ -30,8 +30,16 @@
 // other copy of the app (the release build, another worktree's) is hidden from
 // LaunchServices, since xctrace launches the app by its bundle id; a trace of
 // any other copy is refused.
+//
+// Every line records what else the machine ran beside the run and the state
+// of its CPU, GPU and memory (`machineLoad`, tool/machine_load.dart, PFD1);
+// on a phone, the Mac's that drives adb (the phone's own is not read yet). A
+// busy machine is never refused: the summary says in how many runs the run was
+// alone, and what ran beside the others.
 import 'dart:convert';
 import 'dart:io';
+
+import 'machine_load.dart';
 
 const example = 'packages/voxel_game/example';
 /// The macOS app of a `release` or `profile` build.
@@ -110,11 +118,14 @@ Future<void> main(List<String> argv) async {
       final locked = android == null ? await screenLocked() : await deviceLocked(android);
       if (locked) stderr.writeln('  the screen is locked: the GPU time and fps of this run are not what a player sees');
       final tempC = android == null ? null : await coolDown(android, maxTempC);
-      final (output, gpuTrace) = android != null
-          ? (await runAndroid(android, flags), null)
+      // Started just before the launch, so all of the app's time falls within its samples.
+      final meter = await LoadMeter.start(MacProbe(), runExecutable: android == null ? File(macApp(mode)).resolveSymbolicLinksSync() : null);
+      final (output, gpuTrace, machineLoad) = android != null
+          // On a phone the meter reads the Mac that drives adb.
+          ? (await runAndroid(android, flags), null, await meter.stop())
           : trace
-              ? await runTraced(macApp(mode), flags, double.parse(seconds))
-              : (await runMac(macApp(mode), flags), null);
+              ? await runTraced(macApp(mode), flags, double.parse(seconds), meter)
+              : await runMac(macApp(mode), flags, meter).then((r) => (r.$1, null, r.$2));
       final found = const LineSplitter().convert(output).where((l) => l.startsWith('[bench] {'));
       if (found.isEmpty) {
         stderr.writeln('run failed, no result line:\n$output');
@@ -125,6 +136,7 @@ Future<void> main(List<String> argv) async {
         'screenLocked': locked,
         if (tempC != null) 'deviceTempC': tempC,
         if (gpuTrace != null) 'gpuTrace': gpuTrace,
+        'machineLoad': machineLoad,
         'commit': dirty ? '$commit+dirty' : commit,
         'machine': machine,
         'extra': extra.join(' '),
@@ -138,20 +150,45 @@ Future<void> main(List<String> argv) async {
       lines.add(line);
       sink?.writeln(jsonEncode(line));
       stderr.writeln('  fps ${line['fps']}  gpu latency p50 ${(line['gpuLatencyMs'] as Map)['p50']} ms  build p50 ${(line['buildMs'] as Map)['p50']} ms');
+      stderr.writeln('  machine: ${describeLoad(machineLoad)}');
     }
   }
   await sink?.close();
   if (!dryRun) stdout.write(table(lines));
 }
 
-/// One run on this Mac: the app's stdout, where it prints its line.
-Future<String> runMac(String app, List<String> flags) async {
-  final r = await Process.run(app, flags).timeout(const Duration(minutes: 3));
+/// One run on this Mac: the app's stdout, where it prints its line, and
+/// [meter]'s reading over it.
+Future<(String, Map<String, Object?>)> runMac(String app, List<String> flags, LoadMeter meter) async {
+  final (r, load) = await timed(app, flags, meter, const Duration(minutes: 3));
   if (r.exitCode != 0) {
     stderr.writeln('run failed (exit ${r.exitCode}):\n${r.stdout}${r.stderr}');
     exit(1);
   }
-  return '${r.stdout}';
+  return ('${r.stdout}', load);
+}
+
+/// Runs [executable] under `/usr/bin/time -p` and stops [meter] when it
+/// exits: the CPU time `time` read for its child to the child's exit stands
+/// for the child's samples, which miss up to [pollInterval] of its end. The
+/// result's stderr is the child's, `time`'s lines taken off. Past [limit] the
+/// child and `time` are killed and the script stops.
+Future<(ProcessResult, Map<String, Object?>)> timed(String executable, List<String> args, LoadMeter meter, Duration limit) async {
+  final process = await Process.start('/usr/bin/time', ['-p', executable, ...args]);
+  final out = process.stdout.transform(utf8.decoder).join(), err = process.stderr.transform(utf8.decoder).join();
+  final code = await process.exitCode.timeout(limit, onTimeout: () async {
+    // `time` waits for its child: the child goes first, or it outlives the script.
+    await Process.run('pkill', ['-KILL', '-P', '${process.pid}']);
+    process.kill(ProcessSignal.sigkill);
+    throw StateError('$executable did not exit in $limit');
+  });
+  final (stdoutText, stderrText) = (await out, await err);
+  // `-p` ends stderr with `real`, `user` and `sys` lines, in seconds; `real`
+  // follows the child's last byte, which may not end its line.
+  final times = RegExp(r'real [\d.]+\nuser ([\d.]+)\nsys ([\d.]+)\n?$').allMatches(stderrText).lastOrNull;
+  if (times == null) throw StateError('/usr/bin/time printed no times for $executable:\n$stderrText');
+  final load = await meter.stop(exited: (parent: process.pid, cpuS: double.parse(times[1]!) + double.parse(times[2]!)));
+  return (ProcessResult(process.pid, code, stdoutText, stderrText.substring(0, times.start)), load);
 }
 
 /// One run on an Android device: the app started afresh with [flags] in its
@@ -193,7 +230,10 @@ Future<String> runAndroid(String serial, List<String> flags) async {
 /// is refused unless the process it traced is [app]'s ([tracedApp]), and the
 /// processes of the app it left behind (the suspended one, a copy that never
 /// exits) are killed.
-Future<(String, Map<String, Object>)> runTraced(String app, List<String> flags, double seconds) async {
+///
+/// [meter] stops when the recording does, before the trace is read back: the
+/// export is the script's work, not the run's.
+Future<(String, Map<String, Object>, Map<String, Object?>)> runTraced(String app, List<String> flags, double seconds, LoadMeter meter) async {
   // The trace names the app by the path it was handed: an absolute, resolved one compares.
   final executable = File(app).resolveSymbolicLinksSync();
   final bundle = File(executable).parent.parent.parent.path;
@@ -207,10 +247,10 @@ Future<(String, Map<String, Object>)> runTraced(String app, List<String> flags, 
   final aside = await asideCopies(bundle);
   try {
     final trace = '${dir.path}/run.trace', out = '${dir.path}/run.out';
-    final r = await Process.run('xcrun', [
+    final (r, load) = await timed('xcrun', [
       'xctrace', 'record', '--template', 'Metal System Trace', '--time-limit', '${(seconds + 60).round()}s',
       '--output', trace, '--target-stdout', out, '--launch', '--', executable, ...flags,
-    ]);
+    ], meter, Duration(seconds: (seconds + 120).round()));
     if (r.exitCode != 0) throw StateError('xctrace record failed: ${r.stdout}${r.stderr}');
     final toc = await Process.run('xcrun', ['xctrace', 'export', '--input', trace, '--toc']);
     if (toc.exitCode != 0) throw StateError('xctrace export --toc failed: ${toc.stderr}');
@@ -221,7 +261,7 @@ Future<(String, Map<String, Object>)> runTraced(String app, List<String> flags, 
       '--xpath', '/trace-toc/run[@number="1"]/data/table[@schema="metal-gpu-intervals"]',
     ]);
     if (table.exitCode != 0) throw StateError('xctrace export failed: ${table.stderr}');
-    return (File(out).readAsStringSync(), gpuFromTrace('${table.stdout}', seconds));
+    return (File(out).readAsStringSync(), gpuFromTrace('${table.stdout}', seconds), load);
   } finally {
     final left = (await appProcesses(app)).difference(running);
     if (left.isNotEmpty) await Process.run('kill', ['-9', ...left]);
@@ -463,6 +503,7 @@ String table(List<Map<String, Object?>> lines) {
   if (locked > 0) {
     b.writeln('\n**Screen locked during $locked of ${lines.length} runs**: their GPU and fps columns are not what a player sees.');
   }
+  if (lines.isNotEmpty) b.write('\n${isolationReport(lines, '**Machine load**')}');
   final first = lines.isEmpty ? null : lines.first;
   if (first != null) {
     b.writeln('\n${first['machine']} · ${first['platform']} · ${first['window']} @${first['dpr']}x · '
@@ -501,5 +542,8 @@ String comparison(List<Map<String, Object?>> before, List<Map<String, Object?>> 
       b.writeln('| $key | $name | ${fmt(x)} | ${fmt(y)} | $change |');
     }
   }
+  b
+    ..write('\n${isolationReport(before, '**Machine load, before**')}')
+    ..write('\n${isolationReport(after, '**Machine load, after**')}');
   return b.toString();
 }

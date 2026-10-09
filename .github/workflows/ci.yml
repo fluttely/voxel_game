@@ -63,6 +63,9 @@ jobs:
           - suite: voxel_game_minecraft
             dir: examples/voxel_game_minecraft
             run: flutter pub get && flutter test
+          - suite: tool
+            dir: .
+            run: dart test tool/
     steps:
       - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2

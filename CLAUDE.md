@@ -47,7 +47,7 @@ Flutter 3.47.1, **but not the web** (worker isolates, TCP sockets and save files
 | The workspace (not a package) | `pubspec.yaml` · `pubspec.lock` |
 | Pre-publish checklist, release order, the version graph | `PUBLISHING.md` |
 | Publishing (or dry-running) one of the four | `tool/publish_package.sh <package> [--dry-run]` |
-| The CI: analyze, format and the five suites on every push and PR | `.github/workflows/ci.yml` |
+| The CI: analyze, format, the five suites and `tool/`'s on every push and PR | `.github/workflows/ci.yml` |
 | How the packages were extracted (VP, VK) and consolidated (VC) | `docs/VOXEL_PACKAGES_PLAN_2026-09-14.md` · `docs/VOXEL_KIT_PLAN_2026-09-18.md` · `docs/VOXEL_CONSOLIDATION_PLAN_2026-09-19.md` |
 | How this repository got its shape (VR; the move of `voxel_game` under `packages/` came after it, 2026-09-23) | `docs/VOXEL_RELAYOUT_PLAN_2026-09-21.md` |
 | Architecture ledger (rule 17) | `docs/LEDGER.md` |
@@ -138,6 +138,7 @@ Flutter 3.47.1, **but not the web** (worker isolates, TCP sockets and save files
    cd packages/voxel_scene   && flutter test
    cd packages/sound_recipes && flutter test
    cd examples/voxel_game_minecraft && flutter pub get && flutter test   # outside the workspace
+   dart test tool/                                         # from the root: the benchmark's machine meter
    ```
 
    Green as of VL1 (2026-10-05): analyze clean, nothing to format · 421 + 244 + 49 + 7
@@ -177,6 +178,10 @@ touches the frame (a draw cut, a cheaper step) is judged by its tests and by rea
 code, and ships without numbers; a session that thinks numbers are needed **proposes** the
 run and waits. A hand-off never names a benchmark as the next step unless the owner asked
 for it. This does not cover step 4's `flutter run -d macos` to see a visual change once.
+
+When a benchmark does run: each line records what else ran beside it (`machineLoad`,
+`tool/machine_load.dart`, PFD1 in `docs/VOXEL_PERF_PLAN_2026-09-25.md`); the bench never
+refuses a busy machine; quote the "isolated in k of n runs" line in any report.
 
 ### Documentation obligation
 

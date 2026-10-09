@@ -46,6 +46,13 @@
 - **Cost of leaving it:** the next field a spec checks breaks it again, found only when the owner asks for numbers, which is when they are wanted (a post, a release). A widget test that builds `Bench.spec` for each scenario and runs the spec's checks, with no world and no GPU, would catch it in the suite.
 - **Found while:** 2026-10-09 — PFD1, the first real run of the machine-load meter.
 
+### KL-031 · A Mac run's window reads 800×600, not the `--window` it was given
+
+- **Lens:** measurement / validity
+- **Evidence:** the three `orbit:6` lines of 2026-10-09 (commit `82466a2`, PFD1's verification, not committed) record `window` `800x600` at `dpr` 2.0, launched with `--window=1600x900`; the lead 1 lines (`docs/perf/lead1_mac120_ab_stock.jsonl`, `65eb713`) and every Mac line before them record `1600x900`. The runner's resize (`packages/voxel_game/example/macos/Runner/MainFlutterWindow.swift:17-22`) has not changed since `67da3ac`; the line's size is the view's (`packages/voxel_game/example/lib/benchmark.dart:336`). The direct launch, without the runner, reads the same 800×600. Cause not looked into.
+- **Cost of leaving it:** a Mac line taken today draws a quarter of the pixels a committed one did, so it compares with none of `docs/perf/` (§Method: "same window"); `--compare` warns on a different `dpr` or refresh rate, not on a different window.
+- **Found while:** 2026-10-09 — PFD1, the first real run of the machine-load meter.
+
 ## Closed
 
 ### KL-029 · Every opaque block pays for the terrain's alpha test
