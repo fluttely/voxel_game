@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_scene/scene.dart';
 import 'package:vector_math/vector_math.dart';
 import 'package:voxel_engine/core.dart';
@@ -8,6 +9,7 @@ import 'merged_surface.dart';
 import 'packed_surface.dart';
 import 'terrain_geometry.dart';
 import 'terrain_material.dart';
+import 'view_region.dart';
 
 /// voxel_core's chunks drawn with flutter_scene: the [ChunkMeshSink] a
 /// [ChunkStreamer] hands finished meshes to. Chunks are drawn in regions of
@@ -35,12 +37,22 @@ import 'terrain_material.dart';
 /// colour and depth passes skip them, while they still cast into the shadow
 /// map and leave its static cache alone, so a hill hidden behind the camera
 /// still shades what is in view.
+///
+/// Regions come in two sizes: the [regionChunks] ones the view builds, and the
+/// [settledRegionChunks] ones a quiet area will settle into, one draw per
+/// surface where its smaller regions drew several. Each node knows its size,
+/// and [cull] treats both alike. Nothing settles yet: every region drawn is a
+/// [regionChunks] one.
 class VoxelChunkView implements ChunkMeshSink {
   /// A view with an empty [root] named [rootName]. Add [root] to a scene.
-  VoxelChunkView({String rootName = 'World', this.regionChunks = 2})
+  VoxelChunkView({String rootName = 'World', this.regionChunks = 2, this.settledRegionChunks = 4})
     : assert(regionChunks >= 1, 'a region holds at least one chunk'),
       assert(
-        regionChunks * ChunkSize.sizeX <= 255 && regionChunks * ChunkSize.sizeZ <= 255,
+        settledRegionChunks >= regionChunks && settledRegionChunks % regionChunks == 0,
+        'a settled region is whole regions',
+      ),
+      assert(
+        settledRegionChunks * ChunkSize.sizeX <= 255 && settledRegionChunks * ChunkSize.sizeZ <= 255,
         'a packed terrain vertex spans 256 m',
       ),
       root = Node(name: rootName) {
@@ -83,6 +95,9 @@ class VoxelChunkView implements ChunkMeshSink {
   /// Chunks along each side of a region.
   final int regionChunks;
 
+  /// Chunks along each side of a settled region: a multiple of [regionChunks].
+  final int settledRegionChunks;
+
   /// Microseconds [rebuild] spends a frame by default: a quarter of a 120 Hz
   /// frame.
   static const int rebuildBudgetUsec = 2000;
@@ -90,10 +105,10 @@ class VoxelChunkView implements ChunkMeshSink {
   /// Each meshed chunk's surfaces.
   final Map<ChunkPos, _ViewChunk> _chunks = {};
 
-  /// Each region's node under [root], keyed by the region's position.
-  final Map<ChunkPos, Node> _regions = {};
+  /// Each region with a node under [root], of either size.
+  final Map<ViewRegionKey, ViewRegion> _regions = {};
 
-  /// Regions whose chunks changed since they were last built.
+  /// Regions of [regionChunks] whose chunks changed since they were last built.
   final Set<ChunkPos> _dirty = {};
 
   /// The search [cull] runs, over the visibility of the chunks kept here; a
@@ -163,8 +178,8 @@ class VoxelChunkView implements ChunkMeshSink {
     final max = (x: math.max(hi.x, camera.x), z: math.max(hi.z, camera.z));
     if (!_occlusion.update(camera, SectionOcclusion.sectionAt(eye.y), min: min, max: max)) return false;
     _culled = true;
-    for (final MapEntry(key: region, value: node) in _regions.entries) {
-      _show(node, _reached(region));
+    for (final region in _regions.values) {
+      _show(region.node, _reached(region));
     }
     return true;
   }
@@ -183,13 +198,10 @@ class VoxelChunkView implements ChunkMeshSink {
   }
 
   /// Whether the last search reached a chunk of [region] that has a mesh.
-  bool _reached(ChunkPos region) {
+  bool _reached(ViewRegion region) {
     final reached = _occlusion.reached;
-    for (var dx = 0; dx < regionChunks; dx++) {
-      for (var dz = 0; dz < regionChunks; dz++) {
-        final pos = (x: region.x * regionChunks + dx, z: region.z * regionChunks + dz);
-        if (_chunks.containsKey(pos) && reached.contains(pos)) return true;
-      }
+    for (final pos in region.members) {
+      if (_chunks.containsKey(pos) && reached.contains(pos)) return true;
     }
     return false;
   }
@@ -223,8 +235,8 @@ class VoxelChunkView implements ChunkMeshSink {
         _build(region, members);
         built += 1;
       } else {
-        final old = _regions.remove(region);
-        if (old != null) root.remove(old);
+        final old = _regions.remove((chunks: regionChunks, at: region));
+        if (old != null) root.remove(old.node);
       }
       _dirty.remove(region);
     }
@@ -261,29 +273,24 @@ class VoxelChunkView implements ChunkMeshSink {
     }
     final packUs = watch.elapsedMicroseconds;
     if (packed > 0) _packUsPerVertex = _meanWith(_packUsPerVertex, packUs / packed);
-    final old = _regions.remove(region);
-    if (old != null) root.remove(old);
-    final node = Node(name: 'region_${region.x}_${region.z}')
-      ..position = Vector3(
-        region.x * regionChunks * ChunkSize.sizeX.toDouble(),
-        0,
-        region.z * regionChunks * ChunkSize.sizeZ.toDouble(),
-      );
+    final old = _regions.remove((chunks: regionChunks, at: region));
+    if (old != null) root.remove(old.node);
+    final node = Node(name: 'region_${region.x}_${region.z}');
+    final built = ViewRegion(region, regionChunks, node);
+    node.position = built.position;
     List<(ChunkPos, PackedSurface)> lit(PackedSurface? Function(_ViewChunk) of) => [
       for (final (offset, c) in members)
         if (of(c) case final packed?) (offset, packed),
     ];
     for (final surface in [
-      _mergeLit(lit((c) => c.solid), matSolid),
-      _mergeLit(lit((c) => c.cutout), matCutout),
-      _mergeGlow([for (final (offset, c) in members) (offset, c.glow)]),
-      _mergeLit(lit((c) => c.liquid), matLiquid),
+      _mergeLit(built, lit((c) => c.solid), matSolid),
+      _mergeLit(built, lit((c) => c.cutout), matCutout),
+      _mergeGlow(built, [for (final (offset, c) in members) (offset, c.glow)]),
+      _mergeLit(built, lit((c) => c.liquid), matLiquid),
     ]) {
       if (surface != null) node.add(surface);
     }
-    _show(node, !_culled || _reached(region));
-    root.add(node);
-    _regions[region] = node;
+    _place(built);
     var vertices = 0;
     for (final (_, c) in members) {
       vertices += c.vertexCount;
@@ -291,25 +298,39 @@ class VoxelChunkView implements ChunkMeshSink {
     if (vertices > 0) _buildUsPerVertex = _meanWith(_buildUsPerVertex, (watch.elapsedMicroseconds - packUs) / vertices);
   }
 
-  /// The region's box in its own frame, from the heights its vertices span.
-  Aabb3 _bounds(double minY, double maxY) => Aabb3.minMax(
-    Vector3(0, minY, 0),
-    Vector3(regionChunks * ChunkSize.sizeX.toDouble(), maxY, regionChunks * ChunkSize.sizeZ.toDouble()),
-  );
+  /// Adds [region]'s node under [root] in the last cull's state, keyed by its
+  /// size and position.
+  void _place(ViewRegion region) {
+    assert(!_regions.containsKey(region.key), 'one node a region');
+    _show(region.node, !_culled || _reached(region));
+    root.add(region.node);
+    _regions[region.key] = region;
+  }
 
-  /// One node drawing lit [parts] (each at its chunk's offset in the region, in
+  /// Places an empty [settledRegionChunks] region at [at] (in settled regions)
+  /// as a settle will, so a test can check what the view does with one before
+  /// anything settles. Its surfaces are whatever the test adds to the node.
+  @visibleForTesting
+  ViewRegion placeSettled(ChunkPos at) {
+    final settled = ViewRegion(at, settledRegionChunks, Node(name: 'settled_${at.x}_${at.z}'));
+    settled.node.position = settled.position;
+    _place(settled);
+    return settled;
+  }
+
+  /// One node drawing lit [parts] (each at its chunk's offset in [region], in
   /// chunks) in the packed terrain vertex on [material], or null when there are
   /// none.
-  Node? _mergeLit(List<(ChunkPos, PackedSurface)> parts, TerrainMaterial material) {
+  Node? _mergeLit(ViewRegion region, List<(ChunkPos, PackedSurface)> parts, TerrainMaterial material) {
     final m = PackedSurface.merge(parts);
     if (m == null) return null;
-    return Node(mesh: Mesh(TerrainGeometry(m, _bounds(m.minY, m.maxY)), material))..shadowStatic = true;
+    return Node(mesh: Mesh(TerrainGeometry(m, region.bounds(m.minY, m.maxY)), material))..shadowStatic = true;
   }
 
   /// One node drawing the glow [parts] on [matGlow], or null when they are all
   /// empty. Their colour keeps each block's variation baked in, which can pass
   /// 1.0 where the packed vertex stores 0..1, so they stay in the engine's vertex.
-  Node? _mergeGlow(List<(ChunkPos, MeshSurface)> parts) {
+  Node? _mergeGlow(ViewRegion region, List<(ChunkPos, MeshSurface)> parts) {
     final m = MergedSurface.of(parts);
     if (m == null) return null;
     final geometry = MeshGeometry.fromArrays(
@@ -318,7 +339,7 @@ class VoxelChunkView implements ChunkMeshSink {
       colors: m.colors,
       texCoords1: m.light, // (sky / 15, block / 15)
       indices: m.indices,
-      bounds: _bounds(m.minY, m.maxY),
+      bounds: region.bounds(m.minY, m.maxY),
       retainCpuData: false,
     );
     return Node(mesh: Mesh(geometry, matGlow))..shadowStatic = true;

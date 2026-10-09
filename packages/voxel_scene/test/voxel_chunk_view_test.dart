@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:vector_math/vector_math.dart';
 import 'package:voxel_engine/core.dart';
 import 'package:voxel_scene/src/merged_surface.dart';
+import 'package:voxel_scene/src/view_region.dart';
 import 'package:voxel_scene/voxel_scene.dart';
 
 /// A mesh result with every surface empty: applying it builds nodes but no
@@ -149,6 +150,43 @@ void main() {
     expect(MergedSurface.of([((x: 0, z: 0), empty)]), isNull);
   });
 
+  test('a settled region carries its size: its key, corner, chunks and bounds', () {
+    final view = VoxelChunkView();
+    expect(view.settledRegionChunks, 4);
+    final settled = view.placeSettled((x: -1, z: 1));
+    expect(settled.key, (chunks: 4, at: (x: -1, z: 1)));
+    expect(settled.origin, (x: -4, z: 4));
+    expect(settled.members, hasLength(16));
+    expect(settled.members, containsAll([(x: -4, z: 4), (x: -1, z: 7)]));
+    expect(settled.members, isNot(contains((x: 0, z: 4))));
+    expect(settled.node.name, 'settled_-1_1');
+    expect((settled.node.position.x, settled.node.position.z), (-64.0, 64.0));
+    final box = settled.bounds(-3, 70);
+    expect((box.min.x, box.min.y, box.min.z), (0.0, -3.0, 0.0));
+    expect((box.max.x, box.max.y, box.max.z), (64.0, 70.0, 64.0));
+    final small = ViewRegion((x: -1, z: 1), 2, Node()).bounds(-3, 70);
+    expect((small.max.x, small.max.z), (32.0, 32.0));
+  });
+
+  test('a 2 x 2 and a 4 x 4 at one corner are two regions', () {
+    final view = VoxelChunkView();
+    view.apply((x: 0, z: 0), _empty());
+    view.rebuild((x: 0, z: 0), budgetUsec: _everything);
+    view.placeSettled((x: 0, z: 0));
+    expect(view.regionCount, 2);
+    expect(view.root.children.map((n) => n.name), ['region_0_0', 'settled_0_0']);
+    view.remove((x: 0, z: 0));
+    view.rebuild((x: 0, z: 0), budgetUsec: _everything);
+    expect(view.root.children.map((n) => n.name), ['settled_0_0'], reason: 'dropping the 2 x 2 leaves the 4 x 4');
+  });
+
+  test('a settled region is whole regions, under 256 m', () {
+    expect(VoxelChunkView(regionChunks: 4, settledRegionChunks: 8).settledRegionChunks, 8);
+    expect(VoxelChunkView(settledRegionChunks: 2).settledRegionChunks, 2);
+    expect(() => VoxelChunkView(settledRegionChunks: 3), throwsA(isA<AssertionError>()));
+    expect(() => VoxelChunkView(settledRegionChunks: 16), throwsA(isA<AssertionError>()));
+  });
+
   test('sky intensity reaches the three lit materials, not the unlit glow', () {
     final view = VoxelChunkView()..setSkyIntensity(0.35);
     expect([view.matSolid.skyIntensity, view.matCutout.skyIntensity, view.matLiquid.skyIntensity], [0.35, 0.35, 0.35]);
@@ -238,8 +276,24 @@ void main() {
       expect(view.cull(Vector3(15, 40 + 16, 15)), isFalse, reason: 'the same section, elsewhere in it, does not');
     });
 
+    test('a settled region shows when any of its 16 chunks is reached', () {
+      final view = sealedWorld();
+      final corner = view.placeSettled((x: 0, z: -1));
+      final far = view.placeSettled((x: 1, z: 1));
+      final surface = _surface(corner.node);
+      expect([corner.node.layers, far.node.layers], everyElement(kRenderLayerDefault), reason: 'no cull yet');
+      view.cull(eye);
+      expect(corner.node.layers, kRenderLayerDefault, reason: 'its chunk (0, -1) is reached, alone of its 16');
+      expect(surface.layers, kRenderLayerDefault);
+      expect(far.node.layers, 0, reason: 'none of (4, 4) to (7, 7) is');
+      final later = view.placeSettled((x: -1, z: -1));
+      expect(later.node.layers, 0, reason: 'placed after a cull, it takes its state: (-4, -4) to (-1, -1) unreached');
+    });
+
     test('the cull touches layers only: never visible, the shadow casting mode or shadowStatic', () {
       final view = sealedWorld();
+      view.placeSettled((x: 0, z: 0));
+      view.placeSettled((x: 1, z: 1));
       final surfaces = [for (final n in view.root.children) _surface(n)..shadowStatic = true];
       List<Object> state() => [
         for (final n in [view.root, ...view.root.children, ...surfaces])
@@ -248,6 +302,14 @@ void main() {
       final before = state();
       view.cull(eye);
       expect(surfaces.map((s) => s.layers), containsAll([0, kRenderLayerDefault]), reason: 'the cull hid something');
+      expect(
+        [
+          for (final n in view.root.children)
+            if (n.name.startsWith('settled')) n.layers,
+        ],
+        [kRenderLayerDefault, 0],
+        reason: 'on both sizes',
+      );
       expect(state(), before);
     });
   });

@@ -46,6 +46,13 @@
   `shadowCastingMode` and `shadowStatic` are never touched. A region built after a cull
   takes its result; before the first cull every region draws. Above ground the sky's air
   reaches every column, so only a camera underground hides anything.
+- **`VoxelChunkView` holds regions of two sizes (SR2).** A new argument,
+  `settledRegionChunks` (4 by default, asserted a multiple of `regionChunks` and under the
+  packed vertex's 256 m), names the size a quiet area will settle into. Each region now
+  carries its size, so its box, the chunks `cull` checks for it and its key in the view's
+  map come from the region, not the view: a 2 × 2 and a 4 × 4 at one corner never collide,
+  and a 4 × 4 shows when any of its 16 chunks is reached. Nothing settles yet; the view
+  draws exactly as before.
 - `GpuPacedScene` turns flutter_scene's own GPU pacing off (`maxGpuFramesInFlight` 0,
   `gpuFramesInFlight`): `ScenePacer` paces, and every frame it renders is counted.
   `warmUp` takes and forwards `sliceBudget` and `allShadingTiers`.
