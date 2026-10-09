@@ -53,6 +53,26 @@
   map come from the region, not the view: a 2 × 2 and a 4 × 4 at one corner never collide,
   and a 4 × 4 shows when any of its 16 chunks is reached. Nothing settles yet; the view
   draws exactly as before.
+- **Quiet areas of the terrain draw as 4 × 4 regions (SR3).** `VoxelChunkView` settles a
+  4 × 4 once its 16 chunks all have a mesh, none came, changed or left for `settleAfter`
+  (new, 2 s by default), none of its 2 × 2s waits for `rebuild`, and none lies within
+  `settleClear` chunks (new, 2 by default) of the `near` that `rebuild` is given. Settling
+  is optional work done in steps after the 2 × 2s, each only when its cost, predicted
+  from two rates the view measures (copy and upload, a vertex), fits what they left of
+  the budget. Each rate is the samples' microseconds over their vertices, older samples
+  fading, so a small upload's fixed cost does not price a large part at its own rate
+  per vertex (a 128-vertex upload at 17 µs once priced a 65,536-vertex part at
+  ~12.6 ms, which uploads in ~0.2 ms, and since a settle is never forced nothing
+  measured it again). A settle runs never as a frame's forced first build, one 4 × 4 at a time, dropped when
+  one of its chunks changes or the clear zone reaches it. A settled 4 × 4 draws each lit
+  surface in parts of at most 65,536 vertices (`PackedSurface.maxPartVertices`), so a
+  part uploads within the budget and keeps 16-bit indices. A change in a settled 4 × 4,
+  or the clear zone reaching it, splits it: its four 2 × 2s are rebuilt while it stays
+  drawn, and replace it in the `rebuild` that built the last, so no frame draws both or
+  neither. `pendingRegions` counts a split's 2 × 2s and never a settle.
+  `settledRegionChunks` equal to `regionChunks` settles nothing. The test-only
+  `placeSettled` is gone; `settleStepLimit` (`@visibleForTesting`) stops a settle
+  between two steps.
 - `GpuPacedScene` turns flutter_scene's own GPU pacing off (`maxGpuFramesInFlight` 0,
   `gpuFramesInFlight`): `ScenePacer` paces, and every frame it renders is counted.
   `warmUp` takes and forwards `sliceBudget` and `allShadingTiers`.

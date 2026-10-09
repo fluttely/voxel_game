@@ -15,6 +15,10 @@ and night sky, block models and the selection outline.
   first, within a time budget, so a burst of chunks is drawn over a few frames.
   `cull(eye)` hides the regions sight cannot reach from the camera through open cells,
   which underground is most of them; above ground it hides nothing.
+  Once an area has been quiet for `settleAfter` (2 s), outside `settleClear` chunks (2)
+  of the focus, its 2 × 2s settle into one region of `settledRegionChunks` (4 × 4), in
+  steps within the same budget: one draw a surface (or part of one) where four drew. A
+  change there splits it back without a hole.
 - `TerrainMaterial`: the terrain shader (lit, fogged, shadowed).
 - `MirroredCamera`: the camera that shows `voxel_engine`'s winding the right way round.
 - `SelectionOutline`: the edges of the aimed box, one mesh, one draw; `BoxMesh`, boxes as

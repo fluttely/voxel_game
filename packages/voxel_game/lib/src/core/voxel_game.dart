@@ -267,6 +267,7 @@ class VoxelGame {
       spec.dimensionWorlds,
       save?.seed ?? spec.seed,
       loadRadius: chosen.renderDistance,
+      settleClear: GameWorld.settleClearFor(spec.player.reach),
       liquids: spec.liquids,
     );
     final game = VoxelGame._(

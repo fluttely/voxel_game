@@ -198,6 +198,83 @@ void main() {
     }
   });
 
+  test('a merge fed one member at a time lands on merge word for word, and takes what it counted', () {
+    final random = math.Random(29);
+    MeshSurface chunk(int faces) => MeshSurface(
+      Float32List.fromList([for (var i = 0; i < faces * 12; i++) random.nextInt(17).toDouble()]),
+      Float32List.fromList([
+        for (var i = 0; i < faces * 4; i++) ...[0.0, 1.0, 0.0],
+      ]),
+      Float32List.fromList([for (var i = 0; i < faces * 16; i++) random.nextDouble()]),
+      Float32List.fromList([for (var i = 0; i < faces * 8; i++) random.nextInt(16) / 15]),
+      Int32List.fromList([
+        for (var f = 0; f < faces; f++) ...[f * 4, f * 4 + 1, f * 4 + 2, f * 4, f * 4 + 2, f * 4 + 3],
+      ]),
+    );
+    final members = [
+      for (var dx = 0; dx < 4; dx++)
+        for (var dz = 0; dz < 4; dz++) ((x: dx, z: dz), PackedSurface.of(chunk(1 + random.nextInt(60)))!),
+    ];
+    final vertices = members.fold(0, (n, m) => n + m.$2.vertexCount);
+    final indices = members.fold(0, (n, m) => n + m.$2.indices.length);
+    final merge = PackedSurfaceMerge(vertices, indices);
+    for (final (offset, s) in members.take(15)) {
+      merge.add(offset, s);
+    }
+    expect(merge.finish, throwsStateError, reason: 'one member is still to come');
+    merge.add(members.last.$1, members.last.$2);
+    final fed = merge.finish();
+    final whole = PackedSurface.merge(members)!;
+    expect(fed.positions, whole.positions);
+    expect(fed.attributes, whole.attributes);
+    expect(fed.indices, whole.indices);
+    expect(fed.indices.runtimeType, whole.indices.runtimeType);
+    expect((fed.minY, fed.maxY), (whole.minY, whole.maxY));
+    expect(() => merge.add(members.first.$1, members.first.$2), throwsStateError, reason: 'nothing past the count');
+  });
+
+  group('split', () {
+    /// A packed surface of [n] vertices, each at the chunk's corner.
+    PackedSurface sized(int n) => PackedSurface.of(
+      MeshSurface(
+        Float32List(n * 3),
+        Float32List.fromList([
+          for (var i = 0; i < n; i++) ...[0.0, 1.0, 0.0],
+        ]),
+        Float32List(n * 4),
+        Float32List(n * 2),
+        Int32List.fromList([0, 1, 2, n - 3, n - 2, n - 1]),
+      ),
+    )!;
+    List<(ChunkPos, PackedSurface)> members(List<int> sizes) => [
+      for (var i = 0; i < sizes.length; i++) ((x: i % 4, z: i ~/ 4), sized(sizes[i])),
+    ];
+    List<int> vertices(List<List<(ChunkPos, PackedSurface)>> parts) => [
+      for (final part in parts) part.fold(0, (n, m) => n + m.$2.vertexCount),
+    ];
+
+    test('a part never passes 65,536 vertices and keeps 16-bit indices; one that needs three gets three', () {
+      final parts = PackedSurface.split(members([30000, 30000, 30000, 30000, 30000]));
+      expect(vertices(parts), [60000, 60000, 30000]);
+      for (final part in parts) {
+        final m = PackedSurface.merge(part)!;
+        expect(m.vertexCount, lessThanOrEqualTo(PackedSurface.maxPartVertices));
+        expect(m.indices, isA<Uint16List>());
+      }
+      expect(vertices(PackedSurface.split(members([40000, 40000, 40000, 20000, 10000]))), [40000, 40000, 60000, 10000]);
+    });
+
+    test('a part fills to exactly 65,536 vertices; a chunk over it alone is a part of its own, 32-bit', () {
+      final full = PackedSurface.split(members([32768, 32768]));
+      expect(vertices(full), [65536]);
+      expect(PackedSurface.merge(full.single)!.indices, isA<Uint16List>(), reason: '65,536 vertices index 0..65535');
+      final over = PackedSurface.split(members([100, 70000, 100]));
+      expect(vertices(over), [100, 70000, 100]);
+      expect(PackedSurface.merge(over[1])!.indices, isA<Uint32List>());
+      expect(PackedSurface.split([]), isEmpty);
+    });
+  });
+
   test('a vertex outside its chunk fails', () {
     final far = MeshSurface(
       Float32List.fromList([ChunkSize.sizeX + 1, 0, 0]),

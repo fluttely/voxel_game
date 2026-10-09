@@ -60,8 +60,12 @@ class PackedSurface {
     return PackedSurface._(positions, attributes, indices, minY, maxY);
   }
 
+  /// The most vertices a merged part holds while its indices stay 16-bit.
+  static const int maxPartVertices = 0x10000;
+
   /// [parts] in order, each packed by [of] and moved by its offset in chunks,
-  /// or null when there are none. The region must stay under 256 m a side.
+  /// or null when there are none: a [PackedSurfaceMerge] run to the end. The
+  /// region must stay under 256 m a side.
   static PackedSurface? merge(List<(ChunkPos, PackedSurface)> parts) {
     var vertices = 0, indexCount = 0;
     for (final (_, s) in parts) {
@@ -69,32 +73,30 @@ class PackedSurface {
       indexCount += s.indices.length;
     }
     if (vertices == 0) return null;
-    final positions = Uint32List(vertices * 2);
-    final attributes = Uint32List(vertices * 2);
-    final List<int> indices = vertices <= 0x10000 ? Uint16List(indexCount) : Uint32List(indexCount);
-    var minY = double.infinity, maxY = double.negativeInfinity;
-    var v = 0, k = 0;
+    final merge = PackedSurfaceMerge(vertices, indexCount);
     for (final (offset, s) in parts) {
-      assert(
-        (offset.x + 1) * ChunkSize.sizeX * positionScale <= 0xFFFF &&
-            (offset.z + 1) * ChunkSize.sizeZ * positionScale <= 0xFFFF,
-        'a packed region spans 256 m: chunk offset $offset',
-      );
-      final shift = offset.x * ChunkSize.sizeX * positionScale | offset.z * ChunkSize.sizeZ * positionScale << 16;
-      final p = s.positions;
-      for (var j = 0; j < p.length; j += 2) {
-        positions[v * 2 + j] = p[j] + shift;
-        positions[v * 2 + j + 1] = p[j + 1];
-      }
-      attributes.setRange(v * 2, v * 2 + s.attributes.length, s.attributes);
-      for (final i in s.indices) {
-        indices[k++] = i + v;
-      }
-      if (s.minY < minY) minY = s.minY;
-      if (s.maxY > maxY) maxY = s.maxY;
-      v += s.vertexCount;
+      merge.add(offset, s);
     }
-    return PackedSurface._(positions, attributes, indices, minY, maxY);
+    return merge.finish();
+  }
+
+  /// [members] in order, cut into parts that each merge into at most
+  /// [maxPartVertices] vertices: a part takes the next member until it would
+  /// carry the part past the cap, then the next part opens. A member over the
+  /// cap on its own is a part of its own, and its merge takes 32-bit indices.
+  static List<List<(ChunkPos, PackedSurface)>> split(List<(ChunkPos, PackedSurface)> members) {
+    final parts = <List<(ChunkPos, PackedSurface)>>[];
+    var vertices = 0;
+    for (final member in members) {
+      final n = member.$2.vertexCount;
+      if (parts.isEmpty || vertices + n > maxPartVertices) {
+        parts.add([]);
+        vertices = 0;
+      }
+      parts.last.add(member);
+      vertices += n;
+    }
+    return parts;
   }
 
   /// A coordinate in 1/[positionScale] m, 0 up to [size] m.
@@ -146,4 +148,63 @@ class PackedSurface {
 
   /// The highest vertex height.
   final double maxY;
+}
+
+/// [PackedSurface.merge] one member at a time, so the copy can be spread over
+/// several frames: the lists are allocated for the counted sizes up front,
+/// [add] moves one member in, [finish] hands the merged surface over once
+/// every vertex and index counted has been added.
+class PackedSurfaceMerge {
+  /// A merge of members that hold [vertexCount] vertices and [indexCount]
+  /// indices between them. Indices are 16-bit while the vertices fit, 32-bit
+  /// after.
+  PackedSurfaceMerge(int vertexCount, int indexCount)
+    : assert(vertexCount > 0, 'a merge holds at least one vertex'),
+      _positions = Uint32List(vertexCount * 2),
+      _attributes = Uint32List(vertexCount * 2),
+      _indices = vertexCount <= PackedSurface.maxPartVertices ? Uint16List(indexCount) : Uint32List(indexCount);
+
+  final Uint32List _positions;
+  final Uint32List _attributes;
+  final List<int> _indices;
+  var _minY = double.infinity, _maxY = double.negativeInfinity;
+  var _v = 0, _k = 0;
+
+  /// Moves [s] in after the members added before it, at [offset] chunks.
+  void add(ChunkPos offset, PackedSurface s) {
+    assert(
+      (offset.x + 1) * ChunkSize.sizeX * PackedSurface.positionScale <= 0xFFFF &&
+          (offset.z + 1) * ChunkSize.sizeZ * PackedSurface.positionScale <= 0xFFFF,
+      'a packed region spans 256 m: chunk offset $offset',
+    );
+    final v = _v, positions = _positions, indices = _indices;
+    if ((v + s.vertexCount) * 2 > positions.length || _k + s.indices.length > indices.length) {
+      throw StateError('a merge takes no more than it counted');
+    }
+    final shift =
+        offset.x * ChunkSize.sizeX * PackedSurface.positionScale |
+        offset.z * ChunkSize.sizeZ * PackedSurface.positionScale << 16;
+    final p = s.positions;
+    for (var j = 0; j < p.length; j += 2) {
+      positions[v * 2 + j] = p[j] + shift;
+      positions[v * 2 + j + 1] = p[j + 1];
+    }
+    _attributes.setRange(v * 2, v * 2 + s.attributes.length, s.attributes);
+    var k = _k;
+    for (final i in s.indices) {
+      indices[k++] = i + v;
+    }
+    _k = k;
+    if (s.minY < _minY) _minY = s.minY;
+    if (s.maxY > _maxY) _maxY = s.maxY;
+    _v = v + s.vertexCount;
+  }
+
+  /// The merged surface; every vertex and index counted must have been added.
+  PackedSurface finish() {
+    if (_v * 2 != _positions.length || _k != _indices.length) {
+      throw StateError('a merge finishes once it holds all it counted: $_v of ${_positions.length ~/ 2} vertices');
+    }
+    return PackedSurface._(_positions, _attributes, _indices, _minY, _maxY);
+  }
 }

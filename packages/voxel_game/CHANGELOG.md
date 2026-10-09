@@ -13,6 +13,13 @@
   `VoxelGame.warmedUp` (new) is set; `VoxelGame.cullEye` says which eye that is.
   `VoxelGameWidget` sets `warmedUp` after its `Scene.warmUp`, which must see every
   terrain pipeline.
+- **Quiet terrain draws in fewer, larger regions (SR3).** `GameWorld` takes
+  `settleClear` and hands it to its `VoxelChunkView`, which settles 4 × 4 regions
+  outside it; `GameWorld.settleClear` (new) reads it back, null headless.
+  `VoxelGame.start` passes `GameWorld.settleClearFor(spec.player.reach)` (new,
+  `1 + ⌈reach / 16⌉`, 2 for the default 5 m), so every edit the player makes, and the
+  remesh around it, goes the 2 × 2 path in its own frame. `GameWorld.isIdle` waits for a
+  split, never for a settle.
 
 - **A world entered while the title is still opening the audio device keeps its sound
   and music (KL-024).** The title and the world each hold `sound_recipes`'
