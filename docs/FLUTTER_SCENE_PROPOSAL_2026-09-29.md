@@ -9,6 +9,13 @@
 > the owner's ok, after the phone's A/B and traces were added:
 > <https://github.com/bdero/flutter_scene/issues/435#issuecomment-5898536445>. Its body is the
 > comment as posted.
+>
+> **Outcome, read 2026-10-09.** The maintainer answered on 2026-09-29 (PRs welcome for §1
+> and §2, §3 his to design, §4's doc wrong) and then wrote the changes himself:
+> [#439](https://github.com/bdero/flutter_scene/pull/439) fixed §4's doc, and
+> [#458](https://github.com/bdero/flutter_scene/pull/458) resolved §1, §2 and §3's public
+> path, released in 0.24.0. The issue closed with #458 on 2026-10-03. What the kit does
+> with it is `docs/FLUTTER_SCENE_FOLLOWUP_PLAN_2026-10-09.md` (FS).
 
 ---
 

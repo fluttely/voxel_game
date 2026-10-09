@@ -32,7 +32,7 @@ Every `file:line` is from 2026-10-06; re-check it before a step starts.
 | VD1 `KL-028` asked upstream | **done** 2026-10-06: the owner approved the draft; [pleiondev/flutter3d#80](https://github.com/pleiondev/flutter3d/issues/80) is open, `KL-028` waits on it, the README says why | the issue is open and linked from `KL-028`; the README says why pub.dev shows one platform |
 | VD2 A dungeon's doorways (`KL-025`) | **done** 2026-10-06: two doorway cells in the west wall of rooms 1 and 2; the flood-fill test reaches `[true, true, true]` (it read `[true, false, false]` before the fix) | a flood fill from the shaft reaches every room; suite green |
 | VD3 One owner of the audio device (`KL-024`) | **done** 2026-10-06: `AudioDevice` in `sound_recipes`, exported by `voxel_game`. Its queue keeps no future once idle: a device that outlives a test's zone would otherwise chain the next test's step onto a dead zone. `voxel_game` and the app set a device that never opens in `test/flutter_test_config.dart`. Then `MusicDirector.setMood` checks the device before `SoLoud.instance`, whose native library fails to load on Linux: the red CI since the 0.4.0-dev merge (runs 37400177007, 37400205441), found by a parallel session | the title and a world never close each other's device, proven with a fake device; the tests no longer depend on SoLoud failing to load |
-| VD4 `flutter_scene` 0.24 (`KL-027`) | pending | the five suites green, the bundle rebuilt, the terrain drawn in `flutter run -d macos` with shadows and torchlight |
+| VD4 `flutter_scene` 0.24.3 (`KL-027`) | pending; **retargeted 2026-10-09** from 0.24.0 to 0.24.3, with the terrain's geometry on 0.24's public path (FS1, `docs/FLUTTER_SCENE_FOLLOWUP_PLAN_2026-10-09.md`) | the five suites green, the bundle rebuilt, the terrain drawn in `flutter run -d macos` with shadows and torchlight; `terrain_geometry.dart` imports nothing under `flutter_scene/src/` |
 | VD5 `flutter_soloud` 5 (`KL-026`) | pending; **the owner's word to push** (CI) | the suites green locally and on CI; the example plays its title music on the Mac |
 | VD6 Ready to release | pending | CHANGELOGs under `## 0.5.0-dev`, the four dry runs green, the four at 160 locally (pana) |
 | VD7 `0.5.0-dev` out | pending; **the owner's word in that session**; **before 2026-11-04** | the four on pub.dev at 160; four tags pushed |
@@ -109,6 +109,33 @@ checklist, with the owner present).
     `examples/voxel_game_minecraft/lib/src/world/structures.dart:175-187` reads the plan,
     and its test (`structures_test.dart:72-81`) looks only for the chest. A save keeps only
     edits (`world_save.dart:15-25`).
+- **`flutter_scene` 0.24.1–0.24.3, read on 2026-10-09** at the `flutter_scene-0.24.3` tag
+  of `github.com/bdero/flutter_scene`. The probe below ran on 0.24.0; these change VD4:
+  - **#435 is closed by flutter_scene's own PR #458** (merged 2026-10-03, in 0.24.0). The
+    shadow cache refreshes one cascade per frame on a turn of up to 5° and keeps its tile
+    textures; the per-draw path stopped allocating closures, records, views and uniform
+    slots. Nothing of #435 is left for the kit to send (FS0).
+  - **A public path for a packed vertex** (MATERIALS.md §"A packed vertex format"):
+    an `UnskinnedGeometry` with `setVertexLayout`, `setVertexShader`,
+    `uploadVertexStreams` and `setDepthOnlyVertex`. `package:flutter_scene/gpu.dart` now
+    exports `Shader`, `IndexType`, `VertexFormat` and `VertexStepMode`. The encoder binds
+    `FrameInfo` once per shader for an `UnskinnedGeometry` (`scene_encoder.dart:1547`),
+    so the 13% of allocations #435 §2 measured on a custom `Geometry`'s `bind` goes with
+    the subclass.
+  - **What stays private.** `gpu.RenderPass` is not in the public `gpu.dart`, and
+    `TerrainMaterial.bind` takes one (`terrain_material.dart:77`). `rendererSubmissions`
+    is still in `src/render/frame_transients.dart`, read by `gpu_paced_scene.dart:9` and
+    `voxel_game`'s `measured_scene.dart:10`. So the exact pin stays (FS2).
+  - **`Scene.warmUp` gained `allShadingTiers`** (0.24.3, `scene.dart:2044-2049`), next to
+    `sliceBudget`. The override forwards both.
+  - **Debug views are opt-in** (0.24.1): the surface debug channels compile only with
+    `hooks: user_defines: flutter_scene: debug_views: true`. Re-read
+    `scene_encoder.dart:1400-1420` before trusting the `DebugViewInfo` lead below.
+  - **A lean lit shader** (0.24.3) for scenes without irradiance, area lights, AO or
+    point-light shadows. `terrain.frag` is re-derived from the stock lit shader, so read
+    which tier is the base before re-deriving it.
+  - **Pacing.** Scenes drawn in one frame pace together (0.24.2);
+    `maxGpuFramesInFlight` is still there (`scene.dart:683`), so VDD5 holds.
 - **`flutter_scene` 0.23.0 → 0.24.0, from a probe** that moved the pins and ran analyze,
   `build_shaders.dart` and the suites:
   - **One Dart break.** `GpuPacedScene.warmUp`
@@ -247,12 +274,16 @@ checklist, with the owner present).
   what lets VD5 pass.
 - Commit `sound_recipes, voxel_game: one owner of the audio device (VD3)`. `KL-024` closes.
 
-### VD4 · `flutter_scene` 0.24 (`KL-027`)
+### VD4 · `flutter_scene` 0.24.3 (`KL-027`)
 
 The four pins (§What exists); `packages/voxel_scene/lib/src/{gpu_paced_scene,terrain_geometry}.dart`
 and the files with `castsShadows`; `packages/voxel_scene/shaders/{terrain.frag,terrain.vert,terrain_depth.vert}`;
 the rebuilt `packages/voxel_scene/assets/shaders/terrain.shaderbundle`; the `voxel_scene`
 and `voxel_game` CHANGELOGs; `examples/voxel_game_minecraft/pubspec.{yaml,lock}`.
+
+Retargeted on 2026-10-09 from 0.24.0 to 0.24.3, the latest on that day: it fixes three
+regressions of 0.24.0 and keeps the kit off a version already three releases old. If a
+newer 0.24.x is out when the step starts, take it and read its CHANGELOG first.
 
 - **The method for the shaders.** Each of ours says what it is: 0.23's stock shader with
   one change.
@@ -260,39 +291,64 @@ and `voxel_game` CHANGELOGs; `examples/voxel_game_minecraft/pubspec.{yaml,lock}`
   - `terrain.vert:1` is `flutter_scene_unskinned_body.glsl`.
   - `terrain_depth.vert:2` is its depth counterpart.
 
-  Diff each against its 0.23 original to isolate that change. Then take 0.24's version
+  Diff each against its 0.23 original to isolate that change. Then take 0.24.3's version
   of the same file and reapply the change. Do not patch 0.23's copy forward line by line.
   That way `ApplyDepthBias`'s second argument, `FrameInfo`'s 112 bytes, `FragInfo`'s new
-  fields and `material_debug.glsl` with its `DebugViewInfo` branch (0.24
-  `flutter_scene_standard.frag:117-134`) all come with the new base. The comments say
-  0.24.
+  fields and `material_debug.glsl` with its `DebugViewInfo` branch all come with the new
+  base. 0.24.3 has two lit tiers (the full one and a lean one); read which one a
+  `PhysicallyBasedMaterial` subclass draws with before choosing the base, and say it in
+  the comment. The comments say 0.24.3.
 - **The opaque split.** Keep ours as one shader, with its `discard` under `alpha_mode ==
   1.0` (`terrain.frag:106-110`; VDD7, `KL-029`).
-- **`FrameInfo`'s layout.** `terrain_geometry.dart:107-131` fills the new layout, its size
-  read from 0.24's reflection.
+- **The terrain's geometry on the public path (FS1).** `TerrainGeometry` becomes an
+  `UnskinnedGeometry` built the way MATERIALS.md §"A packed vertex format" shows:
+  - `setVertexLayout` with the two `uint32x2` streams and the 80-byte instance record,
+    `setVertexShader(TerrainVertex)`, `uploadVertexStreams([positions, attributes],
+    vertexCount, indices: ..., indexType: ...)`, `setLocalBounds` as today;
+  - `setDepthOnlyVertex(TerrainDepthVertex, positionStream: ...)` replaces the
+    `depthOnlyVertex` override;
+  - no `bind` override: the encoder binds the engine's `FrameInfo` once per shader
+    (`scene_encoder.dart:1547`), so `terrain.vert` and `terrain_depth.vert` declare the
+    block the engine fills. Read its layout from 0.24.3's `bindUnskinnedFrameInfo`, not
+    from 0.23's 80 bytes. `_frameInfo` and its `Float32List(20)` go;
+  - the `gpu` types come from `package:flutter_scene/gpu.dart`. The
+    `invalid_use_of_internal_member` and `implementation_imports` ignores leave the file;
+  - `materialVertexVariant`: read whether 0.24.3 still asks for it on a geometry with a
+    vertex shader of its own. Keep the override only if a test fails without it.
+
+  If the public path cannot express something the terrain needs, stop there: keep the
+  `Geometry` subclass for that part, name the gap in `KL-027`'s closing line, and FS2
+  carries it upstream. Do not reach back into `src/` for a member the public path lacks.
 - **Rebuild.** `cd packages/voxel_scene && dart tool/build_shaders.dart` (rule 15).
 - **`GpuPacedScene`:**
-  - `warmUp` takes `Duration? sliceBudget` and forwards it.
-  - Re-read 0.24's `warmUp` (`scene.dart:1945-1952`) and correct the comment and the
+  - `warmUp` takes `Duration? sliceBudget` and `bool allShadingTiers` and forwards both.
+  - Re-read 0.24.3's `warmUp` (`scene.dart:2044`) and correct the comment and the
     `_warming` span at `gpu_paced_scene.dart:83`.
   - Set `maxGpuFramesInFlight = 0` (VDD5), with a test that says so.
 - **The deprecations.** `castsShadows: false` becomes `shadowCastingMode:
   ShadowCastingMode.off` everywhere (`grep -rn castsShadows packages`).
-- **The pins.** The four move together: `0.24.0` exact in the three, `^0.24.0` in the app,
+- **The pins.** The four move together: `0.24.3` exact in the three, `^0.24.3` in the app,
   whose `pubspec.lock` is regenerated with `flutter pub get`. A pin left behind fails
-  version solving.
+  version solving. The pin stays exact: `terrain_material.dart` (`gpu.RenderPass`),
+  `gpu_paced_scene.dart` and `measured_scene.dart` (`rendererSubmissions`) still import
+  `src/` (FS2).
 - **Gates:**
   - The five suites green.
+  - `grep -n "flutter_scene/src/" packages/voxel_scene/lib/src/terrain_geometry.dart`
+    finds nothing.
   - Then the visual check: `cd packages/voxel_game/example && flutter run -d macos` and
     `cd packages/voxel_scene/example && flutter run -d macos`. You must see the terrain
     drawn, the sun's cascaded shadows, a torch lighting a wall at night, the selection
     outline, the first-person hand. The log must show no "Failed to bind uniform".
   - No benchmark (CLAUDE.md).
-  - If the first draw crashes, the `DebugViewInfo` reasoning above is the lead.
+  - If the first draw crashes, the `DebugViewInfo` reasoning above is the lead; 0.24.1
+    made the debug channels opt-in, so re-read whether the block is still bound.
 - **CHANGELOGs** (`## Unreleased`, **Breaking**): `voxel_scene` and `voxel_game` need
-  `flutter_scene` 0.24.0 exact, so a game that names `flutter_scene` moves with them.
-- **Commits.** One for the kit (`voxel_scene, voxel_game: on flutter_scene 0.24 (VD4)`),
-  then one for the app's constraint, as VL12 did. `KL-027` closes.
+  `flutter_scene` 0.24.3 exact, so a game that names `flutter_scene` moves with them.
+  `voxel_scene`'s also says the terrain's geometry is now an `UnskinnedGeometry`.
+- **Commits.** One for the kit (`voxel_scene, voxel_game: on flutter_scene 0.24.3 (VD4)`),
+  then one for the app's constraint, as VL12 did. `KL-027` closes, and the remaining
+  `src/` imports are listed in its closing line for FS2.
 
 ### VD5 · `flutter_soloud` 5 (`KL-026`)
 
