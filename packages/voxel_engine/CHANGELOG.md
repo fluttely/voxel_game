@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **The chunks sight can reach from the camera (OC2).** `SectionOcclusion` (new, in
+  `core`) searches breadth-first from the camera's section over a window of chunks,
+  crossing a section only between faces its `ChunkVisibility` joins and never against
+  a direction the path already took; a chunk with no visibility is crossed as open.
+  `update(camera, section, min:, max:)` reruns only when one of those changed or
+  `markChanged` named a chunk in the window, and says whether it ran; `reached` is the
+  chunks it found. `SectionOcclusion.sectionAt(y)` gives a camera's section, clamped
+  into the world.
+
 - **A chunk says which faces of each section its open cells join (OC1).**
   `ChunkVisibility` (new, in `core`): eight 16-tall sections, one 15-bit mask each of
   the face pairs (`negX`…`posZ`, opposite = `face ^ 1`) that one connected group of
