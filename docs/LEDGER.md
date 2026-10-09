@@ -39,14 +39,15 @@
 - **Found while:** 2026-10-05 — VL13, reading the four scores after the owner published `0.4.0-dev`.
 - **Waiting:** 2026-10-06 — asked upstream ([pleiondev/flutter3d#80](https://github.com/pleiondev/flutter3d/issues/80)): declare `android`, `ios`, `windows` and `linux` with a Dart-only class whose `isSupported` is false (VD1, VDD3). A `pointer_lock` that does lets the kit raise its constraint and close this.
 
+## Closed
+
 ### KL-029 · Every opaque block pays for the terrain's alpha test
 
 - **Lens:** rendering / performance
 - **Evidence:** `packages/voxel_scene/shaders/terrain.frag:106-110`: one fragment shader draws opaque and masked blocks alike, and its `discard` sits behind `frag_info.alpha_mode == 1.0`. A `discard` anywhere in a shader can turn off early depth testing on tile-based mobile GPUs, whether the branch runs or not. `flutter_scene` 0.24.0 removed it from its own opaque materials for that reason (its CHANGELOG: "2.5-6x faster on Mali-G57").
 - **Cost of leaving it:** every solid block on a phone may shade fragments that end up hidden, the one place the terrain is drawn most. How much it costs is unmeasured: a split (an opaque variant without the `discard`, the masked one for leaves and glass) is frame work, judged with numbers.
 - **Found while:** 2026-10-06 — planning VD, reading what `flutter_scene` 0.24 changes in the shaders the terrain copies (VDD7).
-
-## Closed
+- **Closed by:** 2026-10-09 — `voxel_scene: the terrain shader never discards (KL-029)`. Read in flutter_scene 0.24.3, the split was not needed: the encoder gives any opaque material whose `depthAlphaMasked` is set a coverage pre-draw (`lib/src/scene_encoder.dart:807`, `_cutsOut`) that marks the stencil, and the lit draw shades only marked pixels, so the stock shader sets a MASK surface's alpha to 1 and never discards. `terrain.frag` does the same now, for every material; and no kit or app material is in `AlphaMode.mask` today (`matCutout` is opaque, `voxel_chunk_view.dart:45`). Seen on the Mac (`voxel_scene`'s example). The frame cost it removes is unmeasured (CLAUDE.md §Benchmarks).
 
 ### KL-027 · The kit pins a `flutter_scene` that is no longer the latest
 

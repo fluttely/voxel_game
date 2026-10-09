@@ -16,8 +16,8 @@
 //
 // The base is the full lighting tier, not the lean twin: TerrainMaterial sets its own
 // fragment shader, which drops the material's lean twins, and those resolve by name from
-// the engine's bundle only. The MASK branch keeps its discard, where 0.24 moved the
-// stock shader's cutout into a coverage pre-draw (KL-029).
+// the engine's bundle only. Like the stock shader it never discards: 0.24 cuts a MASK
+// surface out in a coverage pre-draw (KL-029).
 //
 // Compiled by `dart tool/build_shaders.dart` into assets/shaders/terrain.shaderbundle.
 
@@ -118,10 +118,11 @@ void Surface(inout MaterialInputs material) {
   vec3 albedo = SRGBToLinear(base_color_srgb.rgb) * vertex_color.rgb *
                 frag_info.color.rgb * light * VoxelTint();
   float alpha = base_color_srgb.a * vertex_color.a * frag_info.color.a;
+  // MASK alpha mode renders fully opaque, as the stock shader does: the engine
+  // cuts the surface out in the main pass's coverage pre-draw, so this shader
+  // never discards (a discard turns off early depth testing and hidden-surface
+  // removal for every draw on tiled GPUs, the solid blocks' included).
   if (frag_info.alpha_mode == 1.0) {
-    if (alpha < frag_info.alpha_cutoff) {
-      discard;
-    }
     alpha = 1.0;
   }
   material.base_color = vec4(albedo, alpha);

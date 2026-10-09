@@ -21,7 +21,13 @@
   change reapplied: the engine's 112-byte `FrameInfo` (depth bias toward the viewer,
   layer and slope offsets), unit normals, mediump by default, the debug-view hook (inert
   unless flutter_scene's `debug_views` is on). The terrain draws with the full lighting
-  tier, not 0.24.3's lean one, and keeps its `discard` for a masked material (KL-029).
+  tier, not 0.24.3's lean one.
+- The terrain's fragment shader no longer discards (KL-029). A `discard` anywhere in a
+  shader can turn off early depth testing and hidden-surface removal on a tiled GPU
+  (Apple's, Adreno, Mali), so every solid block paid for the masked branch whether it
+  ran or not. A material in `AlphaMode.mask` renders opaque, as flutter_scene 0.24's own
+  shader does: the engine cuts it out in the main pass's coverage pre-draw and its
+  shadows through the masked depth shaders.
 - `GpuPacedScene` turns flutter_scene's own GPU pacing off (`maxGpuFramesInFlight` 0,
   `gpuFramesInFlight`): `ScenePacer` paces, and every frame it renders is counted.
   `warmUp` takes and forwards `sliceBudget` and `allShadingTiers`.
