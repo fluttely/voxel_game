@@ -22,6 +22,7 @@
 - **Cost of leaving it:** the kit says it targets every platform Flutter supports, but a first-person game on two of the three desktops plays like a touch screen with a mouse. Nothing tells a game author about it: `pointerLockSupported` is public, but the README never mentions it.
 - **Found while:** 2026-09-24 — adding Windows and Linux runners to the examples, for the launch post.
 - **Deferred:** 2026-10-05 — VLD3, VL12. The fix is native code (upstream in `pointer_lock`, or a plugin the kit would carry), and nothing here can run it; what lifts it is a Windows or Linux machine to see a fix run. Meanwhile it is said where an author looks: `voxel_game`'s README (the Flutter GPU section) and `InputMap.pointerLockSupported`'s doc (`packages/voxel_game/lib/src/input/input_map.dart:240`) name macOS as the one desktop that locks.
+- **Lead:** 2026-10-17 — `pointer_lock`'s 1.0 branch (0.5.0, not on pub.dev yet) declares `windows` and `linux` with native plugins ([pleiondev/flutter3d#80](https://github.com/pleiondev/flutter3d/issues/80)). Once it is published, raising the constraint may lift this with no native code here; a Windows or Linux machine still has to see it run.
 
 ### KL-026 · `sound_recipes` stays a major version behind `flutter_soloud`
 
@@ -38,6 +39,7 @@
 - **Cost of leaving it:** a reader who filters pub.dev by Android or iOS never finds the kit, which runs there and draws touch controls for it (VT); its README says five platforms and its listing says one. What lifts it is the kit not depending on a plugin that declares one platform: `pointer_lock` declaring the others (upstream), or the lock reached through a plugin that does.
 - **Found while:** 2026-10-05 — VL13, reading the four scores after the owner published `0.4.0-dev`.
 - **Waiting:** 2026-10-06 — asked upstream ([pleiondev/flutter3d#80](https://github.com/pleiondev/flutter3d/issues/80)): declare `android`, `ios`, `windows` and `linux` with a Dart-only class whose `isSupported` is false (VD1, VDD3). A `pointer_lock` that does lets the kit raise its constraint and close this.
+- **Answered:** 2026-10-09 — the maintainer asked for the PR: a Dart-only `PointerLockUnsupported` for `android` and `ios` only (the 1.0 branch, 0.5.0, already declares `windows` and `linux` natively), against `main`, failing test first. Prepared by VD5b, opened by the owner (VDD8); `0.5.0-dev` waits for its release until 2026-10-31 (VDD9).
 
 ## Closed
 

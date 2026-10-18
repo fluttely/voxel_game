@@ -34,14 +34,15 @@ Every `file:line` is from 2026-10-06; re-check it before a step starts.
 | VD3 One owner of the audio device (`KL-024`) | **done** 2026-10-06: `AudioDevice` in `sound_recipes`, exported by `voxel_game`. Its queue keeps no future once idle: a device that outlives a test's zone would otherwise chain the next test's step onto a dead zone. `voxel_game` and the app set a device that never opens in `test/flutter_test_config.dart`. Then `MusicDirector.setMood` checks the device before `SoLoud.instance`, whose native library fails to load on Linux: the red CI since the 0.4.0-dev merge (runs 37400177007, 37400205441), found by a parallel session | the title and a world never close each other's device, proven with a fake device; the tests no longer depend on SoLoud failing to load |
 | VD4 `flutter_scene` 0.24.3 (`KL-027`) | **code done** 2026-10-09 (`voxel_scene, voxel_game: on flutter_scene 0.24.3 (VD4)`; the app's `^0.24.3` in its own commit). The three shaders re-derived from 0.24.3's stock ones on the full lighting tier: `TerrainMaterial.setFragmentShader` drops the lean twins, which resolve by name from the engine's bundle only. `TerrainGeometry` on the public path (FS1). `GpuPacedScene.dispose` now calls `Scene.dispose` (new in 0.24.2; analyze flagged the override). A `Scene` cannot be built without a GPU, so VDD5's test reads `GpuPacedScene.gpuFramesInFlight`. 0.24.1 made `DebugViewInfo` bind only when the shader declares it, so that lead is gone. Suites: 478 + 248 + 50 + 11, the app 111. Seen on the Mac: `voxel_scene`'s example draws the terrain as 0.23 did (a reference run of `7a55307` side by side), no "Failed to bind uniform". **Left:** the game example's walk-through (a torch on a wall at night, the selection outline, the first-person hand, sun shadows up close), which needs someone at the keyboard | the five suites green, the bundle rebuilt, the terrain drawn in `flutter run -d macos` with shadows and torchlight; `terrain_geometry.dart` imports nothing under `flutter_scene/src/` |
 | VD5 `flutter_soloud` 5 (`KL-026`) | **code done** 2026-10-09 (`sound_recipes: on flutter_soloud 5 (VD5)`; the app's lock in its own commit). 5.1.6 is still the latest. §What exists was wrong on one point: a full voice pool no longer throws either. `play` logs it and returns a zeroed handle (`_checkPlaybackResult`), and `setPause` on that handle would throw `soundHandleNotFound`. So `SoundBank.play` drops the sound on `handle.id == 0`, with no `try`. `setMood`'s catch-all is gone too: a bundled asset or a rendered WAV that fails to load throws, a zeroed handle drops the track, and `on SoLoudNotInitializedException` around the load is the device closing under it, which rethrows unless a newer mood won (the owners close the music before the bank). A load in flight when `deinit` runs never completes (5.1.6 clears `loadedFileCompleters`), which is harmless: that director's mood is already stale. The macOS plugin registrants of both apps gain `FlutterSoloudPlugin`. Suites 478 + 248 + 50 + 11, the app 111. CI untouched: `ubuntu-latest` has gcc, `pkg-config` and `tar`, which the hook calls on Linux; unverified until the push. **Left:** the push to `dev` (the owner's word) and a green CI; the title music heard on the Mac | the suites green locally and on CI; the example plays its title music on the Mac |
-| VD6 Ready to release | pending | CHANGELOGs under `## 0.5.0-dev`, the four dry runs green, the four at 160 locally (pana) |
+| VD5b `pointer_lock`'s PR (`KL-028`) | **ready** 2026-10-17: the maintainer asked for it on [#80](https://github.com/pleiondev/flutter3d/issues/80) on 2026-10-09 (VDD8). Prepared in a scratch clone; **the fork, the push and the PR wait on the owner's word in that session** | `tool/ci.sh` green in the clone; the PR open against `main`, linked from `KL-028` |
+| VD6 Ready to release | pending; **starts by 2026-10-31** whatever `pointer_lock` has released (VDD9) | CHANGELOGs under `## 0.5.0-dev`, the four dry runs green, the four at 160 locally (pana) |
 | VD7 `0.5.0-dev` out | pending; **the owner's word in that session**; **before 2026-11-04** | the four on pub.dev at 160; four tags pushed |
 
 Effort per step: VD1 `low` (an issue's text and a README line), VD2 `medium` (four cells and a
 test, the fix already probed), VD3 `high` (an ordering primitive two packages share), VD4
 `xhigh` (shader work: three shaders re-derived from new stock ones, a uniform layout, a
 visual check), VD5 `high` (a native build hook new to the CI), VD6 `medium`, VD7 `low` (a
-checklist, with the owner present).
+checklist, with the owner present). VD5b `medium` (a Dart-only class, two tests, another repository's rules).
 
 ---
 
@@ -198,6 +199,8 @@ checklist, with the owner present).
 | VDD5 | **`flutter_scene`'s own GPU pacing is off** (`maxGpuFramesInFlight = 0` in `GpuPacedScene`), and `ScenePacer` stays. (Owner.) | That is the frame the PF plan measured. Adopting the new pacing changes the frame, and judging that needs numbers, which no one asked for. Adopting it is §Out of scope. |
 | VDD6 | **`AudioDevice` is public in `sound_recipes`.** (Owner.) One device, opened by the first holder and closed by the last, every open and close in one queue. Its open and close are injectable, so a test fakes the device. | A game that plays SoLoud itself goes through the same owner and cannot close a bank's device. The fake is also what VD5's tests need. |
 | VDD7 | **The terrain's `discard` stays; it goes to the ledger** (`KL-029`). (Owner.) | It is frame work (early depth on tile GPUs), and nothing judges it without a measurement. 0.24's stock shaders split opaque from masked; VD4 keeps ours as one shader. |
+| VDD8 | **`pointer_lock`'s PR is prepared here, and the owner opens it.** (Owner, 2026-10-17.) The maintainer (dzolotov, 2026-10-09) asked for a Dart-only `PointerLockUnsupported` for `android` and `ios` only, against `main`, failing test first: the 1.0 branch (0.5.0, not on pub.dev yet) already declares `windows` and `linux` with native plugins. | It is outward-facing: a fork on the owner's account and a PR in their name. The code is small and the maintainer said what lands it. |
+| VDD9 | **`0.5.0-dev` waits for `pointer_lock` until 2026-10-31, no later.** (Owner, 2026-10-17.) If a version declaring `android` and `ios` is on pub.dev by then, VD6 raises the constraint and closes `KL-028`; otherwise VD6 starts on 2026-10-31 without it, and `KL-028` stays `Waiting:`. The look plan's kit steps (AL1–AL4, `docs/VOXEL_LOOK_PLAN_2026-10-17.md`) that landed by then ride the release; VD6 does not wait for them. | Four days before 2026-11-04 leaves room for a dry run that finds something. |
 
 ## Steps
 
@@ -374,6 +377,36 @@ newer 0.24.x is out when the step starts, take it and read its CHANGELOG first.
 - Commit `sound_recipes: on flutter_soloud 5 (VD5)`; the app's lock in its own commit if it
   changes. `KL-026` closes.
 
+### VD5b · `pointer_lock`'s PR (`KL-028`)
+
+Another repository: `github.com/pleiondev/flutter3d`, package `packages/pointer_lock/`
+(0.4.2+3 on pub.dev, 2026-10-12). Nothing in this tree changes but `docs/LEDGER.md` and this
+table.
+
+- Clone `pleiondev/flutter3d` into the session's scratch folder (not this tree). Read its
+  `CONTRIBUTING.md` whole: tests are written by breaking the code they cover and name the
+  mutation in a comment; `ARCHITECTURE.md` §13's test count is checked by
+  `dart run tool/structure.dart`; `bash tool/ci.sh` is the ubuntu job.
+- `lib/src/`: a `PointerLockUnsupported` platform implementation, pure Dart, with a static
+  `registerWith()` that sets `PointerLockPlatform.instance`. Its `isSupported` is false and
+  every call is a no-op, as the method channel answers off macOS
+  (`pointer_lock_method_channel.dart:28`). Follow how `platform_default*.dart` and
+  `pointer_lock_platform_interface.dart` are laid out; read them first.
+- `pubspec.yaml`: under `flutter.plugin.platforms`, `android` and `ios`, each
+  `dartPluginClass: PointerLockUnsupported` (and the `fileName` if the class is not in
+  the main library). Not `windows` or `linux`: the 1.0 branch has them (VDD8).
+- Tests, failing first (watch them go red against the unchanged package, then green):
+  instantiating the unsupported backend, `isSupported` false and the calls no-ops; and a
+  second one that reads the pubspec's platform list and finds `android` and `ios`. Each
+  carries its mutation comment.
+- `CHANGELOG.md` under the package's next version heading, as the repository writes
+  them; `ARCHITECTURE.md` §13's count from `dart run tool/structure.dart`.
+- **Gate:** `bash tool/ci.sh` green in the clone. Then show the owner the diff and the PR
+  body (what, why: `voxel_game`'s pub.dev report, the link to #80). With their word:
+  `gh repo fork`, push a branch, `gh pr create --base main`. No AI attribution in the
+  commit or the PR body (root `CLAUDE.md`).
+- `KL-028`'s `Waiting:` line gains the PR's link. Commit `docs:`.
+
 ### VD6 · Ready to release
 
 As VL12, on `0.5.0-dev`:
@@ -388,8 +421,9 @@ As VL12, on `0.5.0-dev`:
   0.23.19 or newer, against the Flutter in use. Expect 160 each.
 - **pub's grace.** Check `dart pub outdated` in each package: a newer major past its 30
   days would cost points right after publishing, as `flutter_soloud` did.
-- **`pointer_lock`.** If a version that declares more platforms exists by then, raise its
-  constraint and close `KL-028`. Otherwise it stays `Waiting:`.
+- **`pointer_lock`.** If a version that declares `android` and `ios` is on pub.dev by
+  2026-10-31, raise its constraint and close `KL-028`. Otherwise it stays `Waiting:`
+  (VDD9). If its 0.5.0 (`windows`, `linux` native) is out too, read it against `KL-004`.
 - **Gate:** the four dry runs green: only the accepted warnings, pub's "not an incremental
   update" hint, and 160 from pana.
 

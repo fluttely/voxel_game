@@ -59,6 +59,7 @@ Flutter 3.47.1, **but not the web** (worker isolates, TCP sockets and save files
 | The flutter_scene follow-up plan (FS): what came back from bdero/flutter_scene#435, the terrain on 0.24's public geometry path, what may still go upstream | `docs/FLUTTER_SCENE_FOLLOWUP_PLAN_2026-10-09.md` |
 | The occlusion plan (OC): hiding the terrain draws the camera cannot see (cave culling underground, horizon occlusion above), gated on an offline count | `docs/VOXEL_OCCLUSION_PLAN_2026-10-09.md` |
 | The settled-regions plan (SR): OC0's track C, terrain drawn in 4 × 4-chunk regions instead of 2 × 2 (plain, or merged once settled), gated on an offline count | `docs/VOXEL_REGIONS_PLAN_2026-10-09.md` |
+| The app's look plan (AL): the hooks the kit takes (item uses, pulses, hit colours, declared poses) and the four looks VA-Z left behind | `docs/VOXEL_LOOK_PLAN_2026-10-17.md` |
 | Measuring the frame rate | `dart tool/run_benchmark.dart` · `packages/voxel_game/example/lib/benchmark.dart` |
 | The terrain shader, source and compiled | `packages/voxel_scene/shaders/` · `packages/voxel_scene/assets/shaders/terrain.shaderbundle` |
 
