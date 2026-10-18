@@ -297,6 +297,7 @@ class VoxelGame {
     game.scene!.add(world.root!);
     if (spec.sky.weather != null) game.scene!.add((game.weatherParticles = WeatherParticles()).node);
     game.scene!.add(game.debris.node);
+    game.scene!.add(game.pulses.node);
     game._begin(save);
     game.firstPerson = FirstPersonView(game);
     await world.start();
@@ -944,6 +945,19 @@ class VoxelGame {
     debris.burst(at, Vector3(t.r * k, t.g * k, t.b * k), count: count, speed: speed);
   }
 
+  /// The flashes of colour over the world, a see-through sphere each that
+  /// grows and fades ([pulse] raises one). [frame] ages them; headless, they
+  /// keep their state and nothing draws.
+  final PulseEffects pulses = PulseEffects();
+
+  /// Raises a pulse of [color] (`0xRRGGBB`) at [at], growing to [radius]
+  /// metres and gone in [PulseEffects.seconds]: where a blow lands or a spell
+  /// goes off. Local only: a hosted session does not send it, so a game
+  /// raises it on each side from what that side sees (the hit it comes with
+  /// already reaches every side). Throws for a radius not above 0 or a
+  /// colour outside `0..0xFFFFFF`.
+  void pulse(Vector3 at, int color, double radius) => pulses.add(at, color, radius);
+
   /// The damage dealt to creatures, a number over each for a second: a
   /// creature's hit adds one where it is the [authority], and a replica's
   /// lost health where it is not. [frame] ages it.
@@ -1063,6 +1077,7 @@ class VoxelGame {
     }
     notices.advance(dt);
     damageNumbers.advance(dt);
+    pulses.advance(dt);
     _frameWatch.stop();
     stats.addFrame(seconds: dt, simMs: _frameWatch.elapsedMicroseconds / 1000.0, steps: steps);
     _frames.value++;

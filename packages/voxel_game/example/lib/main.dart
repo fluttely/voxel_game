@@ -465,7 +465,7 @@ const game = VoxelGameSpec(
     ItemType('shears', color: 0xC8C8D0, tool: 'shears', stack: 1, durability: 120),
     // A bucket used on a cow is milk, which cures poison and burning and leaves the bucket.
     ItemType('milk_bucket', color: 0xF4F4F0, stack: 1, food: Food(heal: 2, cures: true, leaves: 'bucket')),
-    // A compass: use with it in hand says where the player stands and which way they face (the `itemUses` below).
+    // A compass: use with it in hand says where the player stands and which way they face, with a pulse (the `itemUses` below).
     ItemType('compass', color: 0xB0B8C0, stack: 1),
   ],
   recipes: [
@@ -968,6 +968,8 @@ void _bearing(VoxelGame game, ItemType compass) {
   final quarter = ((p.yaw / (math.pi / 2)).round() % 4 + 4) % 4;
   final at = IVec3.floor(p.position);
   game.notify('Facing ${points[quarter]} at ${at.x}, ${at.y}, ${at.z}');
+  // A pale blue flash two metres ahead, where the player looks: a pulse is a see-through sphere, so it shows from outside.
+  game.pulse(p.eyePosition + p.forward * 2.0, 0x80BFFF, 0.75);
 }
 
 // Tells the time of day when the clock action is pressed, as the world's clock option reads it, and the tally.

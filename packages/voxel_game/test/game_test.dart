@@ -878,6 +878,16 @@ void main() {
     game.dispose();
   });
 
+  test('a pulse is raised where it is asked for, and the frames fade it away', () async {
+    final game = await _start(_flat());
+    final at = game.player.position + Vector3(0, 1, 0);
+    game.pulse(at, 0xFF8C33, 1.0);
+    expect(game.pulses.shown.single, (at: at, color: 0xFF8C33, radius: 1.0, age: 0.0));
+    await _run(game, PulseEffects.seconds + 0.05);
+    expect(game.pulses.shown, isEmpty);
+    game.dispose();
+  });
+
   test('the boss is the nearest living one', () async {
     const cow = MobSpec('cow', brain: []);
     const brute = MobSpec('brute', hp: 40, brain: [], boss: true);

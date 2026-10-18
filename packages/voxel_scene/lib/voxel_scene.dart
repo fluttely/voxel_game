@@ -10,6 +10,7 @@ export 'src/haze.dart';
 export 'src/item_mesh.dart';
 export 'src/mirrored_camera.dart';
 export 'src/node_body.dart';
+export 'src/pulse_effects.dart';
 export 'src/render_size_watch.dart';
 export 'src/resize_safe_scene.dart';
 export 'src/rig_part.dart';

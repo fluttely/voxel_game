@@ -44,6 +44,12 @@
   is no item throws when the game is made (`VoxelGameSpec.checkItemUses`, new). The
   example's compass tells where the player stands with it.
 
+- **`VoxelGame.pulse(at, color, radius)` (new, AL2)** raises a flash of colour over the
+  world: `voxel_scene`'s `PulseEffects`, held as `VoxelGame.pulses` (new) beside
+  `debris` and aged by `frame`. Local only, as a hosted session does not send it; headless
+  it keeps its state and draws nothing. `PulseEffects` is exported. The example's compass
+  flashes ahead of the player.
+
 ## 0.4.0-dev
 
 **Breaking**

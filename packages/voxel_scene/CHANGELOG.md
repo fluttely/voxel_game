@@ -77,6 +77,14 @@
   `gpuFramesInFlight`): `ScenePacer` paces, and every frame it renders is counted.
   `warmUp` takes and forwards `sliceBudget` and `allShadingTiers`.
 
+- **`PulseEffects` (new, AL2): a flash of colour over the world.** `add(at, color,
+  radius)` raises a see-through sphere of `0xRRGGBB` that grows from 1 m across to a
+  radius of `radius` and fades from alpha 0.55 to nothing in 0.35 s, easing out as a
+  cubic (`scaleAt`, `alphaAt`). A pool of `capacity` spheres (16 by default) shares one
+  geometry, each with its own unlit, blended material and no shadow; a full pool drops
+  the oldest, and a frame's `advance` allocates nothing. Without its `node` it keeps its
+  state and draws nothing.
+
 ## 0.4.0-dev
 
 **Breaking**

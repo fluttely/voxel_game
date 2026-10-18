@@ -242,7 +242,8 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
   the damage taken. A creature dies by toppling over and fading out. `PlayerSpec.critChance`
   makes some of the player's blows critical (`critMultiplier`, the number yellow with a `!`).
   A creature set alight (`Mob.ignite`) burns orange and sheds embers. Blocks chip as they are
-  mined and burst as they break (`VoxelGame.debris`, one particle system).
+  mined and burst as they break (`VoxelGame.debris`, one particle system). `VoxelGame.pulse`
+  flashes a see-through sphere of a colour where a game's blow lands or its spell goes off.
 - Minecraft's items, each a row: a bow (`ItemType.launcher: Launcher(shot: 'arrow', ammo:
   'arrow')`) shoots on attack the `ProjectileSpec` its shot names in `VoxelGameSpec.shots`,
   spending its ammo; an item's `light` lights the way in hand (a torch's item has its

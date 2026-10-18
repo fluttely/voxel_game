@@ -36,6 +36,8 @@ and night sky, block models and the selection outline.
   water's); the numbers are `SkyLook`'s, checked with no GPU.
 - `WeatherParticles` (rain and snow around a point) and `DebrisParticles` (chips and
   embers thrown out of one), each one `ParticleSystem`, so one draw.
+- `PulseEffects`: a see-through sphere of a colour that grows and fades where a blow
+  lands, from a pool of spheres built once.
 - `VoxelModelMesh`, with one shared material a tint (`tinted`, see-through under an alpha
   of 1) and a white one for a hit (`flash`); `RigPart`, `NodeBody`.
 
