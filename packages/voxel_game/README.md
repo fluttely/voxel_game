@@ -209,6 +209,10 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
   a `Glider` of its speed and sink; hold `VoxelAction.glide`, G, in the air; the model
   spreads its arms). A phone gets a button for each, fly in creative, glide while the bag
   holds a glider.
+- Poses the player's model holds, declared: `PlayerSpec.poses` of `RigPose` (target
+  angles for named parts, a lean, a blend rate), held for some seconds by
+  `PlayerEntity.holdPose('wave', 1.0)` over the walk, the seat and the glide, and drawn so
+  by every peer.
 - `MobSpec` with a `Rig` (humanoid, quadruped, bird, blob), a `Gait` and a brain of goals:
   `Wander`, `Hunt`, `MeleeAttack`, `RangedAttack`, `FleeWhenHurt`, `Explode`, `LookAtPlayer`, or `Behavior.custom`.
 - A creature derived from another keeps what it does not change: `MobSpec`, `SpawnRule`,
@@ -425,8 +429,8 @@ flutter run -d macos
 [`example/lib/main.dart`](example/lib/main.dart) is a small game in one file:
 twelve blocks, two biomes with trees and coal, a few recipes, a player with a
 pickaxe, a glider, a bow, shears and a bed, sheep and cows by day and zombies by night, three actions of its own
-(F1 the controls, T the time, H a wave to the other players, a message of its own) and a title whose Creative
-worlds fly.
+(F1 the controls, T the time, H a wave: a pose its model holds and a message of its own to the other players)
+and a title whose Creative worlds fly.
 
 ## Working on the kit
 

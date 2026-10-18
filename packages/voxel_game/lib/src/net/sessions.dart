@@ -117,8 +117,8 @@ typedef _StoreEdit = ({int n, int opening, int slot, ItemStack? before, ItemStac
 /// amount, where from, the shove, its source and the effect it leaves,
 /// worn on the peer's side). A client stuns (`mob_stun`), slows
 /// (`mob_slow`) and calms (`mob_forget`) the host's creatures through the
-/// host. A player's pose carries its name (`nm`), its game's options (`op`) and its game's extras
-/// (`x`). A game's own messages travel as `game` (its type and the game's
+/// host. A player's pose carries its name (`nm`), its game's options (`op`), its game's extras
+/// (`x`) and the pose its model holds (`ps`, `PlayerEntity.heldPose`). A game's own messages travel as `game` (its type and the game's
 /// message), handed to the handler `VoxelGameSpec.messages` gives its type.
 /// Every peer runs the same spec, so a dimension's number is the same
 /// everywhere, and a message no peer of that spec would send throws: a
@@ -301,9 +301,21 @@ abstract class GameSession extends GameSystem {
   /// The way a peer's seat points ([o], null for none).
   static double? _seat(Object? o) => (o as num?)?.toDouble();
 
+  /// The pose a peer's model holds, sent as [o] (null for none): one its
+  /// player, played with [options], declares.
+  String? _pose(Object? o, Map<String, String> options) {
+    if (o == null) return null;
+    final name = o as String;
+    if (!game.spec.playerWith(options).poses.containsKey(name)) {
+      throw FormatException('a pose its player does not declare: $name');
+    }
+    return name;
+  }
+
   /// What a pose of [game]'s player says beyond where it stands: the way its
   /// seat points while it rides, its float while a line is out, its name,
-  /// its game's options (`VoxelGame.options`) and its game's extras.
+  /// its game's options (`VoxelGame.options`), its game's extras and the
+  /// pose its model holds.
   static Map<String, Object?> _beyond(VoxelGame game) {
     final p = game.player;
     return {
@@ -312,6 +324,7 @@ abstract class GameSession extends GameSystem {
       'nm': ?p.name,
       if (game.options.isNotEmpty) 'op': game.options,
       if (p.poseExtras.isNotEmpty) 'x': p.poseExtras,
+      'ps': ?p.heldPose,
     };
   }
 
@@ -581,6 +594,7 @@ class HostSession extends GameSession {
           name: m['nm'] as String?,
           options: GameSession._options(m['op']),
           extras: GameSession._extras(m['x']),
+          pose: _pose(m['ps'], GameSession._options(m['op'])),
         );
         _ridden(puppet, m['m']);
         _driven(puppet, m['v']);
@@ -999,6 +1013,7 @@ class HostSession extends GameSession {
             'nm': r.name,
             if (r.options.isNotEmpty) 'op': r.options,
             if (r.extras.isNotEmpty) 'x': r.extras,
+            'ps': ?r.heldPose,
           },
       ],
       'd': game.world.dimension,
@@ -1631,6 +1646,7 @@ class ClientSession extends GameSession {
         name: r['nm'] as String?,
         options: GameSession._options(r['op']),
         extras: GameSession._extras(r['x']),
+        pose: _pose(r['ps'], GameSession._options(r['op'])),
       );
     }
     for (final id in players.keys.where((k) => !seen.contains(k)).toList()) {

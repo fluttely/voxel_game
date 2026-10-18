@@ -60,6 +60,18 @@
   number is the host's colour. `DefaultHud.numberColor` and `DefaultHud.critColor` (new)
   are the HUD's choice, for a game's own HUD. The example colours its swings and arrows.
 
+- **Declared poses a player's model holds, seen by every peer (AL4).** `RigPose` (new):
+  target angles for some named parts and a lean of the whole body, blended in and out at
+  its `rate`. `PlayerSpec.poses` (new, in `copyWith`) declares them by name;
+  `PlayerEntity.holdPose(name, seconds)` (new) holds one, a new hold replacing the old,
+  and `PlayerEntity.heldPose` (new) names it; a name the spec lacks throws.
+  `RigAnimator.pose` and `RigInstance.animate` take `held:`, blended over the gait, the
+  seat and the glide (`RigAnimator.heldWeight` and `RigAnimator.lean`, new), and a part
+  the rig lacks throws; `RigInstance.place` adds the lean to its topple
+  (`RigInstance.toppleOf`, new). The pose row carries the name as `ps`, read as
+  `RemotePlayer.heldPose` (new) and drawn with the peer's `PlayerSpec`; a name that player
+  does not declare is a malformed message. The example waves its right arm on H.
+
 ## 0.4.0-dev
 
 **Breaking**

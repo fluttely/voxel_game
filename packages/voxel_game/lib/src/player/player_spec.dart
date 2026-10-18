@@ -1,4 +1,5 @@
 import '../mobs/rig.dart';
+import '../mobs/rig_pose.dart';
 import 'hunger_spec.dart';
 import 'xp_spec.dart';
 
@@ -34,6 +35,7 @@ class PlayerSpec {
     this.creative = false,
     this.fallDamage = true,
     this.rig = const Rig.humanoid(),
+    this.poses = const {},
     this.respawnDelay = 1.0,
     this.hunger,
     this.xp,
@@ -107,6 +109,10 @@ class PlayerSpec {
   /// How the player looks in third person.
   final Rig rig;
 
+  /// The poses its [rig] can hold over the walk, by name
+  /// (`PlayerEntity.holdPose`): a dash, a cheer. A peer draws the one held.
+  final Map<String, RigPose> poses;
+
   /// Seconds after dying before the player may stand up again at the spawn
   /// (`VoxelGame.respawn`, from the death screen): a press meant for the
   /// fight does not skip it.
@@ -165,6 +171,7 @@ class PlayerSpec {
     bool? creative,
     bool? fallDamage,
     Rig? rig,
+    Map<String, RigPose>? poses,
     double? respawnDelay,
     HungerSpec? Function()? hunger,
     XpSpec? Function()? xp,
@@ -194,6 +201,7 @@ class PlayerSpec {
     creative: creative ?? this.creative,
     fallDamage: fallDamage ?? this.fallDamage,
     rig: rig ?? this.rig,
+    poses: poses ?? this.poses,
     respawnDelay: respawnDelay ?? this.respawnDelay,
     hunger: hunger == null ? this.hunger : hunger(),
     xp: xp == null ? this.xp : xp(),

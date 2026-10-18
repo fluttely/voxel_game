@@ -90,6 +90,7 @@ export 'src/mobs/mob_split.dart';
 export 'src/mobs/mount_spec.dart';
 export 'src/mobs/rig.dart';
 export 'src/mobs/rig_animator.dart';
+export 'src/mobs/rig_pose.dart';
 export 'src/mobs/spawn_place.dart';
 export 'src/mobs/spawner.dart';
 export 'src/player/boost.dart';

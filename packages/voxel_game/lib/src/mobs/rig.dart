@@ -7,6 +7,7 @@ import 'package:voxel_engine/core.dart';
 import 'package:voxel_scene/voxel_scene.dart';
 
 import 'rig_animator.dart';
+import 'rig_pose.dart';
 
 /// The body plans of the stock rigs.
 enum RigKind {
@@ -502,7 +503,9 @@ class RigInstance {
   /// facing [targetYaw], standing [onFloor] or [flying]; [lookYaw] turns the
   /// head toward something (relative to the body), null for straight ahead.
   /// [seated], a humanoid sits (`RigAnimator.seatedLegs`): its owner places
-  /// it [seatDrop] lower. [gliding], a humanoid spreads its arms.
+  /// it [seatDrop] lower. [gliding], a humanoid spreads its arms. [held], it
+  /// takes that pose over the rest, blended in at its rate, and leans as it
+  /// says once [place]d.
   void animate(
     double dt, {
     required double speed,
@@ -513,6 +516,7 @@ class RigInstance {
     double verticalSpeed = 0.0,
     bool seated = false,
     bool gliding = false,
+    RigPose? held,
   }) {
     _age += dt;
     _yaw = lerpAngle(_yaw, targetYaw, math.min(1.0, dt * 12.0));
@@ -526,6 +530,7 @@ class RigInstance {
       verticalSpeed: verticalSpeed,
       seated: seated,
       gliding: gliding,
+      held: held,
     );
     for (final p in parts.values) {
       p.apply();
@@ -533,19 +538,24 @@ class RigInstance {
   }
 
   /// Puts the model at the feet [position], [scale] times its fitted size,
-  /// toppled by [topple] radians (a death) and shaken sideways by [shake]. It
-  /// does not turn it: its owner's node faces [yaw].
+  /// toppled by [topple] radians (a death) and the held pose's lean
+  /// ([toppleOf]) and shaken sideways by [shake]. It does not turn it: its
+  /// owner's node faces [yaw].
   ///
   /// Every creature is placed every step, so this allocates nothing: the
   /// pose is composed into [root]'s matrix at once.
   void place(Vector3 position, {double scale = 1.0, double topple = 0.0, double shake = 0.0}) {
     final ms = scale * model.fit;
     final sq = rig.kind == RigKind.blob ? animator.squash : 1.0;
-    eulerYXZInto(_rotation, topple, 0.0, 0.0);
+    eulerYXZInto(_rotation, toppleOf(animator, topple), 0.0, 0.0);
     _scale.setValues(ms / math.sqrt(sq), ms * sq, ms / math.sqrt(sq));
     _translation.setValues(position.x + shake, position.y, position.z);
     root.mutateLocalTransform(_compose);
   }
+
+  /// How far [place] tilts a model about X that [animator] poses, asked to
+  /// topple it [topple]: that and the held pose's lean (`RigAnimator.lean`).
+  static double toppleOf(RigAnimator animator, double topple) => topple + animator.lean;
 
   // The pose [place] composes, shared by every rig: the root copies it into
   // its matrix before [place] returns.

@@ -1520,6 +1520,32 @@ void main() {
     await _close(session, clients);
   });
 
+  test("a pose a player holds reaches every other side, and ends there with its hold", () async {
+    const wave = RigPose(parts: {'arm1': (rx: 0.0, ry: 0.0, rz: 2.6)});
+    final (host, session, clients) = await _session(
+      2,
+      spec: _spec.copyWith(player: const PlayerSpec(poses: {'wave': wave})),
+    );
+    final [a, b] = clients;
+    final all = [host, a, b];
+    final peerA = _client(a).peer;
+    await _run(all, 0.2);
+    expect(session.players[peerA]!.heldPose, isNull);
+
+    a.player.holdPose('wave', 0.6);
+    host.player.holdPose('wave', 0.6);
+    await _run(all, 0.3);
+    for (final r in [session.players[peerA]!, b.session!.players[peerA]!]) {
+      expect(r.heldPose, 'wave', reason: "the host's puppet and the other client's alike");
+    }
+    expect(a.session!.players[GameSession.hostPeer]!.heldPose, 'wave', reason: "the host's own");
+
+    await _run(all, 0.6);
+    expect(b.session!.players[peerA]!.heldPose, isNull, reason: 'over, it is no longer sent');
+    expect(a.session!.players[GameSession.hostPeer]!.heldPose, isNull);
+    await _close(session, clients);
+  });
+
   test("a client plays with the options it joins with, and every side draws it as they make it", () async {
     const mageRig = Rig.humanoid(shirt: 0x5A47BF);
     final spec = _spec.copyWith(

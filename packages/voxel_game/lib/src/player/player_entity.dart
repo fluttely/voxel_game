@@ -370,6 +370,22 @@ class PlayerEntity extends NodeBody implements Target, Angler {
   bool get flashing => _flash > 0.0;
   double _flash = 0.0;
 
+  /// The name of the pose of `PlayerSpec.poses` its model holds now
+  /// ([holdPose]), null for none. A peer draws it too.
+  String? get heldPose => _pose;
+  String? _pose;
+  double _poseLeft = 0.0;
+
+  /// Holds the pose [name] of `PlayerSpec.poses` for [seconds] (third person,
+  /// and on every peer), blended in and out at its rate; a hold before it is
+  /// over is replaced. A name the spec lacks throws [ArgumentError].
+  void holdPose(String name, double seconds) {
+    if (!spec.poses.containsKey(name)) throw ArgumentError.value(name, 'name', 'not a pose of this player');
+    if (seconds <= 0.0) throw ArgumentError.value(seconds, 'seconds', 'a hold lasts some time');
+    _pose = name;
+    _poseLeft = seconds;
+  }
+
   bool _dead = false;
   double _deadFor = 0.0;
   double _stepTimer = 0.0;
@@ -590,6 +606,8 @@ class PlayerEntity extends NodeBody implements Target, Angler {
     _shakeLeft = math.max(_shakeLeft - dt, 0.0);
     _freeze = math.max(_freeze - dt, 0.0);
     _flash = math.max(_flash - dt, 0.0);
+    _poseLeft = math.max(_poseLeft - dt, 0.0);
+    if (_poseLeft == 0.0) _pose = null;
     if (_dead) {
       _deadFor += dt;
       return;
@@ -1644,6 +1662,7 @@ class PlayerEntity extends NodeBody implements Target, Angler {
         onFloor: seated || asleep || onFloor || _flying,
         seated: seated,
         gliding: gliding,
+        held: _pose == null ? null : spec.poses[_pose]!,
       );
     }
     r.paint(flashing ? VoxelModelMesh.flash() : VoxelModelMesh.material());

@@ -700,8 +700,8 @@ const game = VoxelGameSpec(
       dimensions: {'underworld': 'underworld'},
     ),
   ),
-  // 4. The player: what they start with, hunger that food fills, experience (a kill's, below), and one blow in
-  //    ten a critical one.
+  // 4. The player: what they start with, hunger that food fills, experience (a kill's, below), one blow in
+  //    ten a critical one, and a pose its model holds (a wave, below).
   player: PlayerSpec(
     startingItems: {
       'wooden_pickaxe': 1,
@@ -719,6 +719,9 @@ const game = VoxelGameSpec(
     hunger: HungerSpec(),
     xp: XpSpec(),
     critChance: 0.1,
+    poses: {
+      'wave': RigPose(parts: {'arm1': (rx: 0.0, ry: 0.0, rz: 2.6)}),
+    },
   ),
   // 5. Creatures: a body, a brain (goals; the lower priority wins), loot, experience and when they spawn.
   mobs: [
@@ -1021,11 +1024,13 @@ class _Tally extends SavedSystem {
   }
 }
 
-// A wave (H) to the other players of a hosted world: the host's goes to every client, a client's to the host.
+// A wave (H): the right arm up over the head for a second, seen in third person and by every other player, and a
+// word to the other players of a hosted world: the host's goes to every client, a client's to the host.
 class _Wave extends GameSystem {
   @override
   void tick(VoxelGame game, double dt) {
     if (!game.gameplay || !game.actions.justPressed('wave')) return;
+    game.player.holdPose('wave', 1.0);
     switch (game.session) {
       case null:
         game.notify('Nobody here to wave to: host the world, or join one');
@@ -1137,7 +1142,7 @@ Widget _controls(BuildContext context, VoxelGame game) => ColoredBox(
               'E bag · Q drop · V view · Esc menu\n'
               'G glide, with a glider in the bag · F fly, in a Creative world\n'
               'T the time · F1 these controls · Right click a glowstone to pray\n'
-              'H wave to the other players, in a hosted world\n'
+              'H wave (an arm up in third person; a word to the other players, in a hosted world)\n'
               'A phone: a stick at the left, the world is the button',
             ),
             const SizedBox(height: 12),

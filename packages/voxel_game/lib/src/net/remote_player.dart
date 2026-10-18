@@ -12,11 +12,12 @@ import '../fishing/angler.dart';
 import '../fishing/bobber.dart';
 import '../mobs/rig.dart';
 import '../player/held_light.dart';
+import '../player/player_spec.dart';
 
 /// Another player in a networked game: a body standing where its peer says,
 /// drawn with the rig of the player its peer's [options] make
 /// (`VoxelGameSpec.playerWith`: a class's colours), seated when its peer rides, lying down when
-/// it sleeps, lit by the light of what it holds, and its float on
+/// it sleeps, in the pose its peer holds (that player's `PlayerSpec.poses`), lit by the light of what it holds, and its float on
 /// the water with a line from its hand when its peer fishes, its [name] over
 /// it (`DefaultHud`), and what its peer's game sends with each pose in
 /// [extras]. On the host it is a [Target] the mobs hunt; the damage it takes
@@ -103,6 +104,7 @@ class RemotePlayer extends GameEntity implements Target, Angler {
   String? _name;
   Map<String, String> _options = const {};
   Map<String, Object?> _extras = const {};
+  String? _pose;
   Rig? _drawn;
   bool _restyled = false;
 
@@ -117,6 +119,10 @@ class RemotePlayer extends GameEntity implements Target, Angler {
   /// What its peer's game sends with each pose (`PlayerEntity.poseExtras`),
   /// as last said; read-only.
   Map<String, Object?> get extras => _extras;
+
+  /// The name of the pose its peer's model holds (`PlayerEntity.heldPose`),
+  /// as last said; null for none.
+  String? get heldPose => _pose;
 
   /// Dead, or gone with its peer: out of every fight, and its pets wait.
   @override
@@ -148,8 +154,9 @@ class RemotePlayer extends GameEntity implements Target, Angler {
   /// Where the peer says its player is, in which dimension, looking where,
   /// holding what (`''` for nothing), alive or not, asleep or not, on a seat
   /// pointing [seat] (null for none), its float at [float] (null for none),
-  /// named [name] (null for none), playing with [options] and with its
-  /// game's [extras].
+  /// named [name] (null for none), playing with [options], with its game's
+  /// [extras] and holding the pose [pose] (null for none; one of the
+  /// `PlayerSpec.poses` its [options] make).
   void setPose(
     Vector3 at,
     double yaw, {
@@ -162,6 +169,7 @@ class RemotePlayer extends GameEntity implements Target, Angler {
     String? name,
     Map<String, String> options = const {},
     Map<String, Object?> extras = const {},
+    String? pose,
   }) {
     if (dimension != this.dimension) position = at.clone(); // across dimensions it does not walk
     this.dimension = dimension;
@@ -178,6 +186,7 @@ class RemotePlayer extends GameEntity implements Target, Angler {
       _restyled = true;
     }
     _extras = Map.unmodifiable(extras);
+    _pose = pose;
   }
 
   /// Where its right hand is drawn, near enough for its line to hang from:
@@ -198,11 +207,15 @@ class RemotePlayer extends GameEntity implements Target, Angler {
     _light = HeldLight(node);
   }
 
+  // The player its options make; until its first pose says them, the
+  // declared one.
+  PlayerSpec _player(VoxelGame game) => _options.isEmpty ? game.spec.player : game.spec.playerWith(_options);
+
   // Draws it with the rig its options make, built again when they make
-  // another one; until its first pose says them, as the declared player.
+  // another one.
   void _dress(VoxelGame game) {
     _restyled = false;
-    final want = (_options.isEmpty ? game.spec.player : game.spec.playerWith(_options)).rig;
+    final want = _player(game).rig;
     if (identical(want, _drawn)) return;
     if (rig case final old?) node.remove(old.root);
     _drawn = want;
@@ -218,12 +231,13 @@ class RemotePlayer extends GameEntity implements Target, Angler {
       ..y = 0;
     _speed = lerpd(_speed, moved.length / math.max(dt, 1e-6), math.min(1.0, dt * 8.0));
     final seat = _seat;
+    final pose = _pose == null ? null : _player(game).poses[_pose]!;
     if (_restyled && rig != null) _dress(game);
     final r = rig;
     if (r != null) {
       r.root.visible = !_dead && dimension == game.world.dimension;
       if (r.canHold) r.hold(_held.isEmpty ? null : game.itemModel(_held));
-      r.animate(dt, speed: seat == null ? _speed : 0.0, targetYaw: seat ?? _yaw, seated: seat != null);
+      r.animate(dt, speed: seat == null ? _speed : 0.0, targetYaw: seat ?? _yaw, seated: seat != null, held: pose);
       r.place(Vector3(0, seat == null ? 0.0 : -r.seatDrop, 0), topple: _sleeping ? math.pi / 2 : 0.0);
       _light!.show(_dead || dimension != game.world.dimension || _held.isEmpty ? null : game.items[_held]);
     }

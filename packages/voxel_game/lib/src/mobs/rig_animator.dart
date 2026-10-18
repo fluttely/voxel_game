@@ -1,9 +1,11 @@
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:voxel_engine/core.dart';
 import 'package:voxel_scene/voxel_scene.dart';
 
 import 'rig.dart';
+import 'rig_pose.dart';
 
 /// How a body plan moves: the numbers a [RigAnimator] poses with. The
 /// defaults are the kit's; a game tunes its own creatures' feel here.
@@ -115,6 +117,22 @@ class RigAnimator {
   double _landSquash = 0.0;
   bool _wasOnFloor = true;
 
+  /// How far the held pose is in, 0 to 1.
+  double heldWeight = 0.0;
+
+  // The pose blended in, kept while it fades out after it is let go.
+  RigPose? _blended;
+
+  // The parts the last frame's pose wrote over, and their angles before it
+  // did: put back before the walk poses again, so a part the walk does not
+  // drive comes back to where it was as the weight goes.
+  final List<RigPart> _posed = [];
+  Float64List _unposed = Float64List(0);
+
+  /// How far the held pose leans the whole body now, radians: its lean by
+  /// [heldWeight] (`RigInstance.place` adds it to the topple).
+  double get lean => (_blended?.lean ?? 0.0) * heldWeight;
+
   /// Starts an attack swing (a humanoid's arm, a quadruped's nod, a peck).
   void startSwing() => swing = 1.0;
 
@@ -128,7 +146,10 @@ class RigAnimator {
   /// for straight ahead. [seated], a humanoid sits, its legs out in front
   /// ([seatedLegs]); the other plans have no seat of their own and only
   /// stand still. [gliding], a humanoid spreads its arms ([glideSpread]).
-  /// Parts are applied by the caller.
+  /// [held] blends its parts' angles in over all of that at its rate
+  /// ([heldWeight]), and out at the same rate once it is null; a part it
+  /// names that the rig lacks throws [ArgumentError]. Parts are applied by
+  /// the caller.
   void pose(
     double dt, {
     required double age,
@@ -139,7 +160,15 @@ class RigAnimator {
     double verticalSpeed = 0.0,
     bool seated = false,
     bool gliding = false,
+    RigPose? held,
   }) {
+    for (var i = 0; i < _posed.length; i++) {
+      _posed[i]
+        ..rx = _unposed[i * 3]
+        ..ry = _unposed[i * 3 + 1]
+        ..rz = _unposed[i * 3 + 2];
+    }
+    _posed.clear();
     moveWeight = lerpd(moveWeight, speed > 0.3 ? 1.0 : 0.0, math.min(1.0, dt * 8.0));
     phase += dt * speed * _gaitRate;
     final a = math.sin(phase) * 0.7 * moveWeight;
@@ -231,5 +260,34 @@ class RigAnimator {
         break;
     }
     _wasOnFloor = onFloor;
+    _hold(dt, held);
+  }
+
+  // Blends [held] (or the pose fading out) over what the frame posed.
+  void _hold(double dt, RigPose? held) {
+    final pose = held ?? _blended;
+    if (pose == null) return;
+    heldWeight = lerpd(heldWeight, held == null ? 0.0 : 1.0, math.min(1.0, dt * pose.rate));
+    if (held == null && heldWeight < 1e-3) {
+      heldWeight = 0.0;
+      _blended = null;
+      return;
+    }
+    _blended = pose;
+    if (_unposed.length < pose.parts.length * 3) _unposed = Float64List(pose.parts.length * 3);
+    for (final MapEntry(key: name, value: to) in pose.parts.entries) {
+      final p = parts[name];
+      if (p == null) throw ArgumentError.value(name, 'held', 'a pose of a part this ${kind.name} rig lacks');
+      final i = _posed.length * 3;
+      _unposed
+        ..[i] = p.rx
+        ..[i + 1] = p.ry
+        ..[i + 2] = p.rz;
+      _posed.add(p);
+      p
+        ..rx = lerpd(p.rx, to.rx, heldWeight)
+        ..ry = lerpd(p.ry, to.ry, heldWeight)
+        ..rz = lerpd(p.rz, to.rz, heldWeight);
+    }
   }
 }
