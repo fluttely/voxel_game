@@ -173,6 +173,59 @@ void main() {
     ranger.dispose();
   });
 
+  test("a bow's use fans three arrows and a staff's arcs five bolts, paid for, then each waits", () async {
+    final ranger = await _start('ranger');
+    Iterable<Projectile> shots(VoxelGame game) => game.entities.whereType<Projectile>().where((s) => !s.removed);
+    final archer = ranger.player;
+    final classes = ClassSystem.of(ranger);
+    archer.selectedSlot = archer.inventory.find('bow');
+    ranger.input.tap(VoxelAction.use);
+    _run(ranger, 0.05);
+    expect(shots(ranger), hasLength(3));
+    expect(shots(ranger).map((s) => s.spec.kind).toSet(), {'arrow'});
+    expect(archer.inventory.countOf('arrow'), 48 - 3);
+    expect(classes.stamina, closeTo(120.0 - 14.0, 1.0));
+    expect(classes.fanWait, closeTo(1.4 - 0.05, 0.02));
+    ranger.input.tap(VoxelAction.use);
+    _run(ranger, 0.05);
+    expect(archer.inventory.countOf('arrow'), 48 - 3, reason: 'inside its wait it looses nothing');
+    _run(ranger, 1.4);
+    archer.inventory.remove('arrow', archer.inventory.countOf('arrow') - 2);
+    ranger.input.tap(VoxelAction.use);
+    _run(ranger, 0.05);
+    expect(ranger.notices.feed.map((n) => n.text), contains('Need 3 arrows'));
+    expect(archer.inventory.countOf('arrow'), 2, reason: 'refused, nothing spent');
+    archer.inventory.put(ItemStack('arrow', 10));
+    classes.stamina = 5.0;
+    ranger.input.tap(VoxelAction.use);
+    _run(ranger, 0.05);
+    expect(ranger.notices.feed.map((n) => n.text), contains('Too tired to draw'));
+    expect(archer.inventory.countOf('arrow'), 12);
+    ranger.dispose();
+
+    final mage = await _start('mage');
+    final p = mage.player;
+    final arcane = ClassSystem.of(mage)..points = 1;
+    expect(arcane.learn('focus'), isTrue);
+    p.selectedSlot = p.inventory.find('staff');
+    mage.input.tap(VoxelAction.use);
+    _run(mage, 0.05);
+    expect(shots(mage), hasLength(5));
+    expect(shots(mage).map((s) => s.spec.kind).toSet(), {'bolt'});
+    expect(arcane.mana, closeTo(100.0 - 18.0 * 0.85, 0.3), reason: 'Focus takes 15% off');
+    final flash = mage.pulses.shown.single;
+    expect((flash.color, flash.radius), (0xFF8C33, 1.0));
+    expect(flash.at.distanceTo(p.eyePosition), closeTo(0.8, 0.2), reason: 'at the muzzle');
+    _run(mage, 1.1);
+    arcane.mana = 5.0;
+    mage.input.tap(VoxelAction.use);
+    _run(mage, 0.05);
+    expect(mage.notices.feed.map((n) => n.text), contains('Not enough mana'));
+    expect(shots(mage).length, lessThanOrEqualTo(5), reason: 'refused, nothing loosed');
+    expect(arcane.mana, greaterThan(5.0));
+    mage.dispose();
+  });
+
   test('the dodge dashes untouchable and waits; a level is a talent point, which buys a rank', () async {
     final game = await _start('rogue');
     final p = game.player;

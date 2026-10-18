@@ -156,6 +156,8 @@ final VoxelGameSpec gameSpec = VoxelGameSpec(
   ],
   // A waypoint lists the others, to travel to one; an enchanting table enchants what is in hand.
   blockUses: const {Waypoints.block: Waypoints.open, Enchanting.table: _enchant},
+  // A bow's use looses a fan of three arrows, a staff's an arc of five bolts.
+  itemUses: {for (final id in fanShots.keys) id: _fan},
   // A villager opens its trades; a client asks the host for them.
   mobUses: const {Villages.villager: Villages.use},
   messages: const {Villages.askMessage: Villages.heardAsk, Villages.offersMessage: Villages.heardOffers},
@@ -217,5 +219,7 @@ List<GameSystem> _systems() => [
 ];
 
 void _enchant(VoxelGame game, IVec3 cell) => Enchanting.use(game, cell);
+
+void _fan(VoxelGame game, ItemType item) => ClassSystem.of(game).fan(game, item);
 
 bool get _phone => defaultTargetPlatform == TargetPlatform.iOS || defaultTargetPlatform == TargetPlatform.android;

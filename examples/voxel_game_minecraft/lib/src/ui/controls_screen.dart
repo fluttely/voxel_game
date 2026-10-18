@@ -19,7 +19,7 @@ class ControlsScreen extends StatelessWidget {
   static const Map<String, List<String>> sections = {
     'Keyboard and mouse': [
       'W A S D  walk  ·  Space  jump  ·  Shift  run  ·  Ctrl  sneak',
-      'Left click  mine and hit  ·  Right click  place, use, eat, wear',
+      'Left click  mine and hit  ·  Right click  place, use, eat, wear, or shoot a spread with a bow or staff',
       'E  bag  ·  Q  drop  ·  V  first or third person  ·  Esc  menu',
       'R and F  your class\'s two powers  ·  Alt  dodge  ·  J  journal',
       'G  glide, with a glider in the bag  ·  F5  fly, in a Creative world',

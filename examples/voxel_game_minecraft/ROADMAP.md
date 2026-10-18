@@ -72,6 +72,18 @@ they name are the old app's, deleted at stage 34 and kept in git history before 
 
 ## Session log
 
+- **2026-10-18 AL5** — a bow's and a staff's use is the old app's again: a fan of three
+  arrows across 24° (3 arrows, 14 stamina, 0.85 of a shot each, again in 1.4 s) and an
+  arc of five bolts across 50° (18 mana less Focus, 0.9 each, again in 1.1 s, an orange
+  pulse at the muzzle). The rows are `fanShots` beside `shotCosts`; `ClassSystem.fan` is
+  the kit's `ItemUse` (AL1) for the four launchers, refusing as an ability does and paying
+  nothing in a playground; each shot goes through `game.shoot` with the launcher's own
+  shot, so a client's fan is landed by the host. Three of the old fan's numbers are not
+  ported. The attack's 0.7 s / 0.6 s wait after a fan: the kit owns the attack's cooldown
+  and no game reaches it. The launcher's enchant bonus and its wear: `game.shoot` takes a
+  power, not a held slot, and the plan's power is the multiplier times the row's. The old
+  fan's own `'shoot'` / `'bolt'` sounds: `game.shoot` plays its shot sound for each.
+
 - **2026-10-05 VL9d** — a pad and the arrows work the game's own screens. The kit's
   `ScreenFocus` already put each one in a focus scope in directional mode, so their
   Material buttons, the journal's tabs and every list row (an `InkWell` takes the focus

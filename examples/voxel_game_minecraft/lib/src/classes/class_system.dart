@@ -22,6 +22,8 @@ import 'talent.dart';
 ///   short of what they cost, the player is told so and nothing is spent.
 /// - The dodge (Alt) dashes [dodgeSpeed] toward the walk (the look, standing)
 ///   for [dodgeSeconds], untouchable, once every [dodgeEvery].
+/// - A use with a bow or a staff in hand looses a fan of its shots ([fan],
+///   `fanShots`), paid for as an ability is.
 /// - A level is worth a talent point ([points]), spent in the journal
 ///   ([learn]); every blow is the class's `PlayerClass.damage` times
 ///   [levelDamage] more a level, through a `Boost` with the talents'.
@@ -88,6 +90,7 @@ class ClassSystem extends SavedSystem {
   final Map<String, double> _cooldowns = {};
   double _dodgeLeft = 0.0;
   double _dodgeAgain = 0.0;
+  double _fanAgain = 0.0;
   bool _dead = false;
 
   /// The class played; throws before the game has started it ([of], or its
@@ -113,6 +116,9 @@ class ClassSystem extends SavedSystem {
 
   /// Whether a dodge dashes now.
   bool get dodging => _dodgeLeft > 0.0;
+
+  /// Seconds before a launcher's use looses again ([fan]); 0 when ready.
+  double get fanWait => _fanAgain;
 
   /// The talents the class may learn: the six of every class, then its own.
   List<Talent> get talents => talentsOf(playerClass);
@@ -165,6 +171,37 @@ class ClassSystem extends SavedSystem {
     return base * p.damageMultiplier;
   }
 
+  /// The use of a launcher in hand (`VoxelGameSpec.itemUses`): its
+  /// `fanShots` row's shots of its own shot, fanned where the player looks.
+  /// Short of arrows (none needed in creative), stamina or mana, the player
+  /// is told so and nothing is spent; inside the row's wait nothing happens.
+  void fan(VoxelGame game, ItemType item) {
+    _begin(game);
+    final row = fanShots[item.id] ?? (throw ArgumentError.value(item.id, 'item', 'a launcher with no fan'));
+    if (_fanAgain > 0.0) return;
+    final p = game.player;
+    final arrows = p.spec.creative ? 0 : row.arrows;
+    if (p.inventory.countOf('arrow') < arrows) return game.notify('Need $arrows arrows');
+    final cost = manaCost(row.mana);
+    if (!_endless) {
+      if (stamina < row.stamina) return game.notify('Too tired to draw');
+      if (mana < cost) return game.notify('Not enough mana');
+      stamina -= row.stamina;
+      mana -= cost;
+    }
+    if (arrows > 0) p.inventory.remove('arrow', arrows);
+    _fanAgain = row.again;
+    final shot = game.spec.shots[item.launcher!.shot]!;
+    final look = p.forward;
+    final from = p.eyePosition + look * 0.8 - Vector3(0.0, 0.15, 0.0);
+    final spread = row.spread * math.pi / 180.0;
+    for (var i = 0; i < row.shots; i++) {
+      final dir = Quaternion.axisAngle(Vector3(0.0, 1.0, 0.0), (i / (row.shots - 1) - 0.5) * spread).rotated(look);
+      game.shoot(shot, from: from, at: from + dir, owner: p, power: p.damageMultiplier * row.power, overDrop: false);
+    }
+    if (row.pulse case (:final color, :final radius)) game.pulse(from, color, radius);
+  }
+
   /// The creatures alive within [radius] metres of the player.
   Iterable<Mob> mobsNear(VoxelGame game, double radius) =>
       game.mobs.where((m) => !m.removed && !m.isDead && m.position.distanceTo(game.player.position) < radius);
@@ -185,6 +222,7 @@ class ClassSystem extends SavedSystem {
     }
     _dodgeLeft = math.max(_dodgeLeft - dt, 0.0);
     _dodgeAgain = math.max(_dodgeAgain - dt, 0.0);
+    _fanAgain = math.max(_fanAgain - dt, 0.0);
     if (p.isDead) {
       _dead = true;
       return;

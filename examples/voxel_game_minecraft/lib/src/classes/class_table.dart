@@ -102,6 +102,53 @@ const Map<String, ShotCost> shotCosts = {
   'crystal_staff': (stamina: 0.0, mana: 4.0),
 };
 
+/// A launcher's use (`ClassSystem.fan`): [shots] of its own shot across
+/// [spread] degrees where the player looks, each at [power] of a shot's
+/// damage, for [arrows] arrows, [stamina] and [mana] (less the class's
+/// `Talent.manaCost`), and none again for [again] seconds; [pulse] flashes
+/// at the muzzle, null for none.
+typedef FanShot = ({
+  int shots,
+  double spread,
+  double power,
+  int arrows,
+  double stamina,
+  double mana,
+  double again,
+  ({int color, double radius})? pulse,
+});
+
+/// The launchers with a use of their own, by item id: a bow's fan of three
+/// arrows, a staff's arc of five bolts.
+const Map<String, FanShot> fanShots = {
+  'bow': _bowFan,
+  'longbow': _bowFan,
+  'staff': _staffArc,
+  'crystal_staff': _staffArc,
+};
+
+const FanShot _bowFan = (
+  shots: 3,
+  spread: 24.0,
+  power: 0.85,
+  arrows: 3,
+  stamina: 14.0,
+  mana: 0.0,
+  again: 1.4,
+  pulse: null,
+);
+
+const FanShot _staffArc = (
+  shots: 5,
+  spread: 50.0,
+  power: 0.9,
+  arrows: 0,
+  stamina: 0.0,
+  mana: 18.0,
+  again: 1.1,
+  pulse: (color: 0xFF8C33, radius: 1.0),
+);
+
 /// The class a game's [options] play, by `classOption`'s id.
 PlayerClass classOf(Map<String, String> options) =>
     playerClasses[options['class']] ?? (throw ArgumentError.value(options, 'options', 'no class among them'));
