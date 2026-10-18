@@ -21,7 +21,8 @@ import 'talent.dart';
 /// - The class's abilities are cast by their actions (R, F): on cooldown, or
 ///   short of what they cost, the player is told so and nothing is spent.
 /// - The dodge (Alt) dashes [dodgeSpeed] toward the walk (the look, standing)
-///   for [dodgeSeconds], untouchable, once every [dodgeEvery].
+///   for [dodgeSeconds], untouchable, once every [dodgeEvery], in the `dash`
+///   pose.
 /// - A use with a bow or a staff in hand looses a fan of its shots ([fan],
 ///   `fanShots`), paid for as an ability is.
 /// - A level is worth a talent point ([points]), spent in the journal
@@ -369,6 +370,7 @@ class ClassSystem extends SavedSystem {
     final walk = Vector3(p.velocity.x, 0.0, p.velocity.z);
     final dir = walk.length2 > 0.25 ? walk.normalized() : p.flatForward;
     p.motor.shove(Vector3(dir.x * dodgeSpeed, p.onFloor ? dodgeHop : p.velocity.y, dir.z * dodgeSpeed), dodgeSeconds);
+    p.holdPose('dash', dodgeSeconds);
     game.playSound('swing', volumeDb: -8.0, pitch: 0.7);
   }
 }

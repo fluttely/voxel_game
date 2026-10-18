@@ -295,6 +295,29 @@ void main() {
     game.dispose();
   });
 
+  test('a dodge and a Shadow Dash hold the dash pose while they last, and let it go after', () async {
+    for (final id in playerClasses.keys) {
+      expect(gameSpec.playerWith({'class': id}).poses['dash'], same(dash), reason: '$id dodges too');
+    }
+    final game = await _start('rogue');
+    final p = game.player;
+    game.actions.tap('dodge');
+    _run(game, 0.05);
+    expect(p.heldPose, 'dash');
+    _run(game, 0.3);
+    expect(p.heldPose, 'dash', reason: 'through the dodge');
+    _run(game, 0.1);
+    expect(ClassSystem.of(game).dodging, isFalse);
+    expect(p.heldPose, isNull, reason: 'over with it');
+
+    game.actions.tap('ability');
+    _run(game, 0.1);
+    expect(p.heldPose, 'dash', reason: 'the Shadow Dash');
+    _run(game, 0.1);
+    expect(p.heldPose, isNull, reason: 'its 0.17 s gone');
+    game.dispose();
+  });
+
   test('the class\'s numbers are saved with the world and come back', () async {
     final dir = Directory.systemTemp.createTempSync('class_system');
     addTearDown(() => dir.deleteSync(recursive: true));

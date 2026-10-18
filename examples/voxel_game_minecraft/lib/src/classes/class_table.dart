@@ -157,11 +157,30 @@ PlayerClass classOf(Map<String, String> options) =>
 List<Talent> talentsOf(PlayerClass cls) => [...sharedTalents, cls.signature];
 
 /// [player] as the class its [options] pick plays it (`VoxelGameSpec.playerFor`):
-/// the class's health and look, its weapon and kit beside the game's start.
+/// the class's health and look, its weapon and kit beside the game's start,
+/// and the [dash] its dodge and Shadow Dash hold.
 PlayerSpec classPlayer(PlayerSpec player, Map<String, String> options) {
   final cls = classOf(options);
-  return player.copyWith(hp: cls.hp, rig: cls.rig, startingItems: {...player.startingItems, cls.weapon: 1, ...cls.kit});
+  return player.copyWith(
+    hp: cls.hp,
+    rig: cls.rig,
+    startingItems: {...player.startingItems, cls.weapon: 1, ...cls.kit},
+    poses: {...player.poses, 'dash': dash},
+  );
 }
+
+/// A dash's pose: leaning forward, one leg out in front and one behind, the
+/// arms swept back and out from the body.
+const RigPose dash = RigPose(
+  parts: {
+    'leg0': (rx: 0.75, ry: 0.0, rz: 0.0),
+    'leg1': (rx: -0.6, ry: 0.0, rz: 0.0),
+    'arm0': (rx: -1.35, ry: 0.0, rz: -0.3),
+    'arm1': (rx: -1.35, ry: 0.0, rz: 0.3),
+  },
+  lean: -0.45,
+  rate: 20.0,
+);
 
 /// The colour of each kind of hit's number, by `Damage.source`
 /// (`VoxelGameSpec.hitColors`): a swing, a shot, a blast, a burn and the
@@ -271,6 +290,7 @@ void _shadowDash(VoxelGame game, ClassSystem classes) {
   final walk = Vector3(p.velocity.x, 0.0, p.velocity.z);
   final dir = walk.length2 > 0.25 ? walk.normalized() : p.flatForward;
   p.motor.shove(Vector3(dir.x * 22.0, 3.0, dir.z * 22.0), 0.17);
+  p.holdPose('dash', 0.17);
   game.pulse(_centre(game), 0x664DB3, 2.0);
   game.playSound('swing', volumeDb: -4.0, pitch: 0.6);
 }

@@ -72,6 +72,13 @@ they name are the old app's, deleted at stage 34 and kept in git history before 
 
 ## Session log
 
+- **2026-10-18 AL7** — a dash has its pose again, on the kit's declared poses (AL4).
+  `classPlayer` gives every class the old app's `dash` (lean −0.45, one leg forward and one
+  back, the arms swept behind), and the dodge holds it for its 0.4 s. Shadow Dash holds it
+  too, for its 0.17 s shove: the old dash had no pose there, and a dash with none is the
+  gap the plan closes. It shows in third person and to every other player, since the pose
+  row carries it. Whether −0.45 leans forward through the kit's topple is AL8's to see.
+
 - **2026-10-18 AL6** — the abilities flash and their numbers are coloured again, at the
   old app's numbers. `ClassSystem.strike` takes the hit's `source`: Whirlwind, Shield
   Bash, Fire Nova and Frost Nova each name their own, so their numbers no longer read as a
