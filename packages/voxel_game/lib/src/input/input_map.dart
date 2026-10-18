@@ -4,8 +4,8 @@ import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatf
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
+import 'package:flutter3d_pointer_lock/flutter3d_pointer_lock.dart';
 import 'package:gamepads/gamepads.dart';
-import 'package:pointer_lock/pointer_lock.dart';
 
 import 'input_device.dart';
 
@@ -237,9 +237,11 @@ class InputMap<A extends Object> {
     _touchMineTimers.clear();
   }
 
-  /// Whether the platform locks the pointer: macOS only, the one desktop
-  /// `pointer_lock` registers. Elsewhere a drag looks, Windows and Linux with a
-  /// mouse included (the kit's `KL-004`, deferred until a fix can be run there).
+  /// Whether the platform locks the pointer now: on the desktops, and on a phone
+  /// or tablet only while a mouse is connected (`flutter3d_pointer_lock` 0.5).
+  /// Read each time, never kept: on a phone the answer arrives a moment after
+  /// start and follows the mouse. Where it is false a drag looks. Windows and
+  /// Linux lock through native code nobody here has run yet (the kit's `KL-004`).
   bool get pointerLockSupported => PointerLock.instance.isSupported;
 
   /// Whether the game is looking around right now: the pointer is locked, or
@@ -567,7 +569,7 @@ class InputMap<A extends Object> {
     // as a jump the next time the view is captured.
     d += _drag;
     _drag = Offset.zero;
-    if (pointerLockSupported && wantCapture) d += PointerLock.instance.takeDelta();
+    if (pointerLockSupported && wantCapture) d += PointerLock.instance.drainDelta();
     var rad = d * (lookSensitivity * lookScale);
     final gx = _pad.axisValue(GamepadAxis.rightStickX), gy = _pad.axisValue(GamepadAxis.rightStickY);
     if (gx.abs() > deadzone || gy.abs() > deadzone) rad += Offset(gx, -gy) * (stickTurnRate * lookScale * dt);

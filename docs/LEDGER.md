@@ -23,6 +23,7 @@
 - **Found while:** 2026-09-24 — adding Windows and Linux runners to the examples, for the launch post.
 - **Deferred:** 2026-10-05 — VLD3, VL12. The fix is native code (upstream in `pointer_lock`, or a plugin the kit would carry), and nothing here can run it; what lifts it is a Windows or Linux machine to see a fix run. Meanwhile it is said where an author looks: `voxel_game`'s README (the Flutter GPU section) and `InputMap.pointerLockSupported`'s doc (`packages/voxel_game/lib/src/input/input_map.dart:240`) name macOS as the one desktop that locks.
 - **Lead:** 2026-10-17 — `pointer_lock`'s 1.0 branch (0.5.0, not on pub.dev yet) declares `windows` and `linux` with native plugins ([pleiondev/flutter3d#80](https://github.com/pleiondev/flutter3d/issues/80)). Once it is published, raising the constraint may lift this with no native code here; a Windows or Linux machine still has to see it run.
+- **Lead:** 2026-10-18 — published as `flutter3d_pointer_lock` 0.5.0, and the kit is on it (`KL-028`, closed): `InputMap.pointerLockSupported` is true on Windows and Linux, so they lock instead of dragging. What is left is seeing it run there (Raw Input on Windows; on Linux an X11 grab, and Wayland stops the deltas at the window's edge, as the package says).
 
 ### KL-026 · `sound_recipes` stays a major version behind `flutter_soloud`
 
@@ -32,6 +33,8 @@
 - **Found while:** 2026-10-05 — VL13, reading the four scores after the owner published `0.4.0-dev`.
 - **Closed by:** 2026-10-09 — `sound_recipes: on flutter_soloud 5 (VD5)`. `flutter_soloud: ^5.1.6`, resolved once VD4 moved `flutter_scene` to 0.24.3 (`code_assets` 2.x). The calls `SoundBank` makes are source-compatible; the change is behaviour: 5.1.6's `play` returns a zeroed handle on a full voice pool (`soloud.dart` `_checkPlaybackResult`) instead of throwing, and `SoundBank.play` and `MusicDirector.setMood` lose their catch-alls for that check and one `on SoLoudNotInitializedException`.
 
+## Closed
+
 ### KL-028 · pub.dev lists `voxel_game` for macOS only
 
 - **Lens:** platform parity / release
@@ -40,8 +43,7 @@
 - **Found while:** 2026-10-05 — VL13, reading the four scores after the owner published `0.4.0-dev`.
 - **Waiting:** 2026-10-06 — asked upstream ([pleiondev/flutter3d#80](https://github.com/pleiondev/flutter3d/issues/80)): declare `android`, `ios`, `windows` and `linux` with a Dart-only class whose `isSupported` is false (VD1, VDD3). A `pointer_lock` that does lets the kit raise its constraint and close this.
 - **Answered:** 2026-10-09 — the maintainer asked for the PR: a Dart-only `PointerLockUnsupported` for `android` and `ios` only (the 1.0 branch, 0.5.0, already declares `windows` and `linux` natively), against `main`, failing test first. Prepared by VD5b, opened by the owner (VDD8); `0.5.0-dev` waits for its release until 2026-10-31 (VDD9).
-
-## Closed
+- **Closed by:** 2026-10-18 — `voxel_game: on flutter3d_pointer_lock 0.5 (KL-028)`. The PR VD5b was to prepare was not needed: `pointer_lock`'s 1.0 branch shipped on 2026-10-13 as `flutter3d_pointer_lock` 0.5.0 (renamed from 0.4.3), with native plugins for `android`, `ios`, `macos`, `windows` and `linux`, and pub.dev tags it with all six platforms. The kit depends on it at `^0.5.0` (`packages/voxel_game/pubspec.yaml`); `takeDelta` is `drainDelta`. Under `flutter test`, where the platform reads as Android, 0.5 opens its event channel, so the kit's, the example's and the app's `test/flutter_test_config.dart` install a platform that never locks. pub.dev's listing is confirmed only once `0.5.0-dev` is published (VD7).
 
 ### KL-031 · A Mac run's window reads 800×600, not the `--window` it was given
 

@@ -23,11 +23,11 @@ resolution: workspace
 dependencies:
   flutter:
     sdk: flutter
+  flutter3d_pointer_lock: ^0.5.0
   # Exact pin, as voxel_scene: the renderer's private gpu shim moves between releases.
   flutter_scene: 0.24.3
   gamepads: ^0.1.10
   path_provider: ^2.1.6
-  pointer_lock: ^0.4.1
   sound_recipes: ^0.4.0-dev
   vector_math: ^2.1.4
   voxel_engine: ^0.4.0-dev

@@ -4,6 +4,15 @@
 
 **Breaking**
 
+- **The pointer lock is `flutter3d_pointer_lock` 0.5, which `pointer_lock` became**
+  (KL-028): it declares Android, iOS, macOS, Windows and Linux, so pub.dev lists the kit
+  for all five. Windows and Linux lock the mouse instead of dragging to look; a phone or a
+  tablet locks it while a mouse is connected, and `InputMap.pointerLockSupported` follows
+  it. A game that imports `pointer_lock` itself moves to the new name. **A game's tests
+  that run a `VoxelGame` set `PointerLockPlatform.instance` to one that never locks**
+  (this package's `test/flutter_test_config.dart` has one): under `flutter test` the
+  platform reads as Android, where 0.5 opens an event channel a plain `test` has no
+  binding for.
 - **On `flutter_scene` 0.24.3, pinned exactly, as `voxel_scene` is** (KL-027): a game
   that names `flutter_scene` itself moves with it. `VoxelGame.dispose` now disposes the
   scene's render targets too.
