@@ -8,12 +8,15 @@ recipe music. It broke the API (`MeshSurface.colors`, `RigInstance.place`, the b
 `TerrainMaterial.loadLibrary` requires). `0.3.0-dev` went out on 2026-09-29, again with the four together: it broke the API
 once more (`VoxelChunkView` draws what changed in `rebuild`), and below 1.0 a break moves the minor: a caret
 range such as `^0.2.0-dev` stops before `0.3.0`, so nobody on it is upgraded into the break.
-`0.4.0-dev` is the next release, the four together once more: the Minecraft clone's
+`0.4.0-dev` went out on 2026-10-05, the four together once more: the Minecraft clone's
 mechanics taken into the kit (`docs/VOXEL_ABSORB_PLAN_2026-09-30.md`) and the ledger's
-debts paid (`docs/VOXEL_LEDGER_PLAN_2026-10-04.md`). It breaks the API in `voxel_engine`
-(`StructureSpec` takes a `Structure`) and in `voxel_game` (events instead of the spec's
-callbacks, the screens a state machine, `SoundSpec.music`, `FrameStats.fps` the scene's
-rate, and more); each CHANGELOG opens its `0.4.0-dev` with the list. Each package is under the MIT license, with
+debts paid (`docs/VOXEL_LEDGER_PLAN_2026-10-04.md`), the first release tagged.
+`0.5.0-dev` is the next release, the four together again
+(`docs/VOXEL_DEPS_PLAN_2026-10-06.md`): `flutter_scene` 0.24.3, `flutter_soloud` 5,
+`flutter3d_pointer_lock` 0.5 (pub.dev lists the kit on five platforms), one owner of the
+audio device, the terrain culled underground and settled into larger regions, and the
+look plan's hooks (`docs/VOXEL_LOOK_PLAN_2026-10-17.md`). It breaks the API in all four;
+each CHANGELOG opens its `0.5.0-dev` with the list. Each package is under the MIT license, with
 its metadata and real version ranges (`docs/VOXEL_RELAYOUT_PLAN_2026-09-21.md`, VR4). They resolve
 each other through the pub workspace declared in the root `pubspec.yaml`, which is
 not a package: all four live under `packages/`. The reasoning behind the four-package split is in
@@ -96,9 +99,9 @@ the release, so a git dependency (below) has a name to pin:
 
 ```sh
 for p in voxel_engine sound_recipes voxel_scene voxel_game; do
-  git tag "$p-v0.4.0-dev"
+  git tag "$p-v0.5.0-dev"
 done
-git push origin voxel_engine-v0.4.0-dev sound_recipes-v0.4.0-dev voxel_scene-v0.4.0-dev voxel_game-v0.4.0-dev
+git push origin voxel_engine-v0.5.0-dev sound_recipes-v0.5.0-dev voxel_scene-v0.5.0-dev voxel_game-v0.5.0-dev
 ```
 
 No release before `0.4.0-dev` was tagged.
@@ -124,14 +127,14 @@ has been analysed, then publishes.
 - **Resolution** (up to 110): see the race above.
 
 **One warning is expected and accepted.** `voxel_scene` and `voxel_game` pin
-`flutter_scene: 0.23.0` exactly, and pub says the constraint should allow more
-than one version. The pin stays: the terrain material imports
-`package:flutter_scene/src/gpu/gpu.dart`, a private file outside semver, so even a
+`flutter_scene: 0.24.3` exactly, and pub says the constraint should allow more
+than one version. The pin stays: the terrain material and the scene's measures import
+files under `package:flutter_scene/src/`, private files outside semver, so even a
 patch release of `flutter_scene` can break the build of everyone who installed the
 kit. A dry run that ends with that warning and nothing else is green; so is the
 "checked-in files are modified" warning while a release is still uncommitted.
 Anything else is not. pub's hint that the version is "not an incremental update"
-(`0.3.0-dev` to `0.4.0-dev`, where it proposes `0.4.0` or `0.3.0`) is a hint, not a
+(`0.4.0-dev` to `0.5.0-dev`, where it proposes `0.5.0` or `0.4.0`) is a hint, not a
 warning: the `-dev` stays while the API moves.
 
 A published version can never be replaced, only retracted for seven days. The
@@ -157,7 +160,7 @@ dependencies:
     git:
       url: https://github.com/fluttely/voxel_game.git
       path: packages/voxel_engine   # or packages/voxel_game, packages/voxel_scene, ...
-      ref: voxel_engine-v0.4.0-dev   # a tag, or a commit
+      ref: voxel_engine-v0.5.0-dev   # a tag, or a commit
 ```
 
 It is a legitimate place to stop. Publishing buys discoverability and a version

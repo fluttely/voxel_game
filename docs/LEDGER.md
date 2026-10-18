@@ -15,6 +15,13 @@
 
 ## Open
 
+### KL-032 · Nothing here scores a release before it is published
+
+- **Lens:** release tooling (rule 16)
+- **Evidence:** `tool/publish_package.sh:52`: the dry run ends in `flutter pub publish --dry-run`, which validates and scores nothing, though `docs/VOXEL_DEPS_PLAN_2026-10-06.md` §VD6 said it "also runs pana". And pana alone cannot score a dependent before its dependencies are out: it resolves in its own pub cache and ignores `pubspec_overrides.yaml`, so `voxel_scene` and `voxel_game` read 50/160 ("voxel_engine ^0.5.0-dev which doesn't match any versions"). VD6 scored them through a pub repository on localhost (pub.dev proxied, the staged `0.5.0-dev` tarballs added), built in that session's scratch folder and not kept.
+- **Cost of leaving it:** each release rebuilds that harness by hand or publishes unscored; VL13 published unscored and lost `sound_recipes` 10 points it could have seen the day before.
+- **Found while:** 2026-10-18 — VD6, scoring the four for `0.5.0-dev`.
+
 ### KL-004 · Windows and Linux get a drag to look, not a locked mouse
 
 - **Lens:** platform parity / input

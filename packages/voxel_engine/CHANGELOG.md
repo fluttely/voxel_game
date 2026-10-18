@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.5.0-dev
+
+**Breaking**
+
+- A `ChunkMeshResult` built by hand passes `visibility:` (OC1, below).
 
 - **The chunks sight can reach from the camera (OC2).** `SectionOcclusion` (new, in
   `core`) searches breadth-first from the camera's section over a window of chunks,
@@ -17,8 +21,7 @@
   non-opaque cells touches; `connects(section, faceIn, faceOut)`, `pairBit`, `pairsOf`,
   and `ChunkVisibility.open` for a chunk with nothing to occlude. `ChunkMesher` floods
   each section of the chunk's own cells after the fill, on per-isolate scratch, and
-  `ChunkMeshResult.visibility` carries it, from a worker too. **Breaking**: a
-  `ChunkMeshResult` built by hand passes `visibility:`.
+  `ChunkMeshResult.visibility` carries it, from a worker too.
 
 - **A dungeon's rooms are joined (KL-025).** Each room's box used to brick over the
   doorway of the corridor that led into it, so the shaft reached the first room only.
