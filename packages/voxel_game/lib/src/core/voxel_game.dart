@@ -92,6 +92,7 @@ class VoxelGame {
     spec.checkDimensions(blocks, items);
     spec.checkMobs(items);
     spec.checkVehicles(items);
+    spec.checkItemUses(items);
     spec.checkShots(items);
     spec.checkStructureLoot(items);
     spec.checkFishing(blocks, items);

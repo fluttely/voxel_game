@@ -266,7 +266,8 @@ A game needs only `voxel_game`. The other three are there for a game that wants 
   trade}` call the game's handler on a press of use (a block's unless the player sneaks; a
   finger's tap on such a creature uses it). A block the kit uses already (a store, a bed, a
   door, a lever, a station, one a tool works) or a creature it uses (tamed, milked, shorn)
-  throws when the game is made.
+  throws when the game is made. `itemUses: {'bow': volley}` does the same for the item in
+  hand, when nothing aimed takes the use, in place of what the item does on its own.
 - The player's numbers from code, each kept by its source: `PlayerEntity.boosts['warrior']
   = Boost(maxHp: 6, damage: 1.2)` (speed, damage, mining, armour, most health; a respawn
   keeps them), `damageIn` / `damageOut` filters on a hurt taken and a blow dealt (0 is a

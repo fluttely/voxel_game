@@ -71,6 +71,7 @@ class VoxelGameSpec {
     this.systems = noSystems,
     this.blockUses = const {},
     this.mobUses = const {},
+    this.itemUses = const {},
     this.structureLoot = const {},
     this.messages = const {},
     this.playerFor,
@@ -215,6 +216,16 @@ class VoxelGameSpec {
   /// game's handler, which a finger's tap on it calls too (see [checkUses]).
   final Map<String, MobUse> mobUses;
 
+  /// What a use does with an item of the game's in hand, by the item's id:
+  /// the game's handler, once a press, when no creature, vehicle or block
+  /// aimed takes the use. It replaces what the item would do on its own (see
+  /// [checkItemUses]).
+  ///
+  /// ```dart
+  /// itemUses: {'bow': _volley, 'staff': _arc},
+  /// ```
+  final Map<String, ItemUse> itemUses;
+
   /// The game's own messages in a networked game, by type: what each does
   /// where it arrives. A side sends one through its `GameSession`
   /// (`sendToHost`, `broadcast`, `sendTo`), which throws for a type not
@@ -297,6 +308,7 @@ class VoxelGameSpec {
     List<GameSystem> Function()? systems,
     Map<String, BlockUse>? blockUses,
     Map<String, MobUse>? mobUses,
+    Map<String, ItemUse>? itemUses,
     Map<String, StructureLoot>? structureLoot,
     Map<String, MessageHandler>? messages,
     ValueGetter<PlayerSpec Function(PlayerSpec player, Map<String, String> options)?>? playerFor,
@@ -330,6 +342,7 @@ class VoxelGameSpec {
     systems: systems ?? this.systems,
     blockUses: blockUses ?? this.blockUses,
     mobUses: mobUses ?? this.mobUses,
+    itemUses: itemUses ?? this.itemUses,
     structureLoot: structureLoot ?? this.structureLoot,
     messages: messages ?? this.messages,
     playerFor: playerFor == null ? this.playerFor : playerFor(),
@@ -627,6 +640,13 @@ class VoxelGameSpec {
     }
     if (f.xp > 0 && player.xp == null) {
       throw ArgumentError.value(f.xp, 'fishing', 'a catch gives experience only with PlayerSpec.xp declared');
+    }
+  }
+
+  /// Throws [ArgumentError] for a use of [itemUses] on an item not in [items].
+  void checkItemUses(ItemRegistry<ItemType> items) {
+    for (final id in itemUses.keys) {
+      if (!items.has(id)) throw ArgumentError.value(id, 'itemUses', 'no such item');
     }
   }
 

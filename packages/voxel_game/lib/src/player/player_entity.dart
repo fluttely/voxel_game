@@ -1373,6 +1373,16 @@ class PlayerEntity extends NodeBody implements Target, Angler {
     }
     final item = _heldType;
     if (item == null) return;
+    // The game's own use of the item takes the press; a hold does not repeat
+    // it, since the hold's re-entry is for placing.
+    final itemUse = _game.spec.itemUses[item.id];
+    if (itemUse != null) {
+      if (pressed) {
+        _swingArm();
+        itemUse(_game, item);
+      }
+      return;
+    }
     // A portal's lighter lights the frame whose hollow is in front of the aimed face.
     if (_game.portals.lights(item.id)) {
       if (!pressed || hit == null || !_game.portals.lightWith(item.id, hit.block + hit.normal)) return;

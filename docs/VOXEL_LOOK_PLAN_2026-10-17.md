@@ -27,7 +27,7 @@ before a step starts. The owner settled ALD1–ALD5 on 2026-10-17 (§Decisions).
 | Step | State | Gate |
 |:---|:---|:---|
 | AL0 This plan, and the owner's answers to §Decisions | **done** 2026-10-17: every recommendation taken (ALD1–ALD5) | the owner answers ALD1–ALD5 |
-| AL1 `VoxelGameSpec.itemUses` (kit) | **ready** | the kit's suites green; `uses_test.dart` covers the order and the press |
+| AL1 `VoxelGameSpec.itemUses` (kit) | **done** 2026-10-18 (`voxel_game: a game's own use of a held item (AL1)`): `ItemUse`, `itemUses`, `checkItemUses` beside `checkVehicles`, the call in `_use` right after the held item is read. Four tests in `uses_test.dart`, each red under its mutation: once a press not on the hold, after an aimed block of the game's and a station, in place of placing, an unknown id at start. The example's compass. Suites 485 + 274 + 76 + 11, the example 7, the app 111 | the kit's suites green; `uses_test.dart` covers the order and the press |
 | AL2 `VoxelGame.pulse` (kit) | **ready** | the suites green; `pulse_effects_test.dart`; a pulse seen on the Mac through the kit's example |
 | AL3 `VoxelGameSpec.hitColors`, carried to a client (kit) | **ready** | the suites green; a client's number takes the host's hit's colour in `net_game_test.dart` |
 | AL4 Declared poses: `RigPose`, `PlayerEntity.holdPose` (kit) | **ready** | the suites green; a peer's held pose reaches its `RemotePlayer` in `net_game_test.dart` |

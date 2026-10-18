@@ -37,6 +37,13 @@
   `AudioDevice.instance` to a device of their own, as this package's do in
   `test/flutter_test_config.dart`.
 
+- **A game's own use of a held item (AL1).** `VoxelGameSpec.itemUses` (new), by item id:
+  an `ItemUse` (new) called once a press of use, with the held item's row, when no
+  creature, vehicle or block aimed took the use, in place of the item's own uses (a
+  lighter, a bucket, food, armour, a block placed). A hold does not repeat it. An id that
+  is no item throws when the game is made (`VoxelGameSpec.checkItemUses`, new). The
+  example's compass tells where the player stands with it.
+
 ## 0.4.0-dev
 
 **Breaking**

@@ -465,6 +465,8 @@ const game = VoxelGameSpec(
     ItemType('shears', color: 0xC8C8D0, tool: 'shears', stack: 1, durability: 120),
     // A bucket used on a cow is milk, which cures poison and burning and leaves the bucket.
     ItemType('milk_bucket', color: 0xF4F4F0, stack: 1, food: Food(heal: 2, cures: true, leaves: 'bucket')),
+    // A compass: use with it in hand says where the player stands and which way they face (the `itemUses` below).
+    ItemType('compass', color: 0xB0B8C0, stack: 1),
   ],
   recipes: [
     Recipe('planks', 4, {'log': 1}),
@@ -712,6 +714,7 @@ const game = VoxelGameSpec(
       'apple': 4,
       'wool_cap': 1,
       'glider': 1,
+      'compass': 1,
     },
     hunger: HungerSpec(),
     xp: XpSpec(),
@@ -891,6 +894,8 @@ const game = VoxelGameSpec(
   systems: _systems,
   // A use on a glowstone is the game's own: a prayer at a shrine (the `_Blessing` below), not a block built against.
   blockUses: {'glowstone': _pray},
+  // A use with a compass in hand is the game's own too: it reads the player's place, where nothing aimed is used.
+  itemUses: {'compass': _bearing},
   // 7. Screens of the game's own: this one is a button in the game menu (Esc, or ⏸ on a phone), and F1.
   screens: {'controls': ScreenSpec(_controls, menu: 'Controls', action: 'controls')},
   // 8. Messages of the game's own, in a hosted world: a wave goes to the host, which passes it on.
@@ -955,6 +960,15 @@ class _Blessing extends SavedSystem {
 }
 
 void _pray(VoxelGame game, IVec3 cell) => game.system<_Blessing>().bless(game);
+
+// The yaw is 0 facing −z, which this world calls north, and grows turning left (towards −x, the west).
+void _bearing(VoxelGame game, ItemType compass) {
+  final p = game.player;
+  const points = ['north', 'west', 'south', 'east'];
+  final quarter = ((p.yaw / (math.pi / 2)).round() % 4 + 4) % 4;
+  final at = IVec3.floor(p.position);
+  game.notify('Facing ${points[quarter]} at ${at.x}, ${at.y}, ${at.z}');
+}
 
 // Tells the time of day when the clock action is pressed, as the world's clock option reads it, and the tally.
 class _Clock extends GameSystem {
