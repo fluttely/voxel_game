@@ -118,6 +118,14 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
+  flutter3d_pointer_lock:
+    dependency: "direct dev"
+    description:
+      name: flutter3d_pointer_lock
+      sha256: "7da67549847c7ce9e0fdade7e8572f7f2855d8c4cc11e3ffa250f81f89f283cc"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.5.0"
   flutter_gpu:
     dependency: transitive
     description: flutter
@@ -445,14 +453,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.1.8"
-  pointer_lock:
-    dependency: transitive
-    description:
-      name: pointer_lock
-      sha256: aa7e4ab44ab2946170b50175c1e94f871bc7b9e5a88429f39e6a7c31e1c38717
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.4.1"
   posix:
     dependency: transitive
     description:

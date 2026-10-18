@@ -3,6 +3,7 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
+  flutter3d_pointer_lock
   gamepads_windows
 )
 
