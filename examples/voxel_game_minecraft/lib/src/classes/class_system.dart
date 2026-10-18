@@ -207,10 +207,11 @@ class ClassSystem extends SavedSystem {
       game.mobs.where((m) => !m.removed && !m.isDead && m.position.distanceTo(game.player.position) < radius);
 
   /// Hits [mob] with a blow of the player's of [amount], through their
-  /// damage filters, pushing it [knockback] away.
-  void strike(VoxelGame game, Mob mob, double amount, {required double knockback}) {
+  /// damage filters, pushing it [knockback] away; [source] names it, which
+  /// colours its number (`VoxelGameSpec.hitColors`).
+  void strike(VoxelGame game, Mob mob, double amount, {required double knockback, required String source}) {
     final p = game.player;
-    mob.takeDamage(Damage(p.dealtTo(mob, amount), from: p.position, knockback: knockback, attacker: p));
+    mob.takeDamage(Damage(p.dealtTo(mob, amount), from: p.position, knockback: knockback, source: source, attacker: p));
   }
 
   @override

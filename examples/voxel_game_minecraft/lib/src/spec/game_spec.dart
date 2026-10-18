@@ -158,6 +158,8 @@ final VoxelGameSpec gameSpec = VoxelGameSpec(
   blockUses: const {Waypoints.block: Waypoints.open, Enchanting.table: _enchant},
   // A bow's use looses a fan of three arrows, a staff's an arc of five bolts.
   itemUses: {for (final id in fanShots.keys) id: _fan},
+  // A hit's number takes the colour of what dealt it.
+  hitColors: hitColors,
   // A villager opens its trades; a client asks the host for them.
   mobUses: const {Villages.villager: Villages.use},
   messages: const {Villages.askMessage: Villages.heardAsk, Villages.offersMessage: Villages.heardOffers},

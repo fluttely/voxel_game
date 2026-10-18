@@ -72,6 +72,16 @@ they name are the old app's, deleted at stage 34 and kept in git history before 
 
 ## Session log
 
+- **2026-10-18 AL6** — the abilities flash and their numbers are coloured again, at the
+  old app's numbers. `ClassSystem.strike` takes the hit's `source`: Whirlwind, Shield
+  Bash, Fire Nova and Frost Nova each name their own, so their numbers no longer read as a
+  plain swing. `hitColors` (beside the classes' table) gives the nine sources' colours to
+  the kit's `VoxelGameSpec.hitColors` (AL3), which a client sees too. Every ability but
+  Volley raises its pulse (AL2) at the body's middle, the Shield Bash's 1.5 m ahead, Arrow
+  Volley's where its arrows leave. The pulses are local, as the old were. A first-person
+  player inside Whirlwind's or a nova's pulse sees it only while it is smaller than the
+  eye's distance from its middle: a blended sphere culls its back faces (AL2's row).
+
 - **2026-10-18 AL5** — a bow's and a staff's use is the old app's again: a fan of three
   arrows across 24° (3 arrows, 14 stamina, 0.85 of a shot each, again in 1.4 s) and an
   arc of five bolts across 50° (18 mana less Focus, 0.9 each, again in 1.1 s, an orange

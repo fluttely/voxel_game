@@ -163,12 +163,31 @@ PlayerSpec classPlayer(PlayerSpec player, Map<String, String> options) {
   return player.copyWith(hp: cls.hp, rig: cls.rig, startingItems: {...player.startingItems, cls.weapon: 1, ...cls.kit});
 }
 
+/// The colour of each kind of hit's number, by `Damage.source`
+/// (`VoxelGameSpec.hitColors`): a swing, a shot, a blast, a burn and the
+/// abilities that strike.
+const Map<String, int> hitColors = {
+  'melee': 0xFFF299,
+  'arrow': 0xFFE680,
+  'bolt': 0xFF7326,
+  'explosion': 0xFF8033,
+  'burning': 0xFF8C26,
+  'whirlwind': 0xFF8033,
+  'shield_bash': 0xFFE666,
+  'fire_nova': 0xFF661A,
+  'frost_nova': 0x80B3FF,
+};
+
+// The middle of the player's body, where an ability's pulse grows from.
+Vector3 _centre(VoxelGame game) => game.player.position + Vector3(0.0, 0.9, 0.0);
+
 // Whirlwind: every creature within 4 m takes a swing and a half, thrown back hard.
 void _whirlwind(VoxelGame game, ClassSystem classes) {
   final damage = classes.meleeDamage(game) * 1.5;
   for (final m in classes.mobsNear(game, 4.0).toList()) {
-    classes.strike(game, m, damage, knockback: 9.0);
+    classes.strike(game, m, damage, knockback: 9.0, source: 'whirlwind');
   }
+  game.pulse(_centre(game), 0xFF9933, 4.0);
   game.playSound('swing', volumeDb: -2.0, pitch: 0.8);
 }
 
@@ -181,9 +200,10 @@ void _shieldBash(VoxelGame game, ClassSystem classes) {
   for (final m in classes.mobsNear(game, 3.5).toList()) {
     final to = m.position - p.position;
     if (!(to.length2 > 0.0 && to.normalized().dot(ahead) > 0.3)) continue;
-    classes.strike(game, m, damage, knockback: 6.0);
+    classes.strike(game, m, damage, knockback: 6.0, source: 'shield_bash');
     m.stun(2.0);
   }
+  game.pulse(_centre(game) + ahead * 1.5, 0xFFE666, 2.0);
   game.playSound('hit', volumeDb: -2.0, pitch: 0.8);
 }
 
@@ -204,6 +224,7 @@ void _arrowVolley(VoxelGame game, ClassSystem classes) {
       overDrop: false,
     );
   }
+  game.pulse(from, 0x99E680, 2.0);
 }
 
 // Volley: five arrows across a 40 degree fan where the player looks, 0.9 of the bow's.
@@ -228,17 +249,19 @@ ProjectileSpec _arrowOf(VoxelGame game) {
 void _fireNova(VoxelGame game, ClassSystem classes) {
   final damage = 8.0 + 2.0 * (game.player.level + 1);
   for (final m in classes.mobsNear(game, 6.0).toList()) {
-    classes.strike(game, m, damage, knockback: 7.0);
+    classes.strike(game, m, damage, knockback: 7.0, source: 'fire_nova');
   }
+  game.pulse(_centre(game), 0xFF591A, 6.0);
   game.playSound('bolt', volumeDb: -2.0, pitch: 0.7);
 }
 
 // Frost Nova: every creature within 5 m takes 4 and goes at half its pace for 4 s.
 void _frostNova(VoxelGame game, ClassSystem classes) {
   for (final m in classes.mobsNear(game, 5.0).toList()) {
-    classes.strike(game, m, 4.0, knockback: 3.0);
+    classes.strike(game, m, 4.0, knockback: 3.0, source: 'frost_nova');
     m.slow(0.5, 4.0);
   }
+  game.pulse(_centre(game), 0x80BFFF, 5.0);
   game.playSound('bolt', volumeDb: -4.0, pitch: 1.4);
 }
 
@@ -248,6 +271,7 @@ void _shadowDash(VoxelGame game, ClassSystem classes) {
   final walk = Vector3(p.velocity.x, 0.0, p.velocity.z);
   final dir = walk.length2 > 0.25 ? walk.normalized() : p.flatForward;
   p.motor.shove(Vector3(dir.x * 22.0, 3.0, dir.z * 22.0), 0.17);
+  game.pulse(_centre(game), 0x664DB3, 2.0);
   game.playSound('swing', volumeDb: -4.0, pitch: 0.6);
 }
 
@@ -259,5 +283,6 @@ void _smokeBomb(VoxelGame game, ClassSystem classes) {
   for (final m in classes.mobsNear(game, 12.0).toList()) {
     m.forget();
   }
+  game.pulse(_centre(game), 0x4D4D59, 4.0);
   game.playSound('splash', volumeDb: -6.0, pitch: 0.6);
 }

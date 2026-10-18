@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vector_math/vector_math.dart';
@@ -224,6 +225,46 @@ void main() {
     expect(shots(mage).length, lessThanOrEqualTo(5), reason: 'refused, nothing loosed');
     expect(arcane.mana, greaterThan(5.0));
     mage.dispose();
+  });
+
+  test("an ability's hit takes its colour and its cast a pulse; an arrow's hit is the arrow's colour", () async {
+    Vector3 centre(VoxelGame game) => game.player.position + Vector3(0.0, 0.9, 0.0);
+    int? colourOver(VoxelGame game) => game.damageNumbers.shown.single.color;
+
+    final warrior = await _start('warrior');
+    _ahead(warrior, 'cow', 2.0);
+    warrior.actions.tap('ability');
+    _run(warrior, 0.05);
+    expect(colourOver(warrior), 0xFF8033, reason: "the whirlwind's orange");
+    final whirl = warrior.pulses.shown.single;
+    expect((whirl.color, whirl.radius), (0xFF9933, 4.0));
+    expect(whirl.at.distanceTo(centre(warrior)), lessThan(1e-9));
+    warrior.dispose();
+
+    final mage = await _start('mage');
+    _ahead(mage, 'cow', 2.0);
+    mage.actions.tap('ability');
+    _run(mage, 0.05);
+    expect(colourOver(mage), 0xFF661A);
+    final nova = mage.pulses.shown.single;
+    expect((nova.color, nova.radius), (0xFF591A, 6.0), reason: 'as wide as the nova reaches');
+    expect(nova.at.distanceTo(centre(mage)), lessThan(1e-9), reason: 'at the player');
+    mage.dispose();
+
+    final ranger = await _start('ranger');
+    final p = ranger.player;
+    final cow = _ahead(ranger, 'cow', 4.0);
+    final to = cow.position + Vector3(0.0, cow.height / 2, 0.0) - p.eyePosition;
+    p
+      ..yaw = math.atan2(-to.x, -to.z)
+      ..pitch = math.atan2(to.y, Vector3(to.x, 0.0, to.z).length)
+      ..selectedSlot = p.inventory.find('bow');
+    final hp = cow.hp;
+    ranger.input.tap(VoxelAction.attack);
+    _run(ranger, 0.5);
+    expect(cow.hp, lessThan(hp), reason: 'the arrow landed');
+    expect(colourOver(ranger), 0xFFE680);
+    ranger.dispose();
   });
 
   test('the dodge dashes untouchable and waits; a level is a talent point, which buys a rank', () async {
