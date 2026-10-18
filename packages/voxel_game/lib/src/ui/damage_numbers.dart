@@ -1,8 +1,9 @@
 import 'package:vector_math/vector_math.dart';
 
 /// One number of [DamageNumbers]: [amount] dealt at [at] (world space),
-/// shown for [age] seconds so far; [crit] for a critical blow's.
-typedef DamageNumber = ({int id, Vector3 at, double amount, double age, bool crit});
+/// shown for [age] seconds so far; [crit] for a critical blow's; [color] the
+/// hit's `0xRRGGBB` (`VoxelGameSpec.hitColors`), null for none.
+typedef DamageNumber = ({int id, Vector3 at, double amount, double age, bool crit, int? color});
 
 /// The damage dealt to creatures, as a HUD shows it over them: each hit a
 /// number that rises [rise] metres over [riseSeconds] from where it landed
@@ -29,11 +30,13 @@ class DamageNumbers {
   final List<_Number> _numbers = [];
   int _nextId = 0;
 
-  /// [amount] was dealt at [at], by a critical blow when [crit]. Throws for
-  /// an amount that is not above 0.
-  void add(Vector3 at, double amount, {bool crit = false}) {
+  /// [amount] was dealt at [at], by a critical blow when [crit], in [color]
+  /// (`0xRRGGBB`) when the hit has one. Throws for an amount that is not
+  /// above 0 or a colour outside `0..0xFFFFFF`.
+  void add(Vector3 at, double amount, {bool crit = false, int? color}) {
     if (!(amount > 0.0)) throw ArgumentError.value(amount, 'amount', 'a hit deals some damage');
-    _numbers.add(_Number(_nextId++, at.clone(), amount, crit));
+    if (color != null && (color < 0 || color > 0xFFFFFF)) throw ArgumentError.value(color, 'color', 'not 0xRRGGBB');
+    _numbers.add(_Number(_nextId++, at.clone(), amount, crit, color));
     if (_numbers.length > kept) _numbers.removeRange(0, _numbers.length - kept);
   }
 
@@ -47,7 +50,7 @@ class DamageNumbers {
 
   /// The numbers shown, oldest first.
   List<DamageNumber> get shown => [
-    for (final n in _numbers) (id: n.id, at: n.at, amount: n.amount, age: n.age, crit: n.crit),
+    for (final n in _numbers) (id: n.id, at: n.at, amount: n.amount, age: n.age, crit: n.crit, color: n.color),
   ];
 
   /// How far a number [age] seconds old has risen, metres: fast, then easing.
@@ -70,11 +73,12 @@ class DamageNumbers {
 }
 
 class _Number {
-  _Number(this.id, this.at, this.amount, this.crit);
+  _Number(this.id, this.at, this.amount, this.crit, this.color);
 
   final int id;
   final Vector3 at;
   final double amount;
   final bool crit;
+  final int? color;
   double age = 0.0;
 }

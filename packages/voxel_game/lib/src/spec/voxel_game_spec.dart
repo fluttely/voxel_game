@@ -72,6 +72,7 @@ class VoxelGameSpec {
     this.blockUses = const {},
     this.mobUses = const {},
     this.itemUses = const {},
+    this.hitColors = const {},
     this.structureLoot = const {},
     this.messages = const {},
     this.playerFor,
@@ -226,6 +227,19 @@ class VoxelGameSpec {
   /// ```
   final Map<String, ItemUse> itemUses;
 
+  /// The colour of a hit's number over a creature, `0xRRGGBB` by
+  /// `Damage.source` (`'melee'`, a shot's kind, `'explosion'`, `'burning'`,
+  /// a game's own): one table, not a colour chosen at every blow. A source
+  /// not here is the HUD's white, and a critical blow's number stays yellow
+  /// whatever its colour. A client's numbers take the host's hit's colour.
+  /// A colour outside `0..0xFFFFFF` throws when the game is made
+  /// ([checkHitColors]).
+  ///
+  /// ```dart
+  /// hitColors: {'melee': 0xFFF299, 'arrow': 0xFFE680, 'fire_nova': 0xFF661A},
+  /// ```
+  final Map<String, int> hitColors;
+
   /// The game's own messages in a networked game, by type: what each does
   /// where it arrives. A side sends one through its `GameSession`
   /// (`sendToHost`, `broadcast`, `sendTo`), which throws for a type not
@@ -309,6 +323,7 @@ class VoxelGameSpec {
     Map<String, BlockUse>? blockUses,
     Map<String, MobUse>? mobUses,
     Map<String, ItemUse>? itemUses,
+    Map<String, int>? hitColors,
     Map<String, StructureLoot>? structureLoot,
     Map<String, MessageHandler>? messages,
     ValueGetter<PlayerSpec Function(PlayerSpec player, Map<String, String> options)?>? playerFor,
@@ -343,6 +358,7 @@ class VoxelGameSpec {
     blockUses: blockUses ?? this.blockUses,
     mobUses: mobUses ?? this.mobUses,
     itemUses: itemUses ?? this.itemUses,
+    hitColors: hitColors ?? this.hitColors,
     structureLoot: structureLoot ?? this.structureLoot,
     messages: messages ?? this.messages,
     playerFor: playerFor == null ? this.playerFor : playerFor(),
@@ -647,6 +663,14 @@ class VoxelGameSpec {
   void checkItemUses(ItemRegistry<ItemType> items) {
     for (final id in itemUses.keys) {
       if (!items.has(id)) throw ArgumentError.value(id, 'itemUses', 'no such item');
+    }
+  }
+
+  /// Throws [ArgumentError] for a colour of [hitColors] outside
+  /// `0..0xFFFFFF`.
+  void checkHitColors() {
+    for (final MapEntry(key: source, value: color) in hitColors.entries) {
+      if (color < 0 || color > 0xFFFFFF) throw ArgumentError.value(color, 'hitColors', '$source: not 0xRRGGBB');
     }
   }
 

@@ -84,6 +84,19 @@ class DefaultHud extends StatelessWidget {
   /// Metres within which another player's name shows over it.
   static const double nameRange = 32.0;
 
+  /// A critical blow's number: yellow over any hit's colour, and a quarter
+  /// bigger.
+  static const Color critColor = Color(0xFFFFE633);
+
+  /// The colour [number] is painted in: [critColor] for a critical blow's,
+  /// else its hit's (`VoxelGameSpec.hitColors`), else white.
+  static Color numberColor(DamageNumber number) => number.crit
+      ? critColor
+      : switch (number.color) {
+          final c? => Color(0xFF000000 | c),
+          null => Colors.white,
+        };
+
   static const _shadow = [Shadow(offset: Offset(1, 1), blurRadius: 2)];
 
   static Color _color(double r, double g, double b) =>
@@ -628,9 +641,6 @@ class _WorldMarks extends CustomPainter {
 
   final VoxelGame game;
 
-  /// A critical blow's number: yellow, and a quarter bigger.
-  static const _critColor = Color(0xFFFFE633);
-
   /// Whether [mob] shows its bar: alive, in [DefaultHud.barRange], and hurt
   /// in the last [DefaultHud.barSeconds] or under the crosshair.
   static bool barred(VoxelGame game, Mob mob) =>
@@ -677,7 +687,7 @@ class _WorldMarks extends CustomPainter {
           style: TextStyle(
             fontSize: n.crit ? fontSize * 1.25 : fontSize,
             fontWeight: FontWeight.bold,
-            color: (n.crit ? _critColor : Colors.white).withValues(alpha: a),
+            color: DefaultHud.numberColor(n).withValues(alpha: a),
             shadows: [
               Shadow(
                 color: Colors.black.withValues(alpha: a),

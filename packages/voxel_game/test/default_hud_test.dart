@@ -403,4 +403,14 @@ void main() {
     expect(find.textContaining('FPS'), findsOneWidget);
     game.dispose();
   });
+
+  test("a number is painted in its hit's colour, white without one, and a crit's yellow over any", () {
+    DamageNumber n({int? color, bool crit = false}) =>
+        (id: 0, at: Vector3.zero(), amount: 1.0, age: 0.0, crit: crit, color: color);
+    expect(DefaultHud.numberColor(n()), Colors.white);
+    expect(DefaultHud.numberColor(n(color: 0xFF8033)), const Color(0xFFFF8033));
+    expect(DefaultHud.numberColor(n(color: 0x000000)), const Color(0xFF000000), reason: 'black is a colour, not none');
+    expect(DefaultHud.numberColor(n(crit: true)), DefaultHud.critColor);
+    expect(DefaultHud.numberColor(n(color: 0xFF8033, crit: true)), DefaultHud.critColor);
+  });
 }

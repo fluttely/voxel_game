@@ -1015,9 +1015,13 @@ class HostSession extends GameSession {
             if (m.boss) 'b': true,
             if (m.owner case final o?) 'o': _peerOf(o),
             if (m.rider case final r?) 'r': _peerOf(r),
+            'hs': ?m.lastHitSource,
           },
       ],
     });
+    for (final m in game.mobs) {
+      m.lastHitSource = null;
+    }
   }
 
   /// The vehicles put down since the last time and those that moved more
@@ -1661,6 +1665,7 @@ class ClientSession extends GameSession {
         shorn: r['sh'] == true,
         boss: r['b'] == true,
         dead: r['dead'] == true,
+        hitSource: r['hs'] as String?,
       );
     }
     for (final n in _mobs.keys.where((k) => !seen.contains(k)).toList()) {

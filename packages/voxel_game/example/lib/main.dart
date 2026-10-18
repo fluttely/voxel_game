@@ -896,6 +896,8 @@ const game = VoxelGameSpec(
   blockUses: {'glowstone': _pray},
   // A use with a compass in hand is the game's own too: it reads the player's place, where nothing aimed is used.
   itemUses: {'compass': _bearing},
+  // A blow's number over a creature is coloured by what dealt it: a swing pale yellow, an arrow gold; the rest white.
+  hitColors: {'melee': 0xFFF299, 'arrow': 0xFFE680},
   // 7. Screens of the game's own: this one is a button in the game menu (Esc, or ⏸ on a phone), and F1.
   screens: {'controls': ScreenSpec(_controls, menu: 'Controls', action: 'controls')},
   // 8. Messages of the game's own, in a hosted world: a wave goes to the host, which passes it on.

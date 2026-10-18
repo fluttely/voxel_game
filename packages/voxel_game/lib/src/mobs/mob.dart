@@ -99,6 +99,10 @@ class Mob extends GameEntity implements Target, Rideable {
   /// Who hurt it last, or null.
   Target? lastHurtBy;
 
+  /// The source of the last hit on the authority (`Damage.source`), until a
+  /// host's row carries it to its clients and clears it; null since.
+  String? lastHitSource;
+
   /// Where the last hurt came from, or null.
   Vector3? lastHurtFrom;
 
@@ -433,7 +437,9 @@ class Mob extends GameEntity implements Target, Rideable {
   /// who tamed it ([owner], null for a wild one), whether it is [shorn],
   /// whether a [boss], and whether it died. Health
   /// lost since the last state is a hit, here as on the host: its number
-  /// shows over it, and [sinceHurt] starts again. While the local player
+  /// shows over it, in the colour of [hitSource] (the host's last hit since
+  /// its last state, `VoxelGameSpec.hitColors`), and [sinceHurt] starts
+  /// again. While the local player
   /// rides it, where it is and where it faces are this side's.
   void applyNetState(
     Vector3 at,
@@ -443,11 +449,12 @@ class Mob extends GameEntity implements Target, Rideable {
     bool shorn = false,
     bool boss = false,
     bool dead = false,
+    String? hitSource,
   }) {
     if (!replica) throw StateError('${spec.id} $netId is the host\'s own, not a replica');
     // The first state is where the replica starts, not a hit.
     if (_netTo != null && health < hp) {
-      _game.damageNumbers.add(_numberAt(), hp - health);
+      _game.damageNumbers.add(_numberAt(), hp - health, color: _game.spec.hitColors[hitSource]);
       sinceHurt = 0.0;
       _feel();
     }
@@ -772,7 +779,10 @@ class Mob extends GameEntity implements Target, Rideable {
     final amount = spec.invulnerable ? 0.0 : damage.amount;
     final taken = math.min(hp, amount);
     hp -= amount;
-    if (taken > 0.0) _game.damageNumbers.add(_numberAt(), taken, crit: damage.crit);
+    if (taken > 0.0) {
+      _game.damageNumbers.add(_numberAt(), taken, crit: damage.crit, color: _game.spec.hitColors[damage.source]);
+    }
+    lastHitSource = damage.source;
     sinceHurt = 0.0;
     if (damage.internal) {
       _hurtFlash = 0.25;

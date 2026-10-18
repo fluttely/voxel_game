@@ -50,4 +50,13 @@ void main() {
     expect(DamageNumbers.label(3, crit: true), '3!');
     expect(DamageNumbers.label(2.5, crit: true), '2.5!');
   });
+
+  test('a number keeps the colour it was given, and has none unless given one', () {
+    final n = DamageNumbers()
+      ..add(Vector3.zero(), 2)
+      ..add(Vector3.zero(), 3, color: 0xFF8033);
+    expect([for (final d in n.shown) d.color], [null, 0xFF8033]);
+    expect(() => n.add(Vector3.zero(), 1, color: 0x1000000), throwsArgumentError);
+    expect(() => n.add(Vector3.zero(), 1, color: -1), throwsArgumentError);
+  });
 }

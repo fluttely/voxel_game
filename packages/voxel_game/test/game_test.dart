@@ -878,6 +878,23 @@ void main() {
     game.dispose();
   });
 
+  test("a hit's number takes its source's colour from hitColors, and a source not in it none", () async {
+    const cow = MobSpec('cow', hp: 50, brain: []);
+    final game = await _start(_flat(mobs: const [cow]).copyWith(hitColors: const {'arrow': 0xFFE680}));
+    final m = game.spawnMob('cow', game.player.position + Vector3(0, 0, -3));
+    expect(m.lastHitSource, isNull);
+    m.takeDamage(const Damage(1, source: 'arrow'));
+    m.takeDamage(const Damage(1));
+    m.takeDamage(const Damage(1, source: 'arrow', crit: true));
+    expect([for (final n in game.damageNumbers.shown) n.color], [0xFFE680, null, 0xFFE680]);
+    expect(m.lastHitSource, 'arrow', reason: 'the host sends it with the creature\'s next row');
+    game.dispose();
+  });
+
+  test('a hit colour outside 0xRRGGBB throws when the game is made', () async {
+    await expectLater(_start(_flat().copyWith(hitColors: const {'arrow': 0x1000000})), throwsArgumentError);
+  });
+
   test('a pulse is raised where it is asked for, and the frames fade it away', () async {
     final game = await _start(_flat());
     final at = game.player.position + Vector3(0, 1, 0);

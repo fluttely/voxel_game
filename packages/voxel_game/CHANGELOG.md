@@ -50,6 +50,16 @@
   it keeps its state and draws nothing. `PulseEffects` is exported. The example's compass
   flashes ahead of the player.
 
+- **A hit's number takes its source's colour, on a client too (AL3).**
+  `VoxelGameSpec.hitColors` (new), `Damage.source` → `0xRRGGBB`: a source not in it is
+  white, and a critical blow's number stays yellow; a colour outside `0..0xFFFFFF` throws
+  when the game is made (`VoxelGameSpec.checkHitColors`, new). `DamageNumbers.add` takes
+  `color:` and a `DamageNumber` carries it (`int?`, new field of the record).
+  `Mob.lastHitSource` (new) keeps the authority's last hit's source until the host's next
+  `mobs` row carries it as `hs`; `Mob.applyNetState` takes `hitSource:`, so a client's
+  number is the host's colour. `DefaultHud.numberColor` and `DefaultHud.critColor` (new)
+  are the HUD's choice, for a game's own HUD. The example colours its swings and arrows.
+
 ## 0.4.0-dev
 
 **Breaking**

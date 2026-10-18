@@ -466,6 +466,23 @@ void main() {
     await _close(session, [a, b]);
   });
 
+  test("a client's number over a creature takes the colour of the host's hit, and only that hit's", () async {
+    final (host, session, [a]) = await _session(1, spec: _spec.copyWith(hitColors: const {'arrow': 0xFFE680}));
+    final dummy = host.spawnMob('dummy', host.player.position + Vector3(0, 0, -6));
+    await _run([host, a], 0.5);
+    dummy.takeDamage(const Damage(2, source: 'arrow'));
+    await _run([host, a], 0.3);
+    expect([for (final n in a.damageNumbers.shown) n.color], [0xFFE680]);
+    expect(dummy.lastHitSource, isNull, reason: 'the row that carried it let it go');
+    dummy.hp -= 1; // health lost with no hit: the next row carries no source
+    await _run([host, a], 0.3);
+    dummy.takeDamage(const Damage(1)); // a melee blow, not in the table
+    await _run([host, a], 0.3);
+    expect([for (final n in a.damageNumbers.shown) n.color], [0xFFE680, null, null]);
+    expect([for (final n in a.damageNumbers.shown) n.amount], [2, 1, 1]);
+    await _close(session, [a]);
+  });
+
   test("the host's echo of a cell waits while a prediction owns it", () async {
     final (host, session, [a]) = await _session(1);
     final cell = IVec3.floor(a.player.position) + const IVec3(2, 1, 2);
