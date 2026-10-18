@@ -11,7 +11,7 @@ range such as `^0.2.0-dev` stops before `0.3.0`, so nobody on it is upgraded int
 `0.4.0-dev` went out on 2026-10-05, the four together once more: the Minecraft clone's
 mechanics taken into the kit (`docs/VOXEL_ABSORB_PLAN_2026-09-30.md`) and the ledger's
 debts paid (`docs/VOXEL_LEDGER_PLAN_2026-10-04.md`), the first release tagged.
-`0.5.0-dev` is the next release, the four together again
+`0.5.0-dev` went out on 2026-10-18, the four together again
 (`docs/VOXEL_DEPS_PLAN_2026-10-06.md`): `flutter_scene` 0.24.3, `flutter_soloud` 5,
 `flutter3d_pointer_lock` 0.5 (pub.dev lists the kit on five platforms), one owner of the
 audio device, the terrain culled underground and settled into larger regions, and the
